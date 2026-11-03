@@ -113,6 +113,16 @@ export function sanitizeSqlStatement(statement: string): string {
         s = s.replace(/(["'`]?)updatedAt\1/gi, '"updated_at"');
     }
 
+    // 6b. Explicit column remapping for branches:
+    if (/\bbranches\b/i.test(s)) {
+        s = s.replace(/([\"'`]?)institutionId\1/gi, '"institution_id"');
+        s = s.replace(/([\"'`]?)createdAt\1/gi, '"created_at"');
+        s = s.replace(/([\"'`]?)updatedAt\1/gi, '"updated_at"');
+        s = s.replace(/([\"'`]?)isActive\1/gi, '"is_active"');
+        s = s.replace(/([\"'`]?)managerUserId\1/gi, '"manager_user_id"');
+        s = s.replace(/([\"'`]?)linkedInstitutionId\1/gi, '"linked_institution_id"');
+    }
+
     // 7. Universal normalization of INSERT headers:
     // If an INSERT statement has camelCase quoted column names (e.g. "institutionId", "userId"),
     // remap them to snake_case if the snake_case identifier is not already present in the header.
@@ -162,6 +172,12 @@ export function sanitizeSqlStatement(statement: string): string {
                 .toLowerCase();
             return `"${snake}" = EXCLUDED."${snake}"`;
         });
+    }
+
+    // 10. Auto-normalize whole-number decimal strings in his_pharmacy_sale_items (e.g. '1.00' -> '1')
+    // to prevent PostgreSQL "invalid input syntax for type integer: '1.00'" on legacy schemas
+    if (/his_pharmacy_sale_items/i.test(s) && /INSERT\s+INTO/i.test(s)) {
+        s = s.replace(/'(\d+)\.00'/g, "'$1'");
     }
 
     return s;

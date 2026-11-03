@@ -17,16 +17,32 @@ export class NcbaOpenBankingService {
         const storedConfig = this.getStoredConfig();
         const mergedConfig = { ...storedConfig, ...(config || {}) };
 
-        const res = await fetch(`${this.baseUrl}?action=${encodeURIComponent(action)}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                ...payload,
-                config: mergedConfig
-            })
-        });
+        // 55s client-side timeout — just under the 60s Vercel function limit
+        const abort = new AbortController();
+        const timer = setTimeout(() => abort.abort(), 55000);
+
+        let res: Response;
+        try {
+            res = await fetch(`${this.baseUrl}?action=${encodeURIComponent(action)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    ...payload,
+                    config: mergedConfig
+                }),
+                signal: abort.signal
+            });
+        } catch (fetchErr: any) {
+            clearTimeout(timer);
+            if (fetchErr.name === 'AbortError') {
+                throw new Error(`[ncba] Payment request timed out (${action}). The NCBA API did not respond within 55s.`);
+            }
+            throw fetchErr;
+        } finally {
+            clearTimeout(timer);
+        }
 
         const data = await res.json();
         if (!res.ok && !data.succeeded && !data.success) {

@@ -553,6 +553,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // Pre-import schema resilience for critical tables (library_settings, ds_settings, etc.)
                 // Ensures all compatibility columns and column-sync triggers are installed before batch execution.
                 const touchesSettings = statementsToRun.some((st: string) => /library_settings|ds_settings/i.test(st));
+                const touchesBranches = statementsToRun.some((st: string) => /\bbranches\b/i.test(st));
                 if (touchesSettings) {
                     try {
                         const initClient = await pool.connect();
@@ -658,6 +659,118 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
 
+                // Pre-import resilience for branches: ensure snake_case columns exist
+                if (touchesBranches) {
+                    try {
+                        const branchClient = await pool.connect();
+                        await branchClient.query(`
+                            ALTER TABLE IF EXISTS public.branches ADD COLUMN IF NOT EXISTS "institution_id" TEXT;
+                            ALTER TABLE IF EXISTS public.branches ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
+                            ALTER TABLE IF EXISTS public.branches ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ;
+                            ALTER TABLE IF EXISTS public.branches ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN DEFAULT TRUE;
+                            ALTER TABLE IF EXISTS public.branches ADD COLUMN IF NOT EXISTS "manager_user_id" TEXT;
+                            ALTER TABLE IF EXISTS public.branches ADD COLUMN IF NOT EXISTS "linked_institution_id" TEXT;
+                        `).catch((err) => {
+                            console.warn("[SQL Engine Pre-Import Resilience] branches column setup warning:", err);
+                        });
+                        branchClient.release();
+                    } catch (e) {
+                        console.warn("[SQL Engine Pre-Import Resilience] branches pre-import non-fatal error:", e);
+                    }
+                }
+
+                // Pre-import resilience for his_pharmacy_sale_items: ensure quantity is NUMERIC and camelCase columns exist
+                const touchesPharmacySaleItems = statementsToRun.some((st: string) => /his_pharmacy_sale_items/i.test(st));
+                if (touchesPharmacySaleItems) {
+                    try {
+                        const pharmClient = await pool.connect();
+                        await pharmClient.query(`
+                            DO $$ BEGIN
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'his_pharmacy_sale_items') THEN
+                                    BEGIN
+                                        ALTER TABLE public.his_pharmacy_sale_items ALTER COLUMN quantity DROP DEFAULT;
+                                        ALTER TABLE public.his_pharmacy_sale_items ALTER COLUMN quantity TYPE NUMERIC(12,2) USING quantity::numeric;
+                                        ALTER TABLE public.his_pharmacy_sale_items ALTER COLUMN quantity SET DEFAULT 1;
+                                    EXCEPTION WHEN OTHERS THEN NULL;
+                                    END;
+                                    ALTER TABLE public.his_pharmacy_sale_items ADD COLUMN IF NOT EXISTS "saleId" TEXT;
+                                    ALTER TABLE public.his_pharmacy_sale_items ADD COLUMN IF NOT EXISTS "medicationId" TEXT;
+                                    ALTER TABLE public.his_pharmacy_sale_items ADD COLUMN IF NOT EXISTS "batchId" TEXT;
+                                    ALTER TABLE public.his_pharmacy_sale_items ADD COLUMN IF NOT EXISTS "unitPrice" NUMERIC(10,2);
+                                    ALTER TABLE public.his_pharmacy_sale_items ADD COLUMN IF NOT EXISTS "totalPrice" NUMERIC(10,2);
+                                    ALTER TABLE public.his_pharmacy_sale_items ADD COLUMN IF NOT EXISTS "recordedBy" TEXT;
+                                    ALTER TABLE public.his_pharmacy_sale_items ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ DEFAULT NOW();
+                                    ALTER TABLE public.his_pharmacy_sale_items ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                END IF;
+                            END $$;
+                        `).catch((err) => {
+                            console.warn("[SQL Engine Pre-Import Resilience] his_pharmacy_sale_items setup warning:", err);
+                        });
+                        pharmClient.release();
+                    } catch (e) {
+                        console.warn("[SQL Engine Pre-Import Resilience] his_pharmacy_sale_items pre-import non-fatal error:", e);
+                    }
+                }
+
+                // Pre-import resilience for his_lab_requests: ensure results is TEXT (not JSONB) so free-text reports don't crash PostgreSQL
+                const touchesLabRequests = statementsToRun.some((st: string) => /his_lab_requests/i.test(st));
+                if (touchesLabRequests) {
+                    try {
+                        const labClient = await pool.connect();
+                        await labClient.query(`
+                            DO $$ BEGIN
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'his_lab_requests') THEN
+                                    BEGIN
+                                        ALTER TABLE public.his_lab_requests ALTER COLUMN results DROP DEFAULT;
+                                        ALTER TABLE public.his_lab_requests ALTER COLUMN results TYPE TEXT USING results::text;
+                                    EXCEPTION WHEN OTHERS THEN NULL;
+                                    END;
+                                    ALTER TABLE public.his_lab_requests ADD COLUMN IF NOT EXISTS "results" TEXT;
+                                    ALTER TABLE public.his_lab_requests ADD COLUMN IF NOT EXISTS "patientId" TEXT;
+                                    ALTER TABLE public.his_lab_requests ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                    ALTER TABLE public.his_lab_requests ADD COLUMN IF NOT EXISTS "requestedBy" TEXT;
+                                    ALTER TABLE public.his_lab_requests ADD COLUMN IF NOT EXISTS "testType" TEXT;
+                                    ALTER TABLE public.his_lab_requests ADD COLUMN IF NOT EXISTS "clinicalNotes" TEXT;
+                                    ALTER TABLE public.his_lab_requests ADD COLUMN IF NOT EXISTS "technicianId" TEXT;
+                                    ALTER TABLE public.his_lab_requests ADD COLUMN IF NOT EXISTS "recordedAt" TIMESTAMPTZ DEFAULT NOW();
+                                    ALTER TABLE public.his_lab_requests ADD COLUMN IF NOT EXISTS "completedAt" TIMESTAMPTZ;
+                                END IF;
+                            END $$;
+                        `).catch((err) => {
+                            console.warn("[SQL Engine Pre-Import Resilience] his_lab_requests setup warning:", err);
+                        });
+                        labClient.release();
+                    } catch (e) {
+                        console.warn("[SQL Engine Pre-Import Resilience] his_lab_requests pre-import non-fatal error:", e);
+                    }
+                }
+
+                // Pre-import resilience for system_settings: ensure id is TEXT (not INTEGER) so alphanumeric keys like 'ping' don't crash
+                const touchesSystemSettings = statementsToRun.some((st: string) => /system_settings/i.test(st));
+                if (touchesSystemSettings) {
+                    try {
+                        const sysClient = await pool.connect();
+                        await sysClient.query(`
+                            DO $$ BEGIN
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'system_settings') THEN
+                                    BEGIN
+                                        ALTER TABLE public.system_settings ALTER COLUMN id DROP DEFAULT;
+                                        ALTER TABLE public.system_settings ALTER COLUMN id TYPE TEXT USING id::text;
+                                    EXCEPTION WHEN OTHERS THEN NULL;
+                                    END;
+                                    ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS "status" TEXT;
+                                    ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS "ts" BIGINT;
+                                END IF;
+                            END $$;
+                        `).catch((err) => {
+                            console.warn("[SQL Engine Pre-Import Resilience] system_settings setup warning:", err);
+                        });
+                        sysClient.release();
+                    } catch (e) {
+                        console.warn("[SQL Engine Pre-Import Resilience] system_settings pre-import non-fatal error:", e);
+                    }
+                }
+
                 const sanitizeSqlStatement = (statement: string): string => {
                     if (!statement || typeof statement !== 'string') return statement;
                     let s = statement;
@@ -693,6 +806,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         s = s.replace(/(["'`]?)cancellationPolicy\1/g, '"cancellation_policy"');
                         s = s.replace(/(["'`]?)createdAt\1/g, '"created_at"');
                         s = s.replace(/(["'`]?)updatedAt\1/g, '"updated_at"');
+                    }
+
+                    // Explicit column remapping for branches:
+                    if (/\bbranches\b/i.test(s)) {
+                        s = s.replace(/([\"'`]?)institutionId\1/g, '"institution_id"');
+                        s = s.replace(/([\"'`]?)createdAt\1/g, '"created_at"');
+                        s = s.replace(/([\"'`]?)updatedAt\1/g, '"updated_at"');
+                        s = s.replace(/([\"'`]?)isActive\1/g, '"is_active"');
+                        s = s.replace(/([\"'`]?)managerUserId\1/g, '"manager_user_id"');
+                        s = s.replace(/([\"'`]?)linkedInstitutionId\1/g, '"linked_institution_id"');
                     }
 
                     // Universal normalization of INSERT headers:
@@ -741,6 +864,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 .toLowerCase();
                             return `"${snake}" = EXCLUDED."${snake}"`;
                         });
+                    }
+
+                    // Auto-normalize whole-number decimal strings in his_pharmacy_sale_items (e.g. '1.00' -> '1')
+                    // to prevent PostgreSQL "invalid input syntax for type integer: '1.00'" on legacy schemas
+                    if (/his_pharmacy_sale_items/i.test(s) && /INSERT\s+INTO/i.test(s)) {
+                        s = s.replace(/'(\d+)\.00'/g, "'$1'");
                     }
 
                     return s;

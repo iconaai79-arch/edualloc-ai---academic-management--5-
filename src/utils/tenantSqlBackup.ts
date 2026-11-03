@@ -92,6 +92,15 @@ export function escapeSqlLiteral(val: any, colName?: string): string {
     if (typeof val === 'number') {
         return isNaN(val) ? 'NULL' : String(val);
     }
+    // Auto-normalize numeric strings for quantity / amount columns to prevent integer syntax errors (e.g. "1.00" -> 1)
+    if (lowerCol === 'quantity' || lowerCol === 'quantity_sold' || lowerCol === 'unit_quantity' || lowerCol === 'dose' || lowerCol === 'dosage') {
+        if (typeof val === 'string' && /^-?\d+(\.\d+)?$/.test(val.trim())) {
+            const num = Number(val);
+            if (!isNaN(num)) {
+                return Number.isInteger(num) ? String(num) : String(val.trim());
+            }
+        }
+    }
     if (lowerCol === 'roles') {
         if (val === null || val === undefined) return "'[]'::jsonb";
         if (Array.isArray(val)) {
@@ -268,6 +277,29 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         });
     }
 
+    // 4b. Sanitize branches: normalize all camelCase keys to snake_case
+    // The live DB uses snake_case columns (institution_id, created_at, etc.)
+    // but Branch JS objects often carry camelCase keys (institutionId, createdAt, etc.)
+    if (tableName === 'branches') {
+        rows = rows.map(r => {
+            if (!r || typeof r !== 'object') return r;
+            return {
+                id: r.id,
+                institution_id: r.institution_id || r.institutionId || null,
+                name: r.name,
+                location: r.location || null,
+                code: r.code || null,
+                phone: r.phone || null,
+                email: r.email || null,
+                manager_user_id: r.manager_user_id || r.managerUserId || null,
+                is_active: r.is_active ?? r.isActive ?? true,
+                linked_institution_id: r.linked_institution_id || r.linkedInstitutionId || null,
+                created_at: r.created_at || r.createdAt || new Date().toISOString(),
+                updated_at: r.updated_at || r.updatedAt || new Date().toISOString(),
+            };
+        });
+    }
+
     // 4. Guarantee that any row with an 'id' column has a non-null id (skip settings tables where id is not primary)
     const isSettingsTable = tableName === 'library_settings' || tableName === 'ds_settings';
     rows = rows.map((r, idx) => {
@@ -403,6 +435,14 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
     } else if (tableName === 'leave_out_requests') {
         lines.push(`DO $$ BEGIN ALTER TABLE public."leave_out_requests" ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
         lines.push(`DO $$ BEGIN ALTER TABLE public."leave_out_requests" DROP CONSTRAINT IF EXISTS leave_out_requests_institution_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+    } else if (tableName === 'his_pharmacy_sale_items') {
+        lines.push(`DO $$ BEGIN ALTER TABLE public."his_pharmacy_sale_items" ALTER COLUMN quantity DROP DEFAULT; ALTER TABLE public."his_pharmacy_sale_items" ALTER COLUMN quantity TYPE NUMERIC(12,2) USING quantity::numeric; ALTER TABLE public."his_pharmacy_sale_items" ALTER COLUMN quantity SET DEFAULT 1; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+    } else if (tableName === 'his_lab_requests') {
+        lines.push(`DO $$ BEGIN ALTER TABLE public."his_lab_requests" ALTER COLUMN results DROP DEFAULT; ALTER TABLE public."his_lab_requests" ALTER COLUMN results TYPE TEXT USING results::text; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+    } else if (tableName === 'system_settings') {
+        lines.push(`DO $$ BEGIN ALTER TABLE public."system_settings" ALTER COLUMN id DROP DEFAULT; ALTER TABLE public."system_settings" ALTER COLUMN id TYPE TEXT USING id::text; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+        lines.push(`ALTER TABLE public."system_settings" ADD COLUMN IF NOT EXISTS "status" TEXT;`);
+        lines.push(`ALTER TABLE public."system_settings" ADD COLUMN IF NOT EXISTS "ts" BIGINT;`);
     }
     lines.push('');
 
@@ -1583,6 +1623,21 @@ export const FULL_PLATFORM_SQL_TABLES: string[] = [
     'hr_allowance_categories',
     'hr_deduction_categories',
     'teacher_checkins',
+
+    // 34. Synergy, Community, Learning & Operations Extensions
+    'synergy_posts',
+    'synergy_comments',
+    'synergy_messages',
+    'assignments',
+    'assignment_extension_requests',
+    'submissions',
+    'enrollment_requests',
+    'ta_assignments',
+    'internships',
+    'stock_transactions',
+    'appointments',
+    'car_test_drive_bookings',
+    'heritage_galleries',
 ];
 
 
@@ -1641,9 +1696,11 @@ export async function collectAndDownloadFullSqlBackup(options?: {
                 let rows: any[] = [];
                 try {
                     if (typeof apiService?.fetchModuleRecords === 'function') {
-                        rows = await apiService.fetchModuleRecords(tableName, undefined, undefined, {
-                            limit: 100000,
-                            bypassCache: true
+                        rows = await apiService.fetchModuleRecords(tableName, 'ALL', undefined, {
+                            limit: 500000,
+                            bypassCache: true,
+                            forceRefresh: true,
+                            isBackup: true
                         }).catch(() => []);
                     }
                 } catch (e) {
@@ -1846,6 +1903,12 @@ export async function collectAndDownloadFullSqlBackup(options?: {
         `-- DYNAMICALLY CONVERT INTEGER QUANTITY COLUMNS TO NUMERIC(12,2) FOR DECIMAL RESILIENCE`,
         `DO $$ BEGIN ALTER TABLE public.his_pharmacy_sale_items ALTER COLUMN quantity DROP DEFAULT; ALTER TABLE public.his_pharmacy_sale_items ALTER COLUMN quantity TYPE NUMERIC(12,2) USING quantity::numeric; ALTER TABLE public.his_pharmacy_sale_items ALTER COLUMN quantity SET DEFAULT 1; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
         `DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND data_type IN ('integer', 'smallint') AND column_name IN ('quantity', 'quantity_sold', 'unit_quantity', 'dose', 'dosage')) LOOP BEGIN EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I DROP DEFAULT', r.table_name, r.column_name); EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I TYPE NUMERIC(12,2) USING %I::numeric', r.table_name, r.column_name, r.column_name); EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I SET DEFAULT 1', r.table_name, r.column_name); EXCEPTION WHEN OTHERS THEN NULL; END; END LOOP; END $$;`,
+        `-- DYNAMICALLY CONVERT HIS_LAB_REQUESTS RESULTS FROM JSON/JSONB TO TEXT FOR FREE-TEXT LAB REPORT RESILIENCE`,
+        `DO $$ BEGIN ALTER TABLE public.his_lab_requests ALTER COLUMN results DROP DEFAULT; ALTER TABLE public.his_lab_requests ALTER COLUMN results TYPE TEXT USING results::text; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `-- DYNAMICALLY CONVERT SYSTEM_SETTINGS ID TO TEXT TO SUPPORT ALPHANUMERIC KEYS (E.G. 'ping')`,
+        `DO $$ BEGIN ALTER TABLE public.system_settings ALTER COLUMN id DROP DEFAULT; ALTER TABLE public.system_settings ALTER COLUMN id TYPE TEXT USING id::text; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS "status" TEXT;`,
+        `ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS "ts" BIGINT;`,
         ``,
         `-- FIX FOREIGN KEY CONSTRAINTS FOR RESTORE`,
         `ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_reseller_id_fkey CASCADE;`,

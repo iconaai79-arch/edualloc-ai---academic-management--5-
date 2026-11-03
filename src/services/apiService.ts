@@ -1653,6 +1653,7 @@ export const apiService = {
             offset?: number;
             bypassCache?: boolean;
             forceRefresh?: boolean;
+            isBackup?: boolean;
         }
     ): Promise<T[]> {
         const cacheKey = `${module}:${institutionId || 'all'}:${countyId || 'none'}:${JSON.stringify(options || {})}`;
@@ -2601,6 +2602,7 @@ export const apiService = {
                 if (options?.order) url.searchParams.append('order', options.order);
                 if (options?.limit) url.searchParams.append('limit', options.limit.toString());
                 if (options?.offset) url.searchParams.append('offset', options.offset.toString());
+                if (options?.isBackup) url.searchParams.append('isBackup', 'true');
                 if (options?.filter) {
                     Object.entries(options.filter).forEach(([k, v]) => {
                         const dbKey = k.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
@@ -2608,7 +2610,7 @@ export const apiService = {
                     });
                 }
 
-                const fetchTimeoutMs = (module === 'activity_log' || module === 'app_notifications') ? 8000 : (module === 'institutions' ? 30000 : 15000);
+                const fetchTimeoutMs = options?.isBackup ? 60000 : ((module === 'activity_log' || module === 'app_notifications') ? 8000 : (module === 'institutions' ? 30000 : 15000));
                 const doFetch = (tkn: string) => {
                     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
                     const timeoutId = controller ? setTimeout(() => controller.abort(), fetchTimeoutMs) : null;
@@ -2619,7 +2621,8 @@ export const apiService = {
                             'Content-Type': 'application/json',
                             ...(_activeUrl ? { 'x-supabase-url': _activeUrl } : {}),
                             ...(_activeKey ? { 'x-supabase-key': _activeKey } : {}),
-                            ...(effectiveInstId && effectiveInstId !== 'ALL' ? { 'x-institution-id': effectiveInstId } : {})
+                            ...(effectiveInstId && effectiveInstId !== 'ALL' ? { 'x-institution-id': effectiveInstId } : {}),
+                            ...(options?.isBackup ? { 'x-backup-mode': 'true' } : {})
                         }
                     }).finally(() => {
                         if (timeoutId) clearTimeout(timeoutId);

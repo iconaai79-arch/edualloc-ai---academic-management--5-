@@ -271,8 +271,10 @@ CREATE TABLE IF NOT EXISTS public.branches (
 );
 
 CREATE TABLE IF NOT EXISTS system_settings (
-    id INTEGER PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     data JSONB DEFAULT '{}'::jsonb NOT NULL,
+    status TEXT,
+    ts BIGINT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

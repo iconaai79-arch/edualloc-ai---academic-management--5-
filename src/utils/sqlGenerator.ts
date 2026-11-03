@@ -268,7 +268,7 @@ CREATE TABLE IF NOT EXISTS public.branches (
 );
 
 CREATE TABLE IF NOT EXISTS system_settings (
-    id INTEGER PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     data JSONB DEFAULT '{}'::jsonb NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -2798,7 +2798,7 @@ CREATE TABLE IF NOT EXISTS his_lab_requests (
     priority TEXT DEFAULT 'Routine',
     sample_type TEXT,
     status TEXT DEFAULT 'Requested',
-    results JSONB,
+    results TEXT,
     technician_id TEXT REFERENCES users(id) ON DELETE SET NULL,
     notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

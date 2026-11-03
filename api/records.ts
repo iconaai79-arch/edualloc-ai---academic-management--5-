@@ -848,7 +848,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!moduleName) return res.status(400).json({ success: false, error: 'Module required' });
 
     // Fast health / telemetry ping handler: avoids running a heavy 5-second DB query when just testing edge connectivity
-    if (moduleName === 'system_settings' || moduleName === 'ping' || moduleName === 'health') {
+    if (moduleName === 'ping' || moduleName === 'health') {
         return res.status(200).json([{ id: 'ping', status: 'optimal', ts: Date.now() }]);
     }
 
@@ -1446,8 +1446,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return applyModuleOrdering(q);
             };
             
-            const isUnscopedMultiTenantQuery = shouldSkipTenancy && !effectiveTenantInstId;
-            let finalLimit = limit ? parseInt(getStrParam(limit)) : (
+            const isBackupMode = req.query.isBackup === 'true' || req.headers['x-backup-mode'] === 'true';
+            const isUnscopedMultiTenantQuery = shouldSkipTenancy && !effectiveTenantInstId && !isBackupMode;
+            let finalLimit = isBackupMode ? (limit ? parseInt(getStrParam(limit)) : 500000) : (limit ? parseInt(getStrParam(limit)) : (
                 ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'school_remedial_rate_settings', 'school_remedial_subjects', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster', 'remedial_rate_settings', 'remedial_subjects'].includes(moduleName)
                     ? (isUnscopedMultiTenantQuery ? 5000 : 100000)
                     : (['visitors', 'security_alerts', 'audit_issues', 'activity_log', 'integration_logs', 'teacher_check_ins', 'teacher_checkins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'maintenance_requests'].includes(moduleName) 
@@ -1468,11 +1469,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                                     ? 500
                                                     : 10000))))))))
             );
-            if (isNaN(finalLimit)) finalLimit = isUnscopedMultiTenantQuery ? 5000 : 100000;
-            if (isUnscopedMultiTenantQuery && ['student_enrollments', 'users', 'students'].includes(moduleName)) {
+            if (isNaN(finalLimit)) finalLimit = isBackupMode ? 500000 : (isUnscopedMultiTenantQuery ? 5000 : 100000);
+            if (isUnscopedMultiTenantQuery && !isBackupMode && ['student_enrollments', 'users', 'students'].includes(moduleName)) {
                 finalLimit = Math.min(finalLimit, 3000);
             }
-            if (finalLimit > 100000) {
+            if (!isBackupMode && finalLimit > 100000) {
                 finalLimit = 100000;
             }
             

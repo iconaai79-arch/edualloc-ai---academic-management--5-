@@ -51,6 +51,12 @@
     "api/records.ts": {
       "maxDuration": 60
     },
+    "api/openBanking.ts": {
+      "maxDuration": 60
+    },
+    "api/system.ts": {
+      "maxDuration": 60
+    },
     "api/*.ts": {
       "maxDuration": 60
     }

@@ -103,14 +103,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 headers['Ocp-Apim-Subscription-Key'] = subscriptionKey;
             }
 
-            const resp = await fetch(tokenUrl, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                    userID: userId,
-                    password: password
-                })
-            });
+            const tokenAbort = new AbortController();
+            const tokenTimer = setTimeout(() => tokenAbort.abort(), 8000);
+            let resp: Response;
+            try {
+                resp = await fetch(tokenUrl, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        userID: userId,
+                        password: password
+                    }),
+                    signal: tokenAbort.signal
+                });
+            } catch (fetchErr: any) {
+                clearTimeout(tokenTimer);
+                if (fetchErr.name === 'AbortError') {
+                    throw new Error(`NCBA Open Banking token request timed out after 8s (${tokenUrl})`);
+                }
+                throw fetchErr;
+            } finally {
+                clearTimeout(tokenTimer);
+            }
 
             if (!resp.ok) {
                 const errText = await resp.text();
@@ -158,11 +172,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             console.log(`[NCBA OpenBanking] Requesting ${fullUrl} [${method}]`);
-            const response = await fetch(fullUrl, {
-                method,
-                headers,
-                body: method !== 'GET' ? JSON.stringify(payload) : undefined
-            });
+            const apiAbort = new AbortController();
+            const apiTimer = setTimeout(() => apiAbort.abort(), 8000);
+            let response: Response;
+            try {
+                response = await fetch(fullUrl, {
+                    method,
+                    headers,
+                    body: method !== 'GET' ? JSON.stringify(payload) : undefined,
+                    signal: apiAbort.signal
+                });
+            } catch (fetchErr: any) {
+                clearTimeout(apiTimer);
+                if (fetchErr.name === 'AbortError') {
+                    throw new Error(`NCBA Open Banking API request timed out after 8s (${fullUrl})`);
+                }
+                throw fetchErr;
+            } finally {
+                clearTimeout(apiTimer);
+            }
 
             const text = await response.text();
             let parsed: any;
