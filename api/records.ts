@@ -26,6 +26,7 @@ const getSupabase = (req?: VercelRequest) => {
 let _pgPool: any = null;
 let _directPgDisabledUntil = 0;
 let _directPgConsecutiveFailures = 0;
+let _forcePlaintextPg = false;
 
 // ── In-Memory Auth & Configuration Cache (Sub-millisecond resolution for frequent queries) ──
 interface CachedAuthUser {
@@ -64,11 +65,12 @@ const getPgPool = async () => {
     if (!Pool) return null;
 
     let cleanConnString = connectionString.trim();
-    let disableSsl = false;
+    let disableSsl = _forcePlaintextPg;
     try {
       const parsedUrl = new URL(cleanConnString);
       const h = (parsedUrl.hostname || '').toLowerCase();
       if (
+        _forcePlaintextPg ||
         parsedUrl.searchParams.get('sslmode') === 'disable' ||
         parsedUrl.searchParams.get('ssl') === 'false' ||
         process.env.PGSSLMODE === 'disable' ||
@@ -81,7 +83,7 @@ const getPgPool = async () => {
       parsedUrl.searchParams.delete('sslmode');
       cleanConnString = parsedUrl.toString();
     } catch {
-      if (/([?&])sslmode=disable/i.test(cleanConnString) || /([?&])ssl=false/i.test(cleanConnString) || process.env.PGSSLMODE === 'disable') {
+      if (_forcePlaintextPg || /([?&])sslmode=disable/i.test(cleanConnString) || /([?&])ssl=false/i.test(cleanConnString) || process.env.PGSSLMODE === 'disable') {
         disableSsl = true;
       }
       cleanConnString = cleanConnString
@@ -102,7 +104,12 @@ const getPgPool = async () => {
 
     _pgPool.on('error', (err: any) => {
       console.warn('[Direct SQL Pool Error]:', err?.message || err);
-      _directPgDisabledUntil = Date.now() + 15000;
+      if (/does not support SSL/i.test(err?.message || '') || err?.code === '08006' || err?.code === '08001') {
+        _forcePlaintextPg = true;
+        _directPgDisabledUntil = 0;
+      } else {
+        _directPgDisabledUntil = Date.now() + 15000;
+      }
       try { _pgPool?.end().catch(() => {}); } catch (_) {}
       _pgPool = null;
     });
@@ -210,6 +217,31 @@ const fetchViaDirectPg = async (
     _directPgConsecutiveFailures = 0;
     return result.rows || [];
   } catch (err: any) {
+    if (/does not support SSL/i.test(err?.message || '') || err?.code === '08006' || err?.code === '08001') {
+      console.warn('[fetchViaDirectPg] Target PostgreSQL host does not support SSL. Retrying in plaintext (ssl: false)...');
+      _forcePlaintextPg = true;
+      _directPgDisabledUntil = 0;
+      if (_pgPool) {
+        try { _pgPool.end().catch(() => {}); } catch (_) {}
+        _pgPool = null;
+      }
+      try {
+        const fallbackPool = await getPgPool();
+        if (fallbackPool) {
+          const fallbackClient = await fallbackPool.connect();
+          try {
+            const fallbackRes = await fallbackClient.query(sql, values);
+            _directPgConsecutiveFailures = 0;
+            return fallbackRes.rows || [];
+          } finally {
+            fallbackClient.release();
+          }
+        }
+      } catch (retryErr: any) {
+        console.warn('[fetchViaDirectPg] Plaintext retry failed:', retryErr?.message || retryErr);
+      }
+    }
+
     const isConnTimeout = 
       err?.message?.includes('timeout') ||
       err?.message?.includes('connect') ||
@@ -351,19 +383,32 @@ async function getAuthUser(supabase: any, authHeader?: string) {
            return cacheUser({ id: jwtUserId, institutionId: 'GLOBAL', role: 'super_admin' });
         }
 
-        // Fast DB lookup with 2.0s timeout + direct pg fallback
+        // Fast DB lookup: direct pg first if DATABASE_URL configured, otherwise PostgREST with 2.0s timeout
         let profile: any = null;
-        let pTimer: any;
-        try {
-          const timeoutP = new Promise<never>((_, rej) => { pTimer = setTimeout(() => rej(new Error('timeout')), 2000); });
-          const q = supabase.from('users').select('id, institution_id, role, branch_id').or(`id.eq.${jwtUserId},id.eq.u_${jwtUserId}`).maybeSingle();
-          const res: any = await Promise.race([q, timeoutP]);
-          profile = res?.data;
-        } catch (_) {} finally {
-          clearTimeout(pTimer);
+        const hasDirectPgConfig = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.VITE_DATABASE_URL || process.env.SUPABASE_DB_URL);
+        if (hasDirectPgConfig && _directPgDisabledUntil < Date.now()) {
+          try {
+            const rawId = jwtUserId.replace(/^u_/, '');
+            const rows = await fetchViaDirectPg('users', [
+              { sql: `(id = $VAL OR id = $VAL)`, vals: [rawId, `u_${rawId}`] }
+            ], undefined, 1);
+            if (rows && rows.length > 0) profile = rows[0];
+          } catch (_) {}
         }
 
-        if (!profile) {
+        if (!profile && supabase) {
+          let pTimer: any;
+          try {
+            const timeoutP = new Promise<never>((_, rej) => { pTimer = setTimeout(() => rej(new Error('timeout')), 2000); });
+            const q = supabase.from('users').select('id, institution_id, role, branch_id').or(`id.eq.${jwtUserId},id.eq.u_${jwtUserId}`).maybeSingle();
+            const res: any = await Promise.race([q, timeoutP]);
+            profile = res?.data;
+          } catch (_) {} finally {
+            clearTimeout(pTimer);
+          }
+        }
+
+        if (!profile && !hasDirectPgConfig) {
           try {
             const rawId = jwtUserId.replace(/^u_/, '');
             const rows = await fetchViaDirectPg('users', [
@@ -383,19 +428,31 @@ async function getAuthUser(supabase: any, authHeader?: string) {
       }
     }
 
-    // 3. Try User ID fallback (non-JWT token) with direct pg fallback
+    // 3. Try User ID fallback (non-JWT token): direct pg first if DATABASE_URL configured, otherwise PostgREST
     let profile: any = null;
-    let uidTimer: any;
-    try {
-      const timeoutP = new Promise<never>((_, rej) => { uidTimer = setTimeout(() => rej(new Error('timeout')), 2000); });
-      const q = supabase.from('users').select('id, institution_id, role, branch_id').or(`id.eq.${token},id.eq.u_${token}`).maybeSingle();
-      const res: any = await Promise.race([q, timeoutP]);
-      profile = res?.data;
-    } catch (_) {} finally {
-      clearTimeout(uidTimer);
+    if (hasDirectPgConfig && _directPgDisabledUntil < Date.now()) {
+      try {
+        const cleanToken = token.replace(/^u_/, '');
+        const rows = await fetchViaDirectPg('users', [
+          { sql: `(id = $VAL OR id = $VAL)`, vals: [cleanToken, `u_${cleanToken}`] }
+        ], undefined, 1);
+        if (rows && rows.length > 0) profile = rows[0];
+      } catch (_) {}
     }
 
-    if (!profile) {
+    if (!profile && supabase) {
+      let uidTimer: any;
+      try {
+        const timeoutP = new Promise<never>((_, rej) => { uidTimer = setTimeout(() => rej(new Error('timeout')), 2000); });
+        const q = supabase.from('users').select('id, institution_id, role, branch_id').or(`id.eq.${token},id.eq.u_${token}`).maybeSingle();
+        const res: any = await Promise.race([q, timeoutP]);
+        profile = res?.data;
+      } catch (_) {} finally {
+        clearTimeout(uidTimer);
+      }
+    }
+
+    if (!profile && !hasDirectPgConfig) {
       try {
         const cleanToken = token.replace(/^u_/, '');
         const rows = await fetchViaDirectPg('users', [
@@ -920,7 +977,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         const supabase = getSupabase(req);
-        if (!supabase) {
+        const hasDirectPgConfig = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.VITE_DATABASE_URL || process.env.SUPABASE_DB_URL);
+        if (!supabase && !hasDirectPgConfig) {
             if (req.method === 'GET' && moduleName === 'institutions') {
                 const fallbackCache = _serverModuleMemoryCache.get('institutions');
                 if (fallbackCache && Array.isArray(fallbackCache.data) && fallbackCache.data.length > 0) {
@@ -928,7 +986,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
                 return res.status(200).json([]);
             }
-            return res.status(503).json({ success: false, error: 'Supabase keys missing in environment' });
+            return res.status(503).json({ success: false, error: 'Database connection configuration missing' });
         }
 
         const authHeader = req.headers.authorization;
@@ -954,50 +1012,82 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             let targetUser: any = null;
 
-            try {
-                if (isSuperAlias) {
-                    const { data: suList } = await executeWithTimeout(
-                        supabase
-                            .from('users')
-                            .select('*')
-                            .or(`role.eq.super_admin,email.ilike.%super%,id.eq.u_super_admin,id.eq.super_admin`)
-                            .limit(5),
-                        3500
-                    ).catch(() => ({ data: null }));
-                    if (suList && suList.length > 0) {
-                        targetUser = suList.find((u: any) => u.role === 'super_admin' || u.id === 'u_super_admin' || u.email === 'super@app.com') || suList[0];
-                    }
-                }
-
-                if (!targetUser) {
-                    if (rawIdentifier.includes('@')) {
-                        const { data } = await executeWithTimeout(
-                            supabase.from('users').select('*').ilike('email', cleanId).limit(1),
-                            3500
-                        ).catch(() => ({ data: null }));
-                        if (data && data.length > 0) targetUser = data[0];
+            // Prioritize Direct PostgreSQL user query when DATABASE_URL is configured
+            if (hasDirectPgConfig && _directPgDisabledUntil < Date.now()) {
+                try {
+                    if (isSuperAlias) {
+                        const rows = await fetchViaDirectPg('users', [
+                            { sql: `(role = $VAL OR email ILIKE $VAL OR id = $VAL OR id = $VAL)`, vals: ['super_admin', '%super%', 'u_super_admin', 'super_admin'] }
+                        ], undefined, 5);
+                        if (rows && rows.length > 0) {
+                            targetUser = rows.find((u: any) => u.role === 'super_admin' || u.id === 'u_super_admin' || u.email === 'super@app.com') || rows[0];
+                        }
+                    } else if (rawIdentifier.includes('@')) {
+                        const rows = await fetchViaDirectPg('users', [{ sql: `email ILIKE $VAL`, val: cleanId }], undefined, 1);
+                        if (rows && rows.length > 0) targetUser = rows[0];
                     } else if (isPhoneLookup) {
                         const last9 = digits.substring(digits.length - 9);
                         const pattern = '%' + last9.split('').join('%') + '%';
-                        const { data } = await executeWithTimeout(
-                            supabase.from('users').select('*').ilike('phone_number', pattern).limit(1),
-                            3500
-                        ).catch(() => ({ data: null }));
-                        if (data && data.length > 0) targetUser = data[0];
+                        const rows = await fetchViaDirectPg('users', [{ sql: `phone_number ILIKE $VAL`, val: pattern }], undefined, 1);
+                        if (rows && rows.length > 0) targetUser = rows[0];
                     } else {
-                        const { data } = await executeWithTimeout(
-                            supabase.from('users').select('*').or(`id.eq.${rawIdentifier},id.eq.u_${rawIdentifier},staff_id.eq.${rawIdentifier},admission_number.eq.${rawIdentifier}`).limit(1),
-                            3500
-                        ).catch(() => ({ data: null }));
-                        if (data && data.length > 0) targetUser = data[0];
+                        const rows = await fetchViaDirectPg('users', [
+                            { sql: `(id = $VAL OR id = $VAL OR staff_id = $VAL OR admission_number = $VAL)`, vals: [rawIdentifier, `u_${rawIdentifier}`, rawIdentifier, rawIdentifier] }
+                        ], undefined, 1);
+                        if (rows && rows.length > 0) targetUser = rows[0];
                     }
+                } catch (pgErr: any) {
+                    console.warn('[api/records:login] Direct SQL lookup error:', pgErr?.message || pgErr);
                 }
-            } catch (err: any) {
-                console.warn('[api/records:login] PostgREST lookup error:', err?.message || err);
             }
 
-            // Direct SQL fallback if PostgREST missed or failed
-            if (!targetUser) {
+            // PostgREST fallback if not found in Direct PG and supabase is available
+            if (!targetUser && supabase) {
+                try {
+                    if (isSuperAlias) {
+                        const { data: suList } = await executeWithTimeout(
+                            supabase
+                                .from('users')
+                                .select('*')
+                                .or(`role.eq.super_admin,email.ilike.%super%,id.eq.u_super_admin,id.eq.super_admin`)
+                                .limit(5),
+                            3500
+                        ).catch(() => ({ data: null }));
+                        if (suList && suList.length > 0) {
+                            targetUser = suList.find((u: any) => u.role === 'super_admin' || u.id === 'u_super_admin' || u.email === 'super@app.com') || suList[0];
+                        }
+                    }
+
+                    if (!targetUser) {
+                        if (rawIdentifier.includes('@')) {
+                            const { data } = await executeWithTimeout(
+                                supabase.from('users').select('*').ilike('email', cleanId).limit(1),
+                                3500
+                            ).catch(() => ({ data: null }));
+                            if (data && data.length > 0) targetUser = data[0];
+                        } else if (isPhoneLookup) {
+                            const last9 = digits.substring(digits.length - 9);
+                            const pattern = '%' + last9.split('').join('%') + '%';
+                            const { data } = await executeWithTimeout(
+                                supabase.from('users').select('*').ilike('phone_number', pattern).limit(1),
+                                3500
+                            ).catch(() => ({ data: null }));
+                            if (data && data.length > 0) targetUser = data[0];
+                        } else {
+                            const { data } = await executeWithTimeout(
+                                supabase.from('users').select('*').or(`id.eq.${rawIdentifier},id.eq.u_${rawIdentifier},staff_id.eq.${rawIdentifier},admission_number.eq.${rawIdentifier}`).limit(1),
+                                3500
+                            ).catch(() => ({ data: null }));
+                            if (data && data.length > 0) targetUser = data[0];
+                        }
+                    }
+                } catch (err: any) {
+                    console.warn('[api/records:login] PostgREST lookup error:', err?.message || err);
+                }
+            }
+
+            // Secondary Direct SQL fallback if PostgREST missed or failed and direct PG wasn't run yet
+            if (!targetUser && !hasDirectPgConfig) {
                 try {
                     if (isSuperAlias) {
                         const rows = await fetchViaDirectPg('users', [
@@ -1770,7 +1860,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'payroll_records', 'payroll_runs', 'his_expenditures',
                     'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills', 'ds_vehicles', 'institutions'
                 ].includes(moduleName);
-                const canUseDirectPg = (isBulkModule || finalLimit > 1000) && _directPgDisabledUntil < Date.now();
+                const canUseDirectPg = (!supabase || isBulkModule || finalLimit > 1000 || Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.VITE_DATABASE_URL)) && _directPgDisabledUntil < Date.now();
                 let directPgSuccess = false;
 
                 if (canUseDirectPg) {

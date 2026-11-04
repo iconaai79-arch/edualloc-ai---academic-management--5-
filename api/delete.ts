@@ -16,6 +16,7 @@ const getSupabase = () => {
 
 let _pgPool: any = null;
 let _directPgDisabledUntil = 0;
+let _forcePlaintextPg = false;
 
 const getPgPool = async () => {
   if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
@@ -38,11 +39,12 @@ const getPgPool = async () => {
     if (!Pool) return null;
 
     let cleanConnString = connectionString.trim();
-    let disableSsl = false;
+    let disableSsl = _forcePlaintextPg;
     try {
       const parsedUrl = new URL(cleanConnString);
       const h = (parsedUrl.hostname || '').toLowerCase();
       if (
+        _forcePlaintextPg ||
         parsedUrl.searchParams.get('sslmode') === 'disable' ||
         parsedUrl.searchParams.get('ssl') === 'false' ||
         process.env.PGSSLMODE === 'disable' ||
@@ -55,7 +57,7 @@ const getPgPool = async () => {
       parsedUrl.searchParams.delete('sslmode');
       cleanConnString = parsedUrl.toString();
     } catch {
-      if (/([?&])sslmode=disable/i.test(cleanConnString) || /([?&])ssl=false/i.test(cleanConnString) || process.env.PGSSLMODE === 'disable') {
+      if (_forcePlaintextPg || /([?&])sslmode=disable/i.test(cleanConnString) || /([?&])ssl=false/i.test(cleanConnString) || process.env.PGSSLMODE === 'disable') {
         disableSsl = true;
       }
       cleanConnString = cleanConnString
@@ -74,7 +76,14 @@ const getPgPool = async () => {
 
     _pgPool.on('error', (err: any) => {
       console.warn('[Direct SQL Pool Error in /api/delete]:', err?.message || err);
-      _directPgDisabledUntil = Date.now() + 60000;
+      if (/does not support SSL/i.test(err?.message || '') || err?.code === '08006' || err?.code === '08001') {
+        _forcePlaintextPg = true;
+        _directPgDisabledUntil = 0;
+      } else {
+        _directPgDisabledUntil = Date.now() + 60000;
+      }
+      try { _pgPool?.end().catch(() => {}); } catch (_) {}
+      _pgPool = null;
     });
 
     return _pgPool;
