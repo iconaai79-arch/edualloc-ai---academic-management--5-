@@ -309,6 +309,8 @@ async function getAuthUser(supabase: any, authHeader?: string) {
   const token = authHeader.replace(/bearer /i, '').trim();
   if (!token || token === 'undefined' || token === 'null') return null;
 
+  const hasDirectPgConfig = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.VITE_DATABASE_URL || process.env.SUPABASE_DB_URL);
+
   // Check auth cache (0ms)
   const cached = _authUserCache.get(token);
   if (cached && Date.now() < cached.expiresAt) {
@@ -385,7 +387,6 @@ async function getAuthUser(supabase: any, authHeader?: string) {
 
         // Fast DB lookup: direct pg first if DATABASE_URL configured, otherwise PostgREST with 2.0s timeout
         let profile: any = null;
-        const hasDirectPgConfig = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.VITE_DATABASE_URL || process.env.SUPABASE_DB_URL);
         if (hasDirectPgConfig && _directPgDisabledUntil < Date.now()) {
           try {
             const rawId = jwtUserId.replace(/^u_/, '');
@@ -1553,27 +1554,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             const isBackupMode = req.query.isBackup === 'true' || req.headers['x-backup-mode'] === 'true';
             const isUnscopedMultiTenantQuery = shouldSkipTenancy && !effectiveTenantInstId && !isBackupMode;
-            let finalLimit = isBackupMode ? (limit ? parseInt(getStrParam(limit)) : 500000) : (limit ? parseInt(getStrParam(limit)) : (
-                ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'school_remedial_rate_settings', 'school_remedial_subjects', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster', 'remedial_rate_settings', 'remedial_subjects'].includes(moduleName)
-                    ? (isUnscopedMultiTenantQuery ? 5000 : 100000)
-                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log', 'integration_logs', 'teacher_check_ins', 'teacher_checkins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'maintenance_requests'].includes(moduleName) 
-                        ? 2000 
-                        : (['institution_events', 'events', 'event_categories', 'event_pins'].includes(moduleName) 
-                            ? 500 
-                            : (moduleName === 'app_notifications' 
-                                ? 100 
-                                : (['assessment_marks', 'ta_assignments'].includes(moduleName) 
-                                    ? 5000 
-                                    : (moduleName === 'institutions' 
-                                        ? (targetInstParam || getStrParam(id) ? 1 : 10000) 
-                                        : (['timetable_entries', 'exam_timetable_entries', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'visitors', 'building_visitor_logs', 'security_alerts'].includes(moduleName)
-                                            ? 3000
-                                            : (['institution_module_states', 'retail_inventory_items'].includes(moduleName)
-                                                ? 1000
-                                                : (['school_bank_accounts', 'bank_accounts', 'inter_account_transfers', 'gok_capitation_logs', 'system_settings', 'financial_goals', 'financial_periods', 'vote_heads', 'fee_structures', 'retail_stores', 'branches'].includes(moduleName)
-                                                    ? 500
-                                                    : 10000))))))))
-            );
+            let finalLimit: number;
+            if (limit) {
+                finalLimit = parseInt(getStrParam(limit));
+            } else if (isBackupMode) {
+                finalLimit = 500000;
+            } else if (['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'school_remedial_rate_settings', 'school_remedial_subjects', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster', 'remedial_rate_settings', 'remedial_subjects'].includes(moduleName)) {
+                finalLimit = isUnscopedMultiTenantQuery ? 5000 : 100000;
+            } else if (['visitors', 'security_alerts', 'audit_issues', 'activity_log', 'integration_logs', 'teacher_check_ins', 'teacher_checkins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'maintenance_requests'].includes(moduleName)) {
+                finalLimit = 2000;
+            } else if (['institution_events', 'events', 'event_categories', 'event_pins'].includes(moduleName)) {
+                finalLimit = 500;
+            } else if (moduleName === 'app_notifications') {
+                finalLimit = 100;
+            } else if (['assessment_marks', 'ta_assignments'].includes(moduleName)) {
+                finalLimit = 5000;
+            } else if (moduleName === 'institutions') {
+                finalLimit = (targetInstParam || getStrParam(id)) ? 1 : 10000;
+            } else if (['timetable_entries', 'exam_timetable_entries', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'visitors', 'building_visitor_logs', 'security_alerts'].includes(moduleName)) {
+                finalLimit = 3000;
+            } else if (['institution_module_states', 'retail_inventory_items'].includes(moduleName)) {
+                finalLimit = 1000;
+            } else if (['school_bank_accounts', 'bank_accounts', 'inter_account_transfers', 'gok_capitation_logs', 'system_settings', 'financial_goals', 'financial_periods', 'vote_heads', 'fee_structures', 'retail_stores', 'branches'].includes(moduleName)) {
+                finalLimit = 500;
+            } else {
+                finalLimit = 10000;
+            }
             if (isNaN(finalLimit)) finalLimit = isBackupMode ? 500000 : (isUnscopedMultiTenantQuery ? 5000 : 100000);
             if (isUnscopedMultiTenantQuery && !isBackupMode && ['student_enrollments', 'users', 'students'].includes(moduleName)) {
                 finalLimit = Math.min(finalLimit, 3000);
