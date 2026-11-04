@@ -38,11 +38,26 @@ const getPgPool = async () => {
     if (!Pool) return null;
 
     let cleanConnString = connectionString.trim();
+    let disableSsl = false;
     try {
       const parsedUrl = new URL(cleanConnString);
+      const h = (parsedUrl.hostname || '').toLowerCase();
+      if (
+        parsedUrl.searchParams.get('sslmode') === 'disable' ||
+        parsedUrl.searchParams.get('ssl') === 'false' ||
+        process.env.PGSSLMODE === 'disable' ||
+        h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === 'host.docker.internal' || h === '::1' ||
+        h.startsWith('user-') || h.startsWith('service-') || h === 'db' || h === 'postgres' ||
+        h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.docker')
+      ) {
+        disableSsl = true;
+      }
       parsedUrl.searchParams.delete('sslmode');
       cleanConnString = parsedUrl.toString();
     } catch {
+      if (/([?&])sslmode=disable/i.test(cleanConnString) || /([?&])ssl=false/i.test(cleanConnString) || process.env.PGSSLMODE === 'disable') {
+        disableSsl = true;
+      }
       cleanConnString = cleanConnString
         .replace(/([?&])sslmode=[^&]*(&|$)/g, (_match, prefix, suffix) => suffix === '&' ? prefix : '')
         .replace(/\?$/, '');
@@ -50,7 +65,7 @@ const getPgPool = async () => {
 
     _pgPool = new Pool({
       connectionString: cleanConnString,
-      ssl: { rejectUnauthorized: false },
+      ssl: disableSsl ? false : { rejectUnauthorized: false },
       connectionTimeoutMillis: 2000,
       statement_timeout: 4000,
       max: 2,

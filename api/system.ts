@@ -74,11 +74,26 @@ const getPgPool = async () => {
         if (!Pool) return null;
 
         let cleanConnString = connectionString.trim();
+        let disableSsl = false;
         try {
             const parsedUrl = new URL(cleanConnString);
+            const h = (parsedUrl.hostname || '').toLowerCase();
+            if (
+                parsedUrl.searchParams.get('sslmode') === 'disable' ||
+                parsedUrl.searchParams.get('ssl') === 'false' ||
+                process.env.PGSSLMODE === 'disable' ||
+                h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === 'host.docker.internal' || h === '::1' ||
+                h.startsWith('user-') || h.startsWith('service-') || h === 'db' || h === 'postgres' ||
+                h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.docker')
+            ) {
+                disableSsl = true;
+            }
             parsedUrl.searchParams.delete('sslmode');
             cleanConnString = parsedUrl.toString();
         } catch {
+            if (/([?&])sslmode=disable/i.test(cleanConnString) || /([?&])ssl=false/i.test(cleanConnString) || process.env.PGSSLMODE === 'disable') {
+                disableSsl = true;
+            }
             cleanConnString = cleanConnString
                 .replace(/([?&])sslmode=[^&]*(&|$)/g, (_match, prefix, suffix) => suffix === '&' ? prefix : '')
                 .replace(/\?$/, '');
@@ -86,7 +101,7 @@ const getPgPool = async () => {
 
         _pgPool = new Pool({
             connectionString: cleanConnString,
-            ssl: { rejectUnauthorized: false },
+            ssl: disableSsl ? false : { rejectUnauthorized: false },
             connectionTimeoutMillis: 7000,
             statement_timeout: 8000,
             max: 5,
@@ -436,23 +451,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 let cleanConnString = connectionString.trim();
+                let disableSsl = false;
                 try {
                     const parsedUrl = new URL(cleanConnString);
+                    const h = (parsedUrl.hostname || '').toLowerCase();
+                    if (
+                        parsedUrl.searchParams.get('sslmode') === 'disable' ||
+                        parsedUrl.searchParams.get('ssl') === 'false' ||
+                        process.env.PGSSLMODE === 'disable' ||
+                        h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === 'host.docker.internal' || h === '::1' ||
+                        h.startsWith('user-') || h.startsWith('service-') || h === 'db' || h === 'postgres' ||
+                        h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.docker')
+                    ) {
+                        disableSsl = true;
+                    }
                     parsedUrl.searchParams.delete('sslmode');
                     cleanConnString = parsedUrl.toString();
                 } catch {
+                    if (/([?&])sslmode=disable/i.test(cleanConnString) || /([?&])ssl=false/i.test(cleanConnString) || process.env.PGSSLMODE === 'disable') {
+                        disableSsl = true;
+                    }
                     cleanConnString = cleanConnString
                         .replace(/([?&])sslmode=[^&]*(&|$)/g, (_match, prefix, suffix) => suffix === '&' ? prefix : '')
                         .replace(/\?$/, '');
                 }
 
-                const pool = new Pool({
+                const createPool = (useSsl: boolean) => new Pool({
                     connectionString: cleanConnString,
-                    ssl: { rejectUnauthorized: false },
+                    ssl: useSsl ? { rejectUnauthorized: false } : false,
                     connectionTimeoutMillis: 10000,
                     max: 1, // Single connection per serverless execution to prevent connection exhaustion
                     idleTimeoutMillis: 1000
                 });
+
+                let pool = createPool(!disableSsl);
+
+                // Auto-test and fall back to plaintext non-SSL connection if server rejects SSL handshake
+                try {
+                    const testClient = await pool.connect();
+                    testClient.release();
+                } catch (connErr: any) {
+                    if (!disableSsl && (/does not support SSL/i.test(connErr?.message || '') || connErr?.code === '08006' || connErr?.code === '08001')) {
+                        console.warn('[SQL Engine] Target PostgreSQL host does not support SSL. Falling back to non-SSL connection (ssl: false)...');
+                        try { await pool.end(); } catch {}
+                        disableSsl = true;
+                        pool = createPool(false);
+                    }
+                }
 
                 // Helper to split multi-statement SQL without breaking DO $$ blocks or quotes
                 const splitStatements = (rawSql: string): string[] => {
@@ -916,6 +961,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 try { client.release(); } catch {}
                             }
                             lastError = err;
+
+                            if (!disableSsl && /does not support SSL/i.test(err?.message || '')) {
+                                console.warn('[SQL Engine] Recovering from non-SSL host handshake rejection in query loop...');
+                                try { await pool.end(); } catch {}
+                                disableSsl = true;
+                                pool = createPool(false);
+                                continue;
+                            }
 
                             // Self-healing attempt 1: syntax or unterminated identifier, try aggressive quote neutralization
                             if (attempt === 1 && (err?.code === '42601' || /unterminated|syntax error/i.test(err?.message || ''))) {
