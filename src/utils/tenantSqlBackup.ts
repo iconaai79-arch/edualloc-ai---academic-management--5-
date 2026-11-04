@@ -443,6 +443,7 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         lines.push(`DO $$ BEGIN ALTER TABLE public."system_settings" ALTER COLUMN id DROP DEFAULT; ALTER TABLE public."system_settings" ALTER COLUMN id TYPE TEXT USING id::text; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
         lines.push(`ALTER TABLE public."system_settings" ADD COLUMN IF NOT EXISTS "status" TEXT;`);
         lines.push(`ALTER TABLE public."system_settings" ADD COLUMN IF NOT EXISTS "ts" BIGINT;`);
+        lines.push(`DELETE FROM public."system_settings" WHERE id IN ('1', 'ping') OR id::text = '1';`);
     }
     lines.push('');
 

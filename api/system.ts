@@ -304,7 +304,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (pool) {
                             await pool.query(
                                 `INSERT INTO public.system_settings (id, data, updated_at)
-                                 VALUES (1, $1::jsonb, NOW())
+                                 VALUES ('1', $1::jsonb, NOW())
                                  ON CONFLICT (id) DO UPDATE
                                  SET data = EXCLUDED.data, updated_at = NOW()`,
                                 [JSON.stringify(settings)]
@@ -760,6 +760,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     END;
                                     ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS "status" TEXT;
                                     ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS "ts" BIGINT;
+                                    ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ DEFAULT NOW();
+                                ELSE
+                                    CREATE TABLE IF NOT EXISTS public.system_settings (
+                                        id TEXT PRIMARY KEY,
+                                        data JSONB DEFAULT '{}'::jsonb,
+                                        status TEXT,
+                                        ts BIGINT,
+                                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                                    );
                                 END IF;
                             END $$;
                         `).catch((err) => {
@@ -870,6 +879,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     // to prevent PostgreSQL "invalid input syntax for type integer: '1.00'" on legacy schemas
                     if (/his_pharmacy_sale_items/i.test(s) && /INSERT\s+INTO/i.test(s)) {
                         s = s.replace(/'(\d+)\.00'/g, "'$1'");
+                    }
+
+                    // Auto-normalize and guarantee idempotent upsert on system_settings
+                    if (/system_settings/i.test(s) && /INSERT\s+INTO/i.test(s)) {
+                        if (!/ON\s+CONFLICT/i.test(s)) {
+                            s = s.replace(/;?\s*$/, ' ON CONFLICT ("id") DO UPDATE SET "data" = COALESCE(EXCLUDED."data", public.system_settings."data"), "updated_at" = NOW();');
+                        }
                     }
 
                     return s;
@@ -1075,6 +1091,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 }
                             }
 
+                            // Self-healing attempt 4: unique constraint violation (code 23505), e.g. duplicate key value violates unique constraint "system_settings_pkey" DETAIL: Key (id)=(1) already exists
+                            if (attempt === 1 && (err?.code === '23505' || /duplicate key value violates unique constraint/i.test(err?.message || ''))) {
+                                const isSystemSettings = /system_settings/i.test(err?.message || '') || /system_settings/i.test(singleStmt);
+                                try {
+                                    const healClient = await pool.connect();
+                                    if (isSystemSettings) {
+                                        // Delete conflicting seed row 1 or 'ping' so restored dump settings replace it smoothly
+                                        await healClient.query(`DELETE FROM public.system_settings WHERE id IN ('1', 'ping') OR id::text = '1';`).catch(() => {});
+                                    }
+
+                                    let retryStmt = singleStmt;
+                                    if (!/ON\s+CONFLICT/i.test(retryStmt)) {
+                                        if (isSystemSettings) {
+                                            retryStmt = retryStmt.replace(/;?\s*$/, ' ON CONFLICT ("id") DO UPDATE SET "data" = COALESCE(EXCLUDED."data", public.system_settings."data"), "updated_at" = NOW();');
+                                        } else {
+                                            retryStmt = retryStmt.replace(/;?\s*$/, ' ON CONFLICT DO NOTHING;');
+                                        }
+                                    }
+
+                                    lastResult = await healClient.query(retryStmt);
+                                    if (lastResult?.rows && Array.isArray(lastResult.rows)) {
+                                        accumulatedRows.push(...lastResult.rows);
+                                    }
+                                    lastError = null;
+                                    stmtSuccess = true;
+                                    healClient.release();
+                                    break;
+                                } catch (healErr) {
+                                    if (isSystemSettings || continueOnError) {
+                                        console.warn(`[SQL Engine Info] Non-fatal unique constraint collision (${err?.message}). Bypassing duplicate key row...`);
+                                        lastError = null;
+                                        stmtSuccess = true;
+                                        break;
+                                    }
+                                }
+                            }
+
                             const isStatementTimeout = err?.code === '57014';
                             const isTransientLockError = 
                                 err?.code === '40P01' || // deadlock_detected
@@ -1113,11 +1166,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                             const isIdempotentDDL = /^\s*(DO\s+\$\$|ALTER\s+TABLE|CREATE\s+(OR\s+REPLACE\s+)?(FUNCTION|TRIGGER|PROCEDURE)|CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS|CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS|CREATE\s+TYPE|DROP\s+(FUNCTION|TRIGGER|TABLE|VIEW)\s+IF\s+EXISTS)/i.test(singleStmt);
 
+                            const isUniqueKeyCollisionOnSeed =
+                                (err?.code === '23505' || /duplicate key value violates unique constraint/i.test(err?.message || '')) &&
+                                (/system_settings/i.test(err?.message || '') || /system_settings/i.test(singleStmt));
+
                             const isIgnorableSchemaError =
                                 err?.code === '42710' || // duplicate_object (trigger / constraint already exists)
                                 err?.code === '42P07' || // duplicate_table (relation already exists)
                                 err?.code === '42701' || // duplicate_column (column already exists)
                                 err?.code === '42P16' || // invalid_table_definition (e.g. duplicate primary key)
+                                isUniqueKeyCollisionOnSeed || // seed duplicate key (e.g. system_settings id 1) is non-fatal
                                 (err?.code === '42601' && isIdempotentDDL && continueOnError) || // syntax error in non-critical self-healing DDL block
                                 ((isCatalogRace || isConcurrentTupleUpdate) && isIdempotentDDL); // concurrent catalog registration collision for idempotent DDL
 

@@ -271,8 +271,10 @@ CREATE TABLE IF NOT EXISTS public.branches (
 );
 
 CREATE TABLE IF NOT EXISTS system_settings (
-    id INTEGER PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     data JSONB DEFAULT '{}'::jsonb NOT NULL,
+    status TEXT,
+    ts BIGINT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -3591,7 +3593,7 @@ DROP POLICY IF EXISTS "system_settings_read_policy" ON system_settings;
 CREATE POLICY "system_settings_read_policy" ON system_settings FOR SELECT USING (true);
 DROP POLICY IF EXISTS "system_settings_write_policy" ON system_settings;
 CREATE POLICY "system_settings_write_policy" ON system_settings FOR ALL USING (true) WITH CHECK (true);
-INSERT INTO system_settings (id, data) VALUES (1, '{}'::jsonb) ON CONFLICT (id) DO NOTHING;
+INSERT INTO system_settings (id, data) VALUES ('1', '{}'::jsonb) ON CONFLICT (id) DO NOTHING;
 CREATE INDEX IF NOT EXISTS idx_system_settings_id ON system_settings (id);
 
 -- Global Activity Log RLS & Resilience --

@@ -180,6 +180,13 @@ export function sanitizeSqlStatement(statement: string): string {
         s = s.replace(/'(\d+)\.00'/g, "'$1'");
     }
 
+    // 11. Normalize and guarantee idempotent upsert on system_settings
+    if (/system_settings/i.test(s) && /INSERT\s+INTO/i.test(s)) {
+        if (!/ON\s+CONFLICT/i.test(s)) {
+            s = s.replace(/;?\s*$/, ' ON CONFLICT ("id") DO UPDATE SET "data" = COALESCE(EXCLUDED."data", public.system_settings."data"), "updated_at" = NOW();');
+        }
+    }
+
     return s;
 }
 
