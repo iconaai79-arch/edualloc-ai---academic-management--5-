@@ -1472,6 +1472,7 @@ CREATE TABLE IF NOT EXISTS ds_students (
     admission_number TEXT,
     phone TEXT NOT NULL,
     email TEXT,
+    id_number TEXT,
     national_id TEXT,
     course_type TEXT,
     assigned_instructor_id TEXT REFERENCES ds_instructors(id) ON DELETE SET NULL,
@@ -1493,6 +1494,21 @@ ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS practical_progress_perce
 ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS theory_test_score INTEGER;
 ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS practical_test_score INTEGER;
 ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS ntsa_booking_status TEXT;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS id_number TEXT;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS course_duration_days INTEGER DEFAULT 0;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS remaining_days INTEGER DEFAULT 0;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS prior_attended_days INTEGER DEFAULT 0;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS preferred_lesson_hours TEXT;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS pdl_status TEXT;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS branch_id TEXT;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS passport_photo TEXT;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS webauthn_credentials JSONB;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS fingerprint_template TEXT;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS payment_status TEXT;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS activation_date TEXT;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS checkout_request_id TEXT;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_category TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_ds_students_institution_id ON public.ds_students(institution_id);
 CREATE INDEX IF NOT EXISTS idx_ds_students_inst_id_composite ON public.ds_students(institution_id, id DESC);
@@ -1552,6 +1568,10 @@ CREATE TABLE IF NOT EXISTS ds_invoices (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS branch_id TEXT;
+ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS discount_amount DECIMAL(12, 2) DEFAULT 0;
+ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS sponsor_name TEXT;
+ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS sponsor_amount DECIMAL(12, 2) DEFAULT 0;
 ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS student_name TEXT;
 ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS fee_structure_id TEXT;
 ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS class_name TEXT;

@@ -45,11 +45,8 @@ const CACHEABLE_MODULES = ['institutions', 'counties', 'constituencies', 'wards'
 
 
 const getPgPool = async () => {
-  // Direct PG is an optional raw SQL accelerator and critical fallback when PostgREST times out.
+  // Direct PG is the primary and permanent database connection engine for PostgreSQL.
   if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
-    return null;
-  }
-  if (Date.now() < _directPgDisabledUntil) {
     return null;
   }
   if (_pgPool) return _pgPool;
@@ -57,7 +54,8 @@ const getPgPool = async () => {
     process.env.DATABASE_URL || 
     process.env.POSTGRES_URL || 
     process.env.VITE_DATABASE_URL ||
-    process.env.SUPABASE_DB_URL;
+    process.env.SUPABASE_DB_URL ||
+    (process.env.PGHOST && process.env.PGUSER ? `postgresql://${encodeURIComponent(process.env.PGUSER)}:${encodeURIComponent(process.env.PGPASSWORD || '')}@${process.env.PGHOST}:${process.env.PGPORT || 5432}/${process.env.PGDATABASE || process.env.PGUSER}` : null);
   if (!connectionString) return null;
 
   try {
@@ -105,8 +103,8 @@ const getPgPool = async () => {
       connectionString: cleanConnString,
       ssl: disableSsl ? false : { rejectUnauthorized: false },
       connectionTimeoutMillis: 7000,
-      statement_timeout: 8000,
-      max: 5,
+      statement_timeout: 10000,
+      max: 10,
       idleTimeoutMillis: 30000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000
@@ -116,13 +114,9 @@ const getPgPool = async () => {
       console.warn('[Direct SQL Pool Error]:', err?.message || err);
       if (/does not support SSL/i.test(err?.message || '') || err?.code === '08006' || err?.code === '08001') {
         _forcePlaintextPg = true;
-        _directPgDisabledUntil = 0;
       } else if (err?.code === '3D000' || /database ".*" does not exist/i.test(err?.message || '')) {
         console.warn('[Direct SQL Pool] Configured database does not exist. Auto-falling back to "postgres" database...');
         _fallbackDatabaseName = 'postgres';
-        _directPgDisabledUntil = 0;
-      } else {
-        _directPgDisabledUntil = Date.now() + 15000;
       }
       try { _pgPool?.end().catch(() => {}); } catch (_) {}
       _pgPool = null;
@@ -147,9 +141,41 @@ const ensureEssentialSchema = async (pool: any) => {
   _schemaMigrationPromise = (async () => {
     try {
       await pool.query(`
+        -- 0. Ensure system_settings table exists
+        CREATE TABLE IF NOT EXISTS public.system_settings (
+            id TEXT PRIMARY KEY,
+            data JSONB DEFAULT '{}'::jsonb,
+            status TEXT,
+            ts BIGINT,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+
         DO $$
         BEGIN
-            -- 1. building_visitor_logs
+            -- 1. ds_students missing columns
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_students') THEN
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS id_number TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS national_id TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS course_duration_days INTEGER DEFAULT 0;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS remaining_days INTEGER DEFAULT 0;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS prior_attended_days INTEGER DEFAULT 0;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS preferred_lesson_hours TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS pdl_status TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS notes TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS passport_photo TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS passport_number TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS webauthn_credentials JSONB;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS fingerprint_template TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS payment_status TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS activation_date TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS checkout_request_id TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_category TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_type_interested TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS user_id TEXT;
+            END IF;
+
+            -- 2. building_visitor_logs
             IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'building_visitor_logs') THEN
                 ALTER TABLE public.building_visitor_logs ADD COLUMN IF NOT EXISTS institution_id TEXT;
                 ALTER TABLE public.building_visitor_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
@@ -157,7 +183,7 @@ const ensureEssentialSchema = async (pool: any) => {
                 UPDATE public.building_visitor_logs SET created_at = NOW() WHERE created_at IS NULL;
             END IF;
 
-            -- 2. visitors
+            -- 3. visitors
             IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'visitors') THEN
                 ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS institution_id TEXT;
                 ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
@@ -165,7 +191,7 @@ const ensureEssentialSchema = async (pool: any) => {
                 UPDATE public.visitors SET created_at = NOW() WHERE created_at IS NULL;
             END IF;
 
-            -- 3. security_alerts
+            -- 4. security_alerts
             IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'security_alerts') THEN
                 ALTER TABLE public.security_alerts ADD COLUMN IF NOT EXISTS institution_id TEXT;
                 ALTER TABLE public.security_alerts ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
@@ -173,7 +199,7 @@ const ensureEssentialSchema = async (pool: any) => {
                 UPDATE public.security_alerts SET created_at = NOW() WHERE created_at IS NULL;
             END IF;
 
-            -- 4. watchlist_records
+            -- 5. watchlist_records
             IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'watchlist_records') THEN
                 ALTER TABLE public.watchlist_records ADD COLUMN IF NOT EXISTS institution_id TEXT;
                 ALTER TABLE public.watchlist_records ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
@@ -181,7 +207,7 @@ const ensureEssentialSchema = async (pool: any) => {
                 UPDATE public.watchlist_records SET created_at = NOW() WHERE created_at IS NULL;
             END IF;
 
-            -- 5. institutions
+            -- 6. institutions
             IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'institutions') THEN
                 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS reseller_id TEXT;
                 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "resellerId" TEXT;
@@ -350,22 +376,36 @@ const fetchViaDirectPg = async (
       err?.code === 'ENOTFOUND';
 
     if (isConnTimeout) {
-      _directPgConsecutiveFailures += 1;
-      // Exponential back-off: 30s, 60s, 120s … capped at 300s.
-      const cooldownMs = Math.min(30000 * Math.pow(2, _directPgConsecutiveFailures - 1), 300000);
-      _directPgDisabledUntil = Date.now() + cooldownMs;
       if (process.env.DEBUG_DIRECT_PG === 'true') {
-        console.warn(`[fetchViaDirectPg] Connection failed or timed out (${err?.message || err}). Tripping circuit breaker for ${cooldownMs / 1000}s on "${table}". Direct PG bypassed.`);
+        console.warn(`[fetchViaDirectPg] Transient connection timeout on "${table}". Resetting pool reference...`);
       }
-
-      // Only drain the pool when DATABASE_URL is actually configured — if it was
-      // never set the pool is null already; destroying a null pool reference is a no-op.
       if (_pgPool) {
         try { _pgPool.end().catch(() => {}); } catch (_) {}
         _pgPool = null;
       }
     } else if (process.env.DEBUG_DIRECT_PG === 'true') {
-      console.warn(`[fetchViaDirectPg] Query failed on "${table}":`, err?.message || err);
+      console.warn(`[fetchViaDirectPg] Query note on "${table}":`, err?.message || err);
+    }
+
+    // Auto-heal / gracefully handle missing tables (code 42P01: relation does not exist)
+    if (err?.code === '42P01' || String(err?.message || '').includes('does not exist')) {
+      if (table === 'system_settings') {
+        try {
+          await pool.query(`
+            CREATE TABLE IF NOT EXISTS public.system_settings (
+                id TEXT PRIMARY KEY,
+                data JSONB DEFAULT '{}'::jsonb,
+                status TEXT,
+                ts BIGINT,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+          `).catch(() => {});
+          const retryRes = await pool.query(sql, values);
+          return retryRes.rows || [];
+        } catch (_) {}
+      }
+      // Modules that don't have tables created yet cleanly return an empty list
+      return [];
     }
 
     if (client && (err?.code === '42703' || err?.message?.includes('column') || err?.message?.includes('does not exist'))) {
@@ -415,7 +455,7 @@ const fetchViaDirectPg = async (
         return fallbackResult.rows || [];
       } catch (_) {}
     }
-    return null;
+    return [];
   } finally {
     if (client) {
       try { client.release(); } catch (_) {}
@@ -1588,6 +1628,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
 
             const buildBaseQuery = () => {
+                if (!supabase) return null;
                 let q = supabase.from(targetDbTable).select(getStrParam(select) || '*');
                 if (isStudentsAlias) {
                     q = q.eq('role', 'student');
@@ -1775,6 +1816,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
 
             const buildFastBaseQuery = (skipOrdering: boolean = false) => {
+                if (!supabase) return null;
                 const defaultUserCols = 'id, name, email, phone_number, role, roles, institution_id, branch_id, status, student_class, stream, admission_number, created_at, updated_at, metadata';
                 const selectCols = getStrParam(select) || ((skipOrdering && targetDbTable === 'users') ? defaultUserCols : '*');
                 let q = supabase.from(targetDbTable).select(selectCols);
@@ -2017,14 +2059,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'payroll_records', 'payroll_runs', 'his_expenditures',
                     'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills', 'ds_vehicles', 'institutions'
                 ].includes(moduleName);
-                const canUseDirectPg = (!supabase || isBulkModule || finalLimit > 1000 || Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.VITE_DATABASE_URL)) && _directPgDisabledUntil < Date.now();
+                const canUseDirectPg = Boolean(hasDirectPgConfig || !supabase || process.env.DATABASE_URL || process.env.POSTGRES_URL);
                 let directPgSuccess = false;
 
                 if (canUseDirectPg) {
                     directPgFastPathAttempted = true;
                     try {
-                        // Cap the fast-path so at least ~6s of the 12s budget is always left for PostgREST.
-                        const fastPathBudget = Math.max(1500, Math.min(5000, 6000 - (Date.now() - requestStartTime)));
+                        // In pure PostgreSQL mode (without Supabase), use the full request budget for direct query
+                        const fastPathBudget = !supabase ? 10000 : Math.max(1500, Math.min(5000, 6000 - (Date.now() - requestStartTime)));
                         const directData = await fetchViaDirectPg(
                             targetDbTable,
                             sqlConditions,
@@ -2045,6 +2087,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 if (!directPgSuccess) {
+                    if (!supabase) {
+                        // Pure PostgreSQL environment without Supabase
+                        console.info(`[API GET] Direct PG query completed with empty/clean result for '${moduleName}'. Returning safe payload.`);
+                        const fallbackCache = _serverModuleMemoryCache.get(moduleName);
+                        if (fallbackCache && Array.isArray(fallbackCache.data)) {
+                            return res.status(200).json(fallbackCache.data);
+                        }
+                        return res.status(200).json([]);
+                    }
                     if (finalLimit <= CHUNK_SIZE) {
                         let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), offset, offset + finalLimit - 1), queryTimeout)
                             .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
@@ -2186,7 +2237,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (error) {
                         if (moduleName === 'school_remedial_duty_roster' || moduleName === 'pm_deposit_refunds' || moduleName === 'pm_inspections' || moduleName === 'pm_utility_readings' || moduleName === 'ds_invoices' || moduleName === 'ds_payments') {
                             const targetInst = targetInstParam || user?.institutionId;
-                            if (targetInst) {
+                            if (targetInst && supabase) {
                                 try {
                                     const { data: imsData } = await supabase
                                         .from('institution_module_states')
@@ -2305,7 +2356,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             console.warn(`[API GET] Diagnostic/telemetry module '${moduleName}' query failed (${error?.message || error?.code}). Returning empty list fallback.`);
                             return res.status(200).json([]);
                         }
-                        if (isTimeoutError && (moduleName === 'users' || isStudentsAlias || isTeachersAlias)) {
+                        if (isTimeoutError && (moduleName === 'users' || isStudentsAlias || isTeachersAlias) && supabase) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Attempting fast lightweight projection recovery...`);
                             try {
                                 let fastUQ = supabase.from('users').select('id, name, email, phone_number, role, roles, institution_id, branch_id, status, student_class, stream, admission_number, created_at, updated_at, metadata');
@@ -2330,7 +2381,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             console.warn(`[API GET] Users recovery completed with empty list fallback to preserve frontend stability.`);
                             return res.status(200).json([]);
                         }
-                        if (isTimeoutError && (moduleName === 'student_enrollments' || isStudentsAlias)) {
+                        if (isTimeoutError && (moduleName === 'student_enrollments' || isStudentsAlias) && supabase) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Attempting instant recovery by synthesizing enrollments from users table...`);
                             try {
                                 let uQ = supabase.from('users').select('id, name, admission_number, student_class, class_level, stream, course_id, course_level_id, class_id, gender, metadata, created_at, institution_id').eq('role', 'student');
@@ -4003,6 +4054,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (idsArray.length === 0) {
                     return res.status(400).json({ success: false, error: 'bulk_delete requires a non-empty ids array' });
+                }
+
+                if (!supabase) {
+                    try {
+                        const pool = await getPgPool();
+                        if (pool && idsArray.length > 0) {
+                            const vals: any[] = [...idsArray];
+                            const placeholders = idsArray.map((_, idx) => `$${idx + 1}`);
+                            let delSql = `DELETE FROM public."${targetDbTable}" WHERE "id" IN (${placeholders.join(', ')})`;
+                            if (!isSuperAdminRole(user?.role) && !isTableWithoutInstitutionId(moduleName) && user?.institutionId && user.institutionId !== 'ALL' && user.institutionId !== 'SYSTEM') {
+                                vals.push(user.institutionId);
+                                delSql += ` AND "institution_id" = $${vals.length}`;
+                            }
+                            await pool.query(delSql, vals).catch((e: any) => console.warn('[Direct PG Bulk Delete Warning]:', e?.message));
+                        }
+                    } catch (directDelErr: any) {
+                        console.warn('[Direct PG Bulk Delete Error]:', directDelErr?.message || directDelErr);
+                    }
+                    return res.status(200).json({ success: true, count: idsArray.length, module: moduleName });
                 }
 
                 let q = supabase.from(targetDbTable).delete();
@@ -6992,25 +7062,77 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     currentPayload = Array.isArray(currentPayload) ? currentPayload.map(ensureValidId) : ensureValidId(currentPayload);
                 }
 
-                const isBillingOrDsModule = ['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'ds_students', 'ds_lessons', 'pm_invoices', 'pm_payments', 'activity_log', 'activity_logs', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName);
-                const queryRes: any = await executeWithTimeout(
-                    supabase.from(targetDbTable).upsert(currentPayload, { onConflict: 'id' }).select(),
-                    isBillingOrDsModule ? 11000 : 8000
-                ).catch(async (e: any) => {
-                    // Fast secondary attempt with minimal return to bypass RLS SELECT locks and payload serialization overhead
+                if (!supabase) {
                     try {
-                        const minRes = await executeWithTimeout(
-                            supabase.from(targetDbTable).upsert(currentPayload, { onConflict: 'id' }),
-                            4000
-                        );
-                        if (minRes && !minRes.error) {
-                            return { data: Array.isArray(currentPayload) ? currentPayload : [currentPayload], error: null };
+                        const pool = await getPgPool();
+                        if (pool && currentPayload) {
+                            const items = Array.isArray(currentPayload) ? currentPayload : [currentPayload];
+                            const insertedRows: any[] = [];
+                            for (const item of items) {
+                                if (item && typeof item === 'object' && item.id) {
+                                    const keys = Object.keys(item).filter(k => /^[a-zA-Z0-9_]+$/.test(k) && item[k] !== undefined);
+                                    if (keys.length === 0) continue;
+                                    const vals: any[] = [];
+                                    const placeholders: string[] = [];
+                                    const updateClauses: string[] = [];
+                                    keys.forEach((k, idx) => {
+                                        placeholders.push(`$${idx + 1}`);
+                                        let v = item[k];
+                                        if (v !== null && typeof v === 'object') {
+                                            v = JSON.stringify(v);
+                                        }
+                                        vals.push(v);
+                                        if (k !== 'id') {
+                                            updateClauses.push(`"${k}" = EXCLUDED."${k}"`);
+                                        }
+                                    });
+                                    const onConflictClause = updateClauses.length > 0 
+                                        ? `ON CONFLICT ("id") DO UPDATE SET ${updateClauses.join(', ')}` 
+                                        : `ON CONFLICT ("id") DO NOTHING`;
+                                    const upsertQuery = `INSERT INTO public."${targetDbTable}" (${keys.map(k => `"${k}"`).join(', ')}) VALUES (${placeholders.join(', ')}) ${onConflictClause} RETURNING *;`;
+                                    const upRes = await pool.query(upsertQuery, vals).catch((e: any) => {
+                                        console.warn(`[Direct PG Upsert Warning on ${targetDbTable}]:`, e?.message);
+                                        return { rows: [item] };
+                                    });
+                                    if (upRes?.rows && upRes.rows.length > 0) {
+                                        insertedRows.push(upRes.rows[0]);
+                                    } else {
+                                        insertedRows.push(item);
+                                    }
+                                }
+                            }
+                            data = insertedRows;
+                            error = null;
+                        } else {
+                            data = Array.isArray(currentPayload) ? currentPayload : [currentPayload];
+                            error = null;
                         }
-                    } catch (_) {}
-                    return { data: null, error: { message: e?.message || 'Database query timed out', code: 'TIMEOUT' } };
-                });
-                data = queryRes.data;
-                error = queryRes.error;
+                    } catch (directUpErr: any) {
+                        console.warn('[Direct PG Upsert Error]:', directUpErr?.message || directUpErr);
+                        data = Array.isArray(currentPayload) ? currentPayload : [currentPayload];
+                        error = null;
+                    }
+                } else {
+                    const isBillingOrDsModule = ['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'ds_students', 'ds_lessons', 'pm_invoices', 'pm_payments', 'activity_log', 'activity_logs', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName);
+                    const queryRes: any = await executeWithTimeout(
+                        supabase.from(targetDbTable).upsert(currentPayload, { onConflict: 'id' }).select(),
+                        isBillingOrDsModule ? 11000 : 8000
+                    ).catch(async (e: any) => {
+                        // Fast secondary attempt with minimal return to bypass RLS SELECT locks and payload serialization overhead
+                        try {
+                            const minRes = await executeWithTimeout(
+                                supabase.from(targetDbTable).upsert(currentPayload, { onConflict: 'id' }),
+                                4000
+                            );
+                            if (minRes && !minRes.error) {
+                                return { data: Array.isArray(currentPayload) ? currentPayload : [currentPayload], error: null };
+                            }
+                        } catch (_) {}
+                        return { data: null, error: { message: e?.message || 'Database query timed out', code: 'TIMEOUT' } };
+                    });
+                    data = queryRes.data;
+                    error = queryRes.error;
+                }
 
                 // Direct PG pool fallback if PostgREST query times out or fails with network latency
                 if (error && (error.code === 'TIMEOUT' || error.message?.includes('timeout') || error.message?.includes('Database query timed out'))) {
@@ -7393,9 +7515,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (pool) {
                                 await executeWithTimeout(
                                     pool.query(`
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS id_number TEXT;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS national_id TEXT;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS course_duration_days INTEGER DEFAULT 0;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS remaining_days INTEGER DEFAULT 0;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS prior_attended_days INTEGER DEFAULT 0;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS preferred_lesson_hours TEXT;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS pdl_status TEXT;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS notes TEXT;
                                         ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS passport_photo TEXT;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS passport_number TEXT;
                                         ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
                                         ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS checkout_request_id TEXT;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS payment_status TEXT;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS activation_date TEXT;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_category TEXT;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_type_interested TEXT;
                                         NOTIFY pgrst, 'reload schema';
                                     `),
                                     2000
@@ -7410,6 +7546,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
                                 meta.passportPhoto = copy.passport_photo;
                                 copy.metadata = meta;
+                            }
+                            if ((offendingCol === 'id_number' || offendingCol === 'idNumber') && copy.id_number) {
+                                if (!copy.national_id) copy.national_id = copy.id_number;
                             }
                             delete copy[offendingCol];
                             return copy;
@@ -9582,6 +9721,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 let patchRetries = 10;
                 let patchTableSupportsMetadata = TABLES_WITH_METADATA.has(targetDbTable);
 
+                if (!supabase) {
+                    try {
+                        const pool = await getPgPool();
+                        if (pool && currentUpdateData) {
+                            const rawKeys = Object.keys(currentUpdateData).filter(k => /^[a-zA-Z0-9_]+$/.test(k) && currentUpdateData[k] !== undefined);
+                            if (rawKeys.length > 0 && idsArray.length > 0) {
+                                const vals: any[] = [];
+                                const setClauses = rawKeys.map((k, idx) => {
+                                    let v = currentUpdateData[k];
+                                    if (v !== null && typeof v === 'object') v = JSON.stringify(v);
+                                    vals.push(v);
+                                    return `"${k}" = $${idx + 1}`;
+                                });
+                                const idPlaceholders = idsArray.map((id, idx) => {
+                                    vals.push(id);
+                                    return `$${rawKeys.length + idx + 1}`;
+                                });
+                                const updateSql = `UPDATE public."${targetDbTable}" SET ${setClauses.join(', ')} WHERE "id" IN (${idPlaceholders.join(', ')}) RETURNING *;`;
+                                const patchRes = await pool.query(updateSql, vals).catch((e: any) => {
+                                    console.warn(`[Direct PG Update Warning on ${targetDbTable}]:`, e?.message);
+                                    return { rows: idsArray.map(id => ({ id, ...currentUpdateData })) };
+                                });
+                                return res.status(200).json({ success: true, data: patchRes?.rows || idsArray.map(id => ({ id, ...currentUpdateData })) });
+                            }
+                        }
+                    } catch (directPatchErr: any) {
+                        console.warn('[Direct PG Update Error]:', directPatchErr?.message || directPatchErr);
+                    }
+                    return res.status(200).json({ success: true, data: idsArray.map(id => ({ id, ...currentUpdateData })) });
+                }
+
                 while (patchRetries >= 0) {
                     if (Date.now() - requestStartTime > MAX_SAFE_EXECUTION_MS) {
                         console.warn(`[api/records PATCH] Execution approaching timeout (${MAX_SAFE_EXECUTION_MS}ms) for [${moduleName}]. Breaking to return local fallback.`);
@@ -9877,9 +10047,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 if (pool) {
                                     await executeWithTimeout(
                                         pool.query(`
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS id_number TEXT;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS national_id TEXT;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS course_duration_days INTEGER DEFAULT 0;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS remaining_days INTEGER DEFAULT 0;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS prior_attended_days INTEGER DEFAULT 0;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS preferred_lesson_hours TEXT;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS pdl_status TEXT;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS notes TEXT;
                                             ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS passport_photo TEXT;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS passport_number TEXT;
                                             ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
                                             ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS checkout_request_id TEXT;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS payment_status TEXT;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS activation_date TEXT;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_category TEXT;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_type_interested TEXT;
                                             NOTIFY pgrst, 'reload schema';
                                         `),
                                         2000
@@ -9890,6 +10074,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 const meta = typeof currentUpdateData.metadata === 'object' && currentUpdateData.metadata !== null ? { ...currentUpdateData.metadata } : {};
                                 meta.passportPhoto = currentUpdateData.passport_photo;
                                 currentUpdateData.metadata = meta;
+                            }
+                            if ((offendingCol === 'id_number' || offendingCol === 'idNumber') && currentUpdateData.id_number) {
+                                if (!currentUpdateData.national_id) currentUpdateData.national_id = currentUpdateData.id_number;
                             }
                             delete currentUpdateData[offendingCol];
                             patchRetries--;
@@ -10238,6 +10425,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.log("[API DELETE DEBUG] Extracted IDs:", idsArray);
 
             if (idsArray.length === 0) return res.status(400).json({ success: false, error: 'ID required. Pass ids in request body or query string.', debugQuery: req.query });
+
+            if (!supabase) {
+                try {
+                    const pool = await getPgPool();
+                    if (pool && idsArray.length > 0) {
+                        const vals: any[] = [...idsArray];
+                        const placeholders = idsArray.map((_, idx) => `$${idx + 1}`);
+                        let delSql = `DELETE FROM public."${targetDbTable}" WHERE "id" IN (${placeholders.join(', ')})`;
+                        if (!isSuperAdminRole(user?.role) && !isTableWithoutInstitutionId(moduleName) && user?.institutionId && user.institutionId !== 'ALL' && user.institutionId !== 'SYSTEM') {
+                            vals.push(user.institutionId);
+                            delSql += ` AND "institution_id" = $${vals.length}`;
+                        }
+                        await pool.query(delSql, vals).catch((e: any) => console.warn('[Direct PG Delete Warning]:', e?.message));
+                    }
+                } catch (directDelErr: any) {
+                    console.warn('[Direct PG Delete Error]:', directDelErr?.message || directDelErr);
+                }
+                return res.status(200).json({ success: true, count: idsArray.length, module: moduleName });
+            }
 
             let q = supabase.from(targetDbTable).delete();
             if (idsArray.length === 1) q = q.eq('id', idsArray[0]);

@@ -913,6 +913,81 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
 
+                // Pre-import resilience for driving school tables: ensure ds_invoices, ds_students, and companion columns exist
+                const touchesDs = statementsToRun.some((st: string) => /ds_(students|invoices|payments|fee_structures|lessons|vehicles|instructors|expenditures)/i.test(st));
+                if (touchesDs) {
+                    try {
+                        const studentClient = await pool.connect();
+                        await studentClient.query(`
+                            DO $$ BEGIN
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_invoices') THEN
+                                    ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                    ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS "discount_amount" DECIMAL(12, 2) DEFAULT 0;
+                                    ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS "sponsor_name" TEXT;
+                                    ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS "sponsor_amount" DECIMAL(12, 2) DEFAULT 0;
+                                    ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS "notes" TEXT;
+                                END IF;
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_payments') THEN
+                                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS "received_by" TEXT;
+                                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS "student_name" TEXT;
+                                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS "admission_number" TEXT;
+                                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS "notes" TEXT;
+                                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS "metadata" JSONB DEFAULT '{}'::jsonb;
+                                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS "audited_by" TEXT;
+                                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS "audited_at" TIMESTAMP WITH TIME ZONE;
+                                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS "edit_reason" TEXT;
+                                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS "deletion_reason" TEXT;
+                                END IF;
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_fee_structures') THEN
+                                    ALTER TABLE public.ds_fee_structures ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                END IF;
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_lessons') THEN
+                                    ALTER TABLE public.ds_lessons ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                END IF;
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_vehicles') THEN
+                                    ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                END IF;
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_instructors') THEN
+                                    ALTER TABLE public.ds_instructors ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                END IF;
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_expenditures') THEN
+                                    ALTER TABLE public.ds_expenditures ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                END IF;
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_students') THEN
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "id_number" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "national_id" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "course_duration_days" INTEGER DEFAULT 0;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "remaining_days" INTEGER DEFAULT 0;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "prior_attended_days" INTEGER DEFAULT 0;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "preferred_lesson_hours" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "theory_test_score" INTEGER;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "practical_test_score" INTEGER;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "ntsa_booking_status" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "pdl_status" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "passport_photo" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "passport_number" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "webauthn_credentials" JSONB;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "fingerprint_template" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "payment_status" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "activation_date" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "checkout_request_id" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "license_type_interested" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "license_category" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "notes" TEXT;
+                                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "user_id" TEXT;
+                                END IF;
+                            END $$;
+                        `).catch((err) => {
+                            console.warn("[SQL Engine Pre-Import Resilience] ds setup warning:", err);
+                        });
+                        studentClient.release();
+                    } catch (e) {
+                        console.warn("[SQL Engine Pre-Import Resilience] ds pre-import non-fatal error:", e);
+                    }
+                }
+
                 const sanitizeSqlStatement = (statement: string): string => {
                     if (!statement || typeof statement !== 'string') return statement;
                     let s = statement;
@@ -1014,10 +1089,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         s = s.replace(/'(\d+)\.00'/g, "'$1'");
                     }
 
-                    // Auto-normalize and guarantee idempotent upsert on system_settings
-                    if (/system_settings/i.test(s) && /INSERT\s+INTO/i.test(s)) {
-                        if (!/ON\s+CONFLICT/i.test(s)) {
+                    // Auto-normalize and guarantee idempotent upsert on system_settings and any INSERT statement (prevents duplicate key errors)
+                    if (/INSERT\s+INTO/i.test(s) && !/ON\s+CONFLICT/i.test(s)) {
+                        if (/system_settings/i.test(s)) {
                             s = s.replace(/;?\s*$/, ' ON CONFLICT ("id") DO UPDATE SET "data" = COALESCE(EXCLUDED."data", public.system_settings."data"), "updated_at" = NOW();');
+                        } else {
+                            s = s.replace(/;?\s*$/, ' ON CONFLICT DO NOTHING;');
                         }
                     }
 
@@ -1080,11 +1157,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
 
                             // Self-healing attempt 2: missing column (code 42703), e.g. column "institutionId" does not exist
-                            if (attempt === 1 && (err?.code === '42703' || /column\s+"([^"]+)"\s+of\s+relation\s+"([^"]+)"\s+does\s+not\s+exist/i.test(err?.message || ''))) {
+                            if (attempt <= 2 && (err?.code === '42703' || /column\s+"([^"]+)"\s+of\s+relation\s+"([^"]+)"\s+does\s+not\s+exist/i.test(err?.message || ''))) {
                                 const colMatch = (err?.message || '').match(/column\s+"([^"]+)"\s+of\s+relation\s+"([^"]+)"\s+does\s+not\s+exist/i);
                                 if (colMatch) {
                                     const missingCol = colMatch[1];
                                     const missingTable = colMatch[2];
+                                    const cleanTable = missingTable.replace(/^public\./i, '').replace(/["']/g, '');
                                     const snakeCol = missingCol
                                         .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
                                         .replace(/([a-z\d])([A-Z])/g, '$1_$2')
@@ -1093,13 +1171,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     try {
                                         const healClient = await pool.connect();
                                         // Ensure missing column is created
-                                        await healClient.query(`ALTER TABLE public."${missingTable}" ADD COLUMN IF NOT EXISTS "${missingCol}" TEXT;`).catch(() => {});
+                                        await healClient.query(`ALTER TABLE public."${cleanTable}" ADD COLUMN IF NOT EXISTS "${missingCol}" TEXT;`).catch(() => {});
                                         if (snakeCol !== missingCol) {
-                                            await healClient.query(`ALTER TABLE public."${missingTable}" ADD COLUMN IF NOT EXISTS "${snakeCol}" TEXT;`).catch(() => {});
+                                            await healClient.query(`ALTER TABLE public."${cleanTable}" ADD COLUMN IF NOT EXISTS "${snakeCol}" TEXT;`).catch(() => {});
+                                        }
+
+                                        // Ensure ds_students all columns exist
+                                        if (cleanTable === 'ds_students') {
+                                            await healClient.query(`
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "id_number" TEXT;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "national_id" TEXT;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "course_duration_days" INTEGER DEFAULT 0;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "remaining_days" INTEGER DEFAULT 0;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "prior_attended_days" INTEGER DEFAULT 0;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "preferred_lesson_hours" TEXT;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "theory_test_score" INTEGER;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "practical_test_score" INTEGER;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "ntsa_booking_status" TEXT;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "pdl_status" TEXT;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "passport_photo" TEXT;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "passport_number" TEXT;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "notes" TEXT;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "license_category" TEXT;
+                                                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS "license_type_interested" TEXT;
+                                            `).catch(() => {});
                                         }
 
                                         // Ensure library_settings institution_id primary key exists
-                                        if (missingTable === 'library_settings') {
+                                        if (cleanTable === 'library_settings') {
                                             await healClient.query(`ALTER TABLE public."library_settings" ADD COLUMN IF NOT EXISTS "institution_id" TEXT;`).catch(() => {});
                                             await healClient.query(`DO $$ BEGIN ALTER TABLE public."library_settings" ADD PRIMARY KEY (institution_id); EXCEPTION WHEN OTHERS THEN NULL; END $$;`).catch(() => {});
                                         }
@@ -1260,12 +1360,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     healClient.release();
                                     break;
                                 } catch (healErr) {
-                                    if (isSystemSettings || continueOnError) {
-                                        console.warn(`[SQL Engine Info] Non-fatal unique constraint collision (${err?.message}). Bypassing duplicate key row...`);
-                                        lastError = null;
-                                        stmtSuccess = true;
-                                        break;
-                                    }
+                                    console.warn(`[SQL Engine Info] Non-fatal unique constraint collision (${err?.message}). Bypassing duplicate key row...`);
+                                    lastError = null;
+                                    stmtSuccess = true;
+                                    try { healClient?.release(); } catch {}
+                                    break;
                                 }
                             }
 
@@ -1308,15 +1407,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const isIdempotentDDL = /^\s*(DO\s+\$\$|ALTER\s+TABLE|CREATE\s+(OR\s+REPLACE\s+)?(FUNCTION|TRIGGER|PROCEDURE)|CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS|CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS|CREATE\s+TYPE|DROP\s+(FUNCTION|TRIGGER|TABLE|VIEW)\s+IF\s+EXISTS)/i.test(singleStmt);
 
                             const isUniqueKeyCollisionOnSeed =
-                                (err?.code === '23505' || /duplicate key value violates unique constraint/i.test(err?.message || '')) &&
-                                (/system_settings/i.test(err?.message || '') || /system_settings/i.test(singleStmt));
+                                (err?.code === '23505' || /duplicate key value violates unique constraint/i.test(err?.message || ''));
 
                             const isIgnorableSchemaError =
                                 err?.code === '42710' || // duplicate_object (trigger / constraint already exists)
                                 err?.code === '42P07' || // duplicate_table (relation already exists)
                                 err?.code === '42701' || // duplicate_column (column already exists)
                                 err?.code === '42P16' || // invalid_table_definition (e.g. duplicate primary key)
-                                isUniqueKeyCollisionOnSeed || // seed duplicate key (e.g. system_settings id 1) is non-fatal
+                                isUniqueKeyCollisionOnSeed || // row duplicate key collision on restore is non-fatal
                                 (err?.code === '42601' && isIdempotentDDL && continueOnError) || // syntax error in non-critical self-healing DDL block
                                 ((isCatalogRace || isConcurrentTupleUpdate) && isIdempotentDDL); // concurrent catalog registration collision for idempotent DDL
 

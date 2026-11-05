@@ -16,7 +16,7 @@ import type {
     LawAgreement, LawAgreementTemplate, LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
     CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, MarketingProspect, BankTransaction,
-    PoliticalParty, Constituency, Ward, FtpConfig, GoogleDriveConfig, ICDCode, KcbConfig, CoopB2bConfig
+    PoliticalParty, Constituency, Ward, FtpConfig, GoogleDriveConfig, ICDCode, KcbConfig, CoopB2bConfig, NcbaConfig
 } from '../types';
 import { TransactionsManager } from './TransactionsManager';
 import { DatabaseSettings } from './DatabaseSettings';
@@ -35,6 +35,7 @@ import { KcbIcon } from './icons/KcbIcon';
 import { CoopIcon } from './icons/CoopIcon';
 import { EquityIcon } from './icons/EquityIcon';
 import { ImBankIcon } from './icons/ImBankIcon';
+import { NcbaIcon } from './icons/NcbaIcon';
 import { ChatBubbleLeftRightIcon } from './icons/ChatBubbleLeftRightIcon';
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { ChartPieIcon } from './icons/ChartPieIcon';
@@ -680,7 +681,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         return 'dashboard';
     });
     const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'whatsapp' | 'billing' | 'sms_pricing' | 'marketplace' | 'showcase' | 'system_build' | 'storage'>('profile');
-    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'kcb' | 'equity' | 'im' | 'coop'>('mpesa');
+    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba' | 'kcb' | 'equity' | 'im' | 'coop'>('mpesa');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [showScanToPayModal, setShowScanToPayModal] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
@@ -981,6 +982,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [localFtpConfig, setLocalFtpConfig] = useState<FtpConfig>(companyDetails?.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
     const [localKcbConfig, setLocalKcbConfig] = useState<KcbConfig>(companyDetails?.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
     const [localCoopConfig, setLocalCoopConfig] = useState<CoopB2bConfig>(companyDetails?.coopConfig || { serviceName: 'KEWISCO SACCO', connectionID: 'TEST', connectionPassword: 'CoopTest', institutionCode: '210001918' });
+    const [localNcbaConfig, setLocalNcbaConfig] = useState<NcbaConfig>(companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://c2bapis.ncbagroup.com', environment: 'production' });
+    const [isTestingNcba, setIsTestingNcba] = useState(false);
     const [isStampCustomizerOpen, setIsStampCustomizerOpen] = useState(false);
     const [coopIps, setCoopIps] = useState<{ serverIp: string; clientIp: string } | null>(null);
     const [localGoogleDriveConfig, setLocalGoogleDriveConfig] = useState<GoogleDriveConfig>(companyDetails?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', folderId: '', isActive: false });
@@ -1040,6 +1043,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             setLocalFtpConfig(companyDetails.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
             setLocalKcbConfig(companyDetails.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
             setLocalCoopConfig(companyDetails.coopConfig || { serviceName: 'KEWISCO SACCO', connectionID: 'TEST', connectionPassword: 'CoopTest', institutionCode: '210001918' });
+            setLocalNcbaConfig(companyDetails.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://c2bapis.ncbagroup.com', environment: 'production' });
         }
     }, [companyDetails]);
 
@@ -1144,6 +1148,19 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     subscriptionConfig: localSubConfig,
                     kcbConfig: localKcbConfig,
                     coopConfig: localCoopConfig,
+                    ncbaConfig: {
+                        ...localNcbaConfig,
+                        clientId: (localNcbaConfig.clientId || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                        clientSecret: (localNcbaConfig.clientSecret || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                        username: (localNcbaConfig.username || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                        password: (localNcbaConfig.password || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                        subscriptionKey: (localNcbaConfig.subscriptionKey || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                        openBankingUserId: (localNcbaConfig.openBankingUserId || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                        openBankingPassword: (localNcbaConfig.openBankingPassword || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                        debitAccount: (localNcbaConfig.debitAccount || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                        senderCif: (localNcbaConfig.senderCif || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                        openBankingBaseUrl: (localNcbaConfig.openBankingBaseUrl || '').trim()
+                    },
                     chatAssistantConfig: {
                         ...companyDetails?.chatAssistantConfig,
                         welcomeMessage: localCompanyInfo.welcomeMessage,
@@ -5939,6 +5956,193 @@ Please change it after login.`;
                                         </div>
                                     )}
 
+                                    
+                                    {billingSubTab === 'ncba' && (
+                                        <div className="animate-fade-in space-y-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-5">
+                                                    <div className="flex items-center gap-4 mb-2">
+                                                        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-2xl">
+                                                            <NcbaIcon className="w-6 h-6 text-blue-600" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-black uppercase tracking-tight">NCBA C2B STK Push Gateway</h4>
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Consumer-to-Business STK Initiation Credentials</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Environment</label>
+                                                        <select
+                                                            value={localNcbaConfig.environment || 'production'}
+                                                            onChange={e => {
+                                                                const env = e.target.value;
+                                                                setLocalNcbaConfig({
+                                                                    ...localNcbaConfig,
+                                                                    environment: env,
+                                                                    baseUrl: env === 'sandbox' ? 'https://sandbox.ncbagroup.com' : 'https://c2bapis.ncbagroup.com'
+                                                                });
+                                                            }}
+                                                            className="form-select w-full rounded-2xl text-xs font-bold"
+                                                        >
+                                                            <option value="production">Production (Live - c2bapis.ncbagroup.com)</option>
+                                                            <option value="sandbox">Sandbox (Test - sandbox.ncbagroup.com)</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Base URL</label>
+                                                        <input
+                                                            type="text"
+                                                            value={localNcbaConfig.baseUrl || ''}
+                                                            onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, baseUrl: e.target.value })}
+                                                            className="form-input w-full rounded-2xl text-xs font-mono"
+                                                            placeholder="https://c2bapis.ncbagroup.com"
+                                                        />
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Client ID (10 chars)</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localNcbaConfig.clientId || ''}
+                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, clientId: e.target.value })}
+                                                                className="form-input w-full rounded-2xl text-xs font-mono"
+                                                                placeholder="e.g. 10-char ID"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Client Secret</label>
+                                                            <input
+                                                                type="password"
+                                                                value={localNcbaConfig.clientSecret || ''}
+                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, clientSecret: e.target.value })}
+                                                                className="form-input w-full rounded-2xl text-xs font-mono"
+                                                                placeholder="32-char Secret"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">API Username</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localNcbaConfig.username || ''}
+                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, username: e.target.value })}
+                                                                className="form-input w-full rounded-2xl text-xs font-bold"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">API Password</label>
+                                                            <input
+                                                                type="password"
+                                                                value={localNcbaConfig.password || ''}
+                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, password: e.target.value })}
+                                                                className="form-input w-full rounded-2xl text-xs font-bold"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-5">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                            <div>
+                                                                <h4 className="text-sm font-black uppercase tracking-tight">NCBA Open Banking Gateway</h4>
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">APIM Corporate B2C & Transfers</p>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[9px] font-black px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 uppercase tracking-widest">Enterprise</span>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Open Banking User ID</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localNcbaConfig.openBankingUserId || ''}
+                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, openBankingUserId: e.target.value })}
+                                                                className="form-input w-full rounded-2xl text-xs font-bold"
+                                                                placeholder="e.g. NCBA_CORP_USER"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Open Banking Password</label>
+                                                            <input
+                                                                type="password"
+                                                                value={localNcbaConfig.openBankingPassword || ''}
+                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, openBankingPassword: e.target.value })}
+                                                                className="form-input w-full rounded-2xl text-xs font-bold"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Subscription Key (Ocp-Apim)</label>
+                                                        <input
+                                                            type="password"
+                                                            value={localNcbaConfig.subscriptionKey || ''}
+                                                            onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, subscriptionKey: e.target.value })}
+                                                            className="form-input w-full rounded-2xl text-xs font-mono"
+                                                            placeholder="Azure APIM Subscription Key"
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Debit Account Number</label>
+                                                        <input
+                                                            type="text"
+                                                            value={localNcbaConfig.debitAccount || ''}
+                                                            onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, debitAccount: e.target.value, senderCif: e.target.value.slice(0, 6) })}
+                                                            className="form-input w-full rounded-2xl text-xs font-mono"
+                                                            placeholder="e.g. 9115310018"
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Open Banking Gateway Base URL</label>
+                                                        <input
+                                                            type="text"
+                                                            value={localNcbaConfig.openBankingBaseUrl || ''}
+                                                            onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, openBankingBaseUrl: e.target.value })}
+                                                            className="form-input w-full rounded-2xl text-xs font-mono"
+                                                            placeholder="https://openbankingtest.api.ncbagroup.com/test/apigateway/"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
+                                                <div className="flex items-center gap-3 w-full sm:w-auto">
+                                                    <button
+                                                        onClick={async () => {
+                                                            setIsTestingNcba(true);
+                                                            try {
+                                                                const res = await apiService.testNcbaAuth(localNcbaConfig);
+                                                                if (res.success) {
+                                                                    alert('NCBA Auth Success: ' + (res.message || 'C2B Authentication successful'));
+                                                                } else {
+                                                                    alert('NCBA Auth Failed: ' + (res.message || 'Check your credentials'));
+                                                                }
+                                                            } catch (err: any) {
+                                                                alert('NCBA Connection Error: ' + err.message);
+                                                            } finally {
+                                                                setIsTestingNcba(false);
+                                                            }
+                                                        }}
+                                                        disabled={isTestingNcba}
+                                                        className="px-5 py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 text-xs font-black uppercase tracking-widest hover:bg-blue-100 transition-colors"
+                                                    >
+                                                        {isTestingNcba ? 'Verifying...' : 'Test NCBA C2B Auth'}
+                                                    </button>
+                                                </div>
+                                                <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs w-full sm:w-auto">Save NCBA Settings</button>
+                                            </div>
+                                        </div>
+                                    )}
                                     {billingSubTab === 'kcb' && (
                                         <div className="animate-fade-in space-y-6">
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -180,10 +180,12 @@ export function sanitizeSqlStatement(statement: string): string {
         s = s.replace(/'(\d+)\.00'/g, "'$1'");
     }
 
-    // 11. Normalize and guarantee idempotent upsert on system_settings
-    if (/system_settings/i.test(s) && /INSERT\s+INTO/i.test(s)) {
-        if (!/ON\s+CONFLICT/i.test(s)) {
+    // 11. Normalize and guarantee idempotent upsert on INSERT statements (prevents duplicate key errors)
+    if (/INSERT\s+INTO/i.test(s) && !/ON\s+CONFLICT/i.test(s)) {
+        if (/system_settings/i.test(s)) {
             s = s.replace(/;?\s*$/, ' ON CONFLICT ("id") DO UPDATE SET "data" = COALESCE(EXCLUDED."data", public.system_settings."data"), "updated_at" = NOW();');
+        } else {
+            s = s.replace(/;?\s*$/, ' ON CONFLICT DO NOTHING;');
         }
     }
 
@@ -398,8 +400,76 @@ export async function executeBatchSqlImport(options: SqlImportOptions): Promise<
         };
     }
 
+    // Pre-flight check: if import touches ds_ tables, ensure all required columns exist beforehand
+    const touchesDs = statements.some(st => /ds_(students|invoices|payments|fee_structures|lessons|vehicles|instructors|expenditures)/i.test(st));
+    const preflightStatements: string[] = [];
+    if (touchesDs) {
+        preflightStatements.push(
+            `DO $$ BEGIN 
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_invoices') THEN 
+                    ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                    ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS discount_amount DECIMAL(12, 2) DEFAULT 0;
+                    ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS sponsor_name TEXT;
+                    ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS sponsor_amount DECIMAL(12, 2) DEFAULT 0;
+                    ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS notes TEXT;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_payments') THEN 
+                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS received_by TEXT;
+                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS student_name TEXT;
+                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS admission_number TEXT;
+                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS notes TEXT;
+                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS audited_by TEXT;
+                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS audited_at TIMESTAMP WITH TIME ZONE;
+                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS edit_reason TEXT;
+                    ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS deletion_reason TEXT;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_fee_structures') THEN 
+                    ALTER TABLE public.ds_fee_structures ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_lessons') THEN 
+                    ALTER TABLE public.ds_lessons ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_vehicles') THEN 
+                    ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_instructors') THEN 
+                    ALTER TABLE public.ds_instructors ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_expenditures') THEN 
+                    ALTER TABLE public.ds_expenditures ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_students') THEN 
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS id_number TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS national_id TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS course_duration_days INTEGER DEFAULT 0;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS remaining_days INTEGER DEFAULT 0;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS prior_attended_days INTEGER DEFAULT 0;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS preferred_lesson_hours TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS pdl_status TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS notes TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS passport_photo TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS passport_number TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS webauthn_credentials JSONB;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS fingerprint_template TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS payment_status TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS activation_date TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS checkout_request_id TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_category TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_type_interested TEXT;
+                    ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS user_id TEXT;
+                END IF;
+            EXCEPTION WHEN OTHERS THEN NULL; END $$;`
+        );
+    }
+
     // Split statements into batches
     const batches: string[][] = [];
+    if (preflightStatements.length > 0) {
+        batches.push(preflightStatements);
+    }
     for (let i = 0; i < totalStatements; i += batchSize) {
         batches.push(statements.slice(i, i + batchSize));
     }
