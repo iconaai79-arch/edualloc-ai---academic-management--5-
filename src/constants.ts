@@ -12,13 +12,13 @@ export interface ModuleTutorial {
 }
 
 export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
-    name: "Eduai Automation",
-    address: "123 Innovation Drive, Nairobi, Kenya",
-    email: "info@eduai.co.ke",
-    phone: "+254 700 123 456",
+    name: "EduAi Automation",
+    address: "123 Innovation Drive, Eldoret, Kenya",
+    email: "support@eduai.co.ke",
+    phone: "+254 723348912",
     website: "https://eduai.co.ke",
     logoUrl: '/eduai_logo_3d.png',
-    applicationTitle: "Eduai Automation",
+    applicationTitle: "EduAi Automation Network",
     themeColor: "#4f46e5",
     subscriptionConfig: {
         defaultMonthlyPrice: 5000,

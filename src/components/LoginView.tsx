@@ -54,11 +54,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
     onOpenGuestPortal, onOpenGuestFeedback, onOpenMarketplace, onOpenShowcase, companyDetails, onForgotPassword, onResetPassword,
     onVerifyOtp, onResendOtp, onVerifyResetOtp, schoolRegistry = [], initialView = 'login', prefillModuleId, users = []
 }) => {
-    const superAdmin = (users || []).find(u => u.role === 'super_admin') || {
-        name: 'System Super Admin',
-        email: 'super@app.com',
+    const superAdmin = (users || []).find(u => u.role === 'super_admin') || (companyDetails as any)?.superAdmin || {
+        name: (companyDetails as any)?.superAdmin?.name || companyDetails?.name || 'EduAi Administrator',
+        email: (companyDetails as any)?.superAdmin?.email || companyDetails?.email || 'support@eduai.co.ke',
         role: 'super_admin' as const,
-        profilePhotoUrl: null
+        profilePhotoUrl: (companyDetails as any)?.superAdmin?.profilePhotoUrl || companyDetails?.logoUrl || null
     };
     const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'recovery_otp' | 'reg_success' | 'reset_sent' | 'reset_password' | 'otp'>(initialView);
     const [identifier, setIdentifier] = useState('');
@@ -1280,7 +1280,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                         </div>
                         <div>
                             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">System Support</p>
-                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{companyDetails?.phone || '+254 700 123 456'}</p>
+                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{companyDetails?.phone || '+254 723348912'}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-3 group">
@@ -1289,7 +1289,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                         </div>
                         <div>
                             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Help Desk Email</p>
-                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{companyDetails?.email || 'info@eduai.co.ke'}</p>
+                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{companyDetails?.email || 'support@eduai.co.ke'}</p>
                         </div>
                     </div>
                     <div className="ml-auto hidden sm:flex items-center gap-2">

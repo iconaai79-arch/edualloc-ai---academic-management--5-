@@ -533,7 +533,7 @@ export const apiService = {
         return _supabase;
     },
     isConfigured() {
-        return !!_supabase;
+        return !!_supabase || (typeof window !== 'undefined' && Boolean(window.location.origin));
     },
     getActiveConfig() {
         return { url: _activeUrl, key: _activeKey };
@@ -1271,6 +1271,33 @@ export const apiService = {
         const timestampStr = new Date().toISOString();
         if (url && key) initSupabaseClient(url, key);
         if (!_supabase) initSupabaseClient();
+
+        // 1. First probe live backend server (Talksasa PostgreSQL database or API backend)
+        if (typeof window !== 'undefined' && Boolean(window.location.origin)) {
+            try {
+                const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                const timeoutId = controller ? setTimeout(() => controller.abort(), 4000) : null;
+                const pingRes = await fetch('/api/system?action=ping', { signal: controller ? controller.signal : undefined }).finally(() => {
+                    if (timeoutId) clearTimeout(timeoutId);
+                }).catch(() => null);
+
+                if (pingRes && pingRes.ok) {
+                    const res = { success: true, status: 'online', dbName: 'Talksasa PostgreSQL', message: 'Connected to backend server successfully.' };
+                    apiService._lastConnectionTest = { ...res, timestamp: Date.now() };
+                    return { ...res, timestamp: timestampStr };
+                }
+            } catch (_) {}
+        }
+
+        // 2. Direct probe via fetchModuleRecords if backend is reachable
+        try {
+            const insts = await apiService.fetchModuleRecords('institutions', undefined, undefined, { limit: 1 });
+            if (insts && Array.isArray(insts)) {
+                const res = { success: true, status: 'online', dbName: 'PostgreSQL', message: 'Handshake successful.' };
+                apiService._lastConnectionTest = { ...res, timestamp: Date.now() };
+                return { ...res, timestamp: timestampStr };
+            }
+        } catch (_) {}
 
         if (!_supabase) {
             const localInsts = ls.get('institutions');
@@ -2547,7 +2574,7 @@ export const apiService = {
                 return finalDuty as T[];
             }
 
-            if (_unsupportedServerModules.has(module) || !_supabase) {
+            if (_unsupportedServerModules.has(module)) {
                 return queryLocal();
             }
 
@@ -4404,7 +4431,7 @@ export const apiService = {
             return toCamelCase(payload);
         }
 
-        if (_unsupportedServerModules.has(module) || !_supabase) {
+        if (_unsupportedServerModules.has(module)) {
             const records = ls.get(module);
             const index = records.findIndex((r: any) => r.id === id);
             if (index >= 0) {
@@ -6020,7 +6047,7 @@ export const apiService = {
             return data;
         }
 
-        if (_unsupportedServerModules.has(module) || !_supabase) {
+        if (_unsupportedServerModules.has(module)) {
             const records = ls.get(module);
             payload.forEach((item: any) => {
                 const index = records.findIndex((r: any) => r && r.id === item.id);
@@ -6885,11 +6912,6 @@ export const apiService = {
     },
     async saveAllocation(data: Partial<AllocationRequest>): Promise<void> { await apiService.saveModuleRecord('allocation_requests', data); },
     async fetchCompanySettings(): Promise<CompanyDetails | null> {
-        if (!_supabase) {
-            const data = ls.get('system_settings').find((s: any) => s.id === 1);
-            return data ? toCamelCase(data.data) : null;
-        }
-
         const parseAndNormalize = (rawJson: any): CompanyDetails | null => {
             const rawSettings = toCamelCase(rawJson) || null;
             if (rawSettings) {
@@ -6924,7 +6946,17 @@ export const apiService = {
             // Silently proceed to Tier 2 on network/cold-start delays
         }
 
-        // Tier 2: Direct Supabase client query fallback
+        // Tier 2: Fetch via /api/records?module=system_settings (Direct PostgreSQL backend)
+        try {
+            const records = await apiService.fetchModuleRecords('system_settings', undefined, undefined, { limit: 1 });
+            if (Array.isArray(records) && records.length > 0 && records[0]?.data) {
+                const rowData = records[0].data;
+                safeLocalStorage.setItem('eduai_system_settings_cache', JSON.stringify(rowData));
+                return parseAndNormalize(rowData);
+            }
+        } catch {}
+
+        // Tier 3: Direct Supabase client query fallback if _supabase is available
         if (_supabase) {
             try {
                 const { data: dbData, error: dbErr } = await _supabase
@@ -6938,15 +6970,19 @@ export const apiService = {
                     return parseAndNormalize(dbData.data);
                 }
             } catch {
-                // Silently proceed to Tier 3
+                // Silently proceed to Tier 4
             }
         }
 
-        // Tier 3: Seamlessly recover from local storage cache
+        // Tier 4: Seamlessly recover from local storage cache
         try {
             const cachedData = localStorage.getItem('eduai_system_settings_cache');
             if (cachedData) {
                 return parseAndNormalize(JSON.parse(cachedData));
+            }
+            const lsData = ls.get('system_settings').find((s: any) => s.id === 1);
+            if (lsData?.data) {
+                return parseAndNormalize(lsData.data);
             }
         } catch {}
 
@@ -6958,19 +6994,17 @@ export const apiService = {
     },
     async saveCompanySettings(settings: CompanyDetails): Promise<void> {
         const payload = toSnakeCase(settings);
-        if (!_supabase) {
-            ls.upsert('system_settings', { id: 1, data: payload });
-            return;
+        try {
+            const response = await fetch('/api/system?action=saveSettings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ settings: payload })
+            });
+            if (response.ok) return;
+        } catch (err) {
+            console.warn('[saveCompanySettings] Failed to save via /api/system:', err);
         }
-        const response = await fetch('/api/system?action=saveSettings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ settings: payload })
-        });
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.error || 'Failed to save settings');
-        }
+        ls.upsert('system_settings', { id: 1, data: payload });
     },
     async fetchTimetable(institutionId: string): Promise<TimetableEntry[]> { return apiService.fetchModuleRecords('timetable_entries', institutionId); },
     async saveTimetable(institutionId: string, ayId: string, semId: string, entries: TimetableEntry[]): Promise<void> {

@@ -52,6 +52,7 @@ const SETTINGS_CACHE_TTL_MS = 60 * 1000; // 60s cache TTL
 // Direct PostgreSQL Connection Pool Singleton for fallback when PostgREST resets/terminates connections
 let _pgPool: any = null;
 let _directPgDisabledUntil = 0;
+let _forcePlaintextPg = false;
 
 const getPgPool = async () => {
     if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
@@ -74,11 +75,12 @@ const getPgPool = async () => {
         if (!Pool) return null;
 
         let cleanConnString = connectionString.trim();
-        let disableSsl = false;
+        let disableSsl = _forcePlaintextPg;
         try {
             const parsedUrl = new URL(cleanConnString);
             const h = (parsedUrl.hostname || '').toLowerCase();
             if (
+                _forcePlaintextPg ||
                 parsedUrl.searchParams.get('sslmode') === 'disable' ||
                 parsedUrl.searchParams.get('ssl') === 'false' ||
                 process.env.PGSSLMODE === 'disable' ||
@@ -91,7 +93,7 @@ const getPgPool = async () => {
             parsedUrl.searchParams.delete('sslmode');
             cleanConnString = parsedUrl.toString();
         } catch {
-            if (/([?&])sslmode=disable/i.test(cleanConnString) || /([?&])ssl=false/i.test(cleanConnString) || process.env.PGSSLMODE === 'disable') {
+            if (_forcePlaintextPg || /([?&])sslmode=disable/i.test(cleanConnString) || /([?&])ssl=false/i.test(cleanConnString) || process.env.PGSSLMODE === 'disable') {
                 disableSsl = true;
             }
             cleanConnString = cleanConnString
@@ -112,7 +114,12 @@ const getPgPool = async () => {
 
         _pgPool.on('error', (err: any) => {
             console.warn('[Direct SQL Pool Error]:', err?.message || err);
-            _directPgDisabledUntil = Date.now() + 15000;
+            if (/does not support SSL/i.test(err?.message || '') || err?.code === '08006' || err?.code === '08001') {
+                _forcePlaintextPg = true;
+                _directPgDisabledUntil = 0;
+            } else {
+                _directPgDisabledUntil = Date.now() + 15000;
+            }
             try { _pgPool?.end().catch(() => {}); } catch (_) {}
             _pgPool = null;
         });
@@ -128,41 +135,80 @@ async function fetchSystemSettingsFromDb(supabase: any): Promise<any> {
     let settingsData: any = null;
     let pgrstErr: any = null;
 
-    // 1. Attempt PostgREST query with a 3.5s timeout
-    try {
-        const pgrstQuery = supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('PostgREST query timeout (3500ms)')), 3500)
-        );
-        const { data, error }: any = await Promise.race([pgrstQuery, timeoutPromise]);
-        if (error && error.code !== 'PGRST116') {
-            pgrstErr = error;
-        } else if (data?.data && typeof data.data === 'object' && Object.keys(data.data).length > 0) {
-            settingsData = data.data;
+    // 1. Attempt PostgREST query with a 3.5s timeout if Supabase is present
+    if (supabase) {
+        try {
+            const pgrstQuery = supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('PostgREST query timeout (3500ms)')), 3500)
+            );
+            const { data, error }: any = await Promise.race([pgrstQuery, timeoutPromise]);
+            if (error && error.code !== 'PGRST116') {
+                pgrstErr = error;
+            } else if (data?.data && typeof data.data === 'object' && Object.keys(data.data).length > 0) {
+                settingsData = data.data;
+            }
+        } catch (err: any) {
+            pgrstErr = err;
         }
-    } catch (err: any) {
-        pgrstErr = err;
+    }
+
+    // 2. Direct PostgreSQL query (Talksasa Database)
+    if (!settingsData) {
+        try {
+            const pool = await getPgPool();
+            if (pool) {
+                const pgRes = await pool.query('SELECT data FROM public.system_settings WHERE id = 1 LIMIT 1');
+                if (pgRes?.rows && pgRes.rows.length > 0 && pgRes.rows[0].data) {
+                    const rowData = pgRes.rows[0].data;
+                    if (typeof rowData === 'object' && Object.keys(rowData).length > 0) {
+                        console.log('[System API] getSettings successfully fetched via Direct PostgreSQL pool.');
+                        settingsData = rowData;
+                    }
+                }
+            }
+        } catch (pgErr: any) {
+            console.warn('[System API] Direct PostgreSQL fetch for getSettings failed:', pgErr?.message || pgErr);
+        }
     }
 
     if (settingsData) {
-        return settingsData;
-    }
-
-    // 2. Direct PostgreSQL fallback if PostgREST had upstream connection reset, disconnect, or empty response
-    try {
-        const pool = await getPgPool();
-        if (pool) {
-            const pgRes = await pool.query('SELECT data FROM public.system_settings WHERE id = 1 LIMIT 1');
-            if (pgRes?.rows && pgRes.rows.length > 0 && pgRes.rows[0].data) {
-                const rowData = pgRes.rows[0].data;
-                if (typeof rowData === 'object' && Object.keys(rowData).length > 0) {
-                    console.log('[System API] getSettings successfully fetched via Direct PostgreSQL pool fallback.');
-                    return rowData;
+        // Fetch super admin details to provide accurate branding & contact on login page
+        try {
+            const pool = await getPgPool();
+            if (pool) {
+                const suRes = await pool.query(
+                    `SELECT id, name, email, phone_number, profile_photo_url 
+                     FROM public.users 
+                     WHERE role = 'super_admin' OR (roles::text LIKE '%super_admin%') 
+                     ORDER BY id ASC 
+                     LIMIT 1`
+                );
+                if (suRes?.rows && suRes.rows.length > 0) {
+                    const su = suRes.rows[0];
+                    settingsData.superAdmin = {
+                        id: su.id,
+                        name: su.name,
+                        email: su.email,
+                        phoneNumber: su.phone_number,
+                        profilePhotoUrl: su.profile_photo_url
+                    };
+                }
+            } else if (supabase) {
+                const { data: suData } = await supabase.from('users').select('id, name, email, phone_number, profile_photo_url').eq('role', 'super_admin').limit(1);
+                if (suData && suData.length > 0) {
+                    const su = suData[0];
+                    settingsData.superAdmin = {
+                        id: su.id,
+                        name: su.name,
+                        email: su.email,
+                        phoneNumber: su.phone_number,
+                        profilePhotoUrl: su.profile_photo_url
+                    };
                 }
             }
-        }
-    } catch (pgErr: any) {
-        console.warn('[System API] Direct PostgreSQL fallback for getSettings failed:', pgErr?.message || pgErr);
+        } catch (_) {}
+        return settingsData;
     }
 
     if (pgrstErr) {
@@ -200,12 +246,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const supabase = getSupabase(req);
-        if (!supabase && action !== 'execute_sql') {
+        const hasDirectPgConfig = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.VITE_DATABASE_URL || process.env.SUPABASE_DB_URL);
+        if (!supabase && !hasDirectPgConfig && action !== 'execute_sql') {
             const hasUrl = !!(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || req.headers['x-supabase-url']);
             const hasKey = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || req.headers['x-supabase-key']);
-            console.error(`[System API] Supabase client creation failed. URL: ${hasUrl}, Key: ${hasKey}`);
+            console.error(`[System API] Database client creation failed. URL: ${hasUrl}, Key: ${hasKey}`);
             return res.status(500).json({ 
-                error: 'Database service unavailable - Missing keys', 
+                error: 'Database service unavailable - Missing connection string or keys', 
                 details: `Missing environment configuration (URL: ${hasUrl}, Key: ${hasKey})`,
                 env: getEnvInfo() 
             });
@@ -215,11 +262,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (action === 'checkEmail') {
                 const { email } = req.query;
                 if (!email) return res.status(400).json({ error: 'Email parameter required' });
-                const { data, error } = await supabase.from('users').select('id').eq('email', String(email).toLowerCase()).limit(1);
-                if (error) {
-                    return res.status(500).json({ error: error.message });
+                if (supabase) {
+                    const { data, error } = await supabase.from('users').select('id').eq('email', String(email).toLowerCase()).limit(1);
+                    if (error) {
+                        return res.status(500).json({ error: error.message });
+                    }
+                    return res.status(200).json({ exists: data && data.length > 0 });
                 }
-                return res.status(200).json({ exists: data && data.length > 0 });
+                try {
+                    const pool = await getPgPool();
+                    if (pool) {
+                        const pgRes = await pool.query('SELECT id FROM public.users WHERE LOWER(email) = $1 LIMIT 1', [String(email).toLowerCase().trim()]);
+                        return res.status(200).json({ exists: (pgRes.rows || []).length > 0 });
+                    }
+                } catch (pgErr: any) {
+                    return res.status(500).json({ error: pgErr?.message || 'Database error' });
+                }
+                return res.status(500).json({ error: 'Database service unavailable' });
             }
 
             if (action === 'getSettings') {
@@ -258,19 +317,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (action === 'health') {
                 try {
-                    const { error } = await supabase.from('institutions').select('id', { count: 'exact', head: true }).limit(1);
-                    const url = process.env.SUPABASE_URL || '';
-                    const dbName = url.replace('https://', '').split('.')[0] || 'supabase-instance';
-                    if (error && error.code !== '42P01') throw error;
-                    return res.status(200).json({
-                        success: true,
-                        status: error?.code === '42P01' ? 'setup_required' : 'online',
-                        dbName,
-                        engine: 'PostgreSQL (Supabase)',
-                        message: error?.code === '42P01' ? 'Supabase connected. Schema initialization required.' : 'Connected to cloud cluster successfully.',
-                        timestamp: new Date().toISOString()
-                    });
+                    if (supabase) {
+                        const { error } = await supabase.from('institutions').select('id', { count: 'exact', head: true }).limit(1);
+                        const url = process.env.SUPABASE_URL || '';
+                        const dbName = url.replace('https://', '').split('.')[0] || 'supabase-instance';
+                        if (error && error.code !== '42P01') throw error;
+                        return res.status(200).json({
+                            success: true,
+                            status: error?.code === '42P01' ? 'setup_required' : 'online',
+                            dbName,
+                            engine: 'PostgreSQL (Supabase)',
+                            message: error?.code === '42P01' ? 'Supabase connected. Schema initialization required.' : 'Connected to cloud cluster successfully.',
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                    const pool = await getPgPool();
+                    if (pool) {
+                        await pool.query('SELECT id FROM public.institutions LIMIT 1');
+                        return res.status(200).json({
+                            success: true,
+                            status: 'online',
+                            dbName: 'Talksasa PostgreSQL',
+                            engine: 'PostgreSQL',
+                            message: 'Connected to Talksasa database cluster successfully.',
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                    return res.status(500).json({ success: false, status: 'offline', message: 'No database connection configured.' });
                 } catch (e: any) {
+                    return res.status(200).json({ success: false, status: 'offline', message: 'Database unreachable.', error_detail: e.message });
+                }
+            }
                     return res.status(200).json({ success: false, status: 'offline', message: 'Cloud database unreachable.', error_detail: e.message });
                 }
             }
