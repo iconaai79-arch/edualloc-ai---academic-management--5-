@@ -128,11 +128,72 @@ const getPgPool = async () => {
       _pgPool = null;
     });
 
+    ensureEssentialSchema(_pgPool).catch(() => {});
+
     return _pgPool;
   } catch (err) {
     console.error('[Direct SQL Pool Init Error]:', err);
     return null;
   }
+};
+
+let _schemaMigrationDone = false;
+let _schemaMigrationPromise: Promise<void> | null = null;
+
+const ensureEssentialSchema = async (pool: any) => {
+  if (_schemaMigrationDone || !pool) return;
+  if (_schemaMigrationPromise) return _schemaMigrationPromise;
+
+  _schemaMigrationPromise = (async () => {
+    try {
+      await pool.query(`
+        DO $$
+        BEGIN
+            -- 1. building_visitor_logs
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'building_visitor_logs') THEN
+                ALTER TABLE public.building_visitor_logs ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.building_visitor_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.building_visitor_logs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+                UPDATE public.building_visitor_logs SET created_at = NOW() WHERE created_at IS NULL;
+            END IF;
+
+            -- 2. visitors
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'visitors') THEN
+                ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+                UPDATE public.visitors SET created_at = NOW() WHERE created_at IS NULL;
+            END IF;
+
+            -- 3. security_alerts
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'security_alerts') THEN
+                ALTER TABLE public.security_alerts ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.security_alerts ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.security_alerts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+                UPDATE public.security_alerts SET created_at = NOW() WHERE created_at IS NULL;
+            END IF;
+
+            -- 4. watchlist_records
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'watchlist_records') THEN
+                ALTER TABLE public.watchlist_records ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.watchlist_records ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.watchlist_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+                UPDATE public.watchlist_records SET created_at = NOW() WHERE created_at IS NULL;
+            END IF;
+
+            -- 5. institutions
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'institutions') THEN
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS reseller_id TEXT;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "resellerId" TEXT;
+            END IF;
+        END $$;
+      `);
+      _schemaMigrationDone = true;
+    } catch (e: any) {
+      console.warn('[Direct SQL Schema Auto-Sync Warning]:', e?.message || e);
+    }
+  })();
+  return _schemaMigrationPromise;
 };
 
 export interface DirectSqlCondition {
@@ -308,21 +369,41 @@ const fetchViaDirectPg = async (
     }
 
     if (client && (err?.code === '42703' || err?.message?.includes('column') || err?.message?.includes('does not exist'))) {
+      const errMsg = String(err?.message || '');
+
+      // 1. Auto-heal missing created_at or updated_at column
+      if (errMsg.includes('created_at')) {
+        try {
+          await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
+          const retryRes = await pool.query(sql, values);
+          return retryRes.rows || [];
+        } catch (_) {
+          // If query still fails, retry immediately without orderPart
+          try {
+            const noOrderSql = `SELECT * FROM "${table}" ${wherePart} ${limitPart}`;
+            const noOrderRes = await pool.query(noOrderSql, values);
+            return noOrderRes.rows || [];
+          } catch (_) {}
+        }
+      }
+
+      // 2. Auto-heal reseller_id on institutions
       try {
-        if (table === 'institutions' && (err?.message?.includes('reseller_id') || err?.message?.includes('resellerId'))) {
-          await client.query(`
+        if (table === 'institutions' && (errMsg.includes('reseller_id') || errMsg.includes('resellerId'))) {
+          await pool.query(`
             ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS reseller_id TEXT;
             ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "resellerId" TEXT;
             NOTIFY pgrst, 'reload schema';
           `).catch(() => {});
-          const retryRes = await client.query(sql, values);
+          const retryRes = await pool.query(sql, values);
           return retryRes.rows || [];
         }
       } catch (_) {}
 
+      // 3. Fallback: try removing missing column or retry without orderPart
       try {
         let safeWhere = wherePart;
-        if (err?.message?.includes('reseller_id')) {
+        if (errMsg.includes('reseller_id')) {
           safeWhere = safeWhere
             .replace(/OR reseller_id::text = \$[0-9]+/g, '')
             .replace(/reseller_id::text = \$[0-9]+ OR /g, '')
@@ -330,7 +411,7 @@ const fetchViaDirectPg = async (
             .replace(/\s*OR\s*\)/g, ')');
         }
         const fallbackSql = `SELECT * FROM "${table}" ${safeWhere} ${limitPart}`;
-        const fallbackResult = await client.query(fallbackSql, values);
+        const fallbackResult = await pool.query(fallbackSql, values);
         return fallbackResult.rows || [];
       } catch (_) {}
     }

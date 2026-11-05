@@ -1062,13 +1062,37 @@ export const App: React.FC = () => {
         return null;
     }, [currentUser, institutions, counties, schoolRegistry, activeStoreTenantId, institutionModuleStates, constituencies, branches]);
 
+    // Determines if current user belongs strictly to a Driving School account
+    const isDSAccountUser = useMemo(() => {
+        if (!currentUser) return false;
+        const uAny = currentUser as any;
+        if (currentUser.role === 'driving_instructor' || (Array.isArray(currentUser.roles) && currentUser.roles.includes('driving_instructor'))) return true;
+        if (currentUser.department === 'driving_school' || String(uAny?.department || '').toLowerCase().includes('driving')) return true;
+        const instId = currentUser.institutionId || uAny.institution_id;
+        if (instId && (String(instId).startsWith('ds_') || String(instId).toLowerCase().includes('driving'))) return true;
+        if (uAny.enrollmentType === 'driving_school' || uAny.enrollment_type === 'driving_school') return true;
+        if (uAny.licenseCategory || uAny.licenseTypeInterested || uAny.metadata?.licenseCategory) return true;
+        if (currentUser.id && String(currentUser.id).startsWith('ds_')) return true;
+        if (activeInstitution && isDSInstitution(activeInstitution)) return true;
+        if (instId && Array.isArray(institutions)) {
+            const cleanTarget = String(instId).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase();
+            const matched = institutions.find(i => i && (
+                i.id === instId ||
+                cleanId(i.id) === cleanId(instId) ||
+                (cleanTarget && cleanId(i.id).toLowerCase() === cleanTarget)
+            ));
+            if (matched && isDSInstitution(matched)) return true;
+        }
+        return false;
+    }, [currentUser, activeInstitution, institutions]);
+
     const activeRole = useMemo<Role | null>(() => {
         if (!currentUser) return null;
 
         // STRICT ACCESS ENFORCEMENT:
         // A user whose assigned role is strictly a teacher or HOD (no administrative leadership role)
         // must strictly access the Teacher Portal only (unless part of a commercial Driving School).
-        if (isStrictTeacherUser(currentUser) && !isDSInstitution(activeInstitution)) {
+        if (isStrictTeacherUser(currentUser) && !isDSInstitution(activeInstitution) && !isDSAccountUser) {
             const roleCandidate = selectedRole || currentUser.role;
             if (isTeacherRole(roleCandidate)) {
                 return roleCandidate as Role;
@@ -1079,6 +1103,20 @@ export const App: React.FC = () => {
         if (impersonatedRole) return impersonatedRole;
 
         const roleToUse = selectedRole || currentUser.role;
+
+        // Force Driving School role preservation for DS accounts
+        if (isDSAccountUser && currentUser.role !== 'super_admin') {
+            if (roleToUse === 'student' || (currentUser as any)?.enrollmentType === 'driving_school' || (currentUser as any)?.metadata?.licenseCategory) {
+                return 'student';
+            }
+            if (roleToUse === 'driving_instructor' || currentUser?.role === 'driving_instructor') {
+                return 'driving_instructor';
+            }
+            if (['head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'deputy', 'deputy_headteacher', 'deputy_principal', 'dos', 'director_of_studies', 'teacher', 'lecturer', 'hod'].includes(roleToUse as string)) {
+                return 'driving_instructor';
+            }
+            return roleToUse;
+        }
 
         // Force HIS Admin role for HIS/Hospital/Clinic institutions (independent from EduPulse, do not login as principal/head_teacher)
         if (isHISInstitution(activeInstitution) && (['admin', 'head_teacher', 'headteacher', 'principal', 'teacher', 'headmaster'] as string[]).includes(roleToUse as string)) {
@@ -1101,7 +1139,7 @@ export const App: React.FC = () => {
         }
 
         return roleToUse;
-    }, [impersonatedRole, currentUser, institutions, selectedRole, activeInstitution]);
+    }, [impersonatedRole, currentUser, institutions, selectedRole, activeInstitution, isDSAccountUser]);
 
     const isHIS = useMemo(() => {
         return isHISInstitution(activeInstitution, activeRole);
@@ -1132,6 +1170,7 @@ export const App: React.FC = () => {
     // True when the active workspace (or its parent, for branches) is a Driving School.
     // DS staff roles must always land in DrivingSchoolManager, never the generic school portals.
     const isDSWorkspace = useMemo(() => {
+        if (isDSAccountUser && currentUser?.role !== 'super_admin') return true;
         if (!activeInstitution) return false;
         if (isDSInstitution(activeInstitution)) return true;
         const parentId = activeInstitution.parentInstitutionId;
@@ -1140,10 +1179,11 @@ export const App: React.FC = () => {
             if (parent && isDSInstitution(parent)) return true;
         }
         return false;
-    }, [activeInstitution, institutions]);
+    }, [activeInstitution, institutions, isDSAccountUser, currentUser]);
 
     const isDSStudent = useMemo(() => {
-        if (activeRole !== 'student') return false;
+        if (isDSAccountUser && (activeRole === 'student' || currentUser?.role === 'student' || (currentUser as any)?.enrollmentType === 'driving_school')) return true;
+        if (activeRole !== 'student' && currentUser?.role !== 'student') return false;
 
         // 1. Direct check on activeInstitution
         if (activeInstitution) {
@@ -1320,7 +1360,7 @@ export const App: React.FC = () => {
             };
         }
 
-        if (showDrivingSchoolPortal || isDSStudent) {
+        if (showDrivingSchoolPortal || isDSStudent || isDSAccountUser) {
             return {
                 primaryColor: effectiveDSInstitution?.themeColor || activeInstitution?.themeColor || '#0ea5e9',
                 secondaryColor: '#0f172a',
@@ -1400,11 +1440,11 @@ export const App: React.FC = () => {
         if (showMarketplace) suffix = "Solution Marketplace";
         if (showCommunityHub) suffix = "Community Hub";
         if (showTransportHub || window.location.hostname.includes('transport') || window.location.hostname.includes('shuttle')) suffix = "Logistics Hub";
-        if (showDrivingSchoolPortal || isDSStudent || window.location.hostname.includes('driving')) suffix = "Driving School Student Portal";
+        if (showDrivingSchoolPortal || isDSStudent || isDSAccountUser || window.location.hostname.includes('driving')) suffix = isDSStudent ? "Driving School Student Portal" : "Driving School Portal";
         if (window.location.hostname.includes('showroom')) suffix = "Car Showroom";
 
         document.title = suffix ? `${suffix} | ${baseTitle}` : baseTitle;
-    }, [activeRole, activeBranding.displayName, companyDetails.applicationTitle, isHealthSystemOpen, isPharmacySystemOpen, isAlumnaeMode, showMarketing, showMarketplace, showCommunityHub, showTransportHub, showDrivingSchoolPortal, isDSStudent]);
+    }, [activeRole, activeBranding.displayName, companyDetails.applicationTitle, isHealthSystemOpen, isPharmacySystemOpen, isAlumnaeMode, showMarketing, showMarketplace, showCommunityHub, showTransportHub, showDrivingSchoolPortal, isDSStudent, isDSAccountUser]);
 
 
     const activeAcademicYear = useMemo(() =>
@@ -9118,7 +9158,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                     />
                                     </ModuleAccessGuard>
-                                ) : (!isDSInstitution(activeInstitution) && (isTeacherRole(activeRole) || activeRole === 'lecturer' || activeRole === 'teacher' || activeRole === 'hod' || isStrictTeacherUser(currentUser))) ? (
+                                ) : (!isDSInstitution(activeInstitution) && !isDSAccountUser && (isTeacherRole(activeRole) || activeRole === 'lecturer' || activeRole === 'teacher' || activeRole === 'hod' || isStrictTeacherUser(currentUser))) ? (
                                     <LecturerView {...{
                                         ...lecturerProps,
                                         user: currentUser,
@@ -9184,27 +9224,27 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         }
                                     } as any}
                                     />
-                                ) : (activeRole === 'student' && (isDSStudent || isDSInstitution(activeInstitution))) ? (
-                                    <DrivingSchoolProvider institutionId={effectiveDSInstitution?.id} currentUser={currentUser}>
+                                ) : (isDSAccountUser && (activeRole === 'student' || currentUser?.role === 'student' || isDSStudent)) || (activeRole === 'student' && (isDSStudent || isDSInstitution(activeInstitution))) ? (
+                                    <DrivingSchoolProvider institutionId={effectiveDSInstitution?.id || activeInstitution?.id || currentUser.institutionId} currentUser={currentUser}>
                                         <DSStudentPortal
                                             currentUser={currentUser}
-                                            currentInstitution={effectiveDSInstitution}
+                                            currentInstitution={effectiveDSInstitution || activeInstitution}
                                             onLogout={handleLogout}
                                             onExitPerspective={(originalResellerSession || localStorage.getItem('eduai_reseller_session')) ? onRestoreResellerSession : (originalSuperAdminSession ? onRestoreSuperAdminSession : (impersonatedRole ? () => setImpersonatedRole(null) : undefined))}
                                         />
                                     </DrivingSchoolProvider>
-                                ) : (isDSWorkspace && activeRole !== 'student' && activeRole !== 'parent' && activeRole !== 'super_admin') ? (
-                                    <DrivingSchoolProvider institutionId={activeInstitution?.id} currentUser={currentUser}>
+                                ) : (isDSAccountUser && activeRole !== 'super_admin') || (isDSWorkspace && activeRole !== 'student' && activeRole !== 'parent' && activeRole !== 'super_admin') ? (
+                                    <DrivingSchoolProvider institutionId={effectiveDSInstitution?.id || activeInstitution?.id || currentUser.institutionId} currentUser={currentUser}>
                                         <DrivingSchoolManager
                                             currentUser={currentUser}
-                                            currentInstitution={activeInstitution!}
+                                            currentInstitution={activeInstitution || effectiveDSInstitution || { id: currentUser.institutionId, name: 'Driving School', institutionType: 'Driving School' } as any}
                                             onRefreshData={loadData}
                                             departments={departments || []}
                                             rooms={rooms || []}
                                             letterheadConfig={activeInstitution?.letterheadConfig}
                                         />
                                     </DrivingSchoolProvider>
-                                ) : activeRole === 'student' ? (
+                                ) : (activeRole === 'student' && !isDSAccountUser) ? (
                                     <StudentView
                                         user={currentUser}
                                         users={users}
