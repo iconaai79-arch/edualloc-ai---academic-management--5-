@@ -1242,9 +1242,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(200).json({ success: true, user: defaultSuperUser });
             }
 
-                return res.status(200).json({ success: true, user: defaultSuperUser });
-            }
-
             return res.status(401).json({ success: false, error: 'user_not_found', message: 'Account not found.' });
         }
 
