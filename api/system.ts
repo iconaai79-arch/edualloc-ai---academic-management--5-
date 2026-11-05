@@ -348,9 +348,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return res.status(200).json({ success: false, status: 'offline', message: 'Database unreachable.', error_detail: e.message });
                 }
             }
-                    return res.status(200).json({ success: false, status: 'offline', message: 'Cloud database unreachable.', error_detail: e.message });
-                }
-            }
 
             if (action === 'debug') {
                 return res.status(200).json({
