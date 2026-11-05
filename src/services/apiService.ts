@@ -1331,7 +1331,7 @@ export const apiService = {
         }
     },
     async resetPassword(identifier: string, type: 'email' | 'phone' = 'email'): Promise<{ success: boolean; message: string }> {
-        if (!_supabase) return { success: false, message: "Server connection required." };
+        // Server connection verified via HTTP /api/integrations
         try {
             const formattedRecipient = type === 'phone' ? formatPhoneNumber(identifier) : identifier.trim();
             const response = await fetch('/api/integrations', {
@@ -1362,7 +1362,7 @@ export const apiService = {
         }
     },
     async verifyResetOtp(phone: string, code: string): Promise<{ success: boolean; message: string; resetToken?: string }> {
-        if (!_supabase) return { success: false, message: "Server connection required." };
+        // Server connection verified via HTTP /api/integrations
         try {
             const response = await fetch('/api/integrations', {
                 method: 'POST',
@@ -1390,7 +1390,7 @@ export const apiService = {
         }
     },
     async resetPasswordWithToken(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-        if (!_supabase) return { success: false, message: "Server connection required." };
+        // Server connection verified via HTTP /api/integrations
         try {
             const response = await fetch('/api/integrations', {
                 method: 'POST',
@@ -7135,15 +7135,13 @@ export const apiService = {
             formattedRecipient = formatPhoneNumber(recipient);
         }
 
-        if (!_supabase) {
-            return { success: false, message: "Database service (Supabase) not initialized. Live SMS requires an active backend." };
-        }
+        // Backend active via /api/integrations (Direct PostgreSQL / Talksasa deployment)
 
         const session = apiService.getSession();
         const effectiveInstId = institutionId || session?.institutionId || (session as any)?.institution_id;
 
         try {
-            const { data } = _supabase.auth ? await _supabase.auth.getSession() : { data: { session: null } };
+            const { data } = _supabase?.auth ? await _supabase.auth.getSession() : { data: { session: null } };
             let token = data?.session?.access_token;
 
             if (!token) {
@@ -7392,15 +7390,13 @@ export const apiService = {
             return { success: true, message: "Skipped sending email to placeholder/dummy local email address.", skipped: true };
         }
 
-        if (!_supabase) {
-            return { success: false, message: "Database service (Supabase) not initialized. Live Email requires an active backend." };
-        }
+        // Backend active via /api/integrations (Direct PostgreSQL / Talksasa deployment)
 
         const session = apiService.getSession();
         const effectiveInstId = institutionId || session?.institutionId || (session as any)?.institution_id;
 
         try {
-            const { data } = _supabase.auth ? await _supabase.auth.getSession() : { data: { session: null } };
+            const { data } = _supabase?.auth ? await _supabase.auth.getSession() : { data: { session: null } };
             let token = data?.session?.access_token;
 
             if (!token) {
@@ -7520,9 +7516,7 @@ export const apiService = {
     },
     async initiatePayment(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'equity' | 'im', amount: number, phoneNumber: string, metadata?: any, config?: any) {
         const formattedPhone = formatPhoneNumber(phoneNumber);
-        if (!_supabase) {
-            return { success: false, message: "Database service (Supabase) not initialized. Live payments require an active backend." };
-        }
+        // Backend active via /api/integrations (Direct PostgreSQL / Talksasa deployment)
         try {
             const token = await apiService.getAuthToken();
 
