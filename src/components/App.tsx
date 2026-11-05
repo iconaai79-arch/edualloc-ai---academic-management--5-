@@ -781,8 +781,19 @@ export const App: React.FC = () => {
                                               (inst as any)?.visitor_arrival_sms_template || 
                                               '';
 
+            const hasDsMod = states.some(m => {
+                const modId = ((m as any).moduleId || (m as any).module_id || '').toLowerCase();
+                return (modId === 'driving_school' || modId === 'ds' || modId === 'driving' || modId === 'driving_school_management') && (m.status === 'active' || m.status === 'trial');
+            });
+            const effectiveType = hasDsMod && (!inst.institutionType || inst.institutionType === 'Education') ? 'Driving School' : inst.institutionType;
+            const effectiveCategory = hasDsMod && (!inst.category || inst.category === 'Primary' || inst.category === 'General') ? 'Driving School' : inst.category;
+            const effectiveSubType = hasDsMod && (!inst.businessSubType || inst.businessSubType === 'Primary') ? 'Driving School' : inst.businessSubType;
+
             return {
                 ...inst,
+                institutionType: effectiveType,
+                category: effectiveCategory,
+                businessSubType: effectiveSubType,
                 visitorAutoFinalizeEnabled,
                 visitor_auto_finalize_enabled: visitorAutoFinalizeEnabled,
                 visitorAutoFinalizeTime,
@@ -1032,10 +1043,22 @@ export const App: React.FC = () => {
                 const pBal = parent?.smsBalance ?? (parent as any)?.sms_balance ?? 0;
                 const pCfg = parent?.smsConfig || (parent as any)?.sms_config || {};
 
+                const hasDsModuleState = Array.isArray(institutionModuleStates) && institutionModuleStates.some(m => 
+                    (m.institutionId === validUserInstId || cleanId(m.institutionId) === cleanId(validUserInstId)) &&
+                    (m.moduleId === 'driving_school' || m.moduleId === 'ds') &&
+                    (m.status === 'active' || m.status === 'trial')
+                );
+
                 const isDSEntity = currentUser.role === 'driving_instructor' || 
+                                   currentUser.department === 'driving_school' ||
+                                   String((currentUser as any).department || '').toLowerCase().includes('driving') ||
+                                   String((currentUser as any).department || '').toLowerCase() === 'ds' ||
                                    validUserInstId.startsWith('ds_') || 
                                    validUserInstId.includes('driving') || 
-                                   ((currentUser as any).institutionName || '').toLowerCase().includes('driving');
+                                   ((currentUser as any).institutionName || '').toLowerCase().includes('driving') ||
+                                   /\bds\b/i.test((currentUser as any).institutionName || '') ||
+                                   hasDsModuleState ||
+                                   Boolean(parent && isDSInstitution(parent));
 
                 return mergeModules({
                     ...(parent || {}),
@@ -1067,7 +1090,7 @@ export const App: React.FC = () => {
         if (!currentUser) return false;
         const uAny = currentUser as any;
         if (currentUser.role === 'driving_instructor' || (Array.isArray(currentUser.roles) && currentUser.roles.includes('driving_instructor'))) return true;
-        if (currentUser.department === 'driving_school' || String(uAny?.department || '').toLowerCase().includes('driving')) return true;
+        if (currentUser.department === 'driving_school' || String(uAny?.department || '').toLowerCase().includes('driving') || String(uAny?.department || '').toLowerCase() === 'ds') return true;
         const instId = currentUser.institutionId || uAny.institution_id;
         if (instId && (String(instId).startsWith('ds_') || String(instId).toLowerCase().includes('driving'))) return true;
         if (uAny.enrollmentType === 'driving_school' || uAny.enrollment_type === 'driving_school') return true;
@@ -1083,8 +1106,25 @@ export const App: React.FC = () => {
             ));
             if (matched && isDSInstitution(matched)) return true;
         }
+        // Also check if institution has active driving_school module in institutionModuleStates
+        if (instId && Array.isArray(institutionModuleStates)) {
+            const hasDsMod = institutionModuleStates.some(m => 
+                (m.institutionId === instId || cleanId(m.institutionId) === cleanId(instId)) &&
+                (m.moduleId === 'driving_school' || m.moduleId === 'ds') &&
+                (m.status === 'active' || m.status === 'trial')
+            );
+            if (hasDsMod) return true;
+        }
+        // Check branches
+        if (instId && Array.isArray(branches)) {
+            const branch = branches.find(b => b && (b.id === instId || cleanId(b.id) === cleanId(instId)));
+            if (branch && branch.institution_id) {
+                const parentInst = institutions.find(i => i && (i.id === branch.institution_id || cleanId(i.id) === cleanId(branch.institution_id)));
+                if (parentInst && isDSInstitution(parentInst)) return true;
+            }
+        }
         return false;
-    }, [currentUser, activeInstitution, institutions]);
+    }, [currentUser, activeInstitution, institutions, institutionModuleStates, branches]);
 
     const activeRole = useMemo<Role | null>(() => {
         if (!currentUser) return null;
@@ -1112,8 +1152,14 @@ export const App: React.FC = () => {
             if (roleToUse === 'driving_instructor' || currentUser?.role === 'driving_instructor') {
                 return 'driving_instructor';
             }
+            if (roleToUse === 'director') {
+                return 'director';
+            }
+            if (roleToUse === 'staff') {
+                return 'staff';
+            }
             if (['head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'deputy', 'deputy_headteacher', 'deputy_principal', 'dos', 'director_of_studies', 'teacher', 'lecturer', 'hod'].includes(roleToUse as string)) {
-                return 'driving_instructor';
+                return 'admin';
             }
             return roleToUse;
         }
@@ -1130,7 +1176,7 @@ export const App: React.FC = () => {
 
         // Normalize school leadership / educational roles to admin for Driving School institutions
         if (isDSInstitution(activeInstitution)) {
-            if (roleToUse === 'driving_instructor' || roleToUse === 'student') {
+            if (roleToUse === 'driving_instructor' || roleToUse === 'student' || roleToUse === 'director' || roleToUse === 'staff') {
                 return roleToUse;
             }
             if (['head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'deputy', 'deputy_headteacher', 'deputy_principal', 'dos', 'director_of_studies', 'teacher', 'lecturer', 'hod'].includes(roleToUse as string)) {
@@ -1178,8 +1224,17 @@ export const App: React.FC = () => {
             const parent = institutions.find(i => i && i.id === parentId);
             if (parent && isDSInstitution(parent)) return true;
         }
+        const instId = activeInstitution.id || currentUser?.institutionId;
+        if (instId && Array.isArray(institutionModuleStates)) {
+            const hasDsMod = institutionModuleStates.some(m => 
+                (m.institutionId === instId || cleanId(m.institutionId) === cleanId(instId) || (parentId && (m.institutionId === parentId || cleanId(m.institutionId) === cleanId(parentId)))) &&
+                (m.moduleId === 'driving_school' || m.moduleId === 'ds') &&
+                (m.status === 'active' || m.status === 'trial')
+            );
+            if (hasDsMod) return true;
+        }
         return false;
-    }, [activeInstitution, institutions, isDSAccountUser, currentUser]);
+    }, [activeInstitution, institutions, isDSAccountUser, currentUser, institutionModuleStates]);
 
     const isDSStudent = useMemo(() => {
         if (isDSAccountUser && (activeRole === 'student' || currentUser?.role === 'student' || (currentUser as any)?.enrollmentType === 'driving_school')) return true;
@@ -9811,6 +9866,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('industrial logistics')) ? (
                                     <LogisticsDashboard />
                                 ) : (
+                                    isDSWorkspace ||
+                                    isDSAccountUser ||
                                     isDSInstitution(activeInstitution) || 
                                     Boolean(activeInstitution?.parentInstitutionId && isDSInstitution(institutions.find(i => i && (i.id === activeInstitution.parentInstitutionId || (activeInstitution.parentInstitutionId && i.id.toLowerCase().includes(activeInstitution.parentInstitutionId.toLowerCase())))))) ||
                                     activeInstitution?.institutionType === 'Driving School' || 
@@ -9819,6 +9876,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                     (activeInstitution?.businessSubType || '').toLowerCase().includes('driving') ||
                                     (activeInstitution?.name || '').toLowerCase().includes('driving') ||
                                     (activeInstitution?.name || '').toLowerCase().includes('driver') ||
+                                    /\bds\b/i.test(activeInstitution?.name || '') ||
                                     (activeInstitution?.id || '').startsWith('ds_') ||
                                     (activeInstitution?.id || '').includes('driving') ||
                                     activeRole === 'driving_instructor' ||
@@ -9826,6 +9884,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 ) && (
                                     activeRole === 'admin' || 
                                     activeRole === 'director' || 
+                                    activeRole === 'staff' ||
                                     activeRole === 'driving_instructor' || 
                                     isAdminCatchAll
                                 ) ? (

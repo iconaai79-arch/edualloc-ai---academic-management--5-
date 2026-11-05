@@ -173,7 +173,7 @@ export function isSchoolInstitution(institution: Partial<Institution> | null | u
     const type = (institution.institutionType || (institution as any)?.institution_type || '').toLowerCase();
     const category = (institution.category || (institution as any)?.category || '').toLowerCase();
     const subType = (institution.businessSubType || (institution as any)?.business_sub_type || '').toLowerCase();
-    if (name.includes('driving') || name.includes('driver') || type.includes('driving') || category.includes('driving') || subType.includes('driving')) {
+    if (name.includes('driving') || name.includes('driver') || type.includes('driving') || category.includes('driving') || subType.includes('driving') || /\bds\b/i.test(name) || type === 'ds' || category === 'ds' || subType === 'ds') {
         return false;
     }
     const schoolCats = ['primary', 'secondary', 'kindergarten', 'ecd', 'international', 'pre-primary', 'junior secondary'];
@@ -245,12 +245,12 @@ export function isDSInstitution(institution: Partial<Institution> | null | undef
         return true;
     }
 
-    return type === 'driving school' || type === 'driving_school' || type.includes('driving') ||
-           subType.includes('driving school') || subType.includes('driving_school') || subType.includes('driving') ||
-           category.includes('driving school') || category.includes('driving_school') || category.includes('driving') ||
+    return type === 'driving school' || type === 'driving_school' || type === 'ds' || type.includes('driving') || type.includes('ds ') || type.includes(' ds') ||
+           subType.includes('driving school') || subType.includes('driving_school') || subType === 'ds' || subType.includes('driving') || subType.includes('ds ') || subType.includes(' ds') ||
+           category.includes('driving school') || category.includes('driving_school') || category === 'ds' || category.includes('driving') || category.includes('ds ') || category.includes(' ds') ||
            name.includes('driving school') || name.includes('driving academy') || name.includes('motoring') || name.includes('drivers academy') ||
-           name.includes('driving') || name.includes('driver') ||
-           parentType.includes('driving') || parentCategory.includes('driving') || parentName.includes('driving') ||
+           name.includes('driving') || name.includes('driver') || /\bds\b/i.test(name) ||
+           parentType.includes('driving') || parentCategory.includes('driving') || parentName.includes('driving') || /\bds\b/i.test(parentName) ||
            parentId.startsWith('ds_') || parentId.includes('driving') ||
            id.startsWith('ds_') || id.includes('driving') ||
            !!hasModule;
@@ -344,7 +344,7 @@ export function isEduInstitution(institution: Partial<Institution> | null | unde
     const name = (institution.name || (institution as any)?.institution_name || (institution as any)?.name || '').toLowerCase();
 
     // Guard: Any driving school or driver academy must never be classified as education
-    if (name.includes('driving') || name.includes('driver') || type.includes('driving') || category.includes('driving') || subType.includes('driving')) {
+    if (name.includes('driving') || name.includes('driver') || type.includes('driving') || category.includes('driving') || subType.includes('driving') || /\bds\b/i.test(name) || type === 'ds' || category === 'ds' || subType === 'ds') {
         return false;
     }
 

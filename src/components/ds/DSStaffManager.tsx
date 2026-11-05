@@ -558,6 +558,7 @@ export const DSStaffManager: React.FC<DSStaffManagerProps> = ({
                 branch_id: targetBranch,
                 institutionId: institutionId,
                 institution_id: institutionId,
+                department: 'driving_school',
                 status: staffFormData.status,
                 expertise: staffFormData.specialization ? [staffFormData.specialization] : []
             };
