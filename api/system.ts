@@ -53,6 +53,7 @@ const SETTINGS_CACHE_TTL_MS = 60 * 1000; // 60s cache TTL
 let _pgPool: any = null;
 let _directPgDisabledUntil = 0;
 let _forcePlaintextPg = false;
+let _fallbackDatabaseName: string | null = null;
 
 const getPgPool = async () => {
     if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
@@ -75,6 +76,15 @@ const getPgPool = async () => {
         if (!Pool) return null;
 
         let cleanConnString = connectionString.trim();
+        if (_fallbackDatabaseName) {
+            try {
+                const u = new URL(cleanConnString);
+                u.pathname = `/${_fallbackDatabaseName}`;
+                cleanConnString = u.toString();
+            } catch (_) {
+                cleanConnString = cleanConnString.replace(/\/[a-zA-Z0-9_-]+(\?|$)/, `/${_fallbackDatabaseName}$1`);
+            }
+        }
         let disableSsl = _forcePlaintextPg;
         try {
             const parsedUrl = new URL(cleanConnString);
@@ -116,6 +126,10 @@ const getPgPool = async () => {
             console.warn('[Direct SQL Pool Error]:', err?.message || err);
             if (/does not support SSL/i.test(err?.message || '') || err?.code === '08006' || err?.code === '08001') {
                 _forcePlaintextPg = true;
+                _directPgDisabledUntil = 0;
+            } else if (err?.code === '3D000' || /database ".*" does not exist/i.test(err?.message || '')) {
+                console.warn('[Direct SQL Pool] Configured database does not exist. Auto-falling back to "postgres" database...');
+                _fallbackDatabaseName = 'postgres';
                 _directPgDisabledUntil = 0;
             } else {
                 _directPgDisabledUntil = Date.now() + 15000;

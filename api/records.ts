@@ -27,6 +27,7 @@ let _pgPool: any = null;
 let _directPgDisabledUntil = 0;
 let _directPgConsecutiveFailures = 0;
 let _forcePlaintextPg = false;
+let _fallbackDatabaseName: string | null = null;
 
 // ── In-Memory Auth & Configuration Cache (Sub-millisecond resolution for frequent queries) ──
 interface CachedAuthUser {
@@ -65,6 +66,15 @@ const getPgPool = async () => {
     if (!Pool) return null;
 
     let cleanConnString = connectionString.trim();
+    if (_fallbackDatabaseName) {
+      try {
+        const u = new URL(cleanConnString);
+        u.pathname = `/${_fallbackDatabaseName}`;
+        cleanConnString = u.toString();
+      } catch (_) {
+        cleanConnString = cleanConnString.replace(/\/[a-zA-Z0-9_-]+(\?|$)/, `/${_fallbackDatabaseName}$1`);
+      }
+    }
     let disableSsl = _forcePlaintextPg;
     try {
       const parsedUrl = new URL(cleanConnString);
@@ -106,6 +116,10 @@ const getPgPool = async () => {
       console.warn('[Direct SQL Pool Error]:', err?.message || err);
       if (/does not support SSL/i.test(err?.message || '') || err?.code === '08006' || err?.code === '08001') {
         _forcePlaintextPg = true;
+        _directPgDisabledUntil = 0;
+      } else if (err?.code === '3D000' || /database ".*" does not exist/i.test(err?.message || '')) {
+        console.warn('[Direct SQL Pool] Configured database does not exist. Auto-falling back to "postgres" database...');
+        _fallbackDatabaseName = 'postgres';
         _directPgDisabledUntil = 0;
       } else {
         _directPgDisabledUntil = Date.now() + 15000;
@@ -217,6 +231,31 @@ const fetchViaDirectPg = async (
     _directPgConsecutiveFailures = 0;
     return result.rows || [];
   } catch (err: any) {
+    if (err?.code === '3D000' || /database ".*" does not exist/i.test(err?.message || '')) {
+      console.warn('[fetchViaDirectPg] Configured database does not exist. Retrying connection to default "postgres" database...');
+      _fallbackDatabaseName = 'postgres';
+      _directPgDisabledUntil = 0;
+      if (_pgPool) {
+        try { _pgPool.end().catch(() => {}); } catch (_) {}
+        _pgPool = null;
+      }
+      try {
+        const fallbackPool = await getPgPool();
+        if (fallbackPool) {
+          const fallbackClient = await fallbackPool.connect();
+          try {
+            const fallbackRes = await fallbackClient.query(sql, values);
+            _directPgConsecutiveFailures = 0;
+            return fallbackRes.rows || [];
+          } finally {
+            fallbackClient.release();
+          }
+        }
+      } catch (retryErr: any) {
+        console.warn('[fetchViaDirectPg] Fallback to postgres database failed:', retryErr?.message || retryErr);
+      }
+    }
+
     if (/does not support SSL/i.test(err?.message || '') || err?.code === '08006' || err?.code === '08001') {
       console.warn('[fetchViaDirectPg] Target PostgreSQL host does not support SSL. Retrying in plaintext (ssl: false)...');
       _forcePlaintextPg = true;

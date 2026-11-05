@@ -161,13 +161,20 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: false,
-      chunkSizeWarningLimit: 1600,
+      chunkSizeWarningLimit: 2000,
+      reportCompressedSize: false,
       rollupOptions: {
         output: {
           manualChunks(id) {
             const normalizedId = id.replace(/\\/g, '/').toLowerCase();
             if (normalizedId.includes('node_modules')) {
-              if (normalizedId.includes('react') || normalizedId.includes('react-dom') || normalizedId.includes('scheduler')) return 'vendor-react';
+              if (
+                normalizedId.includes('/node_modules/react/') ||
+                normalizedId.includes('/node_modules/react-dom/') ||
+                normalizedId.includes('/node_modules/scheduler/')
+              ) {
+                return 'vendor-react';
+              }
               if (normalizedId.includes('@supabase') || normalizedId.includes('postgrest') || normalizedId.includes('gotrue')) return 'vendor-supabase';
               if (normalizedId.includes('@google/generative-ai')) return 'vendor-ai';
               if (normalizedId.includes('jspdf') || normalizedId.includes('jspdf-autotable')) return 'vendor-pdf';
