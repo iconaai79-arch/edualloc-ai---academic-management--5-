@@ -1058,7 +1058,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Normalize localhost/127.0.0.1 URLs to production portal domain to ensure shortened links work globally
             // Skip normalization for Supabase storage URLs (containing '/storage/v1/') as storage is not hosted on the portal domain.
             if ((longUrl.includes('localhost') || longUrl.includes('127.0.0.1')) && !longUrl.includes('/storage/v1/')) {
-                longUrl = longUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke');
+                const hostHeader = req.headers['x-forwarded-host'] || req.headers.host || (String(req.headers.origin || '').includes('edual') ? 'portal.edual.co.ke' : 'portal.eduai.co.ke');
+                const scheme = req.headers['x-forwarded-proto'] || 'https';
+                longUrl = longUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, `${scheme}://${hostHeader}`);
             }
 
             // Provider 1: da.gd (GET) - Ultra-short link domain (e.g. https://da.gd/p2G3kl, 19 chars)

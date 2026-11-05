@@ -1091,7 +1091,10 @@ export const apiService = {
         // Skip normalization for Supabase storage URLs (containing '/storage/v1/') as storage is not hosted on the portal domain.
         let normalizedUrl = longUrl;
         if ((normalizedUrl.includes('localhost') || normalizedUrl.includes('127.0.0.1')) && !normalizedUrl.includes('/storage/v1/')) {
-            normalizedUrl = normalizedUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke');
+            const defaultOrigin = typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
+                ? window.location.origin
+                : (typeof window !== 'undefined' && window.location.hostname.includes('edual') ? 'https://portal.edual.co.ke' : 'https://portal.eduai.co.ke');
+            normalizedUrl = normalizedUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, defaultOrigin);
         }
 
         // Cache key — per unique normalized URL, using v6 prefix to clear legacy entries

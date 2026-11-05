@@ -520,7 +520,14 @@ export const App: React.FC = () => {
             if (shop) return shop;
 
             const host = window.location.hostname.toLowerCase();
-            if (host === 'erp.eduai.co.ke' || host === 'portal.eduai.co.ke' || host === 'app.eduai.co.ke' || host === 'eduai.co.ke' || host === 'www.eduai.co.ke' || host.includes('vercel.app') || host.includes('talksasa') || host.includes('netlify.app')) {
+            if (
+                host === 'erp.eduai.co.ke' || host === 'erp.edual.co.ke' ||
+                host === 'portal.eduai.co.ke' || host === 'portal.edual.co.ke' ||
+                host === 'app.eduai.co.ke' || host === 'app.edual.co.ke' ||
+                host === 'eduai.co.ke' || host === 'edual.co.ke' ||
+                host === 'www.eduai.co.ke' || host === 'www.edual.co.ke' ||
+                host.includes('vercel.app') || host.includes('talksasa') || host.includes('netlify.app')
+            ) {
                 return null;
             }
 
@@ -588,7 +595,12 @@ export const App: React.FC = () => {
             const params = new URLSearchParams(window.location.search);
             const view = params.get('view');
             const hostname = window.location.hostname.toLowerCase();
-            const isPortalHost = hostname === 'portal.eduai.co.ke' || hostname === 'erp.eduai.co.ke' || hostname === 'app.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
+            const isPortalHost = 
+                hostname === 'portal.eduai.co.ke' || hostname === 'portal.edual.co.ke' ||
+                hostname === 'erp.eduai.co.ke' || hostname === 'erp.edual.co.ke' ||
+                hostname === 'app.eduai.co.ke' || hostname === 'app.edual.co.ke' ||
+                hostname === 'eduai.co.ke' || hostname === 'edual.co.ke' ||
+                hostname === 'www.eduai.co.ke' || hostname === 'www.edual.co.ke';
             if (isPortalHost && view !== 'ds' && view !== 'driving') {
                 return false;
             }
@@ -6612,10 +6624,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
     const isPortalMasterHost = typeof window !== 'undefined' && (
         window.location.hostname === 'portal.eduai.co.ke' || 
+        window.location.hostname === 'portal.edual.co.ke' || 
         window.location.hostname === 'erp.eduai.co.ke' || 
+        window.location.hostname === 'erp.edual.co.ke' || 
         window.location.hostname === 'app.eduai.co.ke' || 
+        window.location.hostname === 'app.edual.co.ke' || 
         window.location.hostname === 'eduai.co.ke' || 
-        window.location.hostname === 'www.eduai.co.ke'
+        window.location.hostname === 'edual.co.ke' || 
+        window.location.hostname === 'www.eduai.co.ke' ||
+        window.location.hostname === 'www.edual.co.ke' ||
+        window.location.hostname.includes('talksasa')
     );
     const commonLoginProps = {
         users, institutions, courses, academicLevels, 

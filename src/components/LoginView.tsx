@@ -441,10 +441,16 @@ export const LoginView: React.FC<LoginViewProps> = ({
                         {(() => {
                             const isPortalEduAi = typeof window !== 'undefined' && (
                                 window.location.hostname === 'portal.eduai.co.ke' ||
+                                window.location.hostname === 'portal.edual.co.ke' ||
                                 window.location.hostname === 'erp.eduai.co.ke' ||
+                                window.location.hostname === 'erp.edual.co.ke' ||
                                 window.location.hostname === 'app.eduai.co.ke' ||
+                                window.location.hostname === 'app.edual.co.ke' ||
                                 window.location.hostname === 'eduai.co.ke' ||
-                                window.location.hostname === 'www.eduai.co.ke'
+                                window.location.hostname === 'edual.co.ke' ||
+                                window.location.hostname === 'www.eduai.co.ke' ||
+                                window.location.hostname === 'www.edual.co.ke' ||
+                                window.location.hostname.includes('talksasa')
                             );
                             const effectiveLogo = isPortalEduAi ? '/eduai_logo_3d.png' : (logoUrl || '/eduai_logo_3d.png');
                             return (
@@ -461,10 +467,16 @@ export const LoginView: React.FC<LoginViewProps> = ({
                             {(() => {
                                 const isPortalEduAi = typeof window !== 'undefined' && (
                                     window.location.hostname === 'portal.eduai.co.ke' ||
+                                    window.location.hostname === 'portal.edual.co.ke' ||
                                     window.location.hostname === 'erp.eduai.co.ke' ||
+                                    window.location.hostname === 'erp.edual.co.ke' ||
                                     window.location.hostname === 'app.eduai.co.ke' ||
+                                    window.location.hostname === 'app.edual.co.ke' ||
                                     window.location.hostname === 'eduai.co.ke' ||
-                                    window.location.hostname === 'www.eduai.co.ke'
+                                    window.location.hostname === 'edual.co.ke' ||
+                                    window.location.hostname === 'www.eduai.co.ke' ||
+                                    window.location.hostname === 'www.edual.co.ke' ||
+                                    window.location.hostname.includes('talksasa')
                                 );
                                 return isPortalEduAi ? 'EduAi' : (applicationTitle || 'EduAi');
                             })()}
