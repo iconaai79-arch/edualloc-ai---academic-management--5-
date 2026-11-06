@@ -248,7 +248,12 @@ export function toCamelCase(obj: any): any {
         if (newObj[camelKey] === undefined || newObj[camelKey] === null || newObj[camelKey] === '') {
             newObj[camelKey] = camelVal;
         } else if (camelVal !== null && camelVal !== undefined && camelVal !== '') {
-            newObj[camelKey] = camelVal;
+            // If already set to true for boolean flags, don't let stale default false from companion column overwrite it
+            if (typeof newObj[camelKey] === 'boolean' && newObj[camelKey] === true && camelVal === false) {
+                // Keep true
+            } else {
+                newObj[camelKey] = camelVal;
+            }
         }
     });
     return newObj;

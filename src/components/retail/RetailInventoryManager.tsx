@@ -603,8 +603,10 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                     (rawStoreName && s.name?.toLowerCase() === rawStoreName.toLowerCase())
                 );
                 const itemStoreStocks = (storeStockData || []).filter((ss: any) => ss.itemId === item.id || ss.item_id === item.id);
+                const isMarketplaceEnabled = (item as any).marketplaceEnabled === true || (item as any).marketplaceEnabled === 'true' || (item as any).marketplaceEnabled === 1 || (item as any).marketplace_enabled === true || (item as any).marketplace_enabled === 'true' || (item as any).marketplace_enabled === 1;
                 return {
                     ...item,
+                    marketplaceEnabled: isMarketplaceEnabled,
                     storeId: matchedStore ? matchedStore.id : rawStoreId,
                     storeName: matchedStore ? matchedStore.name : (rawStoreName || 'Main School Store'),
                     storeStocks: itemStoreStocks
@@ -667,6 +669,8 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
         try {
             const payload = {
                 ...formData,
+                marketplaceEnabled: Boolean(formData.marketplaceEnabled),
+                marketplace_enabled: Boolean(formData.marketplaceEnabled),
                 store_id: formData.storeId || (formData as any).store_id || null,
                 store_name: formData.storeName || (formData as any).store_name || null,
                 institutionId,
@@ -873,6 +877,32 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
         });
     };
 
+    const handleToggleVisibility = async (item: RetailInventoryItem) => {
+        const newStatus = !item.marketplaceEnabled;
+        setItems(prev => prev.map(i => i.id === item.id ? ({ ...i, marketplaceEnabled: newStatus, marketplace_enabled: newStatus } as any) : i));
+        setDirtyRows(prev => {
+            if (prev[item.id]) {
+                return { ...prev, [item.id]: { ...prev[item.id], marketplaceEnabled: newStatus, marketplace_enabled: newStatus } as any };
+            }
+            return prev;
+        });
+        try {
+            await apiService.saveModuleRecord('retail_inventory_items', {
+                ...item,
+                marketplaceEnabled: newStatus,
+                marketplace_enabled: newStatus,
+                store_id: item.storeId || (item as any).store_id || null,
+                store_name: item.storeName || (item as any).store_name || null,
+                institutionId,
+                lastUpdated: new Date().toISOString()
+            });
+        } catch (err: any) {
+            console.error('Failed to toggle item visibility:', err);
+            setItems(prev => prev.map(i => i.id === item.id ? ({ ...i, marketplaceEnabled: item.marketplaceEnabled, marketplace_enabled: item.marketplaceEnabled } as any) : i));
+            alert('Failed to update visibility: ' + (err?.message || 'Error'));
+        }
+    };
+
     const handleSaveAll = async () => {
         if (!dirtyCount) return;
         setIsSavingAll(true);
@@ -880,6 +910,8 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             for (const row of Object.values(dirtyRows)) {
                 await apiService.saveModuleRecord('retail_inventory_items', {
                     ...row,
+                    marketplaceEnabled: Boolean(row.marketplaceEnabled),
+                    marketplace_enabled: Boolean(row.marketplaceEnabled),
                     store_id: row.storeId || (row as any).store_id || null,
                     store_name: row.storeName || (row as any).store_name || null,
                     lastUpdated: new Date().toISOString()
@@ -1547,7 +1579,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                                     {/* Visibility toggle */}
                                                     <td className="px-1 py-1 text-center hidden sm:table-cell">
                                                         <button
-                                                            onClick={() => updateCell(item.id, 'marketplaceEnabled', !item.marketplaceEnabled)}
+                                                            onClick={() => handleToggleVisibility(item)}
                                                             className={`px-2 py-1 rounded-full text-[9px] font-black transition-all border ${
                                                                 item.marketplaceEnabled
                                                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700'

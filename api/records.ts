@@ -3013,6 +3013,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
+            if (moduleName === 'retail_inventory_items' && Array.isArray(data)) {
+                (data as any[]).forEach(r => {
+                    if (r && typeof r === 'object') {
+                        const isPublic = r.marketplace_enabled === true || r.marketplace_enabled === 'true' || r.marketplace_enabled === 1 ||
+                                         r.marketplaceEnabled === true || r.marketplaceEnabled === 'true' || r.marketplaceEnabled === 1;
+                        r.marketplace_enabled = isPublic;
+                        r.marketplaceEnabled = isPublic;
+
+                        const cp = Number(r.cost_price ?? r.costPrice ?? 0);
+                        r.cost_price = cp;
+                        r.costPrice = cp;
+
+                        const sp = Number(r.srp_price ?? r.srpPrice ?? r.selling_price ?? r.sellingPrice ?? r.unit_price ?? r.unitPrice ?? r.base_price ?? r.basePrice ?? 0);
+                        r.srp_price = sp;
+                        r.srpPrice = sp;
+                        r.selling_price = sp;
+                        r.sellingPrice = sp;
+                    }
+                });
+            }
+
             if (moduleName === 'institutions') {
                 const records = Array.isArray(data) ? data : (data ? [data] : []);
 
@@ -4799,6 +4820,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRetailSale) : cleanRetailSale(currentPayload);
+            }
+
+            if (moduleName === 'retail_inventory_items') {
+                const cleanRetailItem = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    const isPublic = copy.marketplace_enabled === true || copy.marketplace_enabled === 'true' || copy.marketplace_enabled === 1 ||
+                                     copy.marketplaceEnabled === true || copy.marketplaceEnabled === 'true' || copy.marketplaceEnabled === 1;
+                    copy.marketplace_enabled = isPublic;
+                    copy.marketplaceEnabled = isPublic;
+
+                    if (copy.costPrice !== undefined || copy.cost_price !== undefined) {
+                        const cp = Number(copy.costPrice ?? copy.cost_price ?? 0);
+                        copy.cost_price = cp;
+                        copy.costPrice = cp;
+                    }
+                    if (copy.srpPrice !== undefined || copy.srp_price !== undefined || copy.sellingPrice !== undefined || copy.selling_price !== undefined) {
+                        const sp = Number(copy.srpPrice ?? copy.srp_price ?? copy.sellingPrice ?? copy.selling_price ?? copy.basePrice ?? copy.base_price ?? 0);
+                        copy.srp_price = sp;
+                        copy.srpPrice = sp;
+                        copy.selling_price = sp;
+                        copy.sellingPrice = sp;
+                    }
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRetailItem) : cleanRetailItem(currentPayload);
             }
 
             if (moduleName === 'sms_logs') {
