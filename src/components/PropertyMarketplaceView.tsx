@@ -175,10 +175,11 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             
             // 1. Create order record
             const orderId = crypto.randomUUID();
+            const sellerInstId = inquiryProduct.institutionId || (inquiryProduct as any).institution_id || 'GLOBAL';
             await apiService.saveModuleRecord('retail_marketplace_orders', {
                 id: orderId,
-                institutionId: inquiryProduct.institutionId,
-                institution_id: inquiryProduct.institutionId,
+                institutionId: sellerInstId,
+                institution_id: sellerInstId,
                 product_id: inquiryProduct.id,
                 customer_name: inquiryData.name,
                 customer_phone: inquiryData.phone,
@@ -210,12 +211,15 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 phoneNumber: inquiryData.phone.replace(/\+/g, ''),
                 reference: `ORD-${orderId.slice(0, 8)}`,
                 description: `${orderQuantity}x ${inquiryProduct.name}`.slice(0, 30),
-                institutionId: inquiryProduct.institutionId
+                institutionId: sellerInstId
             });
 
-            if (response.CheckoutRequestID) {
-                setPaymentId(response.CheckoutRequestID);
-                pollPaymentStatus(response.CheckoutRequestID, orderId, orderQuantity);
+            const checkoutId = response?.CheckoutRequestID || response?.checkoutRequestId || response?.data?.CheckoutRequestID;
+            if (checkoutId) {
+                setPaymentId(checkoutId);
+                pollPaymentStatus(checkoutId, orderId, orderQuantity);
+            } else {
+                throw new Error(response?.message || 'Unable to obtain CheckoutRequestID from payment gateway');
             }
         } catch (error) {
             console.error('Checkout failed:', error);
@@ -237,13 +241,13 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
             try {
                 const status = await apiService.checkMpesaPaymentStatus(checkoutId);
-                if (status.ResultCode === '0') {
+                if (status.ResultCode === '0' || status.status === 'completed') {
                     clearInterval(interval);
                     
                     await apiService.saveModuleRecord('retail_marketplace_orders', {
                         id: orderId,
                         payment_status: 'Paid',
-                        payment_reference: status.MpesaReceiptNumber
+                        payment_reference: status.MpesaReceiptNumber || status.transactionId || checkoutId
                     });
 
                     if (inquiryProduct) {
@@ -255,10 +259,10 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
                     setInquirySuccess(true);
                     setMpesaProcessing(false);
-                } else if (status.ResultCode) {
+                } else if ((status.ResultCode && status.ResultCode !== '0') || status.status === 'failed') {
                     clearInterval(interval);
                     setMpesaProcessing(false);
-                    alert(`Payment failed: ${status.ResultDesc}`);
+                    alert(`Payment failed: ${status.ResultDesc || status.message || 'Transaction declined or cancelled'}`);
                 }
             } catch (error) {
                 console.error('Polling error:', error);

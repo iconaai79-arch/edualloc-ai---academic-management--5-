@@ -172,7 +172,7 @@ async function fetchSystemSettingsFromDb(supabase: any): Promise<any> {
         try {
             const pool = await getPgPool();
             if (pool) {
-                const pgRes = await pool.query('SELECT data FROM public.system_settings WHERE id = 1 LIMIT 1');
+                const pgRes = await pool.query("SELECT data FROM public.system_settings WHERE id::text = '1' OR id::text = 'global' ORDER BY updated_at DESC NULLS LAST LIMIT 1");
                 if (pgRes?.rows && pgRes.rows.length > 0 && pgRes.rows[0].data) {
                     const rowData = pgRes.rows[0].data;
                     if (typeof rowData === 'object' && Object.keys(rowData).length > 0) {
@@ -988,13 +988,84 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
 
-                // Pre-import resilience for retail tables: ensure retail_inventory_items and companion columns exist
-                const touchesRetail = statementsToRun.some((st: string) => /retail_(inventory_items|inventory|stores|store_stock|suppliers|expenses|sales)/i.test(st));
+                // Pre-import resilience for retail tables: ensure retail_inventory_items, delivery_rates, couriers and companion columns exist
+                const touchesRetail = statementsToRun.some((st: string) => /retail_(inventory_items|inventory|stores|store_stock|suppliers|expenses|sales|delivery_rates|couriers|customers|stock_receipts|stock_transfers|stock_transfer_items|wishlist|commissions_ledger)/i.test(st));
                 if (touchesRetail) {
                     try {
                         const retailClient = await pool.connect();
                         await retailClient.query(`
                             DO $$ BEGIN
+                                -- retail_couriers
+                                IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'retail_couriers') THEN
+                                    CREATE TABLE public.retail_couriers (id TEXT PRIMARY KEY);
+                                END IF;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "institution_id" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "branchId" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "name" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "company_name" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "companyName" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "courier_name" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "courierName" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "full_name" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "fullName" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "phone" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "phoneNumber" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "email" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "contact_person" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "contactPerson" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'Active';
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "vehicle_type" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "vehicleType" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "pricing_model" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "pricingModel" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "base_rate" DECIMAL(12, 2) DEFAULT 0;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "baseRate" DECIMAL(12, 2) DEFAULT 0;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "per_km_rate" DECIMAL(12, 2) DEFAULT 0;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "perKmRate" DECIMAL(12, 2) DEFAULT 0;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "coverage_areas" JSONB DEFAULT '[]'::jsonb;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "coverageAreas" JSONB DEFAULT '[]'::jsonb;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "metadata" JSONB DEFAULT '{}'::jsonb;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN DEFAULT TRUE;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT TRUE;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW();
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ DEFAULT NOW();
+                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+
+                                -- retail_delivery_rates
+                                IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'retail_delivery_rates') THEN
+                                    CREATE TABLE public.retail_delivery_rates (id TEXT PRIMARY KEY);
+                                END IF;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "courier_id" TEXT;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "courierId" TEXT;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "courier_name" TEXT;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "courierName" TEXT;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "destination" TEXT;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "rate" DECIMAL(12, 2) DEFAULT 0;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "estimated_days" INTEGER DEFAULT 1;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "estimatedDays" INTEGER DEFAULT 1;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'Active';
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "institution_id" TEXT;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "branchId" TEXT;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "metadata" JSONB DEFAULT '{}'::jsonb;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW();
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ DEFAULT NOW();
+                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+
+                                -- Drop restrictive constraints to prevent import sequence deadlocks
+                                ALTER TABLE public.retail_delivery_rates ALTER COLUMN institution_id DROP NOT NULL;
+                                ALTER TABLE public.retail_delivery_rates ALTER COLUMN courier_id DROP NOT NULL;
+                                ALTER TABLE public.retail_delivery_rates DROP CONSTRAINT IF EXISTS retail_delivery_rates_courier_id_fkey CASCADE;
+                                ALTER TABLE public.retail_delivery_rates DROP CONSTRAINT IF EXISTS retail_delivery_rates_institution_id_fkey CASCADE;
+                                ALTER TABLE public.retail_delivery_rates DROP CONSTRAINT IF EXISTS fk_retail_delivery_rates_courier CASCADE;
+                                ALTER TABLE public.retail_delivery_rates DROP CONSTRAINT IF EXISTS fk_retail_delivery_rates_institution CASCADE;
+
+                                -- retail_inventory_items
                                 IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'retail_inventory_items') THEN
                                     ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "cost_price" DECIMAL(12, 2) DEFAULT 0;
                                     ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "costPrice" DECIMAL(12, 2) DEFAULT 0;
@@ -1297,6 +1368,74 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                                 ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "last_updated" TEXT;
                                                 ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW();
                                                 ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ DEFAULT NOW();
+                                            `).catch(() => {});
+                                        }
+
+                                        // Ensure retail_delivery_rates companion columns exist
+                                        if (cleanTable === 'retail_delivery_rates') {
+                                            await healClient.query(`
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "courier_id" TEXT;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "courierId" TEXT;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "courier_name" TEXT;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "courierName" TEXT;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "destination" TEXT;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "rate" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "estimated_days" INTEGER DEFAULT 1;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "estimatedDays" INTEGER DEFAULT 1;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'Active';
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "institution_id" TEXT;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "branchId" TEXT;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "metadata" JSONB DEFAULT '{}'::jsonb;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW();
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ DEFAULT NOW();
+                                                ALTER TABLE public.retail_delivery_rates ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+                                                ALTER TABLE public.retail_delivery_rates ALTER COLUMN institution_id DROP NOT NULL;
+                                                ALTER TABLE public.retail_delivery_rates ALTER COLUMN courier_id DROP NOT NULL;
+                                                ALTER TABLE public.retail_delivery_rates DROP CONSTRAINT IF EXISTS retail_delivery_rates_courier_id_fkey CASCADE;
+                                                ALTER TABLE public.retail_delivery_rates DROP CONSTRAINT IF EXISTS retail_delivery_rates_institution_id_fkey CASCADE;
+                                            `).catch(() => {});
+                                        }
+
+                                        // Ensure retail_couriers companion columns exist
+                                        if (cleanTable === 'retail_couriers') {
+                                            await healClient.query(`
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "institution_id" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "branchId" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "name" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "company_name" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "companyName" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "courier_name" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "courierName" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "full_name" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "fullName" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "phone" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "phoneNumber" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "email" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "contact_person" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "contactPerson" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'Active';
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "vehicle_type" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "vehicleType" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "pricing_model" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "pricingModel" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "base_rate" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "baseRate" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "per_km_rate" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "perKmRate" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "coverage_areas" JSONB DEFAULT '[]'::jsonb;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "coverageAreas" JSONB DEFAULT '[]'::jsonb;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "metadata" JSONB DEFAULT '{}'::jsonb;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN DEFAULT TRUE;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT TRUE;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW();
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ DEFAULT NOW();
+                                                ALTER TABLE public.retail_couriers ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
                                             `).catch(() => {});
                                         }
 

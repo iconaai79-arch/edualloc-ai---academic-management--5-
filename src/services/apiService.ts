@@ -9920,29 +9920,49 @@ export const apiService = {
                 if (kcbResponse.ok) {
                     const kcbData = await kcbResponse.json();
                     if (kcbData.success || kcbData.ResponseCode === '0') {
-                        return kcbData;
+                        const checkoutId = kcbData.CheckoutRequestID || kcbData.checkoutRequestId || kcbData.data?.CheckoutRequestID || kcbData.data?.checkoutRequestId;
+                        return {
+                            ...kcbData,
+                            success: true,
+                            ResponseCode: '0',
+                            CheckoutRequestID: checkoutId,
+                            checkoutRequestId: checkoutId
+                        };
                     }
                 }
             } catch (kcbErr) {
                 console.warn('[apiService] KCB STK Push attempt skipped, falling back to Safaricom Daraja:', kcbErr);
             }
 
-            // 2. Fallback to Safaricom Daraja (/api/integrations)
+            // 2. Fallback to Safaricom Daraja / Multi-Gateway (/api/integrations)
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
                     action: 'initiateStkPush',
-                    metadata: { type: 'one-off' },
+                    metadata: {
+                        type: 'one-off',
+                        institutionId: params.institutionId,
+                        reference: params.reference,
+                        description: params.description
+                    },
                     phone: params.phoneNumber,
+                    recipient: params.phoneNumber,
                     ...params
                 })
             });
-            if (!response.ok) {
-                const err = await response.json().catch(() => ({}));
-                throw new Error(err.message || 'STK Push failed');
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok && !data.success && data.ResponseCode !== '0') {
+                throw new Error(data.message || 'STK Push failed');
             }
-            return response.json();
+            const checkoutId = data.CheckoutRequestID || data.checkoutRequestId || data.data?.CheckoutRequestID || data.data?.checkoutRequestId || data.transactionId;
+            return {
+                ...data,
+                success: Boolean(data.success || data.ResponseCode === '0' || checkoutId),
+                ResponseCode: data.ResponseCode || data.data?.ResponseCode || (checkoutId ? '0' : undefined),
+                CheckoutRequestID: checkoutId,
+                checkoutRequestId: checkoutId
+            };
         } catch (error) {
             console.error('STK Push error:', error);
             throw error;

@@ -11,6 +11,30 @@ const getSupabase = () => {
     });
 };
 
+let _pgPool: any = null;
+const getPgPool = async () => {
+    if (_pgPool) return _pgPool;
+    const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SUPABASE_DB_URL;
+    if (!dbUrl) return null;
+    try {
+        const pgMod: any = await import('pg');
+        const PoolClass = pgMod.Pool || pgMod.default?.Pool;
+        if (!PoolClass) return null;
+        const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
+        _pgPool = new PoolClass({
+            connectionString: dbUrl,
+            ssl: isLocal ? false : { rejectUnauthorized: false },
+            max: 3,
+            connectionTimeoutMillis: 4000,
+            idleTimeoutMillis: 10000
+        });
+        _pgPool.on('error', () => {});
+        return _pgPool;
+    } catch (_) {
+        return null;
+    }
+};
+
 const resolveKcbResultCode = (data: any): string => {
     if (!data) return '';
     const directCode = 
@@ -408,37 +432,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const paymentType = getParam('paymentType') || 'Rent';
 
         const supabase = getSupabase();
-        if (!supabase) return res.status(503).json({ error: 'Database context missing' });
+        const pool = await getPgPool();
+        if (!supabase && !pool) return res.status(503).json({ error: 'Database context missing' });
 
         let resolvedPhone = customerMobileNumber || body.phoneNumber || '';
         let resolvedName = customerName || 'Valued Customer';
         let resolvedInstitutionId = creditAccountIdentifier || body.institutionId || 'SYSTEM';
 
         if (tenantId) {
-            const { data: tenantData } = await supabase
-                .from('pm_tenants')
-                .select('*')
-                .eq('id', tenantId)
-                .maybeSingle();
+            let tenantData: any = null;
+            if (supabase) {
+                const { data } = await supabase
+                    .from('pm_tenants')
+                    .select('*')
+                    .eq('id', tenantId)
+                    .maybeSingle();
+                tenantData = data;
+            } else if (pool) {
+                try {
+                    const pgRes = await pool.query('SELECT * FROM public.pm_tenants WHERE id = $1 LIMIT 1', [tenantId]);
+                    tenantData = pgRes?.rows?.[0] || null;
+                } catch (_) {}
+            }
             
             if (tenantData) {
-                resolvedPhone = tenantData.phone_number;
-                resolvedName = tenantData.name;
-                resolvedInstitutionId = tenantData.institution_id;
+                resolvedPhone = tenantData.phone_number || tenantData.phoneNumber || resolvedPhone;
+                resolvedName = tenantData.name || resolvedName;
+                resolvedInstitutionId = tenantData.institution_id || tenantData.institutionId || resolvedInstitutionId;
             }
         }
 
-        // Load kcb_config dynamically from database
+        // Load kcb_config dynamically from database (support both snake_case and camelCase)
         let kcbConfig: Record<string, any> = {};
         if (resolvedInstitutionId && resolvedInstitutionId !== 'SYSTEM' && resolvedInstitutionId !== 'GLOBAL') {
-            const { data: instData } = await supabase
-                .from('institutions')
-                .select('kcb_config')
-                .eq('id', resolvedInstitutionId)
-                .maybeSingle();
-            if (instData?.kcb_config) {
+            let instData: any = null;
+            if (supabase) {
+                const { data } = await supabase
+                    .from('institutions')
+                    .select('*')
+                    .eq('id', resolvedInstitutionId)
+                    .maybeSingle();
+                instData = data;
+            }
+            if (!instData && pool) {
                 try {
-                    kcbConfig = typeof instData.kcb_config === 'string' ? JSON.parse(instData.kcb_config) : instData.kcb_config;
+                    const pgRes = await pool.query('SELECT * FROM public.institutions WHERE id = $1 LIMIT 1', [resolvedInstitutionId]);
+                    instData = pgRes?.rows?.[0] || null;
+                } catch (_) {}
+            }
+            const rawKcb = instData?.kcb_config || instData?.kcbConfig;
+            if (rawKcb) {
+                try {
+                    kcbConfig = typeof rawKcb === 'string' ? JSON.parse(rawKcb) : rawKcb;
                 } catch (e) {
                     console.error('[KCB STK] Failed to parse kcb_config:', e);
                 }
@@ -448,13 +493,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Fallback to global kcb_config in system_settings if institution config is empty
         if (Object.keys(kcbConfig).length === 0) {
             try {
-                const { data: sData } = await supabase
-                    .from('system_settings')
-                    .select('data')
-                    .eq('id', 1)
-                    .maybeSingle();
-                if (sData?.data?.kcb_config || sData?.data?.kcbConfig) {
-                    let sc = sData.data.kcb_config || sData.data.kcbConfig;
+                let sDataObj: any = null;
+                if (supabase) {
+                    const { data: sData } = await supabase
+                        .from('system_settings')
+                        .select('data')
+                        .eq('id', 1)
+                        .maybeSingle();
+                    sDataObj = sData?.data || null;
+                }
+                if (!sDataObj && pool) {
+                    const pgRes = await pool.query("SELECT data FROM public.system_settings WHERE id::text = '1' OR id::text = 'global' ORDER BY updated_at DESC NULLS LAST LIMIT 1");
+                    sDataObj = pgRes?.rows?.[0]?.data || null;
+                }
+                if (sDataObj?.kcb_config || sDataObj?.kcbConfig) {
+                    const sc = sDataObj.kcb_config || sDataObj.kcbConfig;
                     kcbConfig = typeof sc === 'string' ? JSON.parse(sc) : sc;
                 }
             } catch (err) {
@@ -546,22 +599,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.log('[KCB STK] Mock Mode Active.');
             const checkoutRequestId = `KCB_CO_Mock_${Date.now()}`;
             
-            await supabase.from('integration_logs').insert({
-                provider: 'kcb_stk_push_initiate',
-                payload: {
-                    phoneNumber,
-                    amount,
-                    accountReference,
-                    shortCode,
-                    institutionId,
-                    mode: 'mock_sandbox',
-                    checkoutRequestId
-                },
-                status: 'success',
-                created_at: new Date().toISOString()
-            });
-
-
+            try {
+                if (supabase) {
+                    await supabase.from('integration_logs').insert({
+                        provider: 'kcb_stk_push_initiate',
+                        payload: {
+                            phoneNumber,
+                            amount,
+                            accountReference,
+                            shortCode,
+                            institutionId,
+                            mode: 'mock_sandbox',
+                            checkoutRequestId
+                        },
+                        status: 'success',
+                        created_at: new Date().toISOString()
+                    });
+                } else if (pool) {
+                    await pool.query(
+                        'INSERT INTO public.integration_logs (provider, payload, status, created_at) VALUES ($1, $2::jsonb, $3, $4)',
+                        ['kcb_stk_push_initiate', JSON.stringify({ phoneNumber, amount, accountReference, shortCode, institutionId, mode: 'mock_sandbox', checkoutRequestId }), 'success', new Date().toISOString()]
+                    ).catch(() => {});
+                }
+            } catch (_) {}
 
             return res.status(200).json({
                 success: true,
@@ -827,18 +887,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     (isSuccess ? 'KCB STK Push initiated successfully.' : 'KCB Gateway rejected the request.');
 
                 if (isSuccess) {
-                    await supabase.from('integration_logs').insert({
-                        provider: 'kcb_stk_push_initiate',
-                        payload: {
-                            shortCode,
-                            amount,
-                            phoneNumber,
-                            checkoutRequestId: checkoutRequestId,
-                            status: 'initiated'
-                        },
-                        status: 'success',
-                        created_at: new Date().toISOString()
-                    });
+                    try {
+                        if (supabase) {
+                            await supabase.from('integration_logs').insert({
+                                provider: 'kcb_stk_push_initiate',
+                                payload: {
+                                    shortCode,
+                                    amount,
+                                    phoneNumber,
+                                    checkoutRequestId: checkoutRequestId,
+                                    status: 'initiated'
+                                },
+                                status: 'success',
+                                created_at: new Date().toISOString()
+                            });
+                        } else if (pool) {
+                            await pool.query(
+                                'INSERT INTO public.integration_logs (provider, payload, status, created_at) VALUES ($1, $2::jsonb, $3, $4)',
+                                ['kcb_stk_push_initiate', JSON.stringify({ shortCode, amount, phoneNumber, checkoutRequestId, status: 'initiated' }), 'success', new Date().toISOString()]
+                            ).catch(() => {});
+                        }
+                    } catch (_) {}
 
                     // Insert a pending transaction so callback webhook can reconcile it later
                     // Use metadata from the request body if provided (e.g. event_registration type)
@@ -856,18 +925,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     console.log(`[KCB STK] Saving pending transaction with metadata type: ${resolvedMetadata.type}`);
 
-                    await supabase.from('mpesa_transactions').insert({
-                        id: `txn_${Date.now()}`,
-                        transaction_id: `KCB_${checkoutRequestId}`,
-                        checkout_request_id: checkoutRequestId,
-                        institution_id: institutionId || 'SYSTEM',
-                        amount: amount,
-                        phone_number: phoneNumber,
-                        status: 'pending',
-                        payer_name: resolvedName,
-                        provider: 'kcb',
-                        metadata: resolvedMetadata
-                    });
+                    try {
+                        if (supabase) {
+                            await supabase.from('mpesa_transactions').insert({
+                                id: `txn_${Date.now()}`,
+                                transaction_id: `KCB_${checkoutRequestId}`,
+                                checkout_request_id: checkoutRequestId,
+                                institution_id: institutionId || 'SYSTEM',
+                                amount: amount,
+                                phone_number: phoneNumber,
+                                status: 'pending',
+                                payer_name: resolvedName,
+                                provider: 'kcb',
+                                metadata: resolvedMetadata
+                            });
+                        } else if (pool) {
+                            await pool.query(
+                                `INSERT INTO public.mpesa_transactions (id, transaction_id, checkout_request_id, institution_id, amount, phone_number, status, payer_name, provider, metadata)
+                                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)`,
+                                [`txn_${Date.now()}`, `KCB_${checkoutRequestId}`, checkoutRequestId, institutionId || 'SYSTEM', amount, phoneNumber, 'pending', resolvedName, 'kcb', JSON.stringify(resolvedMetadata)]
+                            ).catch(() => {});
+                        }
+                    } catch (_) {}
 
                     return res.status(200).json({
                         success: true,
@@ -878,20 +957,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
                 } else {
                     // Gateway returned an error response in JSON even though HTTP was 200
-                    await supabase.from('integration_logs').insert({
-                        provider: 'kcb_stk_push_initiate',
-                        payload: {
-                            shortCode,
-                            amount,
-                            phoneNumber,
-                            checkoutRequestId: checkoutRequestId,
-                            status: 'failed',
-                            error: message,
-                            rawResponse: stkPushData
-                        },
-                        status: 'failed',
-                        created_at: new Date().toISOString()
-                    });
+                    try {
+                        if (supabase) {
+                            await supabase.from('integration_logs').insert({
+                                provider: 'kcb_stk_push_initiate',
+                                payload: {
+                                    shortCode,
+                                    amount,
+                                    phoneNumber,
+                                    checkoutRequestId: checkoutRequestId,
+                                    status: 'failed',
+                                    error: message,
+                                    rawResponse: stkPushData
+                                },
+                                status: 'failed',
+                                created_at: new Date().toISOString()
+                            });
+                        } else if (pool) {
+                            await pool.query(
+                                'INSERT INTO public.integration_logs (provider, payload, status, created_at) VALUES ($1, $2::jsonb, $3, $4)',
+                                ['kcb_stk_push_initiate', JSON.stringify({ shortCode, amount, phoneNumber, checkoutRequestId, status: 'failed', error: message, rawResponse: stkPushData }), 'failed', new Date().toISOString()]
+                            ).catch(() => {});
+                        }
+                    } catch (_) {}
 
                     return res.status(200).json({
                         success: false,
