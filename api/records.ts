@@ -2895,6 +2895,76 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
+            if (moduleName === 'ds_invoices' && Array.isArray(data)) {
+                (data as any[]).forEach(r => {
+                    if (r && typeof r === 'object') {
+                        const invNo = r.invoice_number || r.invoiceNumber || r.invoiceNo || (r.id ? (String(r.id).startsWith('dsi_opb_') ? `OPB-${String(r.id).split('_')[2] || 'INV'}` : r.id) : '');
+                        if (invNo) {
+                            r.invoice_number = invNo;
+                            r.invoiceNumber = invNo;
+                        }
+                        const sName = r.student_name || r.studentName || r.name;
+                        if (sName && sName !== '-') {
+                            r.student_name = sName;
+                            r.studentName = sName;
+                        }
+                        const admNo = r.admission_number || r.admissionNumber || r.student_admission_number || r.studentAdmissionNumber;
+                        if (admNo && admNo !== '-') {
+                            r.admission_number = admNo;
+                            r.admissionNumber = admNo;
+                        }
+                        const sId = r.student_id || r.studentId;
+                        if (sId) {
+                            r.student_id = sId;
+                            r.studentId = sId;
+                        }
+                        const tot = r.total_amount !== undefined ? Number(r.total_amount) : (r.totalAmount !== undefined ? Number(r.totalAmount) : (r.amount !== undefined ? Number(r.amount) : undefined));
+                        if (tot !== undefined && !isNaN(tot)) {
+                            r.total_amount = tot;
+                            r.totalAmount = tot;
+                        }
+                        const paid = r.paid_amount !== undefined ? Number(r.paid_amount) : (r.paidAmount !== undefined ? Number(r.paidAmount) : 0);
+                        r.paid_amount = paid;
+                        r.paidAmount = paid;
+                        
+                        const bal = r.balance !== undefined ? Number(r.balance) : (tot !== undefined ? tot - paid : 0);
+                        r.balance = bal;
+
+                        // If totalAmount was 0 or missing but balance exists, heal totalAmount = balance + paidAmount
+                        if ((!r.totalAmount || r.totalAmount === 0) && r.balance > 0) {
+                            r.totalAmount = r.balance + r.paidAmount;
+                            r.total_amount = r.totalAmount;
+                        }
+                    }
+                });
+            }
+
+            if (moduleName === 'ds_payments' && Array.isArray(data)) {
+                (data as any[]).forEach(r => {
+                    if (r && typeof r === 'object') {
+                        const sName = r.student_name || r.studentName;
+                        if (sName && sName !== '-') {
+                            r.student_name = sName;
+                            r.studentName = sName;
+                        }
+                        const admNo = r.admission_number || r.admissionNumber;
+                        if (admNo && admNo !== '-') {
+                            r.admission_number = admNo;
+                            r.admissionNumber = admNo;
+                        }
+                        const recNo = r.receipt_number || r.receiptNumber;
+                        if (recNo) {
+                            r.receipt_number = recNo;
+                            r.receiptNumber = recNo;
+                        }
+                        const amt = r.amount !== undefined ? Number(r.amount) : (r.amount_paid !== undefined ? Number(r.amount_paid) : (r.amountPaid !== undefined ? Number(r.amountPaid) : 0));
+                        r.amount = amt;
+                        r.amount_paid = amt;
+                        r.amountPaid = amt;
+                    }
+                });
+            }
+
             if (moduleName === 'vehicles' && Array.isArray(data)) {
                 (data as any[]).forEach(r => {
                     if (r && typeof r === 'object') {

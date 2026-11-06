@@ -335,6 +335,37 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         });
     }
 
+    // 4d. Sanitize ds_invoices: guarantee both camelCase and snake_case column aliases are populated
+    if (tableName === 'ds_invoices') {
+        rows = rows.map(r => {
+            if (!r || typeof r !== 'object') return r;
+            const invNo = r.invoice_number || r.invoiceNumber || (r.id ? (String(r.id).startsWith('dsi_opb_') ? `OPB-${String(r.id).split('_')[2] || 'INV'}` : r.id) : 'INV-GEN');
+            const sName = r.student_name || r.studentName || '';
+            const admNumber = r.admission_number || r.admissionNumber || '';
+            const sId = r.student_id || r.studentId || null;
+            const bal = Number(r.balance ?? 0);
+            const paid = Number(r.paid_amount ?? r.paidAmount ?? 0);
+            const tot = Number(r.total_amount ?? r.totalAmount ?? (bal + paid));
+            return {
+                ...r,
+                invoice_number: invNo,
+                invoiceNumber: invNo,
+                student_name: sName,
+                studentName: sName,
+                admission_number: admNumber,
+                admissionNumber: admNumber,
+                student_id: sId,
+                studentId: sId,
+                total_amount: tot,
+                totalAmount: tot,
+                paid_amount: paid,
+                paidAmount: paid,
+                balance: bal,
+                status: r.status || 'Pending'
+            };
+        });
+    }
+
     // 4. Guarantee that any row with an 'id' column has a non-null id (skip settings tables where id is not primary)
     const isSettingsTable = tableName === 'library_settings' || tableName === 'ds_settings';
     rows = rows.map((r, idx) => {

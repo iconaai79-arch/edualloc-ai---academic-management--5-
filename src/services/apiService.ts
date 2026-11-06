@@ -244,10 +244,11 @@ export function toCamelCase(obj: any): any {
             }
         }
         const camelKey = key.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase());
-        if (PROTECTED_KEYS.has(key) || PROTECTED_KEYS.has(camelKey)) {
-            newObj[camelKey] = val;
-        } else {
-            newObj[camelKey] = toCamelCase(obj[key]);
+        const camelVal = (PROTECTED_KEYS.has(key) || PROTECTED_KEYS.has(camelKey)) ? val : toCamelCase(obj[key]);
+        if (newObj[camelKey] === undefined || newObj[camelKey] === null || newObj[camelKey] === '') {
+            newObj[camelKey] = camelVal;
+        } else if (camelVal !== null && camelVal !== undefined && camelVal !== '') {
+            newObj[camelKey] = camelVal;
         }
     });
     return newObj;

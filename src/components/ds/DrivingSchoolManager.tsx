@@ -9973,13 +9973,15 @@ END $$;
                                                 {paginatedInvoices.map(invoice => {
                                                     const student = getStudentForInvoice(invoice);
                                                     const admNo = getInvoiceAdmNo(invoice, student);
-                                                    const studentName = invoice.studentName || (invoice as any).student_name || student?.fullName || '-';
+                                                    const studentName = (invoice.studentName && invoice.studentName !== '-') ? invoice.studentName : ((invoice as any).student_name && (invoice as any).student_name !== '-' ? (invoice as any).student_name : (student?.fullName || '-'));
+                                                    const invNumber = invoice.invoiceNumber || (invoice as any).invoice_number || (invoice.id?.startsWith('dsi_opb_') ? `OPB-${invoice.id.split('_')[2] || 'INV'}` : invoice.id);
+                                                    const totalAmount = invoice.totalAmount || (invoice as any).total_amount || invoice.amount || (Number(invoice.balance || 0) + Number(invoice.paidAmount || 0));
                                                     return (
                                                         <tr key={invoice.id} className="hover:bg-slate-50/50">
-                                                            <td className="px-10 py-6 font-bold">{invoice.invoiceNumber || (invoice as any).invoice_number}</td>
-                                                            <td className="px-10 py-6 text-xs text-slate-500 font-medium">{admNo}</td>
+                                                            <td className="px-10 py-6 font-bold">{invNumber}</td>
+                                                            <td className="px-10 py-6 text-xs text-slate-500 font-medium">{admNo !== '-' ? admNo : (student?.admissionNumber || '-')}</td>
                                                             <td className="px-10 py-6 text-sm">{studentName}</td>
-                                                        <td className="px-10 py-6 font-bold text-sm">KES {(invoice.totalAmount ?? 0)?.toLocaleString()}</td>
+                                                        <td className="px-10 py-6 font-bold text-sm">KES {(totalAmount ?? 0)?.toLocaleString()}</td>
                                                         <td className="px-10 py-6 text-sm text-rose-600 font-bold">KES {(invoice.balance ?? 0)?.toLocaleString()}</td>
                                                         <td className="px-10 py-6">
                                                             <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
