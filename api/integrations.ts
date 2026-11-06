@@ -2911,17 +2911,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // that frequently cause '401 Unauthorized' failures in bank gateways.
         const sanitizeNcbaVal = (s: string) => (s || '').replace(/[^\x20-\x7E]/g, '').trim();
         
+        const isNcbaPlaceholder = (v: string) => {
+            if (!v) return true;
+            const u = v.toUpperCase();
+            return u.startsWith('YOUR_') || u.includes('PLACEHOLDER') || u === 'NULL' || u === 'UNDEFINED' || isPlaceholderPass(v);
+        };
+
         const getNcbaCredentials = (config: any) => {
             if (!config || typeof config !== 'object') return { id: '', sec: '' };
             // NCBA 2024 Simplified Model: Uses 10-char Username (clientId) and 32-char Secret Key (clientSecret)
-            const id = sanitizeNcbaVal(
+            const rawId = sanitizeNcbaVal(
                 config.clientId || config.client_id || config.consumerKey || config.consumer_key ||
                 config.username || config.user_id || config.userId || ''
             );
-            const sec = sanitizeNcbaVal(
+            const rawSec = sanitizeNcbaVal(
                 config.clientSecret || config.client_secret || config.secretKey || config.secret_key ||
                 config.consumerSecret || config.consumer_secret || config.password || ''
             );
+            const id = isNcbaPlaceholder(rawId) ? '' : rawId;
+            const sec = isNcbaPlaceholder(rawSec) ? '' : rawSec;
             
             return { id, sec };
         };
@@ -2955,7 +2963,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 let instRow: any = null;
                 if (supabase) {
                     try {
-                        const { data } = await supabase.from('institutions').select('id, ncba_config').eq('id', resolvedInstId).maybeSingle();
+                        const { data } = await supabase.from('institutions').select('id, ncba_config, data').eq('id', resolvedInstId).maybeSingle();
                         instRow = data;
                     } catch (_) {}
                 }
@@ -2963,14 +2971,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     try {
                         const pool = await getPgPool();
                         if (pool) {
-                            const pgRes = await pool.query('SELECT id, ncba_config FROM public.institutions WHERE id = $1 LIMIT 1', [resolvedInstId]);
+                            const pgRes = await pool.query('SELECT id, ncba_config, data FROM public.institutions WHERE id = $1 LIMIT 1', [resolvedInstId]);
                             instRow = pgRes?.rows?.[0] || null;
                         }
                     } catch (_) {}
                 }
                 if (instRow) {
                     resolvedInstId = instRow.id || resolvedInstId;
-                    instNcba = toCamelCase(parseJsonIfString(instRow.ncba_config || instRow.ncbaConfig));
+                    const instData = parseJsonIfString(instRow.data) || {};
+                    instNcba = toCamelCase(parseJsonIfString(instRow.ncba_config || instRow.ncbaConfig || instData.ncba_config || instData.ncbaConfig));
                 }
             }
 
@@ -4666,9 +4675,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let finalStatus = 'pending';
             let externalData: any = {};
 
-            const mpesa = bodyConfig || settings?.mpesa_config || settings?.mpesaConfig || {};
+            let mpesa: any = bodyConfig || settings?.mpesa_config || settings?.mpesaConfig || {};
 
             if (provider === 'mpesa') {
+                if (!mpesa.consumerKey && !mpesa.consumer_key) {
+                    try {
+                        const pool = await getPgPool();
+                        const instIdForMpesa = getParam('institutionId') || getParam('institution_id') || transaction?.institution_id;
+                        if (pool && instIdForMpesa && instIdForMpesa !== 'GLOBAL' && instIdForMpesa !== 'SYSTEM') {
+                            const pgRes = await pool.query('SELECT mpesa_config, data FROM public.institutions WHERE id = $1 LIMIT 1', [instIdForMpesa]);
+                            const r = pgRes?.rows?.[0];
+                            if (r) {
+                                const d = parseJsonIfString(r.data) || {};
+                                const im = parseJsonIfString(r.mpesa_config || r.mpesaConfig || d.mpesa_config || d.mpesaConfig);
+                                if (im && (im.consumerKey || im.consumer_key)) mpesa = im;
+                            }
+                        }
+                        if (pool && !mpesa.consumerKey && !mpesa.consumer_key) {
+                            const fbRes = await pool.query(
+                                `SELECT mpesa_config, data FROM public.institutions
+                                 WHERE mpesa_config IS NOT NULL OR data::text LIKE '%consumerKey%'
+                                 ORDER BY CASE WHEN UPPER(name) LIKE '%ABMIS%' THEN 0 ELSE 1 END, updated_at DESC NULLS LAST LIMIT 5`
+                            );
+                            for (const r of (fbRes?.rows || [])) {
+                                const d = parseJsonIfString(r.data) || {};
+                                const im = parseJsonIfString(r.mpesa_config || r.mpesaConfig || d.mpesa_config || d.mpesaConfig);
+                                if (im && (im.consumerKey || im.consumer_key)) {
+                                    mpesa = im;
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (_) {}
+                }
                 // Simplified poll for M-Pesa (inline logic from queryStkStatus)
                 const consumerKey = (mpesa.consumerKey || mpesa.consumer_key || '').trim();
                 const consumerSecret = (mpesa.consumerSecret || mpesa.consumer_secret || '').trim();
@@ -4780,7 +4819,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (supabase) {
                             const { data } = await supabase
                                 .from('institutions')
-                                .select('kcb_config')
+                                .select('kcb_config, data')
                                 .eq('id', instId)
                                 .maybeSingle();
                             instRow = data;
@@ -4788,12 +4827,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (!instRow) {
                             const pool = await getPgPool();
                             if (pool) {
-                                const pgRes = await pool.query('SELECT kcb_config FROM public.institutions WHERE id = $1 LIMIT 1', [instId]);
+                                const pgRes = await pool.query('SELECT kcb_config, data FROM public.institutions WHERE id = $1 LIMIT 1', [instId]);
                                 instRow = pgRes?.rows?.[0] || null;
                             }
                         }
-                        if (instRow?.kcb_config) {
-                            const parsed = typeof instRow.kcb_config === 'string' ? JSON.parse(instRow.kcb_config) : instRow.kcb_config;
+                        const instData = parseJsonIfString(instRow?.data) || {};
+                        const rawKcb = instRow?.kcb_config || instRow?.kcbConfig || instData?.kcb_config || instData?.kcbConfig;
+                        if (rawKcb) {
+                            const parsed = typeof rawKcb === 'string' ? JSON.parse(rawKcb) : rawKcb;
                             kcbConfig = { ...kcbConfig, ...parsed };
                         }
                     } catch (e) {
@@ -5214,18 +5255,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
-            const instMpesa = parseCfg(instRow?.mpesa_config || instRow?.mpesaConfig);
+            const instData = parseCfg(instRow?.data) || {};
+            let instMpesa = parseCfg(instRow?.mpesa_config || instRow?.mpesaConfig || instData?.mpesa_config || instData?.mpesaConfig);
             const sysMpesa = parseCfg(settings?.mpesa_config || settings?.mpesaConfig);
-            const mpesa: any = parseCfg(bodyConfig) || (instMpesa && (instMpesa.consumerKey || instMpesa.consumer_key) ? instMpesa : null) || sysMpesa || instMpesa || {};
+            let mpesa: any = parseCfg(bodyConfig) || (instMpesa && (instMpesa.consumerKey || instMpesa.consumer_key) ? instMpesa : null) || (sysMpesa && (sysMpesa.consumerKey || sysMpesa.consumer_key) ? sysMpesa : null) || instMpesa || sysMpesa || {};
 
-            const instKcb = parseCfg(instRow?.kcb_config || instRow?.kcbConfig);
+            let instKcb = parseCfg(instRow?.kcb_config || instRow?.kcbConfig || instData?.kcb_config || instData?.kcbConfig);
             const sysKcb = parseCfg(settings?.kcb_config || settings?.kcbConfig);
-            const kcb: any = (instKcb && (instKcb.appKey || instKcb.app_key) ? instKcb : null) || sysKcb || instKcb || {};
+            let kcb: any = (instKcb && (instKcb.appKey || instKcb.app_key) ? instKcb : null) || (sysKcb && (sysKcb.appKey || sysKcb.app_key) ? sysKcb : null) || instKcb || sysKcb || {};
 
             const { config: resolvedNcba } = await resolveNcbaConfig(bodyConfig, instId, true);
-            const instNcba = parseCfg(instRow?.ncba_config || instRow?.ncbaConfig);
+            let instNcba = parseCfg(instRow?.ncba_config || instRow?.ncbaConfig || instData?.ncba_config || instData?.ncbaConfig);
             const sysNcba = parseCfg(settings?.ncba_config || settings?.ncbaConfig);
-            const ncba: any = (instNcba && hasValidNcbaCreds(instNcba) ? instNcba : null) || (resolvedNcba && hasValidNcbaCreds(resolvedNcba) ? resolvedNcba : null) || sysNcba || instNcba || {};
+            let ncba: any = (instNcba && hasValidNcbaCreds(instNcba) ? instNcba : null) || (resolvedNcba && hasValidNcbaCreds(resolvedNcba) ? resolvedNcba : null) || (sysNcba && hasValidNcbaCreds(sysNcba) ? sysNcba : null) || {};
+
+            // If neither the target vendor institution nor global system_settings has live payment gateway credentials,
+            // fall back to the platform master company institution (e.g. ABMIS TECHNOLOGIES LTD) so Marketplace checkout works seamlessly
+            const hasAnyLiveCreds = Boolean(
+                (mpesa.consumerKey || mpesa.consumer_key) ||
+                (kcb.appKey || kcb.app_key) ||
+                hasValidNcbaCreds(ncba)
+            );
+            if (!hasAnyLiveCreds) {
+                try {
+                    const pool = await getPgPool();
+                    if (pool) {
+                        const fallbackRes = await pool.query(
+                            `SELECT id, name, mpesa_config, kcb_config, ncba_config, data
+                             FROM public.institutions
+                             WHERE mpesa_config IS NOT NULL OR kcb_config IS NOT NULL OR ncba_config IS NOT NULL
+                                OR (data::text LIKE '%consumerKey%' OR data::text LIKE '%appKey%' OR data::text LIKE '%clientSecret%')
+                             ORDER BY CASE WHEN UPPER(name) LIKE '%ABMIS%' THEN 0 ELSE 1 END, updated_at DESC NULLS LAST
+                             LIMIT 10`
+                        );
+                        for (const fRow of (fallbackRes?.rows || [])) {
+                            const fData = parseCfg(fRow.data) || {};
+                            const fMpesa = parseCfg(fRow.mpesa_config || fRow.mpesaConfig || fData.mpesa_config || fData.mpesaConfig);
+                            const fKcb = parseCfg(fRow.kcb_config || fRow.kcbConfig || fData.kcb_config || fData.kcbConfig);
+                            const fNcba = parseCfg(fRow.ncba_config || fRow.ncbaConfig || fData.ncba_config || fData.ncbaConfig);
+                            if (!mpesa.consumerKey && !mpesa.consumer_key && fMpesa && (fMpesa.consumerKey || fMpesa.consumer_key)) {
+                                mpesa = fMpesa;
+                            }
+                            if (!kcb.appKey && !kcb.app_key && fKcb && (fKcb.appKey || fKcb.app_key) && String(fKcb.environment || '').toLowerCase() === 'production') {
+                                kcb = fKcb;
+                            }
+                            if (!hasValidNcbaCreds(ncba) && fNcba && hasValidNcbaCreds(fNcba)) {
+                                ncba = fNcba;
+                            }
+                        }
+                    }
+                } catch (fbErr) {
+                    console.warn('[M-Pesa] Fallback institution gateway lookup warning:', fbErr);
+                }
+            }
 
             const consumerKey = String(mpesa.consumerKey || mpesa.consumer_key || '').trim();
             const consumerSecret = String(mpesa.consumerSecret || mpesa.consumer_secret || '').trim();
@@ -5385,12 +5467,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const invoiceNo = useShared && kcbTill
                                 ? `${kcbTill}-${accountRef.slice(-Math.max(1, 11 - kcbTill.length))}`.substring(0, 12)
                                 : accountRef.substring(0, 12);
+                            const effectiveOrgShortCode = (useShared && kcbTill && kcbShortCode === kcbTill) ? '522533' : (kcbShortCode || '522533');
                             const kcbPayload: Record<string, any> = {
                                 phoneNumber: formattedPhone,
                                 amount: String(Math.round(amount)),
                                 invoiceNumber: invoiceNo,
                                 sharedShortCode: useShared,
-                                orgShortCode: kcbShortCode || '522533',
+                                orgShortCode: effectiveOrgShortCode,
                                 orgPassKey: kcbPasskey,
                                 callbackUrl: kcb.callbackUrl || `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`,
                                 transactionDescription: transactionDesc.substring(0, 13)

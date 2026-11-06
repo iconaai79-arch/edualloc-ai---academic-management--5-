@@ -480,7 +480,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     instData = pgRes?.rows?.[0] || null;
                 } catch (_) {}
             }
-            const rawKcb = instData?.kcb_config || instData?.kcbConfig;
+            const instDataJson = typeof instData?.data === 'string' ? (() => { try { return JSON.parse(instData.data); } catch (_) { return {}; } })() : (instData?.data || {});
+            const rawKcb = instData?.kcb_config || instData?.kcbConfig || instDataJson?.kcb_config || instDataJson?.kcbConfig;
             if (rawKcb) {
                 try {
                     kcbConfig = typeof rawKcb === 'string' ? JSON.parse(rawKcb) : rawKcb;
@@ -558,6 +559,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (isCustomPaybill) {
                         finalOrgShortCode = configShortCode;
                         finalSharedShortCode = false;
+                    } else if (finalTillNumber && configShortCode === finalTillNumber) {
+                        // Merchant entered their KCB Till Number into both shortCode and tillNumber under KCB Shared Paybill 522533
+                        finalOrgShortCode = '522533';
+                        finalSharedShortCode = true;
                     } else {
                         finalOrgShortCode = configShortCode;
                         finalSharedShortCode = true;
