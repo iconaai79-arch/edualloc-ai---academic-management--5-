@@ -46,7 +46,8 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [units, setUnits] = useState<number>(Math.max(SMS_PACKAGES[0].units, minSmsUnits || 0));
     const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba'>('mpesa');
-    const [enabledGateways, setEnabledGateways] = useState<string[]>(['mpesa']);
+    const [enabledGateways, setEnabledGateways] = useState<string[]>(['mpesa', 'ncba']);
+    const [systemSettings, setSystemSettings] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
     const [statusMessage, setStatusMessage] = useState('');
@@ -54,18 +55,41 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
 
     const calculatedTotal = units * smsUnitPrice;
 
+    const hasValidNcba = (cfg: any): boolean => {
+        if (!cfg || typeof cfg !== 'object') return false;
+        return Boolean(
+            cfg.isMock === true || cfg.isMock === 'true' ||
+            (cfg.clientId || cfg.client_id || cfg.username || cfg.consumerKey)
+        );
+    };
+
+    const resolvedNcbaConfig = React.useMemo(() => {
+        const sysCfg = systemSettings?.ncbaConfig || (systemSettings as any)?.ncba_config;
+        if (hasValidNcba(sysCfg)) return sysCfg;
+        if (hasValidNcba(ncbaConfig)) return ncbaConfig;
+        return sysCfg || ncbaConfig || undefined;
+    }, [systemSettings, ncbaConfig]);
+
     React.useEffect(() => {
         const fetchGateways = async () => {
             const { data: sData } = await apiService.getSystemSettings();
-            if (sData?.enabledGateways) {
-                setEnabledGateways(sData.enabledGateways);
-                if (!sData.enabledGateways.includes(provider)) {
-                    setProvider((sData.enabledGateways[0] as any) || 'mpesa');
-                }
+            if (sData) {
+                setSystemSettings(sData);
+            }
+            const rawGateways = Array.isArray(sData?.enabledGateways) && sData.enabledGateways.length > 0
+                ? [...sData.enabledGateways]
+                : ['mpesa'];
+            const sysNcba = sData?.ncbaConfig || (sData as any)?.ncba_config;
+            if ((hasValidNcba(sysNcba) || hasValidNcba(ncbaConfig)) && !rawGateways.includes('ncba')) {
+                rawGateways.push('ncba');
+            }
+            setEnabledGateways(rawGateways);
+            if (!rawGateways.includes(provider)) {
+                setProvider((rawGateways[0] as any) || 'mpesa');
             }
         };
         if (isOpen) fetchGateways();
-    }, [isOpen]);
+    }, [isOpen, ncbaConfig]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -81,6 +105,9 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
             return;
         }
 
+        isCompletedRef.current = false;
+        setFinalStatus(null);
+        setStatusMessage('');
         setIsLoading(true);
 
         try {
@@ -88,6 +115,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                 type: 'sms',
                 units,
                 institutionId,
+                institution_id: institutionId,
                 institutionCode,
                 institutionName,
                 requesterId,
@@ -95,10 +123,16 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                 provider
             };
 
-            const config = provider === 'mpesa' ? mpesaConfig : (provider === 'airtel' ? airtelMoneyConfig : (provider === 'ncba' ? ncbaConfig : intasendConfig));
+            const config = provider === 'mpesa'
+                ? (mpesaConfig || systemSettings?.mpesaConfig)
+                : (provider === 'airtel'
+                    ? (airtelMoneyConfig || systemSettings?.airtelMoneyConfig)
+                    : (provider === 'ncba'
+                        ? resolvedNcbaConfig
+                        : (intasendConfig || systemSettings?.intasendConfig)));
             const result: any = await apiService.initiatePayment(provider, calculatedTotal, formattedPhone, metadata, config);
 
-            if (result.success && (result.data?.CheckoutRequestID || result.checkoutRequestId || result.url)) {
+            if (result.success && (result.data?.CheckoutRequestID || result.checkoutRequestId || result.transactionId || result.url)) {
                 if (result.url) {
                     window.open(result.url, '_blank');
                     setStatusMessage('Payment window opened. Please complete the payment and wait for confirmation.');
@@ -106,17 +140,14 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                     setStatusMessage(`${provider.toUpperCase()} prompt sent! Enter your PIN on your phone.`);
                 }
 
-                const checkoutRequestId = result.data?.CheckoutRequestID || result.checkoutRequestId;
+                const checkoutRequestId = result.data?.CheckoutRequestID || result.checkoutRequestId || result.transactionId;
                 
                 let attempts = 0;
                 const maxAttempts = 60;
 
                 const pollInterval = setInterval(async () => {
                     attempts++;
-                    const result = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
-                        provider === 'mpesa' ? mpesaConfig : 
-                        (provider === 'airtel' ? airtelMoneyConfig : 
-                         provider === 'ncba' ? ncbaConfig : intasendConfig));
+                    const result = await apiService.checkPaymentStatus(provider, checkoutRequestId, config);
 
                     const status = (result?.status || '').toLowerCase();
                     const isCompleted = status === 'completed' || status === 'success' || status === 'successful';
@@ -128,6 +159,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                         setFinalStatus('completed');
                         setStatusMessage(`Payment Confirmed! ${units?.toLocaleString()} SMS units have been added to your balance.`);
                         setIsLoading(false);
+                        window.dispatchEvent(new CustomEvent('eduai_sms_balance_updated'));
                         onPurchaseComplete(units);
                     } else if ((isFailed || attempts >= maxAttempts) && !isCompletedRef.current) {
                         isCompletedRef.current = true;
@@ -163,10 +195,10 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                     <div className="p-10 text-center">
                         <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-5"></div>
                         <h4 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">
-                            {statusMessage.includes('Sent') ? 'Confirming Payment...' : 'Processing Request...'}
+                            {statusMessage.includes('Sent') || statusMessage.includes('sent') ? 'Confirming Payment...' : 'Processing Request...'}
                         </h4>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                            {statusMessage || 'Connecting to M-Pesa...'}
+                            {statusMessage || `Connecting to ${provider.toUpperCase()}...`}
                         </p>
                     </div>
                 ) : finalStatus === 'completed' ? (
@@ -343,4 +375,3 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
         </div>
     );
 };
-

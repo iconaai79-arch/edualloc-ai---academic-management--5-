@@ -6044,6 +6044,29 @@ Please change it after login.`;
                                                             />
                                                         </div>
                                                     </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Paybill Number</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localNcbaConfig.paybill || ''}
+                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, paybill: e.target.value })}
+                                                                className="form-input w-full rounded-2xl text-xs font-mono"
+                                                                placeholder="880100"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Account No / Reference</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localNcbaConfig.accountNumber || ''}
+                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, accountNumber: e.target.value })}
+                                                                className="form-input w-full rounded-2xl text-xs font-mono"
+                                                                placeholder="e.g. 9115310018 or EDUAI"
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
 
                                                 <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-5">

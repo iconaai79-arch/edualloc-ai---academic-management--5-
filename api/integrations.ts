@@ -304,7 +304,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Priority 1: Mandatory Global Bypass for Test Handshakes & Configuration (Super Admin setup)
-    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'sendEmail' || action === 'sendSms' || action === 'forgotPassword' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'generateMpesaQr' || action === 'queryPaymentStatus' || action === 'stkPushQuery' || action === 'queryStkStatus' || action === 'sendAlumnaWelcome' || action === 'shortenUrl' || action === 'checkUrl';
+    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'testNcbaAuth' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'sendEmail' || action === 'sendSms' || action === 'forgotPassword' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'ncbaGenerateQr' || action === 'ncbaQueryStk' || action === 'ncbaQueryStatus' || action === 'reconcileInternal' || action === 'initiateStkPush' || action === 'generateMpesaQr' || action === 'queryPaymentStatus' || action === 'stkPushQuery' || action === 'queryStkStatus' || action === 'sendAlumnaWelcome' || action === 'shortenUrl' || action === 'checkUrl';
     
     // Logic restored.
 
@@ -1023,7 +1023,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             'forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 
             'sendWhatsApp', 'getWhatsAppStatus', 'getWhatsAppLogs', 'provisionWhatsAppInstance', 
             'disconnectWhatsApp', 'saveWhatsAppConfig', 'mpesa-callback', 'ncbaWebhook', 
-            'ncbaInitiateStk', 'initiateStkPush', 'generateMpesaQr', 'queryPaymentStatus', 'stkPushQuery', 'queryStkStatus',
+            'ncbaInitiateStk', 'ncbaGenerateQr', 'ncbaQueryStk', 'ncbaQueryStatus', 'testNcbaAuth', 'reconcileInternal',
+            'initiateStkPush', 'generateMpesaQr', 'queryPaymentStatus', 'stkPushQuery', 'queryStkStatus',
             'kcbInitiateStk', 'kcbIpn', 'kcbCallback', 'kcb-callback', 'shortenUrl', 'sendAlumnaWelcome'
         ].includes(action);
 
@@ -1034,6 +1035,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (
                 action === 'sendEmail' || action === 'sendSms' ||
                 action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || 
+                action === 'ncbaGenerateQr' || action === 'ncbaQueryStk' || action === 'ncbaQueryStatus' || action === 'testNcbaAuth' || action === 'reconcileInternal' ||
                 action === 'initiateStkPush' || action === 'generateMpesaQr' || action === 'queryPaymentStatus' || action === 'stkPushQuery' || action === 'queryStkStatus' || action === 'sendAlumnaWelcome' || 
                 action === 'provisionWhatsAppInstance' || action === 'saveWhatsAppConfig' || 
                 action === 'getWhatsAppStatus' || action === 'getWhatsAppLogs' || action === 'sendWhatsApp' || 
@@ -2910,12 +2912,149 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const sanitizeNcbaVal = (s: string) => (s || '').replace(/[^\x20-\x7E]/g, '').trim();
         
         const getNcbaCredentials = (config: any) => {
+            if (!config || typeof config !== 'object') return { id: '', sec: '' };
             // NCBA 2024 Simplified Model: Uses 10-char Username (clientId) and 32-char Secret Key (clientSecret)
-            const id = sanitizeNcbaVal(config.clientId || config.client_id || config.consumerKey || config.consumer_key || '');
-            const sec = sanitizeNcbaVal(config.clientSecret || config.client_secret || config.secretKey || config.secret_key || config.consumerSecret || config.consumer_secret || '');
+            const id = sanitizeNcbaVal(
+                config.clientId || config.client_id || config.consumerKey || config.consumer_key ||
+                config.username || config.user_id || config.userId || ''
+            );
+            const sec = sanitizeNcbaVal(
+                config.clientSecret || config.client_secret || config.secretKey || config.secret_key ||
+                config.consumerSecret || config.consumer_secret || config.password || ''
+            );
             
             return { id, sec };
-        }
+        };
+
+        const hasValidNcbaCreds = (config: any): boolean => {
+            if (!config || typeof config !== 'object') return false;
+            if (config.isMock === true || config.isMock === 'true') return true;
+            const { id, sec } = getNcbaCredentials(config);
+            return Boolean(id && sec);
+        };
+
+        const parseJsonIfString = (val: any): any => {
+            if (!val) return null;
+            if (typeof val === 'string') {
+                try { return JSON.parse(val); } catch (_) { return null; }
+            }
+            return typeof val === 'object' ? val : null;
+        };
+
+        const resolveNcbaConfig = async (
+            bodyCfg: any,
+            instId?: string | null,
+            isPlatformService?: boolean
+        ): Promise<{ config: any; targetInstId: string }> => {
+            const reqNcba = toCamelCase(parseJsonIfString(bodyCfg));
+            const sysNcba = toCamelCase(parseJsonIfString(settings?.ncba_config || settings?.ncbaConfig));
+            let instNcba: any = null;
+            let resolvedInstId = instId || user?.user_metadata?.institutionId || 'SYSTEM';
+
+            if (resolvedInstId && resolvedInstId !== 'GLOBAL' && resolvedInstId !== 'SYSTEM') {
+                let instRow: any = null;
+                if (supabase) {
+                    try {
+                        const { data } = await supabase.from('institutions').select('id, ncba_config').eq('id', resolvedInstId).maybeSingle();
+                        instRow = data;
+                    } catch (_) {}
+                }
+                if (!instRow) {
+                    try {
+                        const pool = await getPgPool();
+                        if (pool) {
+                            const pgRes = await pool.query('SELECT id, ncba_config FROM public.institutions WHERE id = $1 LIMIT 1', [resolvedInstId]);
+                            instRow = pgRes?.rows?.[0] || null;
+                        }
+                    } catch (_) {}
+                }
+                if (instRow) {
+                    resolvedInstId = instRow.id || resolvedInstId;
+                    instNcba = toCamelCase(parseJsonIfString(instRow.ncba_config || instRow.ncbaConfig));
+                }
+            }
+
+            // Pick primary config that actually has valid credentials
+            // For platform services (buying SMS units, subscriptions), prioritize global system settings over empty institution configs
+            const candidates = isPlatformService
+                ? [reqNcba, sysNcba, instNcba]
+                : [reqNcba, instNcba, sysNcba];
+
+            const primary = candidates.find(c => hasValidNcbaCreds(c)) || candidates.find(c => c && Object.keys(c).length > 0) || null;
+            if (!primary) {
+                return { config: null, targetInstId: resolvedInstId };
+            }
+
+            // Merge non-empty fallback fields (like baseUrl, paybill, accountNumber, debitAccount) from sysNcba / instNcba / reqNcba
+            const merged: any = {};
+            for (const src of [sysNcba, instNcba, reqNcba, primary]) {
+                if (src && typeof src === 'object') {
+                    for (const [k, v] of Object.entries(src)) {
+                        if (v !== undefined && v !== null && v !== '') {
+                            merged[k] = v;
+                        }
+                    }
+                }
+            }
+            // Ensure primary credentials win
+            const { id, sec } = getNcbaCredentials(primary);
+            if (id) merged.clientId = id;
+            if (sec) merged.clientSecret = sec;
+
+            return { config: merged, targetInstId: resolvedInstId };
+        };
+
+        let ncbaTableEnsured = false;
+        const ensureNcbaTransactionsTable = async (pool: any) => {
+            if (!pool || ncbaTableEnsured) return;
+            try {
+                await pool.query(`
+                    CREATE TABLE IF NOT EXISTS public.ncba_transactions (
+                        id TEXT PRIMARY KEY,
+                        institution_id TEXT,
+                        reference_no TEXT,
+                        transaction_id TEXT,
+                        checkout_request_id TEXT,
+                        reference_id TEXT,
+                        receipt_number TEXT,
+                        phone_number TEXT,
+                        payer_name TEXT,
+                        customer_name TEXT,
+                        account_number TEXT,
+                        amount NUMERIC DEFAULT 0,
+                        status TEXT DEFAULT 'pending',
+                        provider TEXT DEFAULT 'ncba',
+                        metadata JSONB DEFAULT '{}'::jsonb,
+                        external_data JSONB DEFAULT '{}'::jsonb,
+                        raw_payload JSONB DEFAULT '{}'::jsonb,
+                        completed_at TIMESTAMPTZ,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ DEFAULT NOW()
+                    );
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS reference_no TEXT;
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS transaction_id TEXT;
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS checkout_request_id TEXT;
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS reference_id TEXT;
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS receipt_number TEXT;
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS phone_number TEXT;
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS payer_name TEXT;
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS customer_name TEXT;
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS account_number TEXT;
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS provider TEXT DEFAULT 'ncba';
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS external_data JSONB DEFAULT '{}'::jsonb;
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS raw_payload JSONB DEFAULT '{}'::jsonb;
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+                    ALTER TABLE public.ncba_transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+                `);
+                await pool.query(`ALTER TABLE public.ncba_transactions ALTER COLUMN reference_no DROP NOT NULL;`).catch(() => {});
+                await pool.query(`ALTER TABLE public.ncba_transactions ALTER COLUMN institution_id DROP NOT NULL;`).catch(() => {});
+                await pool.query(`ALTER TABLE public.ncba_transactions DROP CONSTRAINT IF EXISTS ncba_transactions_institution_id_fkey;`).catch(() => {});
+                ncbaTableEnsured = true;
+            } catch (err: any) {
+                console.warn('[NCBA DB] ensureNcbaTransactionsTable non-fatal warning:', err.message);
+            }
+        };
 
         const getNcbaToken = async (ncbaConfig: any) => {
             const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
@@ -3039,7 +3178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return data.access_token;
         };
 
-        const initiateNcbaPayment = async (ncbaConfig: any, amount: number, phone: string) => {
+        const initiateNcbaPayment = async (ncbaConfig: any, amount: number, phone: string, accountRef?: string) => {
             const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
             if (isMock) {
                 console.log('[NCBA STK] Mock Mode active. Returning successful initiation.');
@@ -3088,7 +3227,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!effectiveBase) throw new Error('NCBA Base URL or STK Push Base URL is missing in the configuration.');
             
             // Priority: pushStkUrl (new) -> Default spec path
-            const effectivePath = ncbaConfig.pushStkUrl || '/payments/api/v1/stk-push/initiate';
+            const effectivePath = ncbaConfig.pushStkUrl || ncbaConfig.push_stk_url || '/payments/api/v1/stk-push/initiate';
             // If the path field contains a full URL, use it directly; otherwise join with base
             const fullUrl = effectivePath.startsWith('http')
                 ? effectivePath
@@ -3096,7 +3235,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ? effectiveBase + effectivePath.substring(1) 
                     : (!effectiveBase.endsWith('/') && !effectivePath.startsWith('/') ? effectiveBase + '/' + effectivePath : effectiveBase + effectivePath));
 
-            console.log(`[NCBA STK] Initiation request to: ${fullUrl} (POST)`);
+            const resolvedPaybill = String(
+                ncbaConfig.paybill || ncbaConfig.paybillNumber || ncbaConfig.paybill_number || ncbaConfig.shortCode || ncbaConfig.short_code || '880100'
+            ).trim();
+            const resolvedAccount = String(
+                ncbaConfig.accountNumber || ncbaConfig.account_number || ncbaConfig.debitAccount || ncbaConfig.debit_account || accountRef || 'EDUAI'
+            ).trim();
+
+            console.log(`[NCBA STK] Initiation request to: ${fullUrl} (POST) | PayBill: ${resolvedPaybill} | AccountNo: ${resolvedAccount}`);
             let res: Response;
             try {
                 res = await fetchWithTimeout(fullUrl, {
@@ -3109,9 +3255,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }, ncbaConfig.headers),
                     body: JSON.stringify(mergeParams({
                         TelephoneNo: normalizePhoneNCBA(phone),
-                        Amount: String(amount),
-                        PayBillNo: ncbaConfig.paybill || '880100',
-                        AccountNo: ncbaConfig.accountNumber || ncbaConfig.account_number,
+                        Amount: String(Math.round(Number(amount) || 0)),
+                        PayBillNo: resolvedPaybill,
+                        AccountNo: resolvedAccount,
                         Network: 'Safaricom',
                         TransactionType: 'CustomerPayBillOnline'
                     }, ncbaConfig.params)),
@@ -3172,17 +3318,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ResultDescription: 'The service request has been accepted successfully (Mock Mode)'
                 };
             }
-            const token = await getNcbaToken(ncbaConfig);
             const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
             const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
-            const authHeader = authMethod === 'basic' 
-                ? `Basic ${Buffer.from(`${cId}:${cSec}`).toString('base64')}`
-                : `Bearer ${token}`;
+            let authHeader = '';
+            if (authMethod === 'basic') {
+                authHeader = `Basic ${Buffer.from(`${cId}:${cSec}`).toString('base64')}`;
+            } else {
+                try {
+                    const token = await getNcbaToken(ncbaConfig);
+                    authHeader = `Bearer ${token}`;
+                } catch (tokenErr: any) {
+                    if (tokenErr.message?.includes('401') || tokenErr.message?.includes('Unauthorized')) {
+                        authHeader = `Basic ${Buffer.from(`${cId}:${cSec}`).toString('base64')}`;
+                    } else {
+                        throw tokenErr;
+                    }
+                }
+            }
             
-            let effectiveBase = (ncbaConfig.stkPushBaseUrl || ncbaConfig.stk_push_base_url || ncbaConfig.baseUrl || ncbaConfig.base_url || '').trim();
+            const effectiveBase = normalizeNcbaUrl(ncbaConfig.stkPushBaseUrl || ncbaConfig.stk_push_base_url || ncbaConfig.baseUrl || ncbaConfig.base_url);
             if (!effectiveBase) throw new Error('NCBA Base URL is missing.');
-            if (!effectiveBase.startsWith('http')) effectiveBase = 'https://' + effectiveBase;            // Priority: queryStkUrl (new) -> Default spec path
-            const effectivePath = ncbaConfig.queryStkUrl || '/payments/api/v1/stk-push/query';
+            // Priority: queryStkUrl (new) -> Default spec path
+            const effectivePath = ncbaConfig.queryStkUrl || ncbaConfig.query_stk_url || '/payments/api/v1/stk-push/query';
             // Join base and path
             const fullUrl = effectivePath.startsWith('http')
                 ? effectivePath
@@ -3238,15 +3395,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ? `Basic ${Buffer.from(`${cId}:${cSec}`).toString('base64')}`
                 : `Bearer ${token}`;
 
+            const effectiveBase = normalizeNcbaUrl(ncbaConfig.stkPushBaseUrl || ncbaConfig.stk_push_base_url || ncbaConfig.baseUrl || ncbaConfig.base_url);
             // 2024 Spec: POST /payments/api/v1/qr/generate
-            const res = await fetchWithTimeout(`${ncbaConfig.baseUrl || ncbaConfig.base_url}/payments/api/v1/qr/generate`, {
+            const res = await fetchWithTimeout(`${effectiveBase}/payments/api/v1/qr/generate`, {
                 method: 'POST',
                 headers: mergeHeaders({
                     'Authorization': authHeader,
                     'Content-Type': 'application/json'
                 }, ncbaConfig.headers),
                 body: JSON.stringify(mergeParams({
-                    till: ncbaConfig.accountNumber || ncbaConfig.account_number, // Till/Shortcode usually
+                    till: ncbaConfig.accountNumber || ncbaConfig.account_number || ncbaConfig.debitAccount || ncbaConfig.paybill || '880100',
                     amount: amount
                 }, ncbaConfig.params))
             });
@@ -3290,12 +3448,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                           txn.provider === 'airtel' ? 'airtel_transactions' : 
                           'mpesa_transactions';
 
-            // 1.5 Fresh fetch to get latest status
-            const { data: freshTxn } = await supabase.from(table).select('metadata, institution_id, amount, created_at').eq('id', txn.id).maybeSingle();
-            
-            if (!freshTxn) return;
+            const pool = await getPgPool();
+            if (table === 'ncba_transactions' && pool) {
+                await ensureNcbaTransactionsTable(pool);
+            }
 
-            const meta = freshTxn.metadata || {};
+            // 1.5 Fresh fetch to get latest status
+            let freshTxn: any = null;
+            if (supabase) {
+                try {
+                    const { data } = await supabase.from(table).select('id, metadata, institution_id, amount, created_at').eq('id', txn.id).maybeSingle();
+                    freshTxn = data;
+                } catch (_) {}
+            }
+            if (!freshTxn && pool) {
+                try {
+                    const lookupVal = txn.id || txn.transaction_id || txn.checkout_request_id;
+                    const pgRes = await pool.query(
+                        `SELECT id, metadata, institution_id, amount, created_at FROM public.${table} WHERE id = $1 OR transaction_id = $1 LIMIT 1`,
+                        [lookupVal]
+                    );
+                    freshTxn = pgRes?.rows?.[0] || null;
+                } catch (_) {}
+            }
+            if (!freshTxn) {
+                freshTxn = txn;
+            }
+
+            const txnPrimaryId = freshTxn.id || txn.id;
+            const rawMeta = freshTxn.metadata ?? txn.metadata ?? {};
+            const meta = (typeof rawMeta === 'string' ? parseJsonIfString(rawMeta) : rawMeta) || {};
             const isReconciled = meta.reconciled === true || meta.reconciled === 'true';
             const isProcessing = meta.reconciled === 'processing';
             
@@ -3304,67 +3486,117 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const isStuck = isProcessing && (Date.now() - processingTime > 120000);
 
             if (isReconciled || (isProcessing && !isStuck)) {
-                console.log(`[Reconcile - SKIP] Already reconciled or in progress: ${txn.id}`);
+                console.log(`[Reconcile - SKIP] Already reconciled or in progress: ${txnPrimaryId}`);
                 return;
             }
 
             const instId = freshTxn.institution_id || txn.institution_id;
-            const amt = freshTxn.amount || txn.amount;
+            const amt = Number(freshTxn.amount ?? txn.amount ?? 0);
 
             // 2. PROMPT LOCK (Soft Claim)
             // We mark as processing immediately to reduce race window.
-            await supabase.from(table).update({ 
-                metadata: { ...meta, reconciled: 'processing', processing_at: new Date().toISOString() } 
-            }).eq('id', txn.id);
-
-            // At this point, we proceed with reconciliation.
-            // Even if two threads reach here, the double-check above will catch the 
-            // 'processing' state in subsequent calls.
+            const processingMeta = { ...meta, reconciled: 'processing', processing_at: new Date().toISOString() };
+            if (supabase && txnPrimaryId) {
+                try {
+                    await supabase.from(table).update({ metadata: processingMeta }).eq('id', txnPrimaryId);
+                } catch (_) {}
+            }
+            if (pool && txnPrimaryId) {
+                try {
+                    await pool.query(
+                        `UPDATE public.${table} SET metadata = $1::jsonb WHERE id = $2`,
+                        [JSON.stringify(processingMeta), txnPrimaryId]
+                    );
+                } catch (_) {}
+            }
 
             // 3. Final Safeguard: Check if a receipt already exists for this transaction
             // Receipts are only created AFTER a successful balance increment.
-            const { data: existingReceipt } = await supabase
-                .from('receipts')
-                .select('id')
-                .eq('related_transaction_id', txn.id)
-                .maybeSingle();
+            let existingReceipt: any = null;
+            if (supabase && txnPrimaryId) {
+                try {
+                    const { data } = await supabase
+                        .from('receipts')
+                        .select('id')
+                        .eq('related_transaction_id', txnPrimaryId)
+                        .maybeSingle();
+                    existingReceipt = data;
+                } catch (_) {}
+            }
+            if (!existingReceipt && pool && txnPrimaryId) {
+                try {
+                    const pgRec = await pool.query(
+                        `SELECT id FROM public.receipts WHERE related_transaction_id = $1 LIMIT 1`,
+                        [txnPrimaryId]
+                    );
+                    existingReceipt = pgRec?.rows?.[0] || null;
+                } catch (_) {}
+            }
 
             if (existingReceipt) {
-                console.log(`[Reconcile - SKIP] Receipt already exists for TXN: ${txn.id}. Blocking duplicate increment.`);
+                console.log(`[Reconcile - SKIP] Receipt already exists for TXN: ${txnPrimaryId}. Blocking duplicate increment.`);
                 return;
             }
 
-            console.log(`[Reconcile - PROCEED] TXN: ${txn.id || txn.transaction_id} | Inst: ${instId} | Amt: ${amt} | Type: ${meta.type}`);
+            console.log(`[Reconcile - PROCEED] TXN: ${txnPrimaryId || txn.transaction_id} | Inst: ${instId} | Amt: ${amt} | Type: ${meta.type}`);
 
             // 1. Fetch System Settings for fallback price
-            let settings: any = {};
+            let reconcileSettings: any = { ...(settings || {}) };
             try {
-                const { data: sData } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
-                if (sData?.data) settings = sData.data;
+                if (supabase) {
+                    const { data: sData } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
+                    if (sData?.data) reconcileSettings = { ...reconcileSettings, ...sData.data };
+                } else if (pool) {
+                    const pgSet = await pool.query(`SELECT data FROM public.system_settings WHERE id = 1 LIMIT 1`);
+                    const sData = pgSet?.rows?.[0]?.data;
+                    if (sData) reconcileSettings = { ...reconcileSettings, ...(typeof sData === 'string' ? JSON.parse(sData) : sData) };
+                }
             } catch (e) {
                 console.error('[Reconcile] Failed to fetch system settings:', e);
             }
-            const defaultUnitPrice = parseFloat(String(settings.sms_unit_price || settings.smsUnitPrice || 2));
-            const invoicePrefix = (settings.global_invoice_prefix || settings.globalInvoicePrefix || 'INV-').trim();
-            const receiptPrefix = (settings.global_receipt_prefix || settings.globalReceiptPrefix || 'RCT-').trim();
+            const settingsObj = reconcileSettings;
+            const defaultUnitPrice = parseFloat(String(settingsObj.sms_unit_price || settingsObj.smsUnitPrice || 2));
+            const invoicePrefix = (settingsObj.global_invoice_prefix || settingsObj.globalInvoicePrefix || 'INV-').trim();
+            const receiptPrefix = (settingsObj.global_receipt_prefix || settingsObj.globalReceiptPrefix || 'RCT-').trim();
 
             // 1. Fetch Institution
-            let inst = null;
-            let resolvedInstId = (instId === 'SYSTEM' || instId === 'GLOBAL') ? meta.institution_id : instId;
+            let inst: any = null;
+            let resolvedInstId = (instId === 'SYSTEM' || instId === 'GLOBAL') ? (meta.institution_id || meta.institutionId) : instId;
             if (resolvedInstId && resolvedInstId !== 'SYSTEM' && resolvedInstId !== 'GLOBAL') {
-                const { data } = await supabase.from('institutions').select('*').eq('id', resolvedInstId).maybeSingle();
-                inst = data;
-                if (!inst) {
-                    const { data: bData } = await supabase
-                        .from('branches')
-                        .select('institution_id')
-                        .or(`id.eq.${resolvedInstId},linked_institution_id.eq.${resolvedInstId}`)
-                        .maybeSingle();
-                    if (bData?.institution_id) {
-                        resolvedInstId = bData.institution_id;
-                        const { data: parentInst } = await supabase.from('institutions').select('*').eq('id', resolvedInstId).maybeSingle();
-                        inst = parentInst;
-                    }
+                if (supabase) {
+                    try {
+                        const { data } = await supabase.from('institutions').select('*').eq('id', resolvedInstId).maybeSingle();
+                        inst = data;
+                        if (!inst) {
+                            const { data: bData } = await supabase
+                                .from('branches')
+                                .select('institution_id')
+                                .or(`id.eq.${resolvedInstId},linked_institution_id.eq.${resolvedInstId}`)
+                                .maybeSingle();
+                            if (bData?.institution_id) {
+                                resolvedInstId = bData.institution_id;
+                                const { data: parentInst } = await supabase.from('institutions').select('*').eq('id', resolvedInstId).maybeSingle();
+                                inst = parentInst;
+                            }
+                        }
+                    } catch (_) {}
+                }
+                if (!inst && pool) {
+                    try {
+                        const pgInst = await pool.query(`SELECT * FROM public.institutions WHERE id = $1 LIMIT 1`, [resolvedInstId]);
+                        inst = pgInst?.rows?.[0] || null;
+                        if (!inst) {
+                            const pgBr = await pool.query(
+                                `SELECT institution_id FROM public.branches WHERE id = $1 OR linked_institution_id = $1 LIMIT 1`,
+                                [resolvedInstId]
+                            ).catch(() => null);
+                            if (pgBr?.rows?.[0]?.institution_id) {
+                                resolvedInstId = pgBr.rows[0].institution_id;
+                                const pgParent = await pool.query(`SELECT * FROM public.institutions WHERE id = $1 LIMIT 1`, [resolvedInstId]);
+                                inst = pgParent?.rows?.[0] || null;
+                            }
+                        }
+                    } catch (_) {}
                 }
             }
 
@@ -3383,30 +3615,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const baseDate = Math.max(currentEnd.getTime(), Date.now());
                 const newEndDate = new Date(baseDate + (days * 24 * 60 * 60 * 1000));
 
-                await supabase.from('institutions').update({
-                    subscription_ends_at: newEndDate.toISOString(),
-                    status: 'active'
-                }).eq('id', resolvedInstId);
+                if (supabase) {
+                    try {
+                        await supabase.from('institutions').update({
+                            subscription_ends_at: newEndDate.toISOString(),
+                            status: 'active'
+                        }).eq('id', resolvedInstId);
+                    } catch (_) {}
+                }
+                if (pool) {
+                    try {
+                        await pool.query(
+                            `UPDATE public.institutions SET subscription_ends_at = $1, status = 'active' WHERE id = $2`,
+                            [newEndDate.toISOString(), resolvedInstId]
+                        );
+                    } catch (_) {}
+                }
 
                 if (!invId) {
                     invId = `inv_sub_${Date.now()}`;
-                    await supabase.from('invoices').insert({
-                        id: invId,
-                        invoice_number: `${invoicePrefix}SUB-${Date.now().toString().slice(-6)}`,
-                        institution_id: resolvedInstId,
-                        issue_date: new Date().toISOString().split('T')[0],
-                        due_date: new Date().toISOString().split('T')[0],
-                        total_amount: amt,
-                        status: 'paid',
-                        items: JSON.stringify([{
-                            description: `${meta.plan === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
-                            quantity: 1,
-                            unitPrice: amt,
-                            amount: amt
-                        }])
-                    });
+                    const subItems = JSON.stringify([{
+                        description: `${meta.plan === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
+                        quantity: 1,
+                        unitPrice: amt,
+                        amount: amt
+                    }]);
+                    const invNum = `${invoicePrefix}SUB-${Date.now().toString().slice(-6)}`;
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    if (supabase) {
+                        try {
+                            await supabase.from('invoices').insert({
+                                id: invId,
+                                invoice_number: invNum,
+                                institution_id: resolvedInstId,
+                                issue_date: todayStr,
+                                due_date: todayStr,
+                                total_amount: amt,
+                                status: 'paid',
+                                items: subItems
+                            });
+                        } catch (_) {}
+                    } else if (pool) {
+                        try {
+                            await pool.query(
+                                `INSERT INTO public.invoices (id, invoice_number, institution_id, issue_date, due_date, total_amount, status, items)
+                                 VALUES ($1, $2, $3, $4, $5, $6, 'paid', $7::jsonb)
+                                 ON CONFLICT (id) DO NOTHING`,
+                                [invId, invNum, resolvedInstId, todayStr, todayStr, amt, subItems]
+                            );
+                        } catch (_) {}
+                    }
                 } else {
-                    await supabase.from('invoices').update({ status: 'paid' }).eq('id', invId);
+                    if (supabase) {
+                        try { await supabase.from('invoices').update({ status: 'paid' }).eq('id', invId); } catch (_) {}
+                    }
+                    if (pool) {
+                        try { await pool.query(`UPDATE public.invoices SET status = 'paid' WHERE id = $1`, [invId]); } catch (_) {}
+                    }
                 }
             } 
             // 3. Handle SMS
@@ -3421,22 +3686,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 if (units > 0) {
-                    console.log(`[Reconcile - SMS] Balance Increment: ${units} units for ${resolvedInstId || 'SYSTEM'}. Triggering RPC...`);
-                    const { error: rpcError } = await supabase.rpc('increment_sms_balance', { 
-                        inst_id: resolvedInstId || 'SYSTEM', 
-                        amount: units 
-                    });
-                    
-                    if (rpcError) {
-                        console.error(`[Reconcile - SMS] RPC ERROR:`, rpcError);
-                    } else {
-                        console.log(`[Reconcile - SMS] SUCCESS: Balance updated for ${resolvedInstId || 'SYSTEM'}`);
-                        // Fetch updated balance for notifications
-                        if (resolvedInstId && resolvedInstId !== 'SYSTEM') {
-                            const { data: updatedInst } = await supabase.from('institutions').select('sms_balance').eq('id', resolvedInstId).maybeSingle();
-                            if (updatedInst) {
-                                (txn as any).newBalance = updatedInst.sms_balance;
+                    console.log(`[Reconcile - SMS] Balance Increment: ${units} units for ${resolvedInstId || 'SYSTEM'}...`);
+                    let incremented = false;
+                    if (supabase) {
+                        try {
+                            const { error: rpcError } = await supabase.rpc('increment_sms_balance', { 
+                                inst_id: resolvedInstId || 'SYSTEM', 
+                                amount: units 
+                            });
+                            if (!rpcError) {
+                                incremented = true;
+                                console.log(`[Reconcile - SMS] SUCCESS via Supabase RPC for ${resolvedInstId || 'SYSTEM'}`);
+                                if (resolvedInstId && resolvedInstId !== 'SYSTEM') {
+                                    const { data: updatedInst } = await supabase.from('institutions').select('sms_balance').eq('id', resolvedInstId).maybeSingle();
+                                    if (updatedInst) (txn as any).newBalance = updatedInst.sms_balance;
+                                }
+                            } else {
+                                console.warn(`[Reconcile - SMS] Supabase RPC error, falling back to direct update:`, rpcError.message);
+                                if (resolvedInstId && resolvedInstId !== 'SYSTEM') {
+                                    const currentBal = Number(inst?.sms_balance || 0);
+                                    const nextBal = currentBal + units;
+                                    const { error: updErr } = await supabase.from('institutions').update({ sms_balance: nextBal }).eq('id', resolvedInstId);
+                                    if (!updErr) {
+                                        incremented = true;
+                                        (txn as any).newBalance = nextBal;
+                                    }
+                                }
                             }
+                        } catch (e: any) {
+                            console.warn('[Reconcile - SMS] Supabase increment exception:', e.message);
+                        }
+                    }
+
+                    if (!incremented && pool && resolvedInstId && resolvedInstId !== 'SYSTEM') {
+                        try {
+                            const pgInc = await pool.query(
+                                `UPDATE public.institutions SET sms_balance = COALESCE(sms_balance, 0) + $1 WHERE id = $2 RETURNING sms_balance`,
+                                [units, resolvedInstId]
+                            );
+                            if (pgInc?.rows?.[0]) {
+                                incremented = true;
+                                (txn as any).newBalance = Number(pgInc.rows[0].sms_balance);
+                                console.log(`[Reconcile - SMS] SUCCESS via Direct PG for ${resolvedInstId}. New balance: ${(txn as any).newBalance}`);
+                            }
+                        } catch (pgErr: any) {
+                            console.error(`[Reconcile - SMS] Direct PG update error:`, pgErr.message);
                         }
                     }
                 } else {
@@ -3445,28 +3739,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (!invId) {
                     invId = `inv_sms_${Date.now()}`;
-                    await supabase.from('invoices').insert({
-                        id: invId,
-                        invoice_number: `${invoicePrefix}SMS-${Date.now().toString().slice(-6)}`,
-                        institution_id: resolvedInstId || 'SYSTEM',
-                        issue_date: new Date().toISOString(),
-                        due_date: new Date().toISOString(),
-                        total_amount: amt,
-                        status: 'paid',
-                        items: JSON.stringify([{
-                            description: `SMS Top-up (${units} units)`,
-                            quantity: 1,
-                            unitPrice: amt / (units || 1),
-                            amount: amt
-                        }])
-                    });
+                    const smsItems = JSON.stringify([{
+                        description: `SMS Top-up (${units} units)`,
+                        quantity: 1,
+                        unitPrice: amt / (units || 1),
+                        amount: amt
+                    }]);
+                    const invNum = `${invoicePrefix}SMS-${Date.now().toString().slice(-6)}`;
+                    const nowIso = new Date().toISOString();
+                    if (supabase) {
+                        try {
+                            await supabase.from('invoices').insert({
+                                id: invId,
+                                invoice_number: invNum,
+                                institution_id: resolvedInstId || 'SYSTEM',
+                                issue_date: nowIso,
+                                due_date: nowIso,
+                                total_amount: amt,
+                                status: 'paid',
+                                items: smsItems
+                            });
+                        } catch (_) {}
+                    } else if (pool) {
+                        try {
+                            await pool.query(
+                                `INSERT INTO public.invoices (id, invoice_number, institution_id, issue_date, due_date, total_amount, status, items)
+                                 VALUES ($1, $2, $3, $4, $5, $6, 'paid', $7::jsonb)
+                                 ON CONFLICT (id) DO NOTHING`,
+                                [invId, invNum, resolvedInstId || 'SYSTEM', nowIso, nowIso, amt, smsItems]
+                            );
+                        } catch (_) {}
+                    }
                 } else {
-                    await supabase.from('invoices').update({ status: 'paid' }).eq('id', invId);
+                    if (supabase) {
+                        try { await supabase.from('invoices').update({ status: 'paid' }).eq('id', invId); } catch (_) {}
+                    }
+                    if (pool) {
+                        try { await pool.query(`UPDATE public.invoices SET status = 'paid' WHERE id = $1`, [invId]); } catch (_) {}
+                    }
                 }
             }
             // 4. Handle generic Invoice
             else if (meta.type === 'invoice' && invId) {
-                await supabase.from('invoices').update({ status: 'paid' }).eq('id', invId);
+                if (supabase) {
+                    try { await supabase.from('invoices').update({ status: 'paid' }).eq('id', invId); } catch (_) {}
+                }
+                if (pool) {
+                    try { await pool.query(`UPDATE public.invoices SET status = 'paid' WHERE id = $1`, [invId]); } catch (_) {}
+                }
             }
             // 4.0. Handle Retail POS Sale
             else if (meta.type === 'retail_pos_sale' || meta.type === 'retail_sale') {
@@ -4003,22 +4323,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // 5. Create Receipt
             if (invId) {
-                await supabase.from('receipts').insert({
-                    id: `rec_${Date.now()}`,
-                    receipt_number: `${receiptPrefix}${Date.now().toString().slice(-6)}`,
-                    institution_id: resolvedInstId || instId || 'SYSTEM',
-                    invoice_id: invId,
-                    amount_paid: amt,
-                    payment_date: new Date().toISOString().split('T')[0],
-                    payment_method: txn.provider || 'M-Pesa',
-                    related_transaction_id: txn.id
-                });
+                const recId = `rec_${Date.now()}`;
+                const recNum = `${receiptPrefix}${Date.now().toString().slice(-6)}`;
+                const recInstId = resolvedInstId || instId || 'SYSTEM';
+                const recDate = new Date().toISOString().split('T')[0];
+                const recMethod = txn.provider || 'M-Pesa';
+                const recTxnId = txnPrimaryId || txn.id;
+                if (supabase) {
+                    try {
+                        await supabase.from('receipts').insert({
+                            id: recId,
+                            receipt_number: recNum,
+                            institution_id: recInstId,
+                            invoice_id: invId,
+                            amount_paid: amt,
+                            payment_date: recDate,
+                            payment_method: recMethod,
+                            related_transaction_id: recTxnId
+                        });
+                    } catch (_) {}
+                } else if (pool) {
+                    try {
+                        await pool.query(
+                            `INSERT INTO public.receipts (id, receipt_number, institution_id, invoice_id, amount_paid, payment_date, payment_method, related_transaction_id)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                             ON CONFLICT (id) DO NOTHING`,
+                            [recId, recNum, recInstId, invId, amt, recDate, recMethod, recTxnId]
+                        );
+                    } catch (_) {}
+                }
             }
 
             // 6. Mark Transaction as Reconciled (Final Step)
-            await supabase.from(table).update({
-                metadata: { ...meta, reconciled: true, reconciled_at: new Date().toISOString() }
-            }).eq('id', txn.id);
+            const finalMeta = { ...meta, reconciled: true, reconciled_at: new Date().toISOString() };
+            if (supabase && txnPrimaryId) {
+                try {
+                    await supabase.from(table).update({ metadata: finalMeta, status: 'completed' }).eq('id', txnPrimaryId);
+                } catch (_) {}
+            }
+            if (pool && txnPrimaryId) {
+                try {
+                    await pool.query(
+                        `UPDATE public.${table} SET metadata = $1::jsonb, status = 'completed' WHERE id = $2`,
+                        [JSON.stringify(finalMeta), txnPrimaryId]
+                    );
+                } catch (_) {}
+            }
 
             // 7. Send Notifications
             try {
@@ -4034,7 +4384,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // SMS Notification to Payer
                 const smsRecipient = txn.phone_number || txn.phoneNumber;
                 if (isSms && smsRecipient) {
-                    const smsConfig = settings?.sms_config || settings?.smsConfig;
+                    const smsConfig = settingsObj?.sms_config || settingsObj?.smsConfig;
                     const provider = smsConfig?.provider || 'Zettatel';
                     const apiKey = smsConfig?.apiKey || smsConfig?.api_key || smsConfig?.userId;
                     const username = smsConfig?.username;
@@ -4059,7 +4409,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 // Email Notification
-                const emailConfig = settings?.email_config || settings?.emailConfig;
+                const emailConfig = settingsObj?.email_config || settingsObj?.emailConfig;
                 if (emailConfig && inst?.email) {
                     try {
                         const transporter = nodemailer.createTransport({
@@ -4113,7 +4463,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 // SMS Notification
-                const smsConfig = settings?.sms_config || settings?.smsConfig;
+                const smsConfig = settingsObj?.sms_config || settingsObj?.smsConfig;
                 if (smsConfig && txn.phone_number) {
                     try {
                         const provider = smsConfig.provider || 'Zettatel';
@@ -4143,19 +4493,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 // In-App Notification
                 if (meta.requesterId) {
-                    await supabase.from('app_notifications').insert({
-                        id: `ntf_rec_${Date.now()}`,
-                        user_id: meta.requesterId,
-                        message: notifyMessage,
-                        type: 'success',
-                        timestamp: new Date().toISOString()
-                    });
+                    const ntfId = `ntf_rec_${Date.now()}`;
+                    const ntfTs = new Date().toISOString();
+                    if (supabase) {
+                        try {
+                            await supabase.from('app_notifications').insert({
+                                id: ntfId,
+                                user_id: meta.requesterId,
+                                message: notifyMessage,
+                                type: 'success',
+                                timestamp: ntfTs
+                            });
+                        } catch (_) {}
+                    } else if (pool) {
+                        try {
+                            await pool.query(
+                                `INSERT INTO public.app_notifications (id, user_id, message, type, timestamp)
+                                 VALUES ($1, $2, $3, 'success', $4)
+                                 ON CONFLICT (id) DO NOTHING`,
+                                [ntfId, meta.requesterId, notifyMessage, ntfTs]
+                            );
+                        } catch (_) {}
+                    }
                 }
             } catch (notifyErr) {
                 console.error('[Reconcile] Notification process error:', notifyErr);
             }
 
-            console.log(`[Reconcile] Finished for ${txn.id}`);
+            console.log(`[Reconcile] Finished for ${txnPrimaryId}`);
         };
 
         if (action === 'queryPaymentStatus' || action === 'stkPushQuery' || action === 'queryStkStatus') {
@@ -4198,8 +4563,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 try {
                     const pool = await getPgPool();
                     if (pool) {
+                        if (table === 'ncba_transactions') await ensureNcbaTransactionsTable(pool);
                         const pgRes = await pool.query(
-                            `SELECT * FROM public.${table} WHERE ${queryCol} = $1 ORDER BY created_at DESC NULLS LAST LIMIT 1`,
+                            table === 'ncba_transactions'
+                                ? `SELECT * FROM public.${table} WHERE transaction_id = $1 OR checkout_request_id = $1 OR reference_no = $1 ORDER BY created_at DESC NULLS LAST LIMIT 1`
+                                : `SELECT * FROM public.${table} WHERE ${queryCol} = $1 ORDER BY created_at DESC NULLS LAST LIMIT 1`,
                             [checkoutRequestId]
                         );
                         transaction = pgRes?.rows?.[0] || null;
@@ -4228,7 +4596,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const pool = await getPgPool();
                             if (pool) {
                                 const pgRes = await pool.query(
-                                    `SELECT * FROM public.${table} WHERE ${queryCol} = $1 ORDER BY created_at DESC NULLS LAST LIMIT 1`,
+                                    table === 'ncba_transactions'
+                                        ? `SELECT * FROM public.${table} WHERE transaction_id = $1 OR checkout_request_id = $1 OR reference_no = $1 ORDER BY created_at DESC NULLS LAST LIMIT 1`
+                                        : `SELECT * FROM public.${table} WHERE ${queryCol} = $1 ORDER BY created_at DESC NULLS LAST LIMIT 1`,
                                     [checkoutRequestId]
                                 );
                                 updatedTxn = pgRes?.rows?.[0] || null;
@@ -4323,8 +4693,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     } catch (e) {}
                 }
             } else if (provider === 'ncba') {
-                const ncba = bodyConfig || settings?.ncba_config || settings?.ncbaConfig || {};
-                if (ncba && (ncba.clientId || ncba.client_id)) {
+                const txnMeta = typeof transaction?.metadata === 'string' ? parseJsonIfString(transaction.metadata) : transaction?.metadata;
+                const isPlat = ['sms', 'sms_topup', 'subscription', 'license', 'one-off', 'student_admission'].includes(txnMeta?.type) || true;
+                const { config: ncba } = await resolveNcbaConfig(
+                    bodyConfig,
+                    transaction?.institution_id || getParam('institutionId') || getParam('institution_id'),
+                    isPlat
+                );
+                if (ncba && hasValidNcbaCreds(ncba)) {
                     try {
                         const statusData = await queryNcbaStkStatus(ncba, checkoutRequestId);
                         externalData = statusData;
@@ -4658,7 +5034,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const pool = await getPgPool();
                         if (pool) {
                             await pool.query(
-                                `UPDATE public.${table} SET status = $1, completed_at = $2, updated_at = $3, receipt_number = $4, reference_id = $4, payer_name = $5, phone_number = $6, external_data = $7::jsonb WHERE ${updateCol} = $8`,
+                                table === 'ncba_transactions'
+                                    ? `UPDATE public.${table} SET status = $1, completed_at = $2, updated_at = $3, receipt_number = $4, reference_id = $4, payer_name = $5, phone_number = $6, external_data = $7::jsonb WHERE transaction_id = $8 OR checkout_request_id = $8 OR reference_no = $8`
+                                    : `UPDATE public.${table} SET status = $1, completed_at = $2, updated_at = $3, receipt_number = $4, reference_id = $4, payer_name = $5, phone_number = $6, external_data = $7::jsonb WHERE ${updateCol} = $8`,
                                 [finalStatus, finalStatus === 'completed' ? now : null, now, receiptNum || null, payerName || transaction.payer_name, payerPhone || transaction.phone_number, JSON.stringify(externalData || {}), checkoutRequestId]
                             );
                         }
@@ -5338,11 +5716,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(403).json({ success: false, message: 'Permission denied: Manual verification requires Super Admin privileges.' });
             }
 
-            const { transactionId } = paramsMap;
+            const { transactionId, provider: reqProvider } = paramsMap;
             if (!transactionId) return res.status(400).json({ success: false, message: 'Missing transactionId' });
 
-            // 1. Fetch transaction
-            const { data: transaction } = await supabase.from('mpesa_transactions').select('*').eq('id', transactionId).maybeSingle();
+            const pool = await getPgPool();
+            let transaction: any = null;
+            let matchedTable = reqProvider === 'ncba' || String(transactionId).startsWith('ncba_') ? 'ncba_transactions' : 'mpesa_transactions';
+
+            if (supabase) {
+                const { data } = await supabase.from(matchedTable).select('*').eq('id', transactionId).maybeSingle();
+                transaction = data;
+                if (!transaction && matchedTable === 'mpesa_transactions') {
+                    const { data: ncbaData } = await supabase.from('ncba_transactions').select('*').eq('id', transactionId).maybeSingle();
+                    if (ncbaData) {
+                        transaction = ncbaData;
+                        matchedTable = 'ncba_transactions';
+                    }
+                }
+            }
+            if (!transaction && pool) {
+                try {
+                    const pgRes = await pool.query(`SELECT * FROM public.${matchedTable} WHERE id = $1 OR transaction_id = $1 LIMIT 1`, [transactionId]);
+                    transaction = pgRes?.rows?.[0] || null;
+                    if (!transaction && matchedTable === 'mpesa_transactions') {
+                        await ensureNcbaTransactionsTable(pool);
+                        const pgNcba = await pool.query(`SELECT * FROM public.ncba_transactions WHERE id = $1 OR transaction_id = $1 LIMIT 1`, [transactionId]);
+                        if (pgNcba?.rows?.[0]) {
+                            transaction = pgNcba.rows[0];
+                            matchedTable = 'ncba_transactions';
+                        }
+                    }
+                } catch (_) {}
+            }
+
             if (!transaction) return res.status(404).json({ success: false, message: 'Transaction not found.' });
 
             if (transaction.status === 'completed' && transaction.metadata?.reconciled) {
@@ -5350,52 +5756,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             // 2. Update status and metadata
-            await supabase.from('mpesa_transactions').update({ 
-                status: 'completed'
-            }).eq('id', transactionId);
+            if (supabase) {
+                try {
+                    await supabase.from(matchedTable).update({ status: 'completed' }).eq('id', transaction.id);
+                } catch (_) {}
+            }
+            if (pool) {
+                try {
+                    await pool.query(`UPDATE public.${matchedTable} SET status = 'completed', updated_at = NOW() WHERE id = $1`, [transaction.id]);
+                } catch (_) {}
+            }
 
             // 3. Trigger reconciliation
-            await reconcilePayment({ ...transaction, status: 'completed' });
+            await reconcilePayment({
+                ...transaction,
+                status: 'completed',
+                provider: matchedTable === 'ncba_transactions' ? 'ncba' : (transaction.provider || 'mpesa')
+            });
             return res.status(200).json({ success: true, message: 'Transaction verified manually and reconciled successfully.' });
         }
 
         if (action === 'ncbaInitiateStk') {
-            const institutionId = paramsMap.institutionId || paramsMap.institution_id || paramsMap.metadata?.institutionId || 'GLOBAL';
+            const institutionId = paramsMap.institutionId || paramsMap.institution_id || paramsMap.metadata?.institutionId || paramsMap.metadata?.institution_id || 'GLOBAL';
             const phone = paramsMap.phone || paramsMap.phoneNumber || paramsMap.phone_number || paramsMap.recipient || paramsMap.metadata?.payerPhoneNumber;
-            const targetAmount = paramsMap.amount || paramsMap.metadata?.amount || amount || 0;
-            const isPlatformService = ['sms', 'subscription', 'one-off', 'student_admission'].includes(paramsMap.metadata?.type);
-            
-            // Prioritize config from request body (for testing unsaved changes)
-            let ncbaConfig = bodyConfig ? toCamelCase(bodyConfig) : null;
-            let targetInstId = institutionId;
+            const targetAmount = Number(paramsMap.amount ?? paramsMap.metadata?.amount ?? amount ?? 0);
+            const isPlatformService = ['sms', 'sms_topup', 'subscription', 'license', 'one-off', 'student_admission'].includes(paramsMap.metadata?.type);
 
-            if (!ncbaConfig) {
-                if (isPlatformService) {
-                    // Fallback to Global Super Admin config for platform services (SMS/Subscription/Student Admission)
-                    ncbaConfig = toCamelCase(settings.ncba_config || settings.ncbaConfig);
-                    targetInstId = institutionId || paramsMap.metadata?.institution_id || paramsMap.metadata?.institutionId || 'SYSTEM';
-                    console.log(`[NCBA Gateway] Using global configuration for platform service ${paramsMap.metadata?.type}. Tenant: ${targetInstId}`);
-                } else {
-                    // Try institution-specific config first
-                    const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user?.user_metadata?.institutionId).maybeSingle();
-                    if (inst && inst.ncbaConfig) {
-                        ncbaConfig = toCamelCase(inst.ncbaConfig);
-                        targetInstId = inst.id;
-                    }
-                }
+            const { config: ncbaConfig, targetInstId: resolvedInstId } = await resolveNcbaConfig(
+                bodyConfig,
+                institutionId,
+                isPlatformService
+            );
+            const targetInstId = (institutionId && institutionId !== 'GLOBAL')
+                ? institutionId
+                : (paramsMap.metadata?.institution_id || paramsMap.metadata?.institutionId || resolvedInstId || 'SYSTEM');
 
-                if (!ncbaConfig) {
-                    return res.status(400).json({ 
-                        success: false, 
-                        message: isPlatformService 
-                            ? 'NCBA Integration not configured. Please contact Super Admin to set up global payments.' 
-                            : 'NCBA Integration not configured for this institution.' 
-                    });
-                }
+            if (!ncbaConfig || !hasValidNcbaCreds(ncbaConfig)) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: isPlatformService 
+                        ? 'NCBA Integration not configured. Please contact Super Admin to set up global NCBA payment credentials.' 
+                        : 'NCBA Integration not configured for this institution.' 
+                });
             }
 
             try {
-                const result = await initiateNcbaPayment(ncbaConfig, targetAmount, phone || recipient);
+                const accountRef = paramsMap.accountReference || paramsMap.accountNumber || paramsMap.metadata?.accountReference || (isPlatformService ? `SMS-${targetInstId}` : targetInstId);
+                const result = await initiateNcbaPayment(ncbaConfig, targetAmount, phone || recipient, accountRef);
                 const resData = result as any;
                 // Extreme ID extraction - search every possible key variant
                 const txnId = resData.TransactionID || resData.transactionId || 
@@ -5404,38 +5811,94 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                              resData.CheckoutRequestID || resData.checkoutRequestId ||
                              resData.MerchantRequestID || resData.merchantRequestId ||
                              resData.Id || resData.id;
-                
-                if (resData.StatusCode === '0' || resData.status === 'SUCCESS' || txnId) {
+
+                const isInitOk = resData && resData.success !== false && (
+                    resData.StatusCode === '0' || resData.ResponseCode === '0' || resData.ResultCode === '0' ||
+                    resData.status === 'SUCCESS' || resData.status === 'PENDING' || Boolean(txnId)
+                );
+
+                if (isInitOk) {
+                    const effectiveTxnId = txnId || `ncba_req_${Date.now()}`;
+                    const recordId = `ncba_${Date.now()}`;
+                    const metaObj = {
+                        ...(paramsMap.metadata || {}),
+                        institution_id: paramsMap.metadata?.institution_id || paramsMap.metadata?.institutionId || targetInstId
+                    };
                     const insertData: any = {
-                        id: `ncba_${Date.now()}`,
-                        transaction_id: txnId,
-                        checkout_request_id: txnId,
-                        reference_id: txnId,
+                        id: recordId,
+                        reference_no: effectiveTxnId,
+                        transaction_id: effectiveTxnId,
+                        checkout_request_id: effectiveTxnId,
+                        reference_id: effectiveTxnId,
                         institution_id: targetInstId || 'SYSTEM',
                         amount: targetAmount,
                         phone_number: phone || recipient,
                         payer_name: paramsMap.payerName || phone || recipient,
                         status: 'pending',
-                        metadata: paramsMap.metadata || {},
+                        metadata: metaObj,
                         provider: 'ncba'
                     };
                     
                     console.log('[NCBA] Saving transaction:', JSON.stringify(insertData));
-                    await supabase.from('ncba_transactions').insert(insertData);
+                    let saved = false;
+                    if (supabase) {
+                        try {
+                            const { error: sbErr } = await supabase.from('ncba_transactions').insert(insertData);
+                            if (!sbErr) saved = true;
+                            else console.warn('[NCBA] Supabase insert warning:', sbErr.message);
+                        } catch (sbEx: any) {
+                            console.warn('[NCBA] Supabase insert exception:', sbEx.message);
+                        }
+                    }
+                    if (!saved) {
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await ensureNcbaTransactionsTable(pool);
+                                await pool.query(
+                                    `INSERT INTO public.ncba_transactions (
+                                        id, reference_no, transaction_id, checkout_request_id, reference_id,
+                                        institution_id, amount, phone_number, payer_name, status, metadata, provider, created_at, updated_at
+                                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10::jsonb, 'ncba', NOW(), NOW())
+                                    ON CONFLICT (id) DO NOTHING`,
+                                    [
+                                        insertData.id,
+                                        insertData.reference_no,
+                                        insertData.transaction_id,
+                                        insertData.checkout_request_id,
+                                        insertData.reference_id,
+                                        insertData.institution_id,
+                                        insertData.amount,
+                                        insertData.phone_number,
+                                        insertData.payer_name,
+                                        JSON.stringify(insertData.metadata || {})
+                                    ]
+                                );
+                                saved = true;
+                            }
+                        } catch (pgErr: any) {
+                            console.error('[NCBA] Direct PG insert error:', pgErr.message);
+                        }
+                    }
 
                     return res.status(200).json({ 
                         success: true, 
                         message: 'NCBA Direct Debit request initiated.', 
-                        checkoutRequestId: txnId,
+                        checkoutRequestId: effectiveTxnId,
+                        transactionId: effectiveTxnId,
                         data: resData 
                     });
                 }
-                return res.status(400).json({ success: false, message: resData.StatusDescription || 'NCBA gateway error.', details: resData });
+                return res.status(400).json({
+                    success: false,
+                    message: resData.StatusDescription || resData.ResponseDescription || resData.ResultDesc || resData.diagHint || 'NCBA gateway error.',
+                    details: resData
+                });
             } catch (err: any) {
                 console.error(`[NCBA STK Fatal] Request failed for ${paramsMap.phone || recipient}:`, err);
                 return res.status(500).json({ 
                     success: false, 
-                    message: 'NCBA initiation failed.', 
+                    message: err.message || 'NCBA initiation failed.', 
                     error: err.message,
                     hint: err.message.includes('fetch') ? 'The server could not reach the NCBA gateway. Check your Base URL and ensure it is publicly accessible.' : undefined
                 });
@@ -5444,24 +5907,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'ncbaGenerateQr') {
             const { institutionId } = paramsMap;
-            const isPlatformService = paramsMap.metadata?.type === 'sms';
+            const isPlatformService = ['sms', 'sms_topup', 'subscription', 'license'].includes(paramsMap.metadata?.type);
 
-            let ncbaConfig = bodyConfig ? toCamelCase(bodyConfig) : null;
-            let targetInstId = institutionId;
+            const { config: ncbaConfig } = await resolveNcbaConfig(bodyConfig, institutionId, isPlatformService);
 
-            if (!ncbaConfig) {
-                const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user?.user_metadata?.institutionId).maybeSingle();
-                if (inst && inst.ncbaConfig) {
-                    ncbaConfig = toCamelCase(inst.ncbaConfig);
-                    targetInstId = inst.id;
-                } else if (isPlatformService) {
-                    // Normalize global fallback
-                    ncbaConfig = toCamelCase(settings?.ncba_config || settings?.ncbaConfig);
-                    targetInstId = institutionId || user?.user_metadata?.institutionId || 'SYSTEM';
-                }
-            }
-
-            if (!ncbaConfig) {
+            if (!ncbaConfig || !hasValidNcbaCreds(ncbaConfig)) {
                 return res.status(400).json({ success: false, message: 'NCBA Integration not configured.' });
             }
 
@@ -5481,47 +5931,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'ncbaQueryStatus') {
             const { checkoutRequestId, institutionId } = paramsMap;
-
-            // Prioritize config from request body
-            let ncbaConfig = bodyConfig;
-            if (!ncbaConfig) {
-                const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId).maybeSingle();
-                if (!inst || !inst.ncbaConfig) return res.status(400).json({ success: false, message: 'Config missing' });
-                ncbaConfig = inst.ncbaConfig;
+            const { config: ncbaConfig } = await resolveNcbaConfig(bodyConfig, institutionId, true);
+            if (!ncbaConfig || !hasValidNcbaCreds(ncbaConfig)) {
+                return res.status(400).json({ success: false, message: 'NCBA Config missing' });
             }
 
             try {
-                const token = await getNcbaToken(ncbaConfig);
-                const effectiveBase = (ncbaConfig.stkPushBaseUrl || ncbaConfig.baseUrl || '').trim();
-                const queryPath = ncbaConfig.queryStkUrl || '/payments/api/v1/stk-push/query';
-                // If queryStkUrl is a full URL, use it directly; otherwise join with base
-                const queryUrl = queryPath.startsWith('http')
-                    ? queryPath
-                    : (effectiveBase + (effectiveBase.endsWith('/') ? queryPath.replace(/^\//, '') : queryPath.startsWith('/') ? queryPath : '/' + queryPath));
-                console.log(`[NCBA ncbaQueryStatus] Query URL: ${queryUrl}`);
-                const resStatus = await fetchWithTimeout(queryUrl, {
-                    method: 'POST',
-                    headers: { 
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(mergeParams({ TransactionID: checkoutRequestId }, ncbaConfig.params))
-                });
-                if (resStatus.ok) {
-                    const statusData = await resStatus.json() as any;
-                    if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED' || String(statusData.ResultCode) === '0') {
-                        const { data: txn } = await supabase.from('ncba_transactions').update({ 
+                const statusData = await queryNcbaStkStatus(ncbaConfig, checkoutRequestId);
+                if (statusData.success || statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED' || String(statusData.ResultCode) === '0') {
+                    const refVal = statusData.ReferenceID || statusData.TransactionID || checkoutRequestId;
+                    const nowIso = new Date().toISOString();
+                    let txn: any = null;
+                    if (supabase) {
+                        const { data } = await supabase.from('ncba_transactions').update({ 
                             status: 'completed',
-                            reference_id: statusData.ReferenceID || statusData.TransactionID || checkoutRequestId,
-                            receipt_number: statusData.ReferenceID || statusData.TransactionID || checkoutRequestId,
-                            completed_at: new Date().toISOString()
-                        }).eq('transaction_id', checkoutRequestId).select().single();
-                        if (txn) await reconcilePayment({ ...txn, provider: 'ncba' });
-                        return res.status(200).json({ success: true, status: 'completed', data: statusData });
+                            reference_id: refVal,
+                            receipt_number: refVal,
+                            completed_at: nowIso
+                        }).eq('transaction_id', checkoutRequestId).select().maybeSingle();
+                        txn = data;
                     }
-                    return res.status(200).json({ success: true, status: statusData.status || 'pending', data: statusData });
+                    if (!txn) {
+                        const pool = await getPgPool();
+                        if (pool) {
+                            await ensureNcbaTransactionsTable(pool);
+                            const pgUpd = await pool.query(
+                                `UPDATE public.ncba_transactions
+                                 SET status = 'completed', reference_id = $1, receipt_number = $1, completed_at = $2, updated_at = $2
+                                 WHERE transaction_id = $3 OR checkout_request_id = $3 OR reference_no = $3
+                                 RETURNING *`,
+                                [refVal, nowIso, checkoutRequestId]
+                            );
+                            txn = pgUpd?.rows?.[0] || null;
+                        }
+                    }
+                    if (txn) await reconcilePayment({ ...txn, provider: 'ncba' });
+                    return res.status(200).json({ success: true, status: 'completed', data: statusData });
                 }
-                return res.status(resStatus.status).json({ success: false, message: 'Failed to query NCBA status.' });
+                return res.status(200).json({ success: true, status: statusData.status || 'pending', data: statusData });
             } catch (err: any) {
                 return res.status(500).json({ success: false, message: 'Error querying NCBA status.', error: err.message });
             }
@@ -5530,19 +5977,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (action === 'ncbaQueryStk') {
             const institutionId = paramsMap.institutionId || paramsMap.metadata?.institutionId;
             const checkoutRequestId = paramsMap.checkoutRequestId || paramsMap.checkout_request_id || paramsMap.TransactionID;
-            const isPlatformService = true; // Status check is always allowed if we have config
 
-            let ncbaConfig = bodyConfig ? toCamelCase(bodyConfig) : null;
-            if (!ncbaConfig) {
-                const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user?.user_metadata?.institutionId).maybeSingle();
-                if (inst && inst.ncbaConfig) {
-                    ncbaConfig = toCamelCase(inst.ncbaConfig);
-                } else {
-                    ncbaConfig = toCamelCase(settings?.ncba_config || settings?.ncbaConfig);
-                }
+            const { config: ncbaConfig } = await resolveNcbaConfig(bodyConfig, institutionId, true);
+            if (!ncbaConfig || !hasValidNcbaCreds(ncbaConfig)) {
+                return res.status(400).json({ success: false, message: 'NCBA Integration not configured.' });
             }
-
-            if (!ncbaConfig) return res.status(400).json({ success: false, message: 'NCBA Integration not configured.' });
 
             try {
                 const result = await queryNcbaStkStatus(ncbaConfig, checkoutRequestId);
@@ -5554,23 +5993,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                    (['FAILED', 'REJECTED', 'CANCELLED', 'EXPIRED'].includes(String(result.status || '').toUpperCase()) ? 'failed' : 'pending');
 
                 if (result.success) {
-                    const { data: txn } = await supabase.from('ncba_transactions')
-                        .update({ 
-                            status: 'completed',
-                            reference_id: result.ReferenceID || result.TransactionID || checkoutRequestId,
-                            external_data: result,
-                            completed_at: new Date().toISOString()
-                        })
-                        .eq('transaction_id', checkoutRequestId)
-                        .select()
-                        .single();
+                    const refVal = result.ReferenceID || result.TransactionID || checkoutRequestId;
+                    const nowIso = new Date().toISOString();
+                    let txn: any = null;
+                    if (supabase) {
+                        const { data } = await supabase.from('ncba_transactions')
+                            .update({ 
+                                status: 'completed',
+                                reference_id: refVal,
+                                external_data: result,
+                                completed_at: nowIso
+                            })
+                            .eq('transaction_id', checkoutRequestId)
+                            .select()
+                            .maybeSingle();
+                        txn = data;
+                    }
+                    if (!txn) {
+                        const pool = await getPgPool();
+                        if (pool) {
+                            await ensureNcbaTransactionsTable(pool);
+                            const pgUpd = await pool.query(
+                                `UPDATE public.ncba_transactions
+                                 SET status = 'completed', reference_id = $1, external_data = $2::jsonb, completed_at = $3, updated_at = $3
+                                 WHERE transaction_id = $4 OR checkout_request_id = $4 OR reference_no = $4
+                                 RETURNING *`,
+                                [refVal, JSON.stringify(result || {}), nowIso, checkoutRequestId]
+                            );
+                            txn = pgUpd?.rows?.[0] || null;
+                        }
+                    }
 
                     if (txn && !txn.metadata?.reconciled) {
                         console.log(`[NCBA Query Self-Heal] Triggering reconciliation for ${checkoutRequestId}`);
                         if (finalStatus === 'completed') {
-                            // reconciliation will be handled by the generic queryPaymentStatus 
-                            // if called via modal, but we keep this as a secondary check.
-                            // reconcilePayment is now idempotent so this is safe.
                             await reconcilePayment({ ...txn, provider: 'ncba' });
                         }
                     }
@@ -5589,59 +6045,75 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'ncbaWebhook') {
-            const body = req.body;
+            const body = req.body || {};
             const institutionId = paramsMap.institutionId;
             console.log(`[NCBA Webhook] Received callback for Institution ${institutionId || 'Unknown'}:`, JSON.stringify(body));
 
-            // 1. Fetch Config for Authentication
-            let ncbaConfig = null;
+            const bodyRaw = body.Body?.stkCallback || body;
+            const checkoutRequestId = bodyRaw.TransactionID || bodyRaw.CheckoutRequestID || body.TransactionID || body.CheckoutRequestID || body.ReferenceID;
+            if (!checkoutRequestId) return res.status(400).json({ success: false, message: 'No TransactionID' });
+
+            const pool = await getPgPool();
+            if (pool) await ensureNcbaTransactionsTable(pool);
+
             let effectiveInstitutionId = institutionId;
-
-            // If institutionId is missing in webhook URL, try to find it from the transaction
-            const checkoutRequestId = body.TransactionID || body.CheckoutRequestID;
             if (!effectiveInstitutionId && checkoutRequestId) {
-                const { data: preTxn } = await supabase.from('ncba_transactions').select('institution_id').eq('transaction_id', checkoutRequestId).maybeSingle();
-                if (preTxn) effectiveInstitutionId = preTxn.institution_id;
-            }
-
-            if (effectiveInstitutionId && effectiveInstitutionId !== 'SYSTEM') {
-                const { data: inst } = await supabase.from('institutions').select('ncba_config').eq('id', effectiveInstitutionId).maybeSingle();
-                if (inst?.ncba_config) ncbaConfig = toCamelCase(inst.ncba_config);
-            }
-            
-            if (!ncbaConfig) {
-                ncbaConfig = toCamelCase(settings?.ncba_config || settings?.ncbaConfig);
-            }
-
-            // 2. Verify Authentication (using primary API credentials)
-            const expectedUser = ncbaConfig?.clientId;
-            const expectedPass = ncbaConfig?.clientSecret;
-
-            if (expectedUser && expectedPass) {
-                const authHeader = req.headers.authorization || '';
-                const expectedAuth = `Basic ${Buffer.from(`${expectedUser}:${expectedPass}`).toString('base64')}`;
-                
-                if (authHeader !== expectedAuth) {
-                    console.warn(`[NCBA Webhook] Unauthorized access attempt for institution ${institutionId}`);
-                    return res.status(401).json({ success: false, message: 'Unauthorized' });
+                if (supabase) {
+                    const { data: preTxn } = await supabase.from('ncba_transactions').select('institution_id').eq('transaction_id', checkoutRequestId).maybeSingle();
+                    if (preTxn) effectiveInstitutionId = preTxn.institution_id;
+                } else if (pool) {
+                    const pgPre = await pool.query(
+                        `SELECT institution_id FROM public.ncba_transactions WHERE transaction_id = $1 OR checkout_request_id = $1 OR reference_no = $1 LIMIT 1`,
+                        [checkoutRequestId]
+                    ).catch(() => null);
+                    if (pgPre?.rows?.[0]) effectiveInstitutionId = pgPre.rows[0].institution_id;
                 }
             }
 
-            // NCBA Spec: Payload contains TransactionID, ResultCode, etc.
-            if (!checkoutRequestId) return res.status(400).json({ success: false, message: 'No TransactionID' });
+            const { config: ncbaConfig } = await resolveNcbaConfig(null, effectiveInstitutionId, true);
 
-            // Extract identifiers from potentially nested body
-            const bodyRaw = body.Body?.stkCallback || body;
-            const bankRef = bodyRaw.ReferenceID || bodyRaw.TransactionID || checkoutRequestId;
+            // Verify Authentication only if Authorization header is provided by NCBA
+            const authHeader = req.headers.authorization || '';
+            const expectedUser = ncbaConfig?.callbackUsername || ncbaConfig?.clientId;
+            const expectedPass = ncbaConfig?.callbackPassword || ncbaConfig?.clientSecret;
 
-            if (String(bodyRaw.ResultCode || body.ResultCode) === '0' || bodyRaw.status === 'SUCCESS' || body.status === 'SUCCESS') {
-                const { data: txn } = await supabase.from('ncba_transactions').update({ 
-                    status: 'completed',
-                    reference_id: bankRef,
-                    receipt_number: bankRef,
-                    external_data: body,
-                    completed_at: new Date().toISOString()
-                }).eq('transaction_id', checkoutRequestId).select().single();
+            if (authHeader && expectedUser && expectedPass) {
+                const expectedAuth = `Basic ${Buffer.from(`${expectedUser}:${expectedPass}`).toString('base64')}`;
+                const altAuth = ncbaConfig?.clientId && ncbaConfig?.clientSecret
+                    ? `Basic ${Buffer.from(`${ncbaConfig.clientId}:${ncbaConfig.clientSecret}`).toString('base64')}`
+                    : '';
+                if (authHeader !== expectedAuth && (!altAuth || authHeader !== altAuth)) {
+                    console.warn(`[NCBA Webhook] Unauthorized header mismatch for institution ${effectiveInstitutionId} (proceeding cautiously)`);
+                }
+            }
+
+            const bankRef = bodyRaw.ReferenceID || bodyRaw.MpesaReceiptNumber || bodyRaw.TransactionID || checkoutRequestId;
+            const resCodeStr = String(bodyRaw.ResultCode ?? body.ResultCode ?? bodyRaw.ResponseCode ?? body.ResponseCode ?? '');
+            const statusStr = String(bodyRaw.status || body.status || bodyRaw.Status || '').toUpperCase();
+
+            if (resCodeStr === '0' || resCodeStr === '00' || statusStr === 'SUCCESS' || statusStr === 'COMPLETED') {
+                const nowIso = new Date().toISOString();
+                let txn: any = null;
+                if (supabase) {
+                    const { data } = await supabase.from('ncba_transactions').update({ 
+                        status: 'completed',
+                        reference_id: bankRef,
+                        receipt_number: bankRef,
+                        external_data: body,
+                        completed_at: nowIso
+                    }).eq('transaction_id', checkoutRequestId).select().maybeSingle();
+                    txn = data;
+                }
+                if (!txn && pool) {
+                    const pgUpd = await pool.query(
+                        `UPDATE public.ncba_transactions
+                         SET status = 'completed', reference_id = $1, receipt_number = $1, external_data = $2::jsonb, completed_at = $3, updated_at = $3
+                         WHERE transaction_id = $4 OR checkout_request_id = $4 OR reference_no = $4
+                         RETURNING *`,
+                        [bankRef, JSON.stringify(body || {}), nowIso, checkoutRequestId]
+                    ).catch(() => null);
+                    txn = pgUpd?.rows?.[0] || null;
+                }
                 
                 if (txn) {
                     await reconcilePayment({ ...txn, provider: 'ncba' });

@@ -2281,6 +2281,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Client Secret</label><input type="password" value={localNcbaConfig.clientSecret} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, clientSecret: e.target.value })} className="form-input" placeholder="32 characters" /></div>
                                             <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">API Username</label><input type="text" value={localNcbaConfig.username || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, username: e.target.value })} className="form-input" /></div>
                                             <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">API Password</label><input type="password" value={localNcbaConfig.password || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, password: e.target.value })} className="form-input" /></div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Paybill Number</label><input type="text" value={localNcbaConfig.paybill || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, paybill: e.target.value })} className="form-input font-mono text-xs" placeholder="880100" /></div>
+                                                <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Account No / Reference</label><input type="text" value={localNcbaConfig.accountNumber || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, accountNumber: e.target.value })} className="form-input font-mono text-xs" placeholder="e.g. 9115310018 or EDUAI" /></div>
+                                            </div>
                                         </div>
 
                                         {/* NCBA Open Banking Gateway Section (2026 UAT Spec) */}
@@ -5304,6 +5308,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     <div>
                                                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Password</label>
                                                         <input type="password" value={localInstNcbaConfig.password || ''} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, password: e.target.value })} className="form-input" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Paybill Number</label>
+                                                        <input type="text" value={localInstNcbaConfig.paybill || ''} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, paybill: e.target.value })} className="form-input font-mono text-xs" placeholder="880100" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Account No / Reference</label>
+                                                        <input type="text" value={localInstNcbaConfig.accountNumber || ''} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, accountNumber: e.target.value })} className="form-input font-mono text-xs" placeholder="e.g. 9115310018 or EDUAI" />
                                                     </div>
                                                 </div>
                                             </div>

@@ -2953,14 +2953,26 @@ CREATE TABLE IF NOT EXISTS intasend_transactions (
 
 CREATE TABLE IF NOT EXISTS ncba_transactions (
     id TEXT PRIMARY KEY,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    reference_no TEXT NOT NULL,
+    institution_id TEXT,
+    reference_no TEXT,
+    transaction_id TEXT,
+    checkout_request_id TEXT,
+    reference_id TEXT,
+    receipt_number TEXT,
+    phone_number TEXT,
+    payer_name TEXT,
+    customer_name TEXT,
     account_number TEXT,
     amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
     transaction_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    status TEXT DEFAULT 'Completed',
+    status TEXT DEFAULT 'pending',
+    provider TEXT DEFAULT 'ncba',
+    metadata JSONB DEFAULT '{}'::jsonb,
+    external_data JSONB DEFAULT '{}'::jsonb,
     raw_payload JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    completed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS his_dental_charts (

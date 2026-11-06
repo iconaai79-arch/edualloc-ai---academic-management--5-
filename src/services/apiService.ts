@@ -8238,12 +8238,31 @@ export const apiService = {
             apiService.fetchModuleRecords('intasend_transactions', instId, undefined, options).catch(() => []),
             apiService.fetchModuleRecords('ncba_transactions', instId, undefined, options).catch(() => [])
         ]);
-        
+
+        const normalizeList = (list: any[], defaultProvider: string) =>
+            (list || []).map(t => {
+                let meta = t.metadata;
+                if (typeof meta === 'string') {
+                    try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
+                }
+                return {
+                    ...t,
+                    provider: t.provider || defaultProvider,
+                    transactionId: t.transactionId || t.transaction_id || t.checkoutRequestId || t.checkout_request_id || t.referenceNo || t.reference_no || t.id,
+                    phoneNumber: t.phoneNumber || t.phone_number || meta?.payerPhoneNumber || '',
+                    payerName: t.payerName || t.payer_name || t.customerName || t.customer_name || '',
+                    metadata: meta || {},
+                    timestamp: t.timestamp || t.createdAt || t.created_at || new Date().toISOString()
+                };
+            });
+
         // Merge and ensure all have a valid timestamp property for the UI
-        const allTxns = [...mpesa, ...airtel, ...intasend, ...ncba].map(t => ({
-            ...t,
-            timestamp: t.timestamp || t.createdAt || t.created_at || new Date().toISOString()
-        }));
+        const allTxns = [
+            ...normalizeList(mpesa, 'mpesa'),
+            ...normalizeList(airtel, 'airtel'),
+            ...normalizeList(intasend, 'intasend'),
+            ...normalizeList(ncba, 'ncba')
+        ];
 
         return allTxns.sort((a, b) => {
             const dateA = new Date(a.timestamp).getTime();

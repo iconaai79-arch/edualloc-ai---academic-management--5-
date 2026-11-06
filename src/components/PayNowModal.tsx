@@ -34,23 +34,47 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
     const [payerName, setPayerName] = useState('');
     const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'quarterly' | 'yearly' | 'forced'>(forceAmount !== undefined ? 'forced' : 'monthly');
     const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'equity' | 'im'>('mpesa');
-    const [enabledGateways, setEnabledGateways] = useState<string[]>(['mpesa']);
+    const [enabledGateways, setEnabledGateways] = useState<string[]>(['mpesa', 'ncba']);
+    const [systemSettings, setSystemSettings] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
     const [statusMessage, setStatusMessage] = useState('');
 
+    const hasValidNcba = (cfg: any): boolean => {
+        if (!cfg || typeof cfg !== 'object') return false;
+        return Boolean(
+            cfg.isMock === true || cfg.isMock === 'true' ||
+            (cfg.clientId || cfg.client_id || cfg.username || cfg.consumerKey)
+        );
+    };
+
+    const resolvedNcbaConfig = React.useMemo(() => {
+        const sysCfg = systemSettings?.ncbaConfig || (systemSettings as any)?.ncba_config;
+        if (hasValidNcba(sysCfg)) return sysCfg;
+        if (hasValidNcba(ncbaConfig)) return ncbaConfig;
+        return sysCfg || ncbaConfig || undefined;
+    }, [systemSettings, ncbaConfig]);
+
     React.useEffect(() => {
         const fetchGateways = async () => {
             const { data: sData } = await apiService.getSystemSettings();
-            if (sData?.enabledGateways) {
-                setEnabledGateways(sData.enabledGateways);
-                if (!sData.enabledGateways.includes(provider)) {
-                    setProvider(sData.enabledGateways[0] as any || 'mpesa');
-                }
+            if (sData) {
+                setSystemSettings(sData);
+            }
+            const rawGateways = Array.isArray(sData?.enabledGateways) && sData.enabledGateways.length > 0
+                ? [...sData.enabledGateways]
+                : ['mpesa'];
+            const sysNcba = sData?.ncbaConfig || (sData as any)?.ncba_config;
+            if ((hasValidNcba(sysNcba) || hasValidNcba(ncbaConfig)) && !rawGateways.includes('ncba')) {
+                rawGateways.push('ncba');
+            }
+            setEnabledGateways(rawGateways);
+            if (!rawGateways.includes(provider)) {
+                setProvider(rawGateways[0] as any || 'mpesa');
             }
         };
         if (isOpen) fetchGateways();
-    }, [isOpen]);
+    }, [isOpen, ncbaConfig]);
 
     const isCompletedRef = React.useRef(false);
     const handleSubmit = async (e: React.FormEvent) => {
@@ -62,6 +86,8 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
         }
 
         isCompletedRef.current = false;
+        setFinalStatus(null);
+        setStatusMessage('');
         setIsLoading(true);
         const amount = forceAmount !== undefined ? forceAmount : (selectedPlan === 'monthly' ? monthlyPrice : selectedPlan === 'quarterly' ? quarterlyPrice : yearlyPrice);
         const activeItems = forcedItems && forcedItems.length > 0 ? forcedItems : [{
@@ -76,22 +102,23 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                 type: forceAmount !== undefined ? 'one-off' : 'subscription',
                 plan: selectedPlan,
                 institutionId: institutionId || 'SYSTEM',
+                institution_id: institutionId || 'SYSTEM',
                 institutionCode: institutionCode || 'SYSTEM',
                 institutionName: institutionName || 'Eduai Automation Hub'
             };
 
             let initiateResult;
             if (provider === 'mpesa') {
-                initiateResult = await apiService.initiateMpesaPayment(amount, formattedPhone, metadata, mpesaConfig);
+                initiateResult = await apiService.initiateMpesaPayment(amount, formattedPhone, metadata, mpesaConfig || systemSettings?.mpesaConfig);
             } else if (provider === 'airtel') {
-                initiateResult = await apiService.initiatePayment('airtel', amount, formattedPhone, metadata, airtelMoneyConfig);
+                initiateResult = await apiService.initiatePayment('airtel', amount, formattedPhone, metadata, airtelMoneyConfig || systemSettings?.airtelMoneyConfig);
             } else if (provider === 'ncba') {
-                initiateResult = await apiService.initiateNcbaPayment(amount, formattedPhone, metadata, ncbaConfig);
+                initiateResult = await apiService.initiateNcbaPayment(amount, formattedPhone, metadata, resolvedNcbaConfig);
             } else {
-                initiateResult = await apiService.initiatePayment('intasend', amount, formattedPhone, metadata, intasendConfig);
+                initiateResult = await apiService.initiatePayment('intasend', amount, formattedPhone, metadata, intasendConfig || systemSettings?.intasendConfig);
             }
 
-            if (initiateResult.success && (initiateResult.data?.CheckoutRequestID || initiateResult.checkoutRequestId || initiateResult.url)) {
+            if (initiateResult.success && (initiateResult.data?.CheckoutRequestID || initiateResult.checkoutRequestId || initiateResult.transactionId || initiateResult.url)) {
                 if (initiateResult.url) {
                     window.open(initiateResult.url, '_blank');
                     setStatusMessage('Payment window opened. Please complete the payment and wait for confirmation.');
@@ -99,7 +126,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                     setStatusMessage(`${provider.toUpperCase()} prompt sent! Enter your PIN on your phone.`);
                 }
 
-                const checkoutRequestId = initiateResult.data?.CheckoutRequestID || initiateResult.checkoutRequestId;
+                const checkoutRequestId = initiateResult.data?.CheckoutRequestID || initiateResult.checkoutRequestId || initiateResult.transactionId;
                 
                 let attempts = 0;
                 const maxAttempts = 60;
@@ -107,9 +134,9 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                 const pollInterval = setInterval(async () => {
                     attempts++;
                     const result = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
-                        provider === 'mpesa' ? mpesaConfig : 
-                        (provider === 'airtel' ? airtelMoneyConfig : 
-                         provider === 'ncba' ? ncbaConfig : intasendConfig));
+                        provider === 'mpesa' ? (mpesaConfig || systemSettings?.mpesaConfig) : 
+                        (provider === 'airtel' ? (airtelMoneyConfig || systemSettings?.airtelMoneyConfig) : 
+                         provider === 'ncba' ? resolvedNcbaConfig : (intasendConfig || systemSettings?.intasendConfig)));
 
                     const status = (result?.status || '').toLowerCase();
                     const isCompleted = status === 'completed' || status === 'success' || status === 'successful';
