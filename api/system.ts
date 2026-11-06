@@ -1335,8 +1335,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             // Self-healing attempt 4: unique constraint violation (code 23505), e.g. duplicate key value violates unique constraint "system_settings_pkey" DETAIL: Key (id)=(1) already exists
                             if (attempt === 1 && (err?.code === '23505' || /duplicate key value violates unique constraint/i.test(err?.message || ''))) {
                                 const isSystemSettings = /system_settings/i.test(err?.message || '') || /system_settings/i.test(singleStmt);
+                                let healClient: any = null;
                                 try {
-                                    const healClient = await pool.connect();
+                                    healClient = await pool.connect();
                                     if (isSystemSettings) {
                                         // Delete conflicting seed row 1 or 'ping' so restored dump settings replace it smoothly
                                         await healClient.query(`DELETE FROM public.system_settings WHERE id IN ('1', 'ping') OR id::text = '1';`).catch(() => {});
@@ -1349,6 +1350,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         } else {
                                             retryStmt = retryStmt.replace(/;?\s*$/, ' ON CONFLICT DO NOTHING;');
                                         }
+                                    } else if (!isSystemSettings) {
+                                        // If statement had ON CONFLICT ... DO UPDATE but still collided (e.g. duplicate keys in same batch), rewrite to DO NOTHING
+                                        retryStmt = retryStmt.replace(/ON\s+CONFLICT\s+[^;]+(?=;|$)/i, 'ON CONFLICT DO NOTHING');
                                     }
 
                                     lastResult = await healClient.query(retryStmt);
@@ -1360,10 +1364,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     healClient.release();
                                     break;
                                 } catch (healErr) {
-                                    console.warn(`[SQL Engine Info] Non-fatal unique constraint collision (${err?.message}). Bypassing duplicate key row...`);
+                                    console.warn(`[SQL Engine Info] Non-fatal unique constraint collision on import (${err?.message}). Bypassing duplicate key row...`);
                                     lastError = null;
                                     stmtSuccess = true;
-                                    try { healClient?.release(); } catch {}
+                                    if (healClient) {
+                                        try { healClient.release(); } catch {}
+                                    }
                                     break;
                                 }
                             }
