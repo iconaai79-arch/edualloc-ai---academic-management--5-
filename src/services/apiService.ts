@@ -9938,8 +9938,8 @@ export const apiService = {
 
                 if (kcbResponse.ok) {
                     const kcbData = await kcbResponse.json();
-                    if (kcbData.success || kcbData.ResponseCode === '0') {
-                        const checkoutId = kcbData.CheckoutRequestID || kcbData.checkoutRequestId || kcbData.data?.CheckoutRequestID || kcbData.data?.checkoutRequestId;
+                    const checkoutId = kcbData.CheckoutRequestID || kcbData.checkoutRequestId || kcbData.data?.CheckoutRequestID || kcbData.data?.checkoutRequestId;
+                    if ((kcbData.success || kcbData.ResponseCode === '0') && checkoutId && !String(checkoutId).startsWith('KCB_CO_Mock_')) {
                         return {
                             ...kcbData,
                             success: true,
@@ -9971,14 +9971,17 @@ export const apiService = {
                 })
             });
             const data = await response.json().catch(() => ({}));
-            if (!response.ok && !data.success && data.ResponseCode !== '0') {
+            const checkoutId = data.CheckoutRequestID || data.checkoutRequestId || data.data?.CheckoutRequestID || data.data?.checkoutRequestId || data.transactionId;
+            if ((!response.ok || data.success === false) && data.ResponseCode !== '0') {
                 throw new Error(data.message || 'STK Push failed');
             }
-            const checkoutId = data.CheckoutRequestID || data.checkoutRequestId || data.data?.CheckoutRequestID || data.data?.checkoutRequestId || data.transactionId;
+            if (!checkoutId) {
+                throw new Error(data.message || 'Unable to initiate STK Push. Please check your phone number and gateway configuration.');
+            }
             return {
                 ...data,
-                success: Boolean(data.success || data.ResponseCode === '0' || checkoutId),
-                ResponseCode: data.ResponseCode || data.data?.ResponseCode || (checkoutId ? '0' : undefined),
+                success: true,
+                ResponseCode: data.ResponseCode || data.data?.ResponseCode || '0',
                 CheckoutRequestID: checkoutId,
                 checkoutRequestId: checkoutId
             };

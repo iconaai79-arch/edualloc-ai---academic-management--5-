@@ -173,9 +173,24 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             const destinationName = isCustomDelivery ? (customDestination.trim() || 'Custom Destination') : (selectedRate.destination || 'Pickup');
             const fullAddress = specificAddress.trim() ? `${specificAddress.trim()} (${destinationName})` : destinationName;
             
-            // 1. Create order record
+            // 1. Trigger M-Pesa STK Push with real payable total amount first
             const orderId = crypto.randomUUID();
             const sellerInstId = inquiryProduct.institutionId || (inquiryProduct as any).institution_id || 'GLOBAL';
+            const payableAmount = Math.max(1, Math.round(amount));
+            const response = await apiService.triggerMpesaStkPush({
+                amount: payableAmount,
+                phoneNumber: inquiryData.phone.replace(/\+/g, '').trim(),
+                reference: `ORD-${orderId.slice(0, 8)}`,
+                description: `${orderQuantity}x ${inquiryProduct.name}`.slice(0, 30),
+                institutionId: sellerInstId
+            });
+
+            const checkoutId = response?.CheckoutRequestID || response?.checkoutRequestId || response?.data?.CheckoutRequestID;
+            if (!checkoutId || String(checkoutId).startsWith('KCB_CO_Mock_') || String(checkoutId).startsWith('ws_CO_Mock_')) {
+                throw new Error(response?.message || 'Unable to send STK Push to your phone. Please check your phone number and try again.');
+            }
+
+            // 2. Create pending order record once STK push has been dispatched
             await apiService.saveModuleRecord('retail_marketplace_orders', {
                 id: orderId,
                 institutionId: sellerInstId,
@@ -200,30 +215,15 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 delivery_fee: deliveryFee,
                 total_amount: amount,
                 payment_status: 'Pending',
-                order_status: 'Received',
+                order_status: 'Pending Payment',
                 created_at: new Date().toISOString()
             });
 
-            // 2. Trigger M-Pesa STK Push with real payable total amount
-            const payableAmount = Math.max(1, Math.round(amount));
-            const response = await apiService.triggerMpesaStkPush({
-                amount: payableAmount,
-                phoneNumber: inquiryData.phone.replace(/\+/g, ''),
-                reference: `ORD-${orderId.slice(0, 8)}`,
-                description: `${orderQuantity}x ${inquiryProduct.name}`.slice(0, 30),
-                institutionId: sellerInstId
-            });
-
-            const checkoutId = response?.CheckoutRequestID || response?.checkoutRequestId || response?.data?.CheckoutRequestID;
-            if (checkoutId) {
-                setPaymentId(checkoutId);
-                pollPaymentStatus(checkoutId, orderId, orderQuantity);
-            } else {
-                throw new Error(response?.message || 'Unable to obtain CheckoutRequestID from payment gateway');
-            }
-        } catch (error) {
+            setPaymentId(checkoutId);
+            pollPaymentStatus(checkoutId, orderId, orderQuantity);
+        } catch (error: any) {
             console.error('Checkout failed:', error);
-            alert('Payment initialization failed. Please check your phone number and try again.');
+            alert(error?.message || 'Payment initialization failed. Please check your phone number and try again.');
             setMpesaProcessing(false);
         }
     };
@@ -235,18 +235,19 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             if (attempts > 30) {
                 clearInterval(interval);
                 setMpesaProcessing(false);
-                alert('Payment timeout. Please check your phone or try again.');
+                alert('Payment confirmation timed out. No payment was received.');
                 return;
             }
 
             try {
                 const status = await apiService.checkMpesaPaymentStatus(checkoutId);
-                if (status.ResultCode === '0' || status.status === 'completed') {
+                if ((status.ResultCode === '0' || status.status === 'completed') && status.source !== 'sandbox_mock') {
                     clearInterval(interval);
                     
                     await apiService.saveModuleRecord('retail_marketplace_orders', {
                         id: orderId,
                         payment_status: 'Paid',
+                        order_status: 'Received',
                         payment_reference: status.MpesaReceiptNumber || status.transactionId || checkoutId
                     });
 
@@ -262,7 +263,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 } else if ((status.ResultCode && status.ResultCode !== '0') || status.status === 'failed') {
                     clearInterval(interval);
                     setMpesaProcessing(false);
-                    alert(`Payment failed: ${status.ResultDesc || status.message || 'Transaction declined or cancelled'}`);
+                    alert(`Payment was not completed: ${status.ResultDesc || status.message || 'Transaction declined or cancelled'}`);
                 }
             } catch (error) {
                 console.error('Polling error:', error);

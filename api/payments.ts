@@ -490,8 +490,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        // Fallback to global kcb_config in system_settings if institution config is empty
-        if (Object.keys(kcbConfig).length === 0) {
+        // Fallback to global kcb_config in system_settings if institution config is empty or missing appKey
+        if (!kcbConfig.appKey && !kcbConfig.app_key) {
             try {
                 let sDataObj: any = null;
                 if (supabase) {
@@ -508,7 +508,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
                 if (sDataObj?.kcb_config || sDataObj?.kcbConfig) {
                     const sc = sDataObj.kcb_config || sDataObj.kcbConfig;
-                    kcbConfig = typeof sc === 'string' ? JSON.parse(sc) : sc;
+                    const parsedSc = typeof sc === 'string' ? JSON.parse(sc) : sc;
+                    kcbConfig = { ...parsedSc, ...kcbConfig };
                 }
             } catch (err) {
                 console.error('[KCB STK] Failed to fetch global settings:', err);
@@ -516,9 +517,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Fallback to body.config for backward compatibility
-        if (Object.keys(kcbConfig).length === 0 && (body.config || body.kcbConfig)) {
+        if (!kcbConfig.appKey && !kcbConfig.app_key && (body.config || body.kcbConfig)) {
             let sc = body.config || body.kcbConfig;
-            kcbConfig = typeof sc === 'string' ? JSON.parse(sc) : sc;
+            const parsedBody = typeof sc === 'string' ? JSON.parse(sc) : sc;
+            kcbConfig = { ...kcbConfig, ...parsedBody };
         }
 
         const appKey = String(kcbConfig.appKey || kcbConfig.app_key || '').trim();
@@ -588,15 +590,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const transactionDesc = narration || body.transactionDesc || '';
         const institutionId = resolvedInstitutionId;
 
-        // environment is already declared above
+        // If KCB credentials are not configured at all, reject so callers can fall back to M-Pesa Daraja / NCBA
+        if (!appKey || !appSecret) {
+            return res.status(400).json({
+                success: false,
+                code: 'KCB_NOT_CONFIGURED',
+                message: 'KCB Buni credentials are not configured for this institution.'
+            });
+        }
+
+        // Only use mock mode if explicitly requested
         const isKcbDemo = environment === 'mock' ||
                           environment === 'demo' ||
-                          !appKey || !appSecret || 
                           appKey === 'kcb_demo_key' || 
                           appSecret === 'kcb_demo_secret';
 
         if (isKcbDemo) {
-            console.log('[KCB STK] Mock Mode Active.');
+            console.log('[KCB STK] Explicit Mock Mode Active.');
             const checkoutRequestId = `KCB_CO_Mock_${Date.now()}`;
             
             try {
@@ -618,7 +628,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 } else if (pool) {
                     await pool.query(
                         'INSERT INTO public.integration_logs (provider, payload, status, created_at) VALUES ($1, $2::jsonb, $3, $4)',
-                        ['kcb_stk_push_initiate', JSON.stringify({ phoneNumber, amount, accountReference, shortCode, institutionId, mode: 'mock_sandbox', checkoutRequestId }), 'success', new Date().toISOString()]
+                        ['kcb_stk_push_initiate', JSON.stringify({ phoneNumber, amount, accountReference, institutionId, mode: 'mock_sandbox', checkoutRequestId }), 'success', new Date().toISOString()]
                     ).catch(() => {});
                 }
             } catch (_) {}

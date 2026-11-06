@@ -4524,7 +4524,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
 
         if (action === 'queryPaymentStatus' || action === 'stkPushQuery' || action === 'queryStkStatus') {
-            const provider = getParam('provider') || 'mpesa';
+            let provider = getParam('provider') || 'mpesa';
             const checkoutRequestId = getParam('checkoutRequestId') || getParam('transactionId') || getParam('TransactionID') || getParam('ReferenceID') || getParam('MerchantRequestID') || getParam('CheckoutRequestID');
             
             console.log(`[QueryStatus] Provider: ${provider} CRID: ${checkoutRequestId}`);
@@ -4547,8 +4547,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
-            const table = provider === 'ncba' ? 'ncba_transactions' : 'mpesa_transactions';
-            const queryCol = provider === 'ncba' ? 'transaction_id' : 'checkout_request_id';
+            let table = provider === 'ncba' ? 'ncba_transactions' : 'mpesa_transactions';
+            let queryCol = provider === 'ncba' ? 'transaction_id' : 'checkout_request_id';
             let transaction: any = null;
             if (supabase) {
                 const { data } = await supabase
@@ -4559,6 +4559,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     .limit(1)
                     .maybeSingle();
                 transaction = data;
+                if (!transaction && table !== 'ncba_transactions') {
+                    const { data: ncbaData } = await supabase
+                        .from('ncba_transactions')
+                        .select('*')
+                        .eq('transaction_id', checkoutRequestId)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    if (ncbaData) {
+                        transaction = ncbaData;
+                        table = 'ncba_transactions';
+                        queryCol = 'transaction_id';
+                        provider = 'ncba';
+                    }
+                }
             } else {
                 try {
                     const pool = await getPgPool();
@@ -4571,8 +4586,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             [checkoutRequestId]
                         );
                         transaction = pgRes?.rows?.[0] || null;
+                        if (!transaction && table !== 'ncba_transactions') {
+                            await ensureNcbaTransactionsTable(pool);
+                            const ncbaPgRes = await pool.query(
+                                `SELECT * FROM public.ncba_transactions WHERE transaction_id = $1 OR checkout_request_id = $1 OR reference_no = $1 ORDER BY created_at DESC NULLS LAST LIMIT 1`,
+                                [checkoutRequestId]
+                            );
+                            if (ncbaPgRes?.rows?.[0]) {
+                                transaction = ncbaPgRes.rows[0];
+                                table = 'ncba_transactions';
+                                queryCol = 'transaction_id';
+                                provider = 'ncba';
+                            }
+                        }
                     }
                 } catch (_) {}
+            }
+
+            if (transaction?.provider && !getParam('provider')) {
+                provider = String(transaction.provider).toLowerCase();
             }
 
             if (transaction && transaction.status !== 'pending') {
@@ -4744,11 +4776,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const instId = getParam('institutionId') || getParam('institution_id') || bodyConfig?.institutionId || transaction?.institution_id;
                 if ((!kcbConfig.appKey && !kcbConfig.app_key) && instId && instId !== 'GLOBAL' && instId !== 'SYSTEM') {
                     try {
-                        const { data: instRow } = await supabase
-                            .from('institutions')
-                            .select('kcb_config')
-                            .eq('id', instId)
-                            .maybeSingle();
+                        let instRow: any = null;
+                        if (supabase) {
+                            const { data } = await supabase
+                                .from('institutions')
+                                .select('kcb_config')
+                                .eq('id', instId)
+                                .maybeSingle();
+                            instRow = data;
+                        }
+                        if (!instRow) {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                const pgRes = await pool.query('SELECT kcb_config FROM public.institutions WHERE id = $1 LIMIT 1', [instId]);
+                                instRow = pgRes?.rows?.[0] || null;
+                            }
+                        }
                         if (instRow?.kcb_config) {
                             const parsed = typeof instRow.kcb_config === 'string' ? JSON.parse(instRow.kcb_config) : instRow.kcb_config;
                             kcbConfig = { ...kcbConfig, ...parsed };
@@ -4761,13 +4804,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // Fallback to system_settings if still missing
                 if (!kcbConfig.appKey && !kcbConfig.app_key) {
                     try {
-                        const { data: sysRow } = await supabase
-                            .from('system_settings')
-                            .select('data')
-                            .eq('id', 1)
-                            .maybeSingle();
-                        if (sysRow?.data?.kcb_config || sysRow?.data?.kcbConfig) {
-                            const sc = sysRow.data.kcb_config || sysRow.data.kcbConfig;
+                        let sysData: any = null;
+                        if (supabase) {
+                            const { data: sysRow } = await supabase
+                                .from('system_settings')
+                                .select('data')
+                                .eq('id', 1)
+                                .maybeSingle();
+                            sysData = sysRow?.data || null;
+                        }
+                        if (!sysData) {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                const pgRes = await pool.query("SELECT data FROM public.system_settings WHERE id::text = '1' OR id::text = 'global' ORDER BY updated_at DESC NULLS LAST LIMIT 1");
+                                sysData = pgRes?.rows?.[0]?.data || null;
+                            }
+                        }
+                        if (sysData?.kcb_config || sysData?.kcbConfig) {
+                            const sc = sysData.kcb_config || sysData.kcbConfig;
                             const parsed = typeof sc === 'string' ? JSON.parse(sc) : sc;
                             kcbConfig = { ...parsed, ...kcbConfig };
                         }
@@ -5168,9 +5222,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const sysKcb = parseCfg(settings?.kcb_config || settings?.kcbConfig);
             const kcb: any = (instKcb && (instKcb.appKey || instKcb.app_key) ? instKcb : null) || sysKcb || instKcb || {};
 
+            const { config: resolvedNcba } = await resolveNcbaConfig(bodyConfig, instId, true);
             const instNcba = parseCfg(instRow?.ncba_config || instRow?.ncbaConfig);
             const sysNcba = parseCfg(settings?.ncba_config || settings?.ncbaConfig);
-            const ncba: any = (instNcba && (instNcba.clientId || instNcba.client_id) ? instNcba : null) || sysNcba || instNcba || {};
+            const ncba: any = (instNcba && hasValidNcbaCreds(instNcba) ? instNcba : null) || (resolvedNcba && hasValidNcbaCreds(resolvedNcba) ? resolvedNcba : null) || sysNcba || instNcba || {};
 
             const consumerKey = String(mpesa.consumerKey || mpesa.consumer_key || '').trim();
             const consumerSecret = String(mpesa.consumerSecret || mpesa.consumer_secret || '').trim();
@@ -5219,116 +5274,274 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 consumerSecret.toLowerCase().includes('demo') ||
                 consumerSecret.toLowerCase().includes('test');
 
-            // If Safaricom Daraja Consumer Key/Secret are missing or in demo mode, cascade to KCB -> NCBA -> Sandbox/Mock
-            if (isDarajaDemo) {
-                const kcbAppKey = String(kcb.appKey || kcb.app_key || '').trim();
-                const kcbAppSecret = String(kcb.appSecret || kcb.app_secret || '').trim();
-                const kcbEnv = String(kcb.environment || kcb.env || 'sandbox').trim();
-                const hasLiveKcb = Boolean(kcbAppKey && kcbAppSecret && kcbAppKey !== 'kcb_demo_key' && kcbAppSecret !== 'kcb_demo_secret' && kcbEnv !== 'mock' && kcbEnv !== 'demo');
+            let lastGatewayError = '';
 
-                if (hasLiveKcb) {
-                    try {
-                        console.log(`[M-Pesa Fallback -> KCB Buni] Initiating KCB STK Push for ${formattedPhone} (Amount: ${amount})`);
-                        const kcbBaseUrl = String(kcb.baseUrl || kcb.base_url || '').trim();
-                        let tokenUrl = kcbEnv === 'sandbox'
-                            ? (kcbBaseUrl ? (kcbBaseUrl.includes('token') ? kcbBaseUrl : `${kcbBaseUrl}/token`) : 'https://uat.buni.kcbgroup.com/token')
-                            : (kcbBaseUrl ? (kcbBaseUrl.includes('token') ? kcbBaseUrl : `${kcbBaseUrl}/token`) : 'https://api.buni.kcbgroup.com/token');
-                        if (!tokenUrl.includes('grant_type=')) {
-                            tokenUrl += (tokenUrl.includes('?') ? '&' : '?') + 'grant_type=client_credentials';
-                        }
-                        const kcbAuth = Buffer.from(`${kcbAppKey}:${kcbAppSecret}`).toString('base64');
-                        const kcbTokenRes = await fetchWithTimeout(tokenUrl, {
+            // 1. Try Safaricom Daraja if live credentials are provided
+            if (!isDarajaDemo) {
+                try {
+                    const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
+                    console.log(`[M-Pesa] Initiating STK push for ${formattedPhone} (Amount: ${amount}) using ${mpesa.environment || 'sandbox'}`);
+                    const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+
+                    const oauth = await fetchWithTimeout(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+                        method: 'GET',
+                        headers: { 'Authorization': `Basic ${authStr}` }
+                    }, 10000);
+
+                    if (oauth.ok) {
+                        const { access_token } = (await oauth.json()) as any;
+                        const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+                        const password = Buffer.from(paybill + passkey + timestamp).toString('base64');
+
+                        const stkRes = await fetchWithTimeout(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
                             method: 'POST',
-                            headers: { 'Authorization': `Basic ${kcbAuth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: 'grant_type=client_credentials'
-                        }, 10000);
-                        if (kcbTokenRes.ok) {
-                            const kcbTokenData: any = await kcbTokenRes.json();
-                            if (kcbTokenData?.access_token) {
-                                const kcbStkUrl = String(kcb.stkPushUrl || kcb.stk_push_url || '').trim() || (kcbBaseUrl ? `${kcbBaseUrl}/mm/api/request/1.0.0/stkpush` : (
-                                    kcbEnv === 'sandbox'
-                                        ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
-                                        : 'https://api.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
-                                ));
-                                const kcbShortCode = String(kcb.shortCode || kcb.short_code || '522533').trim();
-                                const kcbTill = String(kcb.tillNumber || kcb.till_number || '').trim();
-                                const useShared = kcb.sharedShortCode !== undefined ? Boolean(kcb.sharedShortCode) : (kcb.shared_short_code !== undefined ? Boolean(kcb.shared_short_code) : true);
-                                const kcbPasskey = String(kcb.passkey || kcb.pass_key || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919').trim();
-                                const invoiceNo = useShared && kcbTill
-                                    ? `${kcbTill}-${accountRef.slice(-Math.max(1, 11 - kcbTill.length))}`.substring(0, 12)
-                                    : accountRef.substring(0, 12);
-                                const kcbPayload: Record<string, any> = {
-                                    phoneNumber: formattedPhone,
-                                    amount: String(Math.round(amount)),
-                                    invoiceNumber: invoiceNo,
-                                    sharedShortCode: useShared,
-                                    orgShortCode: kcbShortCode || '522533',
-                                    orgPassKey: kcbPasskey,
-                                    callbackUrl: kcb.callbackUrl || `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`,
-                                    transactionDescription: transactionDesc.substring(0, 13)
-                                };
-                                if (useShared && kcbTill) kcbPayload.tillNumber = kcbTill;
+                            headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                BusinessShortCode: paybill,
+                                Password: password,
+                                Timestamp: timestamp,
+                                TransactionType: "CustomerPayBillOnline",
+                                Amount: Math.round(amount),
+                                PartyA: formattedPhone,
+                                PartyB: paybill,
+                                PhoneNumber: formattedPhone,
+                                CallBackURL: `https://${req.headers['x-forwarded-host'] || req.headers.host}/api/mpesa-callback`,
+                                AccountReference: accountRef,
+                                TransactionDesc: transactionDesc
+                            })
+                        }, 15000);
 
-                                const kcbStkRes = await fetchWithTimeout(kcbStkUrl, {
-                                    method: 'POST',
-                                    headers: { 'Authorization': `Bearer ${kcbTokenData.access_token}`, 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(kcbPayload)
-                                }, 15000);
-                                if (kcbStkRes.ok) {
-                                    const kcbStkData: any = await kcbStkRes.json().catch(() => ({}));
-                                    const checkoutId = kcbStkData.response?.CheckoutRequestID || kcbStkData.response?.checkoutRequestID || kcbStkData.CheckoutRequestID || kcbStkData.checkoutRequestId || `KCB_CO_${Date.now()}`;
-                                    await recordPendingMpesaTxn({
-                                        id: `txn_${Date.now()}`,
-                                        transaction_id: `KCB_${checkoutId}`,
-                                        checkout_request_id: checkoutId,
-                                        institution_id: targetInstitutionId,
-                                        amount: amount,
-                                        phone_number: formattedPhone,
-                                        status: 'pending',
-                                        provider: 'kcb',
-                                        metadata: paramsMap.metadata || {}
-                                    });
-                                    return res.status(200).json({
-                                        success: true,
-                                        ResponseCode: '0',
-                                        CheckoutRequestID: checkoutId,
-                                        checkoutRequestId: checkoutId,
-                                        message: 'KCB M-Pesa prompt sent successfully.',
-                                        data: { ...kcbStkData, ResponseCode: '0', CheckoutRequestID: checkoutId }
-                                    });
-                                }
-                            }
-                        }
-                    } catch (kcbFallbackErr: any) {
-                        console.warn('[M-Pesa Fallback -> KCB Buni] Failed:', kcbFallbackErr?.message);
-                    }
-                }
-
-                // Try NCBA if configured
-                const ncbaClientId = String(ncba.clientId || ncba.client_id || '').trim();
-                const ncbaClientSecret = String(ncba.clientSecret || ncba.client_secret || '').trim();
-                if (ncbaClientId && ncbaClientSecret) {
-                    try {
-                        console.log(`[M-Pesa Fallback -> NCBA] Initiating NCBA STK Push for ${formattedPhone} (Amount: ${amount})`);
-                        const ncbaResult = await initiateNcbaPayment(ncba, amount, formattedPhone);
-                        if (ncbaResult?.success) {
-                            const checkoutId = ncbaResult.transactionId || `NCBA_${Date.now()}`;
+                        const stkData = (await stkRes.json().catch(() => ({}))) as any;
+                        if (stkRes.ok && stkData.ResponseCode === '0') {
+                            await recordPendingMpesaTxn({
+                                id: `txn_${Date.now()}`,
+                                transaction_id: `STK_${stkData.CheckoutRequestID}`,
+                                checkout_request_id: stkData.CheckoutRequestID,
+                                institution_id: targetInstitutionId,
+                                amount: amount,
+                                phone_number: formattedPhone,
+                                status: 'pending',
+                                provider: 'mpesa',
+                                metadata: paramsMap.metadata || {}
+                            });
                             return res.status(200).json({
                                 success: true,
+                                provider: 'mpesa',
                                 ResponseCode: '0',
-                                CheckoutRequestID: checkoutId,
-                                checkoutRequestId: checkoutId,
-                                message: 'NCBA M-Pesa prompt sent successfully.',
-                                data: { ...(ncbaResult.raw || {}), ResponseCode: '0', CheckoutRequestID: checkoutId }
+                                CheckoutRequestID: stkData.CheckoutRequestID,
+                                checkoutRequestId: stkData.CheckoutRequestID,
+                                CustomerMessage: stkData.CustomerMessage || 'M-Pesa prompt sent successfully.',
+                                message: 'M-Pesa prompt sent successfully.',
+                                data: stkData
                             });
                         }
-                    } catch (ncbaFallbackErr: any) {
-                        console.warn('[M-Pesa Fallback -> NCBA] Failed:', ncbaFallbackErr?.message);
+                        lastGatewayError = stkData?.errorMessage || stkData?.CustomerMessage || stkData?.ResponseDescription || 'M-Pesa gateway rejected the STK push request.';
+                        console.warn('[M-Pesa STK] Daraja failed, cascading to KCB/NCBA:', lastGatewayError);
+                    } else {
+                        const errorBody = await oauth.text().catch(() => '');
+                        lastGatewayError = 'M-Pesa authentication failed. Check Consumer Key/Secret.';
+                        console.warn('[M-Pesa OAuth] Failed, cascading to KCB/NCBA:', errorBody);
                     }
+                } catch (darajaErr: any) {
+                    lastGatewayError = darajaErr?.message || 'M-Pesa gateway timed out.';
+                    console.warn('[M-Pesa STK] Exception, cascading to KCB/NCBA:', lastGatewayError);
                 }
+            }
 
-                // Fallback to Sandbox / Mock STK mode when no live gateway keys are configured
-                console.log(`[M-Pesa STK] Sandbox/Mock mode active for institution ${targetInstitutionId} (Phone: ${formattedPhone}, Amount: ${amount})`);
+            // 2. Cascade to KCB Buni if configured
+            const kcbAppKey = String(kcb.appKey || kcb.app_key || '').trim();
+            const kcbAppSecret = String(kcb.appSecret || kcb.app_secret || '').trim();
+            const kcbEnv = String(kcb.environment || kcb.env || 'sandbox').trim();
+            const hasLiveKcb = Boolean(kcbAppKey && kcbAppSecret && kcbAppKey !== 'kcb_demo_key' && kcbAppSecret !== 'kcb_demo_secret' && kcbEnv !== 'mock' && kcbEnv !== 'demo');
+
+            if (hasLiveKcb) {
+                try {
+                    console.log(`[M-Pesa Fallback -> KCB Buni] Initiating KCB STK Push for ${formattedPhone} (Amount: ${amount})`);
+                    const kcbBaseUrl = String(kcb.baseUrl || kcb.base_url || '').trim();
+                    let tokenUrl = kcbEnv === 'sandbox'
+                        ? (kcbBaseUrl ? (kcbBaseUrl.includes('token') ? kcbBaseUrl : `${kcbBaseUrl}/token`) : 'https://uat.buni.kcbgroup.com/token')
+                        : (kcbBaseUrl ? (kcbBaseUrl.includes('token') ? kcbBaseUrl : `${kcbBaseUrl}/token`) : 'https://api.buni.kcbgroup.com/token');
+                    if (!tokenUrl.includes('grant_type=')) {
+                        tokenUrl += (tokenUrl.includes('?') ? '&' : '?') + 'grant_type=client_credentials';
+                    }
+                    const kcbAuth = Buffer.from(`${kcbAppKey}:${kcbAppSecret}`).toString('base64');
+                    const kcbTokenRes = await fetchWithTimeout(tokenUrl, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Basic ${kcbAuth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'grant_type=client_credentials'
+                    }, 10000);
+                    if (kcbTokenRes.ok) {
+                        const kcbTokenData: any = await kcbTokenRes.json();
+                        if (kcbTokenData?.access_token) {
+                            const kcbStkUrl = String(kcb.stkPushUrl || kcb.stk_push_url || '').trim() || (kcbBaseUrl ? `${kcbBaseUrl}/mm/api/request/1.0.0/stkpush` : (
+                                kcbEnv === 'sandbox'
+                                    ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
+                                    : 'https://api.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
+                            ));
+                            const kcbShortCode = String(kcb.shortCode || kcb.short_code || '522533').trim();
+                            const kcbTill = String(kcb.tillNumber || kcb.till_number || '').trim();
+                            const useShared = kcb.sharedShortCode !== undefined ? Boolean(kcb.sharedShortCode) : (kcb.shared_short_code !== undefined ? Boolean(kcb.shared_short_code) : true);
+                            const kcbPasskey = String(kcb.passkey || kcb.pass_key || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919').trim();
+                            const invoiceNo = useShared && kcbTill
+                                ? `${kcbTill}-${accountRef.slice(-Math.max(1, 11 - kcbTill.length))}`.substring(0, 12)
+                                : accountRef.substring(0, 12);
+                            const kcbPayload: Record<string, any> = {
+                                phoneNumber: formattedPhone,
+                                amount: String(Math.round(amount)),
+                                invoiceNumber: invoiceNo,
+                                sharedShortCode: useShared,
+                                orgShortCode: kcbShortCode || '522533',
+                                orgPassKey: kcbPasskey,
+                                callbackUrl: kcb.callbackUrl || `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`,
+                                transactionDescription: transactionDesc.substring(0, 13)
+                            };
+                            if (useShared && kcbTill) kcbPayload.tillNumber = kcbTill;
+
+                            const kcbStkRes = await fetchWithTimeout(kcbStkUrl, {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${kcbTokenData.access_token}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify(kcbPayload)
+                            }, 15000);
+                            if (kcbStkRes.ok) {
+                                const kcbStkData: any = await kcbStkRes.json().catch(() => ({}));
+                                const checkoutId = kcbStkData.response?.CheckoutRequestID || kcbStkData.response?.checkoutRequestID || kcbStkData.CheckoutRequestID || kcbStkData.checkoutRequestId || `KCB_CO_${Date.now()}`;
+                                await recordPendingMpesaTxn({
+                                    id: `txn_${Date.now()}`,
+                                    transaction_id: `KCB_${checkoutId}`,
+                                    checkout_request_id: checkoutId,
+                                    institution_id: targetInstitutionId,
+                                    amount: amount,
+                                    phone_number: formattedPhone,
+                                    status: 'pending',
+                                    provider: 'kcb',
+                                    metadata: paramsMap.metadata || {}
+                                });
+                                return res.status(200).json({
+                                    success: true,
+                                    provider: 'kcb',
+                                    ResponseCode: '0',
+                                    CheckoutRequestID: checkoutId,
+                                    checkoutRequestId: checkoutId,
+                                    message: 'KCB M-Pesa prompt sent successfully.',
+                                    data: { ...kcbStkData, ResponseCode: '0', CheckoutRequestID: checkoutId }
+                                });
+                            }
+                        }
+                    }
+                } catch (kcbFallbackErr: any) {
+                    lastGatewayError = kcbFallbackErr?.message || lastGatewayError;
+                    console.warn('[M-Pesa Fallback -> KCB Buni] Failed:', kcbFallbackErr?.message);
+                }
+            }
+
+            // 3. Cascade to NCBA C2B STK Push if configured
+            if (ncba && hasValidNcbaCreds(ncba)) {
+                try {
+                    console.log(`[M-Pesa Fallback -> NCBA] Initiating NCBA STK Push for ${formattedPhone} (Amount: ${amount}, Ref: ${accountRef})`);
+                    const ncbaResult = await initiateNcbaPayment(ncba, amount, formattedPhone, accountRef);
+                    const resData = ncbaResult as any;
+                    const txnId = resData?.TransactionID || resData?.transactionId ||
+                                 resData?.ReferenceID || resData?.referenceId ||
+                                 resData?.requestId || resData?.request_id ||
+                                 resData?.CheckoutRequestID || resData?.checkoutRequestId ||
+                                 resData?.MerchantRequestID || resData?.merchantRequestId ||
+                                 resData?.Id || resData?.id;
+
+                    const isInitOk = resData && resData.success !== false && (
+                        resData.StatusCode === '0' || resData.ResponseCode === '0' || resData.ResultCode === '0' ||
+                        resData.status === 'SUCCESS' || resData.status === 'PENDING' || Boolean(txnId)
+                    );
+
+                    if (isInitOk) {
+                        const checkoutId = txnId || `ncba_req_${Date.now()}`;
+                        const metaObj = {
+                            ...(paramsMap.metadata || {}),
+                            institution_id: paramsMap.metadata?.institution_id || paramsMap.metadata?.institutionId || targetInstitutionId
+                        };
+                        const ncbaInsertData: any = {
+                            id: `ncba_${Date.now()}`,
+                            reference_no: checkoutId,
+                            transaction_id: checkoutId,
+                            checkout_request_id: checkoutId,
+                            reference_id: checkoutId,
+                            institution_id: targetInstitutionId,
+                            amount: amount,
+                            phone_number: formattedPhone,
+                            payer_name: formattedPhone,
+                            status: 'pending',
+                            metadata: metaObj,
+                            provider: 'ncba'
+                        };
+
+                        let savedNcba = false;
+                        if (supabase) {
+                            try {
+                                const { error: sbErr } = await supabase.from('ncba_transactions').insert(ncbaInsertData);
+                                if (!sbErr) savedNcba = true;
+                            } catch (_) {}
+                        }
+                        if (!savedNcba) {
+                            try {
+                                const pool = await getPgPool();
+                                if (pool) {
+                                    await ensureNcbaTransactionsTable(pool);
+                                    await pool.query(
+                                        `INSERT INTO public.ncba_transactions (
+                                            id, reference_no, transaction_id, checkout_request_id, reference_id,
+                                            institution_id, amount, phone_number, payer_name, status, metadata, provider, created_at, updated_at
+                                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10::jsonb, 'ncba', NOW(), NOW())
+                                        ON CONFLICT (id) DO NOTHING`,
+                                        [
+                                            ncbaInsertData.id,
+                                            ncbaInsertData.reference_no,
+                                            ncbaInsertData.transaction_id,
+                                            ncbaInsertData.checkout_request_id,
+                                            ncbaInsertData.reference_id,
+                                            ncbaInsertData.institution_id,
+                                            ncbaInsertData.amount,
+                                            ncbaInsertData.phone_number,
+                                            ncbaInsertData.payer_name,
+                                            JSON.stringify(ncbaInsertData.metadata || {})
+                                        ]
+                                    );
+                                }
+                            } catch (_) {}
+                        }
+
+                        await recordPendingMpesaTxn({
+                            id: `txn_${Date.now()}`,
+                            transaction_id: checkoutId,
+                            checkout_request_id: checkoutId,
+                            institution_id: targetInstitutionId,
+                            amount: amount,
+                            phone_number: formattedPhone,
+                            status: 'pending',
+                            provider: 'ncba',
+                            metadata: metaObj
+                        });
+
+                        return res.status(200).json({
+                            success: true,
+                            provider: 'ncba',
+                            ResponseCode: '0',
+                            CheckoutRequestID: checkoutId,
+                            checkoutRequestId: checkoutId,
+                            transactionId: checkoutId,
+                            message: 'NCBA M-Pesa prompt sent successfully.',
+                            data: { ...resData, ResponseCode: '0', CheckoutRequestID: checkoutId }
+                        });
+                    } else {
+                        lastGatewayError = resData?.StatusDescription || resData?.ResponseDescription || resData?.ResultDesc || resData?.diagHint || 'NCBA gateway rejected STK push.';
+                    }
+                } catch (ncbaFallbackErr: any) {
+                    lastGatewayError = ncbaFallbackErr?.message || lastGatewayError;
+                    console.warn('[M-Pesa Fallback -> NCBA] Failed:', ncbaFallbackErr?.message);
+                }
+            }
+
+            // 4. Only use Mock STK mode if explicitly set to 'mock'
+            if (mpesa.environment === 'mock') {
+                console.log(`[M-Pesa STK] Explicit Mock mode active for institution ${targetInstitutionId} (Phone: ${formattedPhone}, Amount: ${amount})`);
                 const mockCheckoutId = `ws_CO_Mock_${Date.now()}`;
                 await recordPendingMpesaTxn({
                     id: `txn_${Date.now()}`,
@@ -5346,99 +5559,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ResponseCode: '0',
                     CheckoutRequestID: mockCheckoutId,
                     checkoutRequestId: mockCheckoutId,
-                    CustomerMessage: 'Success. Request accepted for processing (Sandbox mode).',
-                    message: 'M-Pesa prompt simulated (Sandbox mode).',
+                    CustomerMessage: 'Success. Request accepted for processing (Mock mode).',
+                    message: 'M-Pesa prompt simulated (Mock mode).',
                     data: {
                         ResponseCode: '0',
                         CheckoutRequestID: mockCheckoutId,
-                        CustomerMessage: 'Success. Request accepted for processing (Sandbox mode).'
+                        CustomerMessage: 'Success. Request accepted for processing (Mock mode).'
                     }
                 });
             }
 
-            const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
-
-            console.log(`[M-Pesa] Initiating STK push for ${formattedPhone} (Amount: ${amount}) using ${mpesa.environment || 'sandbox'}`);
-
-            const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
-
-            let oauth;
-            try {
-                oauth = await fetchWithTimeout(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
-                    method: 'GET',
-                    headers: { 'Authorization': `Basic ${authStr}` }
-                }, 10000);
-            } catch (e: any) {
-                console.error('[M-Pesa OAuth] Request failed:', e.message);
-                return res.status(504).json({ success: false, message: 'M-Pesa gateway timed out during authentication.' });
-            }
-
-            if (!oauth.ok) {
-                const errorBody = await oauth.text();
-                console.error('[M-Pesa OAuth] Failed:', errorBody);
-                return res.status(401).json({
-                    success: false,
-                    message: 'M-Pesa authentication failed. Check Consumer Key/Secret.',
-                    details: errorBody
-                });
-            }
-            const { access_token } = (await oauth.json()) as any;
-
-            const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-            const password = Buffer.from(paybill + passkey + timestamp).toString('base64');
-
-            let stkRes;
-            try {
-                stkRes = await fetchWithTimeout(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        BusinessShortCode: paybill,
-                        Password: password,
-                        Timestamp: timestamp,
-                        TransactionType: "CustomerPayBillOnline",
-                        Amount: Math.round(amount),
-                        PartyA: formattedPhone,
-                        PartyB: paybill,
-                        PhoneNumber: formattedPhone,
-                        CallBackURL: `https://${req.headers['x-forwarded-host'] || req.headers.host}/api/mpesa-callback`,
-                        AccountReference: accountRef,
-                        TransactionDesc: transactionDesc
-                    })
-                }, 15000); // 15s timeout for the actual prompt
-            } catch (e: any) {
-                console.error('[M-Pesa STK] Request failed:', e.message);
-                return res.status(504).json({ success: false, message: 'M-Pesa gateway timed out sending the prompt.' });
-            }
-
-            const stkData = (await stkRes.json()) as any;
-            if (stkRes.ok && stkData.ResponseCode === '0') {
-                await recordPendingMpesaTxn({
-                    id: `txn_${Date.now()}`,
-                    transaction_id: `STK_${stkData.CheckoutRequestID}`,
-                    checkout_request_id: stkData.CheckoutRequestID,
-                    institution_id: targetInstitutionId,
-                    amount: amount,
-                    phone_number: formattedPhone,
-                    status: 'pending',
-                    provider: 'mpesa',
-                    metadata: paramsMap.metadata || {}
-                });
-                return res.status(200).json({
-                    success: true,
-                    ResponseCode: '0',
-                    CheckoutRequestID: stkData.CheckoutRequestID,
-                    checkoutRequestId: stkData.CheckoutRequestID,
-                    CustomerMessage: stkData.CustomerMessage || 'M-Pesa prompt sent successfully.',
-                    message: 'M-Pesa prompt sent successfully.',
-                    data: stkData
-                });
-            }
-            console.error('[M-Pesa STK] Gateway rejection:', stkData);
-            return res.status(stkRes.status || 400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: stkData?.errorMessage || stkData?.CustomerMessage || stkData?.ResponseDescription || 'M-Pesa gateway rejected the STK push request.',
-                details: stkData
+                message: lastGatewayError || 'Could not initiate M-Pesa STK Push. Please ensure M-Pesa, KCB, or NCBA payment gateway credentials are configured.'
             });
         }
 
