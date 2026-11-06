@@ -300,6 +300,41 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         });
     }
 
+    // 4c. Sanitize ds_students: guarantee full_name & admission_number are never blank or stripped
+    if (tableName === 'ds_students') {
+        rows = rows.map(r => {
+            if (!r || typeof r !== 'object') return r;
+            const meta = (r.metadata && typeof r.metadata === 'object') ? r.metadata : {};
+            const fullName = r.full_name || r.fullName || r.name || r.student_name || r.studentName || meta.fullName || meta.name || '(No Name)';
+            const admNumber = r.admission_number || r.admissionNumber || r.admission_no || r.adm_no || r.admNo || meta.admissionNumber || meta.admission_number || '';
+            const phone = r.phone || r.phone_number || r.phoneNumber || meta.phone || '';
+            const idNo = r.id_number || r.idNumber || r.national_id || r.nationalId || meta.idNumber || '';
+            const branchId = r.branch_id || r.branchId || meta.branchId || null;
+            const instId = r.institution_id || r.institutionId || null;
+            const status = r.status || 'Enrolled';
+            const cat = r.license_type_interested || r.licenseTypeInterested || r.license_category || r.licenseCategory || 'Class B';
+            return {
+                ...r,
+                id: r.id,
+                institution_id: instId,
+                institutionId: instId,
+                full_name: fullName,
+                fullName: fullName,
+                admission_number: admNumber,
+                admissionNumber: admNumber,
+                phone: phone,
+                phone_number: phone,
+                id_number: idNo,
+                national_id: idNo,
+                branch_id: branchId,
+                branchId: branchId,
+                license_type_interested: cat,
+                licenseTypeInterested: cat,
+                status: status
+            };
+        });
+    }
+
     // 4. Guarantee that any row with an 'id' column has a non-null id (skip settings tables where id is not primary)
     const isSettingsTable = tableName === 'library_settings' || tableName === 'ds_settings';
     rows = rows.map((r, idx) => {

@@ -854,10 +854,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     };
                 }
             });
-            // Auto-heal students that have missing or empty admissionNumber
+            // Auto-heal students that have missing or empty admissionNumber or name
             const existingAdms = new Set<string>();
             (dsStud || []).forEach(s => {
-                const adm = s.admissionNumber || (s as any).admission_number;
+                const sMeta = (s as any).metadata && typeof (s as any).metadata === 'object' ? (s as any).metadata : {};
+                const adm = s.admissionNumber || (s as any).admission_number || (s as any).admission_no || (s as any).adm_no || (s as any).admNo || sMeta.admissionNumber || sMeta.admission_number || sMeta.admNo;
                 if (adm && String(adm).trim() && String(adm).trim() !== '-') {
                     existingAdms.add(String(adm).trim().toLowerCase());
                 }
@@ -866,7 +867,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const isNumericAdmPrefix = !isNaN(Number(admPrefix)) && admPrefix !== '';
             let nextAdmNum = 1;
             (dsStud || []).forEach(s => {
-                const adm = s.admissionNumber || (s as any).admission_number;
+                const sMeta = (s as any).metadata && typeof (s as any).metadata === 'object' ? (s as any).metadata : {};
+                const adm = s.admissionNumber || (s as any).admission_number || (s as any).admission_no || (s as any).adm_no || (s as any).admNo || sMeta.admissionNumber || sMeta.admission_number || sMeta.admNo;
                 if (adm) {
                     if (isNumericAdmPrefix) {
                         const n = Number(String(adm).trim());
@@ -891,28 +893,47 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             };
 
             const healedStudents = (dsStud || []).map(s => {
-                const rawAdm = s.admissionNumber || (s as any).admission_number;
-                if (!rawAdm || !String(rawAdm).trim() || String(rawAdm).trim() === '-') {
+                const sMeta = (s as any).metadata && typeof (s as any).metadata === 'object' ? (s as any).metadata : {};
+                const existingAdm = s.admissionNumber || (s as any).admission_number || (s as any).admission_no || (s as any).adm_no || (s as any).admNo || sMeta.admissionNumber || sMeta.admission_number || sMeta.admNo;
+                const existingName = s.fullName || (s as any).full_name || (s as any).name || (s as any).student_name || (s as any).studentName || sMeta.fullName || sMeta.name || sMeta.full_name;
+
+                let updatedStudent = { ...s };
+                let modified = false;
+
+                if (existingName && (!s.fullName || s.fullName === '(No Name)')) {
+                    updatedStudent.fullName = existingName;
+                    (updatedStudent as any).full_name = existingName;
+                    modified = true;
+                }
+
+                if (!existingAdm || !String(existingAdm).trim() || String(existingAdm).trim() === '-') {
                     const linkedInv = (dsInvs || []).find(inv => 
                         (inv.studentId && (inv.studentId === s.id || (inv as any).admissionNumber === s.id)) ||
-                        (inv.studentName && s.fullName && inv.studentName.trim().toLowerCase() === s.fullName.trim().toLowerCase())
+                        (inv.studentName && updatedStudent.fullName && inv.studentName.trim().toLowerCase() === updatedStudent.fullName.trim().toLowerCase())
                     );
                     const invAdm = (linkedInv as any)?.admissionNumber || (linkedInv as any)?.admission_number;
                     const newAdm = (invAdm && String(invAdm).trim() && String(invAdm).trim() !== '-') ? String(invAdm).trim() : getNextAdm();
                     
-                    console.log(`[DSContext] Auto-healing student ${s.fullName} admissionNumber: -> ${newAdm}`);
-                    const updatedStudent = {
-                        ...s,
+                    console.log(`[DSContext] Auto-healing student ${updatedStudent.fullName || s.id} admissionNumber: -> ${newAdm}`);
+                    updatedStudent = {
+                        ...updatedStudent,
                         admissionNumber: newAdm,
                         admission_number: newAdm,
                         updatedAt: new Date().toISOString()
                     };
-                    apiService.saveModuleRecord('ds_students', updatedStudent).catch(err => {
-                        console.warn('[DSContext] Failed to persist auto-healed student admission number:', err);
-                    });
-                    return updatedStudent;
+                    modified = true;
+                } else if (!s.admissionNumber && existingAdm) {
+                    updatedStudent.admissionNumber = String(existingAdm).trim();
+                    (updatedStudent as any).admission_number = String(existingAdm).trim();
+                    modified = true;
                 }
-                return s;
+
+                if (modified) {
+                    apiService.saveModuleRecord('ds_students', updatedStudent).catch(err => {
+                        console.warn('[DSContext] Failed to persist auto-healed student record:', err);
+                    });
+                }
+                return updatedStudent;
             });
 
             // Auto-heal and reconcile invoices: admissionNumber, studentName, studentId, and balances

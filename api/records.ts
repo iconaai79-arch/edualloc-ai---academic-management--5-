@@ -2800,6 +2800,101 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
+            if (moduleName === 'ds_students' && Array.isArray(data)) {
+                // 1. Initial pass: resolve from row and metadata
+                (data as any[]).forEach(r => {
+                    if (r && typeof r === 'object') {
+                        const meta = (typeof r.metadata === 'object' && r.metadata !== null) ? r.metadata : {};
+                        const resolvedName = r.full_name || r.fullName || r.name || r.student_name || r.studentName || r.userName || meta.fullName || meta.name || meta.full_name || meta.studentName;
+                        if (resolvedName && resolvedName !== '(No Name)') {
+                            r.fullName = resolvedName;
+                            r.full_name = resolvedName;
+                        }
+                        const resolvedAdm = r.admission_number || r.admissionNumber || r.admission_no || r.adm_no || r.admNo || meta.admissionNumber || meta.admission_number || meta.admNo;
+                        if (resolvedAdm) {
+                            r.admissionNumber = resolvedAdm;
+                            r.admission_number = resolvedAdm;
+                        }
+                        const resolvedPhone = r.phone || r.phone_number || r.phoneNumber || meta.phone || meta.phoneNumber;
+                        if (resolvedPhone) {
+                            r.phone = resolvedPhone;
+                            r.phone_number = resolvedPhone;
+                            r.phoneNumber = resolvedPhone;
+                        }
+                        const resolvedBranch = r.branch_id || r.branchId || meta.branchId || meta.branch_id;
+                        if (resolvedBranch) {
+                            r.branch_id = resolvedBranch;
+                            r.branchId = resolvedBranch;
+                        }
+                        const resolvedId = r.id_number || r.idNumber || r.national_id || r.nationalId || meta.idNumber || meta.nationalId;
+                        if (resolvedId) {
+                            r.id_number = resolvedId;
+                            r.idNumber = resolvedId;
+                            r.national_id = resolvedId;
+                            r.nationalId = resolvedId;
+                        }
+                        const resolvedCat = r.license_type_interested || r.licenseTypeInterested || r.license_category || r.licenseCategory || r.course_type || r.courseType || meta.licenseCategory;
+                        if (resolvedCat) {
+                            r.license_type_interested = resolvedCat;
+                            r.licenseTypeInterested = resolvedCat;
+                        }
+                    }
+                });
+
+                // 2. Hydration pass: If any students still have missing names, attempt cross-lookup in users table
+                const missingNameIndices = (data as any[]).map((r, i) => (!r.full_name || r.full_name === '(No Name)') ? i : -1).filter(i => i >= 0);
+                if (missingNameIndices.length > 0) {
+                    try {
+                        const targetUserIds = missingNameIndices.map(i => data[i].user_id || data[i].userId).filter(Boolean);
+                        const targetPhones = missingNameIndices.map(i => data[i].phone || data[i].phone_number).filter(Boolean);
+                        
+                        let matchedUsers: any[] = [];
+                        if (supabase && targetUserIds.length > 0) {
+                            const { data: uData } = await supabase
+                                .from('users')
+                                .select('id, name, phone_number, phone, admission_number')
+                                .in('id', targetUserIds.slice(0, 500));
+                            if (Array.isArray(uData) && uData.length > 0) matchedUsers.push(...uData);
+                        }
+                        if (supabase && targetPhones.length > 0 && matchedUsers.length < missingNameIndices.length) {
+                            const { data: pData } = await supabase
+                                .from('users')
+                                .select('id, name, phone_number, phone, admission_number')
+                                .in('phone_number', targetPhones.slice(0, 500));
+                            if (Array.isArray(pData) && pData.length > 0) matchedUsers.push(...pData);
+                        }
+
+                        if (matchedUsers.length > 0) {
+                            const userById = new Map<string, any>();
+                            const userByPhone = new Map<string, any>();
+                            matchedUsers.forEach(u => {
+                                if (u.id) userById.set(u.id, u);
+                                if (u.phone_number) userByPhone.set(String(u.phone_number).trim(), u);
+                                if (u.phone) userByPhone.set(String(u.phone).trim(), u);
+                            });
+
+                            missingNameIndices.forEach(idx => {
+                                const stud = data[idx];
+                                const u = (stud.user_id && userById.get(stud.user_id)) || 
+                                          (stud.userId && userById.get(stud.userId)) ||
+                                          (stud.phone && userByPhone.get(String(stud.phone).trim())) ||
+                                          (stud.phone_number && userByPhone.get(String(stud.phone_number).trim()));
+                                if (u && u.name) {
+                                    stud.fullName = u.name;
+                                    stud.full_name = u.name;
+                                    if (u.admission_number && (!stud.admissionNumber || !stud.admission_number)) {
+                                        stud.admissionNumber = u.admission_number;
+                                        stud.admission_number = u.admission_number;
+                                    }
+                                }
+                            });
+                        }
+                    } catch (hydrateErr) {
+                        console.warn('[API GET ds_students] User hydration note:', hydrateErr);
+                    }
+                }
+            }
+
             if (moduleName === 'vehicles' && Array.isArray(data)) {
                 (data as any[]).forEach(r => {
                     if (r && typeof r === 'object') {

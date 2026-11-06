@@ -5801,13 +5801,68 @@ END $$;
     // Normalization
     const normalizedStudents = useMemo(() => {
         const sourceStudents = (rawStudents && rawStudents.length > 0 ? rawStudents : students) || [];
-        return sourceStudents.map(s => ({
-            ...s,
-            fullName: s.fullName || (s as any).full_name || (s as any).name || '(No Name)',
-            admissionNumber: s.admissionNumber || (s as any).admission_number || '',
-            idNumber: s.idNumber || (s as any).id_number || '',
-            phone: s.phone || (s as any).phoneNumber || (s as any).phone_number || '',
-        }));
+        return sourceStudents.map(s => {
+            const meta = ((s as any).metadata && typeof (s as any).metadata === 'object') ? (s as any).metadata : {};
+            const resolvedName = s.fullName || 
+                (s as any).full_name || 
+                (s as any).name || 
+                (s as any).student_name || 
+                (s as any).studentName || 
+                (s as any).userName || 
+                (s as any).user_name || 
+                meta.fullName || 
+                meta.name || 
+                meta.full_name || 
+                meta.studentName || 
+                meta.student_name || 
+                '(No Name)';
+
+            const resolvedAdm = s.admissionNumber || 
+                (s as any).admission_number || 
+                (s as any).admission_no || 
+                (s as any).adm_no || 
+                (s as any).admNo || 
+                (s as any).studentAdmissionNumber || 
+                (s as any).student_admission_number || 
+                meta.admissionNumber || 
+                meta.admission_number || 
+                meta.admNo || 
+                '';
+
+            const resolvedIdNo = s.idNumber || 
+                (s as any).id_number || 
+                (s as any).national_id || 
+                (s as any).nationalId || 
+                meta.idNumber || 
+                meta.id_number || 
+                meta.nationalId || 
+                '';
+
+            const resolvedPhone = s.phone || 
+                (s as any).phoneNumber || 
+                (s as any).phone_number || 
+                meta.phone || 
+                meta.phoneNumber || 
+                '';
+
+            const resolvedCat = s.licenseTypeInterested || 
+                (s as any).license_type_interested || 
+                s.licenseCategory || 
+                (s as any).license_category || 
+                s.courseType || 
+                (s as any).course_type || 
+                meta.licenseCategory || 
+                'Class B';
+
+            return {
+                ...s,
+                fullName: resolvedName,
+                admissionNumber: resolvedAdm,
+                idNumber: resolvedIdNo,
+                phone: resolvedPhone,
+                licenseTypeInterested: resolvedCat,
+            };
+        });
     }, [rawStudents, students]);
 
     const normalizedInstructors = useMemo(() => (instructors || []).map(i => ({
