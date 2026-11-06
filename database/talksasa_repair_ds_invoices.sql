@@ -132,3 +132,4 @@ SELECT id, invoice_number, admission_number, student_name, total_amount, balance
 FROM public.ds_invoices
 ORDER BY id DESC
 LIMIT 10;
+

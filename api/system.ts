@@ -988,6 +988,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
 
+                // Pre-import resilience for retail tables: ensure retail_inventory_items and companion columns exist
+                const touchesRetail = statementsToRun.some((st: string) => /retail_(inventory_items|inventory|stores|store_stock|suppliers|expenses|sales)/i.test(st));
+                if (touchesRetail) {
+                    try {
+                        const retailClient = await pool.connect();
+                        await retailClient.query(`
+                            DO $$ BEGIN
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'retail_inventory_items') THEN
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "cost_price" DECIMAL(12, 2) DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "costPrice" DECIMAL(12, 2) DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "base_price" DECIMAL(12, 2) DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "basePrice" DECIMAL(12, 2) DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "srp_price" DECIMAL(12, 2) DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "srpPrice" DECIMAL(12, 2) DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "selling_price" DECIMAL(12, 2) DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "sellingPrice" DECIMAL(12, 2) DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "unit_price" DECIMAL(12, 2) DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "unitPrice" DECIMAL(12, 2) DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "buffer_stock" INTEGER DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "bufferStock" INTEGER DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "reorder_level" INTEGER DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "reorderLevel" INTEGER DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "marketplace_enabled" BOOLEAN DEFAULT FALSE;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "marketplaceEnabled" BOOLEAN DEFAULT FALSE;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "barcode" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "supplier_id" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "supplierId" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "unit" TEXT DEFAULT 'pcs';
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "unit_of_measure" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "sku" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "category" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "description" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "image_url" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "imageUrl" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "view_count" INTEGER DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "inquiry_count" INTEGER DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "procurement_account_id" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "procurement_account_name" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "store_id" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "store_name" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "quantity" INTEGER DEFAULT 0;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "source" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN DEFAULT TRUE;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "last_updated" TEXT;
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW();
+                                    ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ DEFAULT NOW();
+                                END IF;
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'retail_stores') THEN
+                                    ALTER TABLE public.retail_stores ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+                                    ALTER TABLE public.retail_stores ADD COLUMN IF NOT EXISTS "store_type" TEXT DEFAULT 'main_store';
+                                    ALTER TABLE public.retail_stores ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN DEFAULT TRUE;
+                                    ALTER TABLE public.retail_stores ADD COLUMN IF NOT EXISTS "mpesa_config" JSONB;
+                                END IF;
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'retail_store_stock') THEN
+                                    ALTER TABLE public.retail_store_stock ADD COLUMN IF NOT EXISTS "quantity" INTEGER DEFAULT 0;
+                                END IF;
+                            END $$;
+                        `).catch((err) => {
+                            console.warn("[SQL Engine Pre-Import Resilience] retail setup warning:", err);
+                        });
+                        retailClient.release();
+                    } catch (e) {
+                        console.warn("[SQL Engine Pre-Import Resilience] retail pre-import non-fatal error:", e);
+                    }
+                }
+
                 const sanitizeSqlStatement = (statement: string): string => {
                     if (!statement || typeof statement !== 'string') return statement;
                     let s = statement;
@@ -1170,10 +1236,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                                     try {
                                         const healClient = await pool.connect();
+                                        const checkCol = missingCol.toLowerCase();
+                                        const numericCols = ['cost_price', 'costprice', 'selling_price', 'sellingprice', 'base_price', 'baseprice', 'srp_price', 'srpprice', 'unit_price', 'unitprice', 'total_amount', 'totalamount', 'balance', 'paid_amount', 'paidamount', 'amount', 'discount_amount', 'discountamount', 'sponsor_amount', 'sponsoramount'];
+                                        const intCols = ['buffer_stock', 'bufferstock', 'reorder_level', 'reorderlevel', 'quantity', 'view_count', 'viewcount', 'inquiry_count', 'inquirycount', 'course_duration_days', 'remaining_days', 'prior_attended_days', 'theory_test_score', 'practical_test_score'];
+                                        const boolCols = ['marketplace_enabled', 'marketplaceenabled', 'is_active', 'isactive'];
+
+                                        let colDef = 'TEXT';
+                                        if (numericCols.includes(checkCol) || numericCols.includes(snakeCol)) {
+                                            colDef = 'DECIMAL(12, 2) DEFAULT 0';
+                                        } else if (intCols.includes(checkCol) || intCols.includes(snakeCol)) {
+                                            colDef = 'INTEGER DEFAULT 0';
+                                        } else if (boolCols.includes(checkCol) || boolCols.includes(snakeCol)) {
+                                            colDef = 'BOOLEAN DEFAULT FALSE';
+                                        }
+
                                         // Ensure missing column is created
-                                        await healClient.query(`ALTER TABLE public."${cleanTable}" ADD COLUMN IF NOT EXISTS "${missingCol}" TEXT;`).catch(() => {});
+                                        await healClient.query(`ALTER TABLE public."${cleanTable}" ADD COLUMN IF NOT EXISTS "${missingCol}" ${colDef};`).catch(() => {});
                                         if (snakeCol !== missingCol) {
-                                            await healClient.query(`ALTER TABLE public."${cleanTable}" ADD COLUMN IF NOT EXISTS "${snakeCol}" TEXT;`).catch(() => {});
+                                            await healClient.query(`ALTER TABLE public."${cleanTable}" ADD COLUMN IF NOT EXISTS "${snakeCol}" ${colDef};`).catch(() => {});
+                                        }
+
+                                        // Ensure retail_inventory_items companion columns exist
+                                        if (cleanTable === 'retail_inventory_items') {
+                                            await healClient.query(`
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "cost_price" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "costPrice" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "base_price" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "basePrice" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "srp_price" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "srpPrice" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "selling_price" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "sellingPrice" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "unit_price" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "unitPrice" DECIMAL(12, 2) DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "buffer_stock" INTEGER DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "bufferStock" INTEGER DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "reorder_level" INTEGER DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "reorderLevel" INTEGER DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "marketplace_enabled" BOOLEAN DEFAULT FALSE;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "marketplaceEnabled" BOOLEAN DEFAULT FALSE;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "barcode" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "supplier_id" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "supplierId" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "unit" TEXT DEFAULT 'pcs';
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "unit_of_measure" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "sku" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "category" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "description" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "image_url" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "imageUrl" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "view_count" INTEGER DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "inquiry_count" INTEGER DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "procurement_account_id" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "procurement_account_name" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "store_id" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "store_name" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "quantity" INTEGER DEFAULT 0;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "source" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN DEFAULT TRUE;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "last_updated" TEXT;
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW();
+                                                ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ DEFAULT NOW();
+                                            `).catch(() => {});
                                         }
 
                                         // Ensure ds_students all columns exist
