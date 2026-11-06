@@ -5976,7 +5976,7 @@ Please change it after login.`;
                                                         <select
                                                             value={localNcbaConfig.environment || 'production'}
                                                             onChange={e => {
-                                                                const env = e.target.value;
+                                                                const env = e.target.value as any;
                                                                 setLocalNcbaConfig({
                                                                     ...localNcbaConfig,
                                                                     environment: env,
