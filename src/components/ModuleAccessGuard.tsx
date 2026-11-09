@@ -31,12 +31,10 @@ export const ModuleAccessGuard: React.FC<ModuleAccessGuardProps> = ({
 
     // If main institution subscription is active & unexpired, grant access
     const now = new Date();
-    const isInstSubscriptionActive = institution.status === 'active' &&
-        (!institution.subscriptionEndsAt || new Date(institution.subscriptionEndsAt) > now);
-
-    if (isInstSubscriptionActive) {
-        return <>{children}</>;
-    }
+    const instStatus = (institution.status || '').toLowerCase();
+    const instSubEnd = institution.subscriptionEndsAt || (institution as any).subscription_ends_at;
+    const isInstSubscriptionActive = instStatus === 'active' &&
+        (!instSubEnd || new Date(instSubEnd) > now);
 
     // Match module state with fallback aliases (e.g. 'his' or 'his_core')
     const moduleState = institution.moduleStates?.find(m => {
@@ -45,6 +43,10 @@ export const ModuleAccessGuard: React.FC<ModuleAccessGuardProps> = ({
         if ((moduleId === 'his' || moduleId === 'his_core') && (id === 'his' || id === 'his_core')) return true;
         return false;
     });
+
+    if (isInstSubscriptionActive && (moduleState?.status || '').toLowerCase() !== 'suspended') {
+        return <>{children}</>;
+    }
 
     const isExpired = (state: InstitutionModuleState) => {
         if (state.status === 'trial' && state.trialEndsAt) {

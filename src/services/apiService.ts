@@ -1986,6 +1986,24 @@ export const apiService = {
                         const instId = r.institutionId || r.institution_id || '';
                         r.institutionId = instId;
                         r.institution_id = instId;
+                        const pFor = r.paidFor || r.paid_for || '';
+                        r.paidFor = pFor;
+                        r.paid_for = pFor;
+                        const bId = r.branchId || r.branch_id || '';
+                        if (bId) {
+                            r.branchId = bId;
+                            r.branch_id = bId;
+                        }
+                        const cAt = r.createdAt || r.created_at || '';
+                        if (cAt) {
+                            r.createdAt = cAt;
+                            r.created_at = cAt;
+                        }
+                        const uAt = r.updatedAt || r.updated_at || '';
+                        if (uAt) {
+                            r.updatedAt = uAt;
+                            r.updated_at = uAt;
+                        }
                     });
                 }
                 if (module === 'invoices' && Array.isArray(finalResult)) {
@@ -1993,6 +2011,46 @@ export const apiService = {
                         const invNum = inv.invoiceNumber || inv.invoice_number || '';
                         inv.invoiceNumber = invNum;
                         inv.invoice_number = invNum;
+                        const instId = inv.institutionId || inv.institution_id || '';
+                        if (instId) {
+                            inv.institutionId = instId;
+                            inv.institution_id = instId;
+                        }
+                        const sId = inv.studentId || inv.student_id || '';
+                        if (sId) {
+                            inv.studentId = sId;
+                            inv.student_id = sId;
+                        }
+                        const sName = inv.studentName || inv.student_name || '';
+                        if (sName) {
+                            inv.studentName = sName;
+                            inv.student_name = sName;
+                        }
+                        const sAdm = inv.admissionNumber || inv.admission_number || '';
+                        if (sAdm) {
+                            inv.admissionNumber = sAdm;
+                            inv.admission_number = sAdm;
+                        }
+                        const clsName = inv.className || inv.class_name || '';
+                        if (clsName) {
+                            inv.className = clsName;
+                            inv.class_name = clsName;
+                        }
+                        const bId = inv.branchId || inv.branch_id || '';
+                        if (bId) {
+                            inv.branchId = bId;
+                            inv.branch_id = bId;
+                        }
+                        const cAt = inv.createdAt || inv.created_at || '';
+                        if (cAt) {
+                            inv.createdAt = cAt;
+                            inv.created_at = cAt;
+                        }
+                        const uAt = inv.updatedAt || inv.updated_at || '';
+                        if (uAt) {
+                            inv.updatedAt = uAt;
+                            inv.updated_at = uAt;
+                        }
                         const cName = inv.clientName || inv.client_name || inv.customerName || inv.customer_name || inv.billedTo || inv.billed_to || inv.metadata?.clientName || inv.metadata?.client_name || '';
                         if (cName) {
                             inv.clientName = cName;
@@ -2039,6 +2097,8 @@ export const apiService = {
                         const pd = Number(inv.amountPaid ?? inv.amount_paid ?? inv.paidAmount ?? inv.paid_amount ?? 0);
                         inv.amountPaid = pd;
                         inv.amount_paid = pd;
+                        inv.paidAmount = pd;
+                        inv.paid_amount = pd;
                         inv.balance = Number(inv.balance ?? (tot - pd));
                     });
                 }
@@ -2993,11 +3053,103 @@ export const apiService = {
                         }
                     });
                 }
+                if (module === 'receipts' && Array.isArray(result)) {
+                    result.forEach((r: any) => {
+                        const rNum = r.receiptNumber || r.receipt_number || '';
+                        r.receiptNumber = rNum;
+                        r.receipt_number = rNum;
+                        const amt = Number(r.amountPaid ?? r.amount_paid ?? r.amount ?? 0);
+                        r.amountPaid = amt;
+                        r.amount_paid = amt;
+                        const sId = r.studentId || r.student_id || '';
+                        r.studentId = sId;
+                        r.student_id = sId;
+                        const sName = r.studentName || r.student_name || '';
+                        r.studentName = sName;
+                        r.student_name = sName;
+                        const sAdm = r.admissionNumber || r.admission_number || '';
+                        r.admissionNumber = sAdm;
+                        r.admission_number = sAdm;
+                        const pDate = r.paymentDate || r.payment_date || '';
+                        r.paymentDate = pDate;
+                        r.payment_date = pDate;
+                        const pMethod = r.paymentMethod || r.payment_method || '';
+                        r.paymentMethod = pMethod;
+                        r.payment_method = pMethod;
+                        const pFor = r.paidFor || r.paid_for || '';
+                        r.paidFor = pFor;
+                        r.paid_for = pFor;
+                        const relTxn = r.relatedTransactionId || r.related_transaction_id || '';
+                        r.relatedTransactionId = relTxn;
+                        r.related_transaction_id = relTxn;
+                        const invId = r.invoiceId || r.invoice_id || '';
+                        r.invoiceId = invId;
+                        r.invoice_id = invId;
+                        const instId = r.institutionId || r.institution_id || '';
+                        r.institutionId = instId;
+                        r.institution_id = instId;
+                        const bId = r.branchId || r.branch_id || '';
+                        if (bId) {
+                            r.branchId = bId;
+                            r.branch_id = bId;
+                        }
+                        const cAt = r.createdAt || r.created_at || '';
+                        if (cAt) {
+                            r.createdAt = cAt;
+                            r.created_at = cAt;
+                        }
+                        const uAt = r.updatedAt || r.updated_at || '';
+                        if (uAt) {
+                            r.updatedAt = uAt;
+                            r.updated_at = uAt;
+                        }
+                    });
+                }
                 if (module === 'invoices' && Array.isArray(result)) {
                     result.forEach((inv: any) => {
                         const invNum = inv.invoiceNumber || inv.invoice_number || '';
                         inv.invoiceNumber = invNum;
                         inv.invoice_number = invNum;
+                        const instId = inv.institutionId || inv.institution_id || '';
+                        if (instId) {
+                            inv.institutionId = instId;
+                            inv.institution_id = instId;
+                        }
+                        const sId = inv.studentId || inv.student_id || '';
+                        if (sId) {
+                            inv.studentId = sId;
+                            inv.student_id = sId;
+                        }
+                        const sName = inv.studentName || inv.student_name || '';
+                        if (sName) {
+                            inv.studentName = sName;
+                            inv.student_name = sName;
+                        }
+                        const sAdm = inv.admissionNumber || inv.admission_number || '';
+                        if (sAdm) {
+                            inv.admissionNumber = sAdm;
+                            inv.admission_number = sAdm;
+                        }
+                        const clsName = inv.className || inv.class_name || '';
+                        if (clsName) {
+                            inv.className = clsName;
+                            inv.class_name = clsName;
+                        }
+                        const bId = inv.branchId || inv.branch_id || '';
+                        if (bId) {
+                            inv.branchId = bId;
+                            inv.branch_id = bId;
+                        }
+                        const cAt = inv.createdAt || inv.created_at || '';
+                        if (cAt) {
+                            inv.createdAt = cAt;
+                            inv.created_at = cAt;
+                        }
+                        const uAt = inv.updatedAt || inv.updated_at || '';
+                        if (uAt) {
+                            inv.updatedAt = uAt;
+                            inv.updated_at = uAt;
+                        }
                         const cName = inv.clientName || inv.client_name || inv.customerName || inv.customer_name || inv.billedTo || inv.billed_to || inv.metadata?.clientName || inv.metadata?.client_name || '';
                         if (cName) {
                             inv.clientName = cName;
@@ -3044,6 +3196,8 @@ export const apiService = {
                         const pd = Number(inv.amountPaid ?? inv.amount_paid ?? inv.paidAmount ?? inv.paid_amount ?? 0);
                         inv.amountPaid = pd;
                         inv.amount_paid = pd;
+                        inv.paidAmount = pd;
+                        inv.paid_amount = pd;
                         inv.balance = Number(inv.balance ?? (tot - pd));
                     });
                 }
@@ -3055,15 +3209,38 @@ export const apiService = {
                     }
                     let finalRecords = result;
                     if (result.length > 0 && localData.length > 0) {
-                        // For config tables like 'branches', never discard newly created local records
+                        // For config tables like 'branches' and DS operational modules, never discard newly created local records
                         // that exist locally but haven't synced to server or were filtered out!
-                        const preserveAllLocal = module === 'branches' || STATIC_CONFIG_MODULES.has(module);
+                        const isDsOperationalModule = ['ds_students', 'ds_invoices', 'ds_payments', 'ds_lessons', 'ds_leads', 'ds_instructors', 'ds_vehicles', 'ds_expenditures'].includes(module);
+                        const preserveAllLocal = module === 'branches' || STATIC_CONFIG_MODULES.has(module) || isDsOperationalModule;
+                        const nowMs = Date.now();
                         const pendingLocal = localData.filter((item: any) => 
-                            item && (preserveAllLocal || item._is_pending_sync || item._isLocalOnly || item._offlineCreated || (item.id && String(item.id).startsWith('temp_')))
+                            item && (
+                                preserveAllLocal ||
+                                item._is_pending_sync ||
+                                item._isLocalOnly ||
+                                item._offlineCreated ||
+                                (item._localSavedAt && (nowMs - Number(item._localSavedAt) < 300000)) ||
+                                (item.id && String(item.id).startsWith('temp_'))
+                            )
                         );
                         if (pendingLocal.length > 0) {
+                            const serverIds = new Set(result.map((r: any) => r?.id).filter(Boolean));
                             const combined = new Map<string, any>();
-                            pendingLocal.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
+                            pendingLocal.forEach((item: any) => {
+                                if (item && item.id) {
+                                    combined.set(item.id, item);
+                                    if (!serverIds.has(item.id) && (isDsOperationalModule || item._is_pending_sync || item._offlineCreated)) {
+                                        // Trigger background self-healing push to PostgreSQL for unsynced local records
+                                        setTimeout(() => {
+                                            const cleanSyncItem = { ...item };
+                                            delete cleanSyncItem._is_pending_sync;
+                                            delete cleanSyncItem._offlineCreated;
+                                            apiService.saveModuleRecord(module, cleanSyncItem).catch(() => {});
+                                        }, 1500);
+                                    }
+                                }
+                            });
                             result.forEach((item: any) => { if (item && item.id) combined.set(item.id, { ...(combined.get(item.id) || {}), ...item }); });
                             finalRecords = Array.from(combined.values());
                         } else {
@@ -5767,18 +5944,19 @@ export const apiService = {
 
                 if (response.status === 405 || response.status === 500 || response.status === 504 || response.status === 502 || response.status === 503) {
                     console.log(`[apiService] Module '${module}' fallback saved locally (status ${response.status}).`);
-                    ls.upsert(module, currentPayload);
+                    const localFallbackRec = { ...payload, ...currentPayload, _is_pending_sync: true, _offlineCreated: true, _localSavedAt: Date.now() };
+                    ls.upsert(module, localFallbackRec);
                     try {
-                        localDb.put(module, currentPayload).catch(() => {});
+                        localDb.put(module, localFallbackRec).catch(() => {});
                         localDb.put('sync_queue', {
                             id: `sync_${Date.now()}_${Math.random().toString(36).slice(2)}`,
                             module,
-                            data: currentPayload,
+                            data: localFallbackRec,
                             action: 'save',
                             timestamp: new Date().toISOString()
                         }).catch(() => {});
                     } catch (_) {}
-                    return toCamelCase(currentPayload);
+                    return toCamelCase(localFallbackRec);
                 }
 
                 // --- 401 handler: try silent token refresh then admin bypass retry ---
@@ -5833,18 +6011,19 @@ export const apiService = {
                     }
                     
                     console.warn(`[apiService] Save API returned status ${response.status} for [${module}] — falling back to local storage:`, errData);
-                    ls.upsert(module, currentPayload);
+                    const localFallbackRec = { ...payload, ...currentPayload, _is_pending_sync: true, _offlineCreated: true, _localSavedAt: Date.now() };
+                    ls.upsert(module, localFallbackRec);
                     try {
-                        localDb.put(module, currentPayload).catch(() => {});
+                        localDb.put(module, localFallbackRec).catch(() => {});
                         localDb.put('sync_queue', {
                             id: `sync_${Date.now()}_${Math.random().toString(36).slice(2)}`,
                             module,
-                            data: currentPayload,
+                            data: localFallbackRec,
                             action: 'save',
                             timestamp: new Date().toISOString()
                         }).catch(() => {});
                     } catch (_) {}
-                    return toCamelCase(currentPayload);
+                    return toCamelCase(localFallbackRec);
                 }
 
                 const contentTypePost = response.headers.get('content-type');
@@ -5852,19 +6031,30 @@ export const apiService = {
                     const savedRes = await response.json().catch(() => null);
                     if (savedRes) {
                         let recordToStore = savedRes;
-                        if (savedRes.offlineFallback || (savedRes.success && !savedRes.created_at && !savedRes.name && !savedRes.student_name && !savedRes.invoice_number && !savedRes.title)) {
+                        const isOfflineFallback = Boolean(savedRes.offlineFallback);
+                        if (isOfflineFallback || (savedRes.success && !savedRes.created_at && !savedRes.name && !savedRes.student_name && !savedRes.invoice_number && !savedRes.title)) {
                             if (Array.isArray(savedRes.data) && savedRes.data[0]) {
-                                recordToStore = savedRes.data[0];
+                                recordToStore = { ...payload, ...savedRes.data[0] };
                             } else if (savedRes.data && typeof savedRes.data === 'object' && !Array.isArray(savedRes.data)) {
-                                recordToStore = savedRes.data;
+                                recordToStore = { ...payload, ...savedRes.data };
                             } else {
-                                recordToStore = { ...currentPayload, ...(savedRes.id ? { id: savedRes.id } : {}) };
+                                recordToStore = { ...payload, ...currentPayload, ...(savedRes.id ? { id: savedRes.id } : {}) };
                             }
+                        } else {
+                            recordToStore = { ...payload, ...savedRes };
                         }
+                        if (isOfflineFallback) {
+                            recordToStore._is_pending_sync = true;
+                            recordToStore._offlineCreated = true;
+                        } else {
+                            recordToStore._is_pending_sync = false;
+                            recordToStore._offlineCreated = false;
+                        }
+                        recordToStore._localSavedAt = Date.now();
                         ls.upsert(module, recordToStore);
                         try {
                             localDb.upsert(module, recordToStore).catch(() => {});
-                            if (savedRes.offlineFallback) {
+                            if (isOfflineFallback) {
                                 localDb.put('sync_queue', {
                                     id: `sync_${Date.now()}_${Math.random().toString(36).slice(2)}`,
                                     module,
@@ -5899,18 +6089,19 @@ export const apiService = {
             if (errStr.includes('Registry Conflict') || errStr.includes('23505') || errStr.toLowerCase().includes('unique constraint') || errStr.toLowerCase().includes('already registered')) {
                 throw e;
             }
-            ls.upsert(module, payload);
+            const catchFallbackRec = { ...payload, _is_pending_sync: true, _offlineCreated: true, _localSavedAt: Date.now() };
+            ls.upsert(module, catchFallbackRec);
             try {
-                localDb.put(module, payload).catch(() => {});
+                localDb.put(module, catchFallbackRec).catch(() => {});
                 localDb.put('sync_queue', {
                     id: `sync_${Date.now()}_${Math.random().toString(36).slice(2)}`,
                     module,
-                    data: payload,
+                    data: catchFallbackRec,
                     action: 'save',
                     timestamp: new Date().toISOString()
                 }).catch(() => {});
             } catch (_) {}
-            return toCamelCase(payload);
+            return toCamelCase(catchFallbackRec);
         }
     },
     async fetchSmsOutbox(institutionId: string): Promise<any[]> {
@@ -6488,7 +6679,7 @@ export const apiService = {
         targetStatus: 'active' | 'trial' | 'expired' | 'suspended' = 'active'
     ): Promise<void> {
         const now = new Date();
-        const allModuleIds = ['academics', 'finance', 'hr_payroll', 'library', 'school_store', 'timetable', 'his', 'transport', 'boarding', 'enrollment_manager', 'events', 'ng_cdf', 'fiscal_guard', 'driving_school', 'beauty_college', 'law_firm', 'cooperative', 'property', 'restaurant_pos', 'church', 'car_showroom', 'fuel_station', 'private_security'];
+        const allModuleIds = ['academics', 'finance', 'hr_payroll', 'library', 'school_store', 'timetable', 'his', 'transport', 'boarding', 'enrollment_manager', 'events', 'ng_cdf', 'fiscal_guard', 'eduvote', 'alumni', 'remedials', 'driving_school', 'beauty_college', 'law_firm', 'cooperative', 'milling', 'property', 'restaurant_pos', 'church', 'car_showroom', 'carwash_admin', 'mechanic_admin', 'fuel_station', 'private_security', 'invoicing', 'corporate_invoicing'];
         const moduleIdsToUpdate = moduleId === 'all' ? allModuleIds : [moduleId];
 
         if (moduleId === 'all' || moduleId === 'finance' || moduleId === 'academics') {
@@ -6507,6 +6698,7 @@ export const apiService = {
                     id: inst.id,
                     status: targetStatus === 'trial' ? 'trial' : 'active',
                     subscriptionEndsAt: newInstEndsAt,
+                    subscription_ends_at: newInstEndsAt,
                     isSuspendedForBilling: false,
                     updatedAt: now.toISOString()
                 });
@@ -6521,7 +6713,7 @@ export const apiService = {
             let currentEndDate = now;
             if (existing.length > 0) {
                 const record = existing[0];
-                const existingEndStr = record.subscriptionEndsAt || record.trialEndsAt;
+                const existingEndStr = record.subscriptionEndsAt || (record as any).subscription_ends_at || record.trialEndsAt || (record as any).trial_ends_at;
                 if (existingEndStr) {
                     const parsed = new Date(existingEndStr);
                     if (!isNaN(parsed.getTime()) && parsed > now) {
@@ -6535,12 +6727,18 @@ export const apiService = {
             const moduleState: Partial<InstitutionModuleState> = {
                 id: existing.length > 0 ? existing[0].id : `${institutionId}_${mId}_${Date.now()}`,
                 institutionId,
+                institution_id: institutionId,
                 moduleId: mId,
+                module_id: mId,
                 status: targetStatus,
-                subscriptionEndsAt: targetStatus === 'active' ? newEndsAt : undefined,
-                trialEndsAt: targetStatus === 'trial' ? newEndsAt : undefined,
+                subscriptionEndsAt: targetStatus === 'active' ? newEndsAt : null,
+                subscription_ends_at: targetStatus === 'active' ? newEndsAt : null,
+                trialEndsAt: targetStatus === 'trial' ? newEndsAt : null,
+                trial_ends_at: targetStatus === 'trial' ? newEndsAt : null,
                 activatedAt: existing.length > 0 && existing[0].activatedAt ? existing[0].activatedAt : now.toISOString(),
-                updatedAt: now.toISOString()
+                activated_at: existing.length > 0 && (existing[0].activatedAt || (existing[0] as any).activated_at) ? (existing[0].activatedAt || (existing[0] as any).activated_at) : now.toISOString(),
+                updatedAt: now.toISOString(),
+                updated_at: now.toISOString()
             } as any;
 
             await apiService.saveModuleRecord('institution_module_states', moduleState);

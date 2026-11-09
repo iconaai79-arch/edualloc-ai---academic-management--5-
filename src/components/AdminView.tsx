@@ -996,28 +996,59 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             return true;
         }
 
-        // If the institution is active, default core modules to active
-        if (props.currentInstitution?.status === 'active') {
-            const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId || (m as any).module_id === moduleId);
-            if (!state) return true;
-            if (state.status === 'active') return true;
-            if (state.status === 'trial') {
-                const expiry = state.trialEndsAt || (state as any).trial_ends_at;
-                return expiry ? new Date(expiry) > new Date() : true;
-            }
-            if (state.status === 'suspended' || state.status === 'expired') return false;
+        const now = new Date();
+        const instStatus = (props.currentInstitution?.status || '').toLowerCase();
+        const instSubEnd = props.currentInstitution?.subscriptionEndsAt || (props.currentInstitution as any)?.subscription_ends_at;
+        const isInstSubscriptionActive = instStatus === 'active' && (!instSubEnd || new Date(instSubEnd) > now);
+
+        const state = props.currentInstitution?.moduleStates?.find(m => {
+            const id = m.moduleId || (m as any).module_id;
+            if (id === moduleId) return true;
+            if ((moduleId === 'his' || moduleId === 'his_core') && (id === 'his' || id === 'his_core')) return true;
+            return false;
+        });
+
+        // If the institution's main subscription is active & unexpired, grant access to all modules unless explicitly suspended
+        if (isInstSubscriptionActive) {
+            if ((state?.status || '').toLowerCase() === 'suspended') return false;
             return true;
         }
 
-        const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId || (m as any).module_id === moduleId);
-        if (!state) return false;
-        if (state.status === 'active') return true;
-        if (state.status === 'trial') {
+        // If institution status is 'active'
+        if (instStatus === 'active') {
+            if (!state) return true;
+            const modStatus = (state.status || '').toLowerCase();
+            if (modStatus === 'suspended') return false;
+            if (modStatus === 'active') {
+                const modSubEnd = state.subscriptionEndsAt || (state as any).subscription_ends_at;
+                return modSubEnd ? new Date(modSubEnd) > now : true;
+            }
+            if (modStatus === 'trial') {
+                const expiry = state.trialEndsAt || (state as any).trial_ends_at;
+                return expiry ? new Date(expiry) > now : true;
+            }
+            if (modStatus === 'expired') return false;
+            return true;
+        }
+
+        if (!state) {
+            if (instStatus === 'trial') {
+                const instTrialEnd = props.currentInstitution?.trialEndsAt || (props.currentInstitution as any)?.trial_ends_at;
+                if (instTrialEnd && new Date(instTrialEnd) > now) return true;
+            }
+            return false;
+        }
+        const modStatus = (state.status || '').toLowerCase();
+        if (modStatus === 'active') {
+            const modSubEnd = state.subscriptionEndsAt || (state as any).subscription_ends_at;
+            return modSubEnd ? new Date(modSubEnd) > now : true;
+        }
+        if (modStatus === 'trial') {
             const expiry = state.trialEndsAt || (state as any).trial_ends_at;
-            return expiry ? new Date(expiry) > new Date() : false;
+            return expiry ? new Date(expiry) > now : false;
         }
         return false;
-    }, [props.currentInstitution?.moduleStates, props.currentInstitution?.institutionType, props.currentInstitution?.id, props.currentInstitution?.status, props.currentUser, isBC, isEdu, isSchool]);
+    }, [props.currentInstitution?.moduleStates, props.currentInstitution?.institutionType, props.currentInstitution?.id, props.currentInstitution?.status, props.currentInstitution?.subscriptionEndsAt, props.currentInstitution?.trialEndsAt, props.currentUser, isBC, isEdu, isSchool]);
 
     const isCoreAdmin = useMemo(() => {
         const role = props.activeRole || props.currentUser?.role;
@@ -1534,18 +1565,21 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     });
 
 
-    const getTabModuleState = (tabId: string) => {
+    const getTabModuleId = (tabId: string): string | null => {
         if (!isEdu) return null;
-        let moduleId: string | null = null;
-        if (tabId === 'timetable') moduleId = 'timetable';
-        else if (tabId === 'courses') moduleId = 'academics';
-        else if (tabId === 'boarding' || tabId === 'leaveout') moduleId = 'boarding';
-        else if (tabId === 'transport') moduleId = 'transport';
-        else if (tabId === 'retail') moduleId = 'school_store';
-        else if (['enrollment', 'enrollment_students', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests'].includes(tabId)) moduleId = 'enrollment_manager';
-        
+        if (tabId === 'timetable') return 'timetable';
+        if (tabId === 'courses') return 'academics';
+        if (tabId === 'boarding' || tabId === 'leaveout') return 'boarding';
+        if (tabId === 'transport') return 'transport';
+        if (tabId === 'retail') return 'school_store';
+        if (['enrollment', 'enrollment_students', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests'].includes(tabId)) return 'enrollment_manager';
+        return null;
+    };
+
+    const getTabModuleState = (tabId: string) => {
+        const moduleId = getTabModuleId(tabId);
         if (!moduleId) return null;
-        return props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
+        return props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId || (m as any).module_id === moduleId);
     };
 
     if (isStrictTeacherUser(props.currentUser) || isTeacherRole(props.activeRole) || isTeacherRole(props.currentUser?.role)) {
@@ -1587,7 +1621,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         </button>
                     )}
                     {tabs.map((tab: { id: string, label: string, icon: React.ReactNode }) => {
+                        const tabModuleId = getTabModuleId(tab.id);
                         const modState = getTabModuleState(tab.id);
+                        const isInstAccountActive = (props.currentInstitution?.status || '').toLowerCase() === 'active';
+                        const isTabModuleUnlocked = tabModuleId ? isModuleActive(tabModuleId) : true;
                         return (
                             <button
                                 key={tab.id}
@@ -1611,11 +1648,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             >
                                 {tab.icon}
                                 <span>{tab.label}</span>
-                                {modState?.status === 'trial' ? (
+                                {!isInstAccountActive && modState?.status === 'trial' && isTabModuleUnlocked ? (
                                     <span className="text-[9px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded font-black tracking-wider uppercase flex items-center gap-1 animate-pulse">
                                         Trial
                                     </span>
-                                ) : (tab.id === 'timetable' || tab.id === 'courses' || tab.id === 'boarding' || tab.id === 'leaveout' || tab.id === 'transport' || tab.id === 'retail') && (!modState || modState.status !== 'active') ? (
+                                ) : (tab.id === 'timetable' || tab.id === 'courses' || tab.id === 'boarding' || tab.id === 'leaveout' || tab.id === 'transport' || tab.id === 'retail') && !isTabModuleUnlocked ? (
                                     <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded font-medium normal-case flex items-center gap-1">
                                         <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                         Unlock

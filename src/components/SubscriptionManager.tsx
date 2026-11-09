@@ -475,11 +475,20 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                 { id: 'ng_cdf', name: 'NG-CDF Bursaries', description: 'Track constituency school-wide block grants and manage individual student bursary applications and support kits independently of core ledger billing.' },
                                 { id: 'fiscal_guard', name: 'FiscalGuard AI Auditor', description: 'Independent fiscal audit dashboard monitoring transaction logs, duplicate entries, sequence gaps, and statistical anomalies.' }
                             ].map(module => {
-                                const state = institution.moduleStates?.find(m => m.moduleId === module.id);
-                                const isInactive = !state || state.status === 'inactive';
-                                const isTrial = state?.status === 'trial';
-                                const isActive = state?.status === 'active';
-                                const isExpired = state?.status === 'expired' || (state?.status === 'trial' && state.trialEndsAt && new Date(state.trialEndsAt) < new Date());
+                                const state = institution.moduleStates?.find(m => m.moduleId === module.id || (m as any).module_id === module.id);
+                                const instStatus = (institution.status || '').toLowerCase();
+                                const instSubEnd = institution.subscriptionEndsAt || (institution as any).subscription_ends_at;
+                                const isInstSubscriptionActive = instStatus === 'active' && (!instSubEnd || new Date(instSubEnd) > new Date());
+                                const isExplicitlySuspended = (state?.status || '').toLowerCase() === 'suspended';
+
+                                const rawModStatus = (state?.status || '').toLowerCase();
+                                const modTrialEnd = state?.trialEndsAt || (state as any)?.trial_ends_at;
+                                const modSubEnd = state?.subscriptionEndsAt || (state as any)?.subscription_ends_at || instSubEnd;
+
+                                const isActive = (isInstSubscriptionActive && !isExplicitlySuspended) || rawModStatus === 'active';
+                                const isTrial = !isActive && rawModStatus === 'trial' && (!modTrialEnd || new Date(modTrialEnd) >= new Date());
+                                const isExpired = !isActive && (rawModStatus === 'expired' || isExplicitlySuspended || (rawModStatus === 'trial' && !!modTrialEnd && new Date(modTrialEnd) < new Date()));
+                                const isInactive = !isActive && !isTrial && !isExpired;
 
                                 return (
                                     <div key={module.id} className="group relative bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden">
@@ -509,8 +518,8 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                         ) : (
                                             <div className="space-y-2">
                                                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 text-center py-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                                    {isTrial ? `Trial ends: ${new Date(state.trialEndsAt!).toLocaleDateString()}` : 
-                                                     isActive ? `Renews: ${new Date(state.subscriptionEndsAt!).toLocaleDateString()}` : 
+                                                    {isTrial ? `Trial ends: ${modTrialEnd ? new Date(modTrialEnd).toLocaleDateString() : 'Active Trial'}` : 
+                                                     isActive ? (modSubEnd ? `Renews: ${new Date(modSubEnd).toLocaleDateString()}` : 'Active (Included in Plan)') : 
                                                      'Access Expired'}
                                                 </div>
                                                 {isExpired && (

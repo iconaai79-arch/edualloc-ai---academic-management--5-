@@ -122,7 +122,10 @@ const getPgPool = async () => {
       _pgPool = null;
     });
 
-    ensureEssentialSchema(_pgPool).catch(() => {});
+    await Promise.race([
+      ensureEssentialSchema(_pgPool),
+      new Promise<void>((resolve) => setTimeout(resolve, 2500))
+    ]).catch(() => {});
 
     return _pgPool;
   } catch (err) {
@@ -150,10 +153,74 @@ const ensureEssentialSchema = async (pool: any) => {
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
 
+        -- 0b. Ensure invoices table exists with full billing columns
+        CREATE TABLE IF NOT EXISTS public.invoices (
+            id TEXT PRIMARY KEY,
+            invoice_number TEXT,
+            institution_id TEXT,
+            branch_id TEXT,
+            issue_date TEXT,
+            due_date TEXT,
+            items JSONB DEFAULT '[]'::jsonb,
+            total_amount NUMERIC DEFAULT 0,
+            amount_paid NUMERIC DEFAULT 0,
+            paid_amount NUMERIC DEFAULT 0,
+            balance NUMERIC DEFAULT 0,
+            status TEXT DEFAULT 'Unpaid',
+            student_id TEXT,
+            student_name TEXT,
+            admission_number TEXT,
+            class_name TEXT,
+            client_id TEXT,
+            client_name TEXT,
+            client_email TEXT,
+            client_phone TEXT,
+            client_tax_pin TEXT,
+            client_address TEXT,
+            currency TEXT DEFAULT 'KES',
+            notes TEXT,
+            terms TEXT,
+            subtotal NUMERIC,
+            tax_rate NUMERIC,
+            tax_amount NUMERIC,
+            discount_amount NUMERIC,
+            metadata JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        -- 0c. Ensure receipts table exists with full billing columns
+        CREATE TABLE IF NOT EXISTS public.receipts (
+            id TEXT PRIMARY KEY,
+            receipt_number TEXT,
+            institution_id TEXT,
+            branch_id TEXT,
+            payment_date TEXT,
+            amount_paid NUMERIC DEFAULT 0,
+            amount NUMERIC DEFAULT 0,
+            paid_for TEXT,
+            payment_method TEXT,
+            related_transaction_id TEXT,
+            invoice_id TEXT,
+            student_id TEXT,
+            student_name TEXT,
+            admission_number TEXT,
+            notes TEXT,
+            metadata JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
         DO $$
         BEGIN
-            -- 1. ds_students missing columns
+            -- 1. ds_students, ds_invoices, ds_payments missing columns & relaxed constraints
             IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_students') THEN
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS full_name TEXT DEFAULT 'Student';
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS admission_number TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT '';
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS email TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Enrolled';
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS enrollment_date TEXT;
                 ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS id_number TEXT;
                 ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS national_id TEXT;
                 ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS course_duration_days INTEGER DEFAULT 0;
@@ -173,6 +240,84 @@ const ensureEssentialSchema = async (pool: any) => {
                 ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_category TEXT;
                 ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_type_interested TEXT;
                 ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS user_id TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS theory_progress_percent NUMERIC DEFAULT 0;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS practical_progress_percent NUMERIC DEFAULT 0;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS theory_test_score NUMERIC;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS practical_test_score NUMERIC;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS ntsa_booking_status TEXT DEFAULT 'Not Booked';
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS assigned_instructor_id TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS assigned_vehicle_id TEXT;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS total_fee NUMERIC DEFAULT 0;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS paid_fee NUMERIC DEFAULT 0;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.ds_students DROP CONSTRAINT IF EXISTS ds_students_user_id_fkey;
+                ALTER TABLE public.ds_students DROP CONSTRAINT IF EXISTS ds_students_institution_id_fkey;
+                ALTER TABLE public.ds_students DROP CONSTRAINT IF EXISTS ds_students_branch_id_fkey;
+                ALTER TABLE public.ds_students DROP CONSTRAINT IF EXISTS ds_students_assigned_instructor_id_fkey;
+                ALTER TABLE public.ds_students DROP CONSTRAINT IF EXISTS ds_students_assigned_vehicle_id_fkey;
+                ALTER TABLE public.ds_students ALTER COLUMN phone DROP NOT NULL;
+                ALTER TABLE public.ds_students ALTER COLUMN full_name DROP NOT NULL;
+            END IF;
+
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_invoices') THEN
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS student_id TEXT;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS student_name TEXT;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS admission_number TEXT;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS fee_structure_id TEXT;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS class_name TEXT;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS items JSONB DEFAULT '[]'::jsonb;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS total_amount NUMERIC DEFAULT 0;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS paid_amount NUMERIC DEFAULT 0;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS balance NUMERIC DEFAULT 0;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS discount_amount NUMERIC DEFAULT 0;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS sponsor_name TEXT;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS sponsor_amount NUMERIC DEFAULT 0;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Pending';
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS invoice_number TEXT;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS due_date TEXT;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS notes TEXT;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.ds_invoices DROP CONSTRAINT IF EXISTS ds_invoices_student_id_fkey;
+                ALTER TABLE public.ds_invoices DROP CONSTRAINT IF EXISTS ds_invoices_institution_id_fkey;
+                ALTER TABLE public.ds_invoices DROP CONSTRAINT IF EXISTS ds_invoices_branch_id_fkey;
+                ALTER TABLE public.ds_invoices DROP CONSTRAINT IF EXISTS ds_invoices_fee_structure_id_fkey;
+                ALTER TABLE public.ds_invoices ALTER COLUMN student_id DROP NOT NULL;
+            END IF;
+
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_payments') THEN
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS invoice_id TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS student_id TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS student_name TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS admission_number TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS amount NUMERIC DEFAULT 0;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'Cash';
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS transaction_reference TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS payment_date TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS receipt_number TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS received_by TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS notes TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Completed';
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS audited_by TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS audited_at TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS edit_reason TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS deletion_reason TEXT;
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.ds_payments DROP CONSTRAINT IF EXISTS ds_payments_student_id_fkey;
+                ALTER TABLE public.ds_payments DROP CONSTRAINT IF EXISTS ds_payments_invoice_id_fkey;
+                ALTER TABLE public.ds_payments DROP CONSTRAINT IF EXISTS ds_payments_branch_id_fkey;
+                ALTER TABLE public.ds_payments DROP CONSTRAINT IF EXISTS ds_payments_institution_id_fkey;
+                ALTER TABLE public.ds_payments ALTER COLUMN invoice_id DROP NOT NULL;
+                ALTER TABLE public.ds_payments ALTER COLUMN student_id DROP NOT NULL;
             END IF;
 
             -- 2. building_visitor_logs
@@ -211,6 +356,165 @@ const ensureEssentialSchema = async (pool: any) => {
             IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'institutions') THEN
                 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS reseller_id TEXT;
                 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "resellerId" TEXT;
+            END IF;
+
+            -- 7. invoices schema & camelCase-to-snake_case data healing
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'invoices') THEN
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS invoice_number TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS issue_date TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS due_date TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS items JSONB DEFAULT '[]'::jsonb;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS total_amount NUMERIC DEFAULT 0;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS amount_paid NUMERIC DEFAULT 0;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS paid_amount NUMERIC DEFAULT 0;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS balance NUMERIC DEFAULT 0;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Unpaid';
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS student_id TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS student_name TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS admission_number TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS class_name TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_id TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_name TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_email TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_phone TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_tax_pin TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_address TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'KES';
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS notes TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS terms TEXT;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS subtotal NUMERIC;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS tax_rate NUMERIC;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS tax_amount NUMERIC;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS discount_amount NUMERIC;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+                ALTER TABLE public.invoices DROP CONSTRAINT IF EXISTS invoices_institution_id_fkey;
+                ALTER TABLE public.invoices DROP CONSTRAINT IF EXISTS invoices_student_id_fkey;
+
+                BEGIN
+                    ALTER TABLE public.invoices ALTER COLUMN invoice_number DROP NOT NULL;
+                    ALTER TABLE public.invoices ALTER COLUMN institution_id DROP NOT NULL;
+                    ALTER TABLE public.invoices ALTER COLUMN issue_date DROP NOT NULL;
+                    ALTER TABLE public.invoices ALTER COLUMN due_date DROP NOT NULL;
+                    ALTER TABLE public.invoices ALTER COLUMN items DROP NOT NULL;
+                    ALTER TABLE public.invoices ALTER COLUMN total_amount DROP NOT NULL;
+                    ALTER TABLE public.invoices ALTER COLUMN status DROP NOT NULL;
+                EXCEPTION WHEN OTHERS THEN NULL;
+                END;
+
+                -- Sync camelCase backup columns into snake_case columns if camelCase columns exist
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'institutionId') THEN
+                    EXECUTE 'UPDATE public.invoices SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'invoiceNumber') THEN
+                    EXECUTE 'UPDATE public.invoices SET invoice_number = "invoiceNumber" WHERE (invoice_number IS NULL OR invoice_number = '''') AND "invoiceNumber" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'issueDate') THEN
+                    EXECUTE 'UPDATE public.invoices SET issue_date = "issueDate"::text WHERE (issue_date IS NULL OR issue_date = '''') AND "issueDate" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'dueDate') THEN
+                    EXECUTE 'UPDATE public.invoices SET due_date = "dueDate"::text WHERE (due_date IS NULL OR due_date = '''') AND "dueDate" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'totalAmount') THEN
+                    EXECUTE 'UPDATE public.invoices SET total_amount = COALESCE( NULLIF("totalAmount"::text, '''')::numeric, 0 ) WHERE (total_amount IS NULL OR total_amount = 0) AND "totalAmount" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'amountPaid') THEN
+                    EXECUTE 'UPDATE public.invoices SET amount_paid = COALESCE( NULLIF("amountPaid"::text, '''')::numeric, 0 ) WHERE (amount_paid IS NULL OR amount_paid = 0) AND "amountPaid" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'paidAmount') THEN
+                    EXECUTE 'UPDATE public.invoices SET amount_paid = COALESCE( NULLIF("paidAmount"::text, '''')::numeric, 0 ) WHERE (amount_paid IS NULL OR amount_paid = 0) AND "paidAmount" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'studentId') THEN
+                    EXECUTE 'UPDATE public.invoices SET student_id = "studentId" WHERE (student_id IS NULL OR student_id = '''') AND "studentId" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'studentName') THEN
+                    EXECUTE 'UPDATE public.invoices SET student_name = "studentName" WHERE (student_name IS NULL OR student_name = '''') AND "studentName" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'admissionNumber') THEN
+                    EXECUTE 'UPDATE public.invoices SET admission_number = "admissionNumber" WHERE (admission_number IS NULL OR admission_number = '''') AND "admissionNumber" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'className') THEN
+                    EXECUTE 'UPDATE public.invoices SET class_name = "className" WHERE (class_name IS NULL OR class_name = '''') AND "className" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'branchId') THEN
+                    EXECUTE 'UPDATE public.invoices SET branch_id = "branchId" WHERE (branch_id IS NULL OR branch_id = '''') AND "branchId" IS NOT NULL AND "branchId" NOT LIKE ''inst_%''';
+                END IF;
+                UPDATE public.invoices SET branch_id = NULL WHERE branch_id IS NOT NULL AND (branch_id = institution_id OR branch_id LIKE 'inst_%' OR branch_id = '');
+                UPDATE public.invoices SET created_at = NOW() WHERE created_at IS NULL;
+            END IF;
+
+            -- 8. receipts schema & camelCase-to-snake_case data healing
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'receipts') THEN
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS receipt_number TEXT;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS payment_date TEXT;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS amount_paid NUMERIC DEFAULT 0;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS amount NUMERIC DEFAULT 0;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS paid_for TEXT;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS payment_method TEXT;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS related_transaction_id TEXT;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS invoice_id TEXT;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS student_id TEXT;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS student_name TEXT;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS admission_number TEXT;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS notes TEXT;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+                ALTER TABLE public.receipts DROP CONSTRAINT IF EXISTS receipts_institution_id_fkey;
+                ALTER TABLE public.receipts DROP CONSTRAINT IF EXISTS receipts_student_id_fkey;
+                ALTER TABLE public.receipts DROP CONSTRAINT IF EXISTS receipts_invoice_id_fkey;
+
+                BEGIN
+                    ALTER TABLE public.receipts ALTER COLUMN receipt_number DROP NOT NULL;
+                    ALTER TABLE public.receipts ALTER COLUMN institution_id DROP NOT NULL;
+                    ALTER TABLE public.receipts ALTER COLUMN payment_date DROP NOT NULL;
+                    ALTER TABLE public.receipts ALTER COLUMN amount_paid DROP NOT NULL;
+                    ALTER TABLE public.receipts ALTER COLUMN paid_for DROP NOT NULL;
+                    ALTER TABLE public.receipts ALTER COLUMN payment_method DROP NOT NULL;
+                EXCEPTION WHEN OTHERS THEN NULL;
+                END;
+
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'institutionId') THEN
+                    EXECUTE 'UPDATE public.receipts SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'receiptNumber') THEN
+                    EXECUTE 'UPDATE public.receipts SET receipt_number = "receiptNumber" WHERE (receipt_number IS NULL OR receipt_number = '''') AND "receiptNumber" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'paymentDate') THEN
+                    EXECUTE 'UPDATE public.receipts SET payment_date = "paymentDate"::text WHERE (payment_date IS NULL OR payment_date = '''') AND "paymentDate" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'amountPaid') THEN
+                    EXECUTE 'UPDATE public.receipts SET amount_paid = COALESCE( NULLIF("amountPaid"::text, '''')::numeric, 0 ) WHERE (amount_paid IS NULL OR amount_paid = 0) AND "amountPaid" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'paidFor') THEN
+                    EXECUTE 'UPDATE public.receipts SET paid_for = "paidFor" WHERE (paid_for IS NULL OR paid_for = '''') AND "paidFor" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'paymentMethod') THEN
+                    EXECUTE 'UPDATE public.receipts SET payment_method = "paymentMethod" WHERE (payment_method IS NULL OR payment_method = '''') AND "paymentMethod" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'relatedTransactionId') THEN
+                    EXECUTE 'UPDATE public.receipts SET related_transaction_id = "relatedTransactionId" WHERE (related_transaction_id IS NULL OR related_transaction_id = '''') AND "relatedTransactionId" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'invoiceId') THEN
+                    EXECUTE 'UPDATE public.receipts SET invoice_id = "invoiceId" WHERE (invoice_id IS NULL OR invoice_id = '''') AND "invoiceId" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'studentId') THEN
+                    EXECUTE 'UPDATE public.receipts SET student_id = "studentId" WHERE (student_id IS NULL OR student_id = '''') AND "studentId" IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'branchId') THEN
+                    EXECUTE 'UPDATE public.receipts SET branch_id = "branchId" WHERE (branch_id IS NULL OR branch_id = '''') AND "branchId" IS NOT NULL AND "branchId" NOT LIKE ''inst_%''';
+                END IF;
+                UPDATE public.receipts SET branch_id = NULL WHERE branch_id IS NOT NULL AND (branch_id = institution_id OR branch_id LIKE 'inst_%' OR branch_id = '');
+                UPDATE public.receipts SET created_at = NOW() WHERE created_at IS NULL;
             END IF;
         END $$;
       `);
@@ -316,6 +620,40 @@ const fetchViaDirectPg = async (
     );
     const result = await Promise.race([queryPromise, queryTimeoutPromise]);
     _directPgConsecutiveFailures = 0;
+    if ((!result.rows || result.rows.length === 0) && (table === 'invoices' || table === 'receipts') && wherePart.includes('institution_id')) {
+      try {
+        await client.query(`
+          DO $$
+          BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'institutionId') THEN
+              EXECUTE 'UPDATE public.${table} SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') THEN
+              UPDATE public.${table} t
+              SET institution_id = u.institution_id
+              FROM public.users u
+              WHERE (t.institution_id IS NULL OR t.institution_id = '')
+                AND t.student_id IS NOT NULL
+                AND u.id::text = t.student_id::text
+                AND u.institution_id IS NOT NULL;
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'student_enrollments') THEN
+              UPDATE public.${table} t
+              SET institution_id = se.institution_id
+              FROM public.student_enrollments se
+              WHERE (t.institution_id IS NULL OR t.institution_id = '')
+                AND t.student_id IS NOT NULL
+                AND (se.id::text = t.student_id::text OR se.student_id::text = t.student_id::text)
+                AND se.institution_id IS NOT NULL;
+            END IF;
+          END $$;
+        `);
+        const retryAfterHeal = await client.query(sql, values);
+        if (retryAfterHeal?.rows && retryAfterHeal.rows.length > 0) {
+          return retryAfterHeal.rows;
+        }
+      } catch (_) {}
+    }
     return result.rows || [];
   } catch (err: any) {
     if (err?.code === '3D000' || /database ".*" does not exist/i.test(err?.message || '')) {
@@ -388,18 +726,14 @@ const fetchViaDirectPg = async (
     }
 
     // Auto-heal / gracefully handle missing tables (code 42P01: relation does not exist)
-    if (err?.code === '42P01' || String(err?.message || '').includes('does not exist')) {
-      if (table === 'system_settings') {
+    const errMsgStr = String(err?.message || '');
+    const isMissingTableError = err?.code === '42P01' || (/relation ".*" does not exist/i.test(errMsgStr) && err?.code !== '42703');
+    if (isMissingTableError) {
+      if (table === 'system_settings' || table === 'invoices' || table === 'receipts') {
         try {
-          await pool.query(`
-            CREATE TABLE IF NOT EXISTS public.system_settings (
-                id TEXT PRIMARY KEY,
-                data JSONB DEFAULT '{}'::jsonb,
-                status TEXT,
-                ts BIGINT,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-          `).catch(() => {});
+          _schemaMigrationDone = false;
+          _schemaMigrationPromise = null;
+          await ensureEssentialSchema(pool);
           const retryRes = await pool.query(sql, values);
           return retryRes.rows || [];
         } catch (_) {}
@@ -408,13 +742,38 @@ const fetchViaDirectPg = async (
       return [];
     }
 
-    if (client && (err?.code === '42703' || err?.message?.includes('column') || err?.message?.includes('does not exist'))) {
-      const errMsg = String(err?.message || '');
+    if (err?.code === '42703' || errMsgStr.includes('column') || errMsgStr.includes('does not exist')) {
+      const errMsg = errMsgStr;
 
-      // 1. Auto-heal missing created_at or updated_at column
-      if (errMsg.includes('created_at')) {
+      // 0. If invoices or receipts has missing columns, trigger full schema & data heal
+      if (table === 'invoices' || table === 'receipts') {
         try {
-          await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
+          _schemaMigrationDone = false;
+          _schemaMigrationPromise = null;
+          await ensureEssentialSchema(pool);
+          const retryRes = await pool.query(sql, values);
+          return retryRes.rows || [];
+        } catch (_) {}
+      }
+
+      // 1. Auto-heal missing created_at, updated_at, payment_date, institution_id, or branch_id column
+      if (errMsg.includes('created_at') || errMsg.includes('updated_at') || errMsg.includes('payment_date') || errMsg.includes('institution_id') || errMsg.includes('branch_id')) {
+        try {
+          if (errMsg.includes('created_at')) {
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
+          }
+          if (errMsg.includes('updated_at')) {
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
+          }
+          if (errMsg.includes('payment_date')) {
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS payment_date TEXT;`).catch(() => {});
+          }
+          if (errMsg.includes('institution_id')) {
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS institution_id TEXT;`).catch(() => {});
+          }
+          if (errMsg.includes('branch_id')) {
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS branch_id TEXT;`).catch(() => {});
+          }
           const retryRes = await pool.query(sql, values);
           return retryRes.rows || [];
         } catch (_) {
@@ -1374,7 +1733,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const isPublicPost = req.method === 'POST' && ([
           'users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications', 
           'voter_outreach', 'alumnae_members', 'invoices', 'receipts', 'event_participants', 'event_pledges', 
-          'ds_students', 'ds_lessons', 'event_pins', 'ds_leads', 'biometric_devices', 'biometric_enrollments', 
+          'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_instructors', 'ds_vehicles', 'ds_settings', 'ds_expenditures', 'ds_skill_mastery', 'ds_fee_structures', 'ds_votes', 'ds_license_categories', 'event_pins', 'ds_leads', 'biometric_devices', 'biometric_enrollments', 
           'staff_attendance_daily', 'staff_attendance_logs', 'heritage_members', 'heritage_stories', 'heritage_gallery', 'heritage_announcements', 
           'school_remedial_subjects', 'school_remedial_sessions', 'school_remedial_rate_settings', 'school_remedial_payouts', 
           'school_remedial_allocations', 'school_remedial_duty_roster', 'feedback_submissions', 'guest_feedback', 'guest_feedbacks',
@@ -1397,6 +1756,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isPublicPatch = req.method === 'PATCH' && ([
           'users', 'vehicles', 'transport_onboarding', 'vehicle_logs',
+          'ds_students', 'ds_lessons', 'ds_leads', 'ds_invoices', 'ds_payments', 'ds_instructors', 'ds_vehicles', 'ds_settings', 'ds_expenditures', 'ds_skill_mastery', 'ds_fee_structures', 'ds_votes', 'ds_license_categories',
           'suppliers', 'security_alerts', 'visitors', 'procurement_suppliers', 'procurement_items', 'procurement_lpos', 'procurement_invoices',
           'system_settings', 'institution_module_states', 'building_visitor_logs',
           'invoices', 'receipts', 'invoice_clients', 'company_invoice_settings', 'finance_numbering_configs',
@@ -1407,6 +1767,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
         const isPublicDelete = req.method === 'DELETE' && ([
           'vehicles', 'transport_onboarding', 'vehicle_logs',
+          'ds_students', 'ds_lessons', 'ds_leads', 'ds_invoices', 'ds_payments', 'ds_instructors', 'ds_vehicles', 'ds_expenditures',
           'invoice_clients', 'company_invoice_settings',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
@@ -1455,7 +1816,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 r.includes('dos') ||
                 r.includes('hoi') ||
                 r.includes('bursar') ||
-                r.includes('finance_officer');
+                r.includes('finance') ||
+                r.includes('accountant') ||
+                r.includes('accounts') ||
+                r.includes('cashier') ||
+                r.includes('auditor');
+        };
+        const getEffectiveBranchFilter = (u: any) => {
+            if (!u || !u.branchId) return null;
+            const b = String(u.branchId).trim();
+            if (!b || b === 'ALL' || b === 'all' || b === 'SYSTEM' || b.startsWith('inst_') || b === u.institutionId) {
+                return null;
+            }
+            return b;
         };
 
         if (req.method === 'GET') {
@@ -1699,13 +2072,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 const tablesWithBranchId = ['users', 'invoices', 'receipts'];
                 const isBranchRestrictedUser = user && !isInstitutionAdminRole(user.role);
+                const effBranchId = getEffectiveBranchFilter(user);
                 
-                if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
-                    if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
-                        q = q.or(`branch_id.eq.${user.branchId},branch_id.is.null,branch_id.eq.`);
-                    } else {
-                        q = q.eq('branch_id', user.branchId);
-                    }
+                if (isBranchRestrictedUser && effBranchId && tablesWithBranchId.includes(moduleName)) {
+                    q = q.or(`branch_id.eq.${effBranchId},branch_id.is.null,branch_id.eq.`);
                 }
 
                 if (getStrParam(id)) q = q.eq('id', getStrParam(id));
@@ -1837,12 +2207,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
                 const tablesWithBranchId = ['users', 'invoices', 'receipts'];
                 const isBranchRestrictedUser = user && !isInstitutionAdminRole(user.role);
-                if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
-                    if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
-                        q = q.or(`branch_id.eq.${user.branchId},branch_id.is.null,branch_id.eq.`);
-                    } else {
-                        q = q.eq('branch_id', user.branchId);
-                    }
+                const effBranchId = getEffectiveBranchFilter(user);
+                if (isBranchRestrictedUser && effBranchId && tablesWithBranchId.includes(moduleName)) {
+                    q = q.or(`branch_id.eq.${effBranchId},branch_id.is.null,branch_id.eq.`);
                 }
                 if (moduleName === 'app_notifications' && !isGroupOrSuperAdmin && user?.id && !getStrParam(req.query.user_id) && !getStrParam(req.query.userId)) {
                     const rawUserId = user.id.replace(/^u_/, '');
@@ -1938,12 +2305,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const tablesWithBranchId = ['users', 'invoices', 'receipts'];
             const isBranchRestrictedUser = user && !isInstitutionAdminRole(user.role);
-            if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
-                if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
-                    sqlConditions.push({ sql: `(branch_id::text = $VAL OR branch_id IS NULL OR branch_id = '')`, val: user.branchId });
-                } else {
-                    sqlConditions.push({ sql: `branch_id::text = $VAL`, val: user.branchId });
-                }
+            const effBranchId = getEffectiveBranchFilter(user);
+            if (isBranchRestrictedUser && effBranchId && tablesWithBranchId.includes(moduleName)) {
+                sqlConditions.push({ sql: `(branch_id::text = $VAL OR branch_id IS NULL OR branch_id = '')`, val: effBranchId });
             }
 
             if (getStrParam(id)) sqlConditions.push({ sql: `id::text = $VAL`, val: getStrParam(id) });
@@ -2235,14 +2599,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     if (error) {
-                        if (moduleName === 'school_remedial_duty_roster' || moduleName === 'pm_deposit_refunds' || moduleName === 'pm_inspections' || moduleName === 'pm_utility_readings' || moduleName === 'ds_invoices' || moduleName === 'ds_payments') {
+                        if (moduleName === 'school_remedial_duty_roster' || moduleName === 'pm_deposit_refunds' || moduleName === 'pm_inspections' || moduleName === 'pm_utility_readings' || moduleName === 'ds_students' || moduleName === 'ds_invoices' || moduleName === 'ds_payments' || moduleName === 'ds_lessons' || moduleName === 'ds_leads') {
                             const targetInst = targetInstParam || user?.institutionId;
                             if (targetInst && supabase) {
                                 try {
+                                    const rawInst = targetInst.replace(/^inst_/, '');
+                                    const prefInst = targetInst.startsWith('inst_') ? targetInst : `inst_${targetInst}`;
                                     const { data: imsData } = await supabase
                                         .from('institution_module_states')
                                         .select('data')
-                                        .or(`id.eq.ims_${moduleName}_${targetInst},id.eq.${moduleName}_${targetInst},and(institution_id.eq.${targetInst},module_id.eq.${moduleName})`)
+                                        .or(`id.eq.ims_${moduleName}_${targetInst},id.eq.ims_${moduleName}_${rawInst},id.eq.ims_${moduleName}_${prefInst},id.eq.${moduleName}_${targetInst},and(institution_id.eq.${targetInst},module_id.eq.${moduleName})`)
                                         .order('updated_at', { ascending: false })
                                         .limit(1);
                                     if (imsData && imsData.length > 0 && imsData[0].data) {
@@ -2346,7 +2712,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         // Non-critical modules: return empty array fallback on statement timeout to keep UI operational
                         const isTimeoutError = error?.code === '57014' || (error?.message && error.message.toLowerCase().includes('timeout'));
                         if (isTimeoutError && (
-                            moduleName.startsWith('ds_') || 
                             ['security_alerts', 'security_logs', 'visitors', 'building_visitor_logs', 'watchlist_records', 'gate_passes', 'student_gate_passes', 'school_registry', 'app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'requisitions', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'retail_sales', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts'].includes(moduleName)
                         )) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Returning empty array fallback to preserve frontend stability.`);
@@ -2800,6 +3165,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
+            if (['ds_students', 'ds_invoices', 'ds_payments'].includes(moduleName) && Array.isArray(data) && supabase) {
+                const targetInst = effectiveTenantInstId || targetInstParam || user?.institutionId;
+                if (targetInst && targetInst !== 'ALL' && targetInst !== 'SYSTEM') {
+                    try {
+                        const rawInst = targetInst.replace(/^inst_/, '');
+                        const prefInst = targetInst.startsWith('inst_') ? targetInst : `inst_${targetInst}`;
+                        const { data: imsRows } = await executeWithTimeout(
+                            supabase
+                                .from('institution_module_states')
+                                .select('data')
+                                .in('id', [`ims_${moduleName}_${targetInst}`, `ims_${moduleName}_${rawInst}`, `ims_${moduleName}_${prefInst}`]),
+                            2000
+                        ).catch(() => ({ data: null }));
+                        if (Array.isArray(imsRows) && imsRows.length > 0) {
+                            const existingIds = new Set((data as any[]).map(r => r?.id).filter(Boolean));
+                            for (const row of imsRows) {
+                                const list = Array.isArray(row?.data) ? row.data : (row?.data?.records || []);
+                                if (Array.isArray(list)) {
+                                    for (const item of list) {
+                                        if (item && item.id && !existingIds.has(item.id)) {
+                                            (data as any[]).unshift(item);
+                                            existingIds.add(item.id);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (_) {}
+                }
+            }
+
             if (moduleName === 'ds_students' && Array.isArray(data)) {
                 // 1. Initial pass: resolve from row and metadata
                 (data as any[]).forEach(r => {
@@ -2961,6 +3357,152 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         r.amount = amt;
                         r.amount_paid = amt;
                         r.amountPaid = amt;
+                    }
+                });
+            }
+
+            if (moduleName === 'invoices' && Array.isArray(data)) {
+                (data as any[]).forEach(r => {
+                    if (r && typeof r === 'object') {
+                        const meta = (typeof r.metadata === 'object' && r.metadata !== null) ? r.metadata : {};
+                        const instId = r.institution_id || r.institutionId || meta.institutionId || meta.institution_id;
+                        if (instId) {
+                            r.institution_id = instId;
+                            r.institutionId = instId;
+                        }
+                        const invNo = r.invoice_number || r.invoiceNumber || meta.invoiceNumber || meta.invoice_number || r.id || '';
+                        if (invNo) {
+                            r.invoice_number = invNo;
+                            r.invoiceNumber = invNo;
+                        }
+                        const sId = r.student_id || r.studentId || meta.studentId || meta.student_id;
+                        if (sId) {
+                            r.student_id = sId;
+                            r.studentId = sId;
+                        }
+                        const sName = r.student_name || r.studentName || meta.studentName || meta.student_name;
+                        if (sName && sName !== '-') {
+                            r.student_name = sName;
+                            r.studentName = sName;
+                        }
+                        const admNo = r.admission_number || r.admissionNumber || meta.admissionNumber || meta.admission_number;
+                        if (admNo && admNo !== '-') {
+                            r.admission_number = admNo;
+                            r.admissionNumber = admNo;
+                        }
+                        const cName = r.class_name || r.className || meta.className || meta.class_name;
+                        if (cName) {
+                            r.class_name = cName;
+                            r.className = cName;
+                        }
+                        const issDate = r.issue_date || r.issueDate || meta.issueDate || meta.issue_date || (r.created_at ? String(r.created_at).split('T')[0] : '');
+                        if (issDate) {
+                            r.issue_date = issDate;
+                            r.issueDate = issDate;
+                        }
+                        const dDate = r.due_date || r.dueDate || meta.dueDate || meta.due_date || issDate;
+                        if (dDate) {
+                            r.due_date = dDate;
+                            r.dueDate = dDate;
+                        }
+                        const tot = r.total_amount !== undefined && r.total_amount !== null
+                            ? Number(r.total_amount)
+                            : (r.totalAmount !== undefined && r.totalAmount !== null ? Number(r.totalAmount) : 0);
+                        r.total_amount = isNaN(tot) ? 0 : tot;
+                        r.totalAmount = r.total_amount;
+
+                        const paid = r.amount_paid !== undefined && r.amount_paid !== null
+                            ? Number(r.amount_paid)
+                            : (r.amountPaid !== undefined && r.amountPaid !== null
+                                ? Number(r.amountPaid)
+                                : (r.paid_amount !== undefined && r.paid_amount !== null
+                                    ? Number(r.paid_amount)
+                                    : (r.paidAmount !== undefined && r.paidAmount !== null ? Number(r.paidAmount) : 0)));
+                        const cleanPaid = isNaN(paid) ? 0 : paid;
+                        r.amount_paid = cleanPaid;
+                        r.amountPaid = cleanPaid;
+                        r.paid_amount = cleanPaid;
+                        r.paidAmount = cleanPaid;
+
+                        const bal = r.balance !== undefined && r.balance !== null && !isNaN(Number(r.balance))
+                            ? Number(r.balance)
+                            : Math.max(0, r.total_amount - cleanPaid);
+                        r.balance = bal;
+
+                        if (typeof r.items === 'string') {
+                            try { r.items = JSON.parse(r.items); } catch (_) { r.items = []; }
+                        } else if (!Array.isArray(r.items)) {
+                            r.items = [];
+                        }
+                        if (!r.status) {
+                            r.status = cleanPaid >= r.total_amount && r.total_amount > 0 ? 'Paid' : (cleanPaid > 0 ? 'Partially Paid' : 'Unpaid');
+                        }
+                    }
+                });
+            }
+
+            if (moduleName === 'receipts' && Array.isArray(data)) {
+                (data as any[]).forEach(r => {
+                    if (r && typeof r === 'object') {
+                        const meta = (typeof r.metadata === 'object' && r.metadata !== null) ? r.metadata : {};
+                        const instId = r.institution_id || r.institutionId || meta.institutionId || meta.institution_id;
+                        if (instId) {
+                            r.institution_id = instId;
+                            r.institutionId = instId;
+                        }
+                        const recNo = r.receipt_number || r.receiptNumber || meta.receiptNumber || meta.receipt_number || r.id || '';
+                        if (recNo) {
+                            r.receipt_number = recNo;
+                            r.receiptNumber = recNo;
+                        }
+                        const pDate = r.payment_date || r.paymentDate || meta.paymentDate || meta.payment_date || (r.created_at ? String(r.created_at).split('T')[0] : '');
+                        if (pDate) {
+                            r.payment_date = pDate;
+                            r.paymentDate = pDate;
+                        }
+                        const amt = r.amount_paid !== undefined && r.amount_paid !== null
+                            ? Number(r.amount_paid)
+                            : (r.amountPaid !== undefined && r.amountPaid !== null
+                                ? Number(r.amountPaid)
+                                : (r.amount !== undefined && r.amount !== null ? Number(r.amount) : 0));
+                        const cleanAmt = isNaN(amt) ? 0 : amt;
+                        r.amount_paid = cleanAmt;
+                        r.amountPaid = cleanAmt;
+                        r.amount = cleanAmt;
+
+                        const pFor = r.paid_for || r.paidFor || meta.paidFor || meta.paid_for || 'Fee Payment';
+                        r.paid_for = pFor;
+                        r.paidFor = pFor;
+
+                        const pMethod = r.payment_method || r.paymentMethod || meta.paymentMethod || meta.payment_method || 'Cash';
+                        r.payment_method = pMethod;
+                        r.paymentMethod = pMethod;
+
+                        const sId = r.student_id || r.studentId || meta.studentId || meta.student_id;
+                        if (sId) {
+                            r.student_id = sId;
+                            r.studentId = sId;
+                        }
+                        const sName = r.student_name || r.studentName || meta.studentName || meta.student_name;
+                        if (sName && sName !== '-') {
+                            r.student_name = sName;
+                            r.studentName = sName;
+                        }
+                        const admNo = r.admission_number || r.admissionNumber || meta.admissionNumber || meta.admission_number;
+                        if (admNo && admNo !== '-') {
+                            r.admission_number = admNo;
+                            r.admissionNumber = admNo;
+                        }
+                        const invId = r.invoice_id || r.invoiceId || meta.invoiceId || meta.invoice_id;
+                        if (invId) {
+                            r.invoice_id = invId;
+                            r.invoiceId = invId;
+                        }
+                        const relTx = r.related_transaction_id || r.relatedTransactionId || meta.relatedTransactionId || meta.related_transaction_id;
+                        if (relTx) {
+                            r.related_transaction_id = relTx;
+                            r.relatedTransactionId = relTx;
+                        }
                     }
                 });
             }
@@ -3755,7 +4297,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     copy.passportPhoto = copy.passport_photo;
                 }
             }
-            if (moduleName === 'receipts' || moduleName === 'payments' || moduleName === 'ds_payments') {
+            if (moduleName === 'receipts' || moduleName === 'payments') {
                 if (copy.amount !== undefined && copy.amount_paid === undefined) {
                     copy.amount_paid = copy.amount;
                 }
@@ -4563,29 +5105,94 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const cleanDsStudent = (s: any) => {
                     if (!s || typeof s !== 'object') return s;
                     const copy = { ...s };
-                    const cat = copy.license_category || copy.licenseCategory || copy.license_type_interested || copy.licenseTypeInterested;
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+
+                    if (copy.institutionId !== undefined && copy.institution_id === undefined) copy.institution_id = copy.institutionId;
+                    if (copy.branchId !== undefined && copy.branch_id === undefined) copy.branch_id = copy.branchId;
+                    if (copy.userId !== undefined && copy.user_id === undefined) copy.user_id = copy.userId;
+                    if ((copy.fullName || copy.name || copy.studentName) && !copy.full_name) {
+                        copy.full_name = copy.fullName || copy.name || copy.studentName;
+                    }
+                    if (!copy.full_name || typeof copy.full_name !== 'string' || !copy.full_name.trim()) {
+                        copy.full_name = 'Student';
+                    }
+                    if (copy.admissionNumber !== undefined && copy.admission_number === undefined) copy.admission_number = copy.admissionNumber;
+                    if ((copy.phoneNumber || copy.phone_number) && !copy.phone) {
+                        copy.phone = copy.phoneNumber || copy.phone_number;
+                    }
+                    if (copy.phone === undefined || copy.phone === null) {
+                        copy.phone = '';
+                    }
+                    if (copy.idNumber !== undefined && copy.id_number === undefined) copy.id_number = copy.idNumber;
+                    if (copy.nationalId !== undefined && copy.national_id === undefined) copy.national_id = copy.nationalId;
+                    if (copy.id_number && !copy.national_id) copy.national_id = copy.id_number;
+                    if (copy.national_id && !copy.id_number) copy.id_number = copy.national_id;
+                    if (copy.passportNumber !== undefined && copy.passport_number === undefined) copy.passport_number = copy.passportNumber;
+                    if (copy.courseDurationDays !== undefined && copy.course_duration_days === undefined) copy.course_duration_days = Number(copy.courseDurationDays) || 0;
+                    if (copy.remainingDays !== undefined && copy.remaining_days === undefined) copy.remaining_days = Number(copy.remainingDays) || 0;
+                    if (copy.priorAttendedDays !== undefined && copy.prior_attended_days === undefined) copy.prior_attended_days = Number(copy.priorAttendedDays) || 0;
+                    if (copy.pdlStatus !== undefined && copy.pdl_status === undefined) copy.pdl_status = copy.pdlStatus;
+                    if (copy.paymentStatus !== undefined && copy.payment_status === undefined) copy.payment_status = copy.paymentStatus;
+                    if (copy.activationDate !== undefined && copy.activation_date === undefined) copy.activation_date = copy.activationDate;
+                    if (copy.enrollmentDate !== undefined && copy.enrollment_date === undefined) copy.enrollment_date = copy.enrollmentDate;
+                    if (copy.theoryProgressPercent !== undefined && copy.theory_progress_percent === undefined) copy.theory_progress_percent = Number(copy.theoryProgressPercent) || 0;
+                    if (copy.practicalProgressPercent !== undefined && copy.practical_progress_percent === undefined) copy.practical_progress_percent = Number(copy.practicalProgressPercent) || 0;
+                    if (copy.theoryTestScore !== undefined && copy.theory_test_score === undefined) copy.theory_test_score = copy.theoryTestScore;
+                    if (copy.practicalTestScore !== undefined && copy.practical_test_score === undefined) copy.practical_test_score = copy.practicalTestScore;
+                    if (copy.ntsaBookingStatus !== undefined && copy.ntsa_booking_status === undefined) copy.ntsa_booking_status = copy.ntsaBookingStatus;
+                    if (copy.assignedInstructorId !== undefined && copy.assigned_instructor_id === undefined) copy.assigned_instructor_id = copy.assignedInstructorId;
+                    if (copy.assignedVehicleId !== undefined && copy.assigned_vehicle_id === undefined) copy.assigned_vehicle_id = copy.assignedVehicleId;
+                    if (copy.totalFee !== undefined && copy.total_fee === undefined) copy.total_fee = Number(copy.totalFee) || 0;
+                    if (copy.paidFee !== undefined && copy.paid_fee === undefined) copy.paid_fee = Number(copy.paidFee) || 0;
+                    if (copy.createdAt !== undefined && copy.created_at === undefined) copy.created_at = copy.createdAt;
+                    if (copy.updatedAt !== undefined && copy.updated_at === undefined) copy.updated_at = copy.updatedAt;
+
+                    const cat = copy.license_type_interested || copy.licenseTypeInterested || copy.license_category || copy.licenseCategory;
                     if (cat) {
                         copy.license_type_interested = cat;
                     }
-                    delete copy.license_category;
-                    delete copy.licenseCategory;
-                    delete copy.licenseTypeInterested;
-                    delete copy.preferred_lesson_hours;
-                    delete copy.preferredLessonHours;
+
+                    ['branch_id', 'user_id', 'assigned_instructor_id', 'assigned_vehicle_id'].forEach(fk => {
+                        if (copy[fk] === '' || copy[fk] === 'null' || copy[fk] === 'undefined') {
+                            copy[fk] = null;
+                        }
+                    });
+
+                    if (copy.full_name) meta.fullName = copy.full_name;
+                    if (copy.admission_number) meta.admissionNumber = copy.admission_number;
+                    if (copy.phone) meta.phone = copy.phone;
+                    if (copy.id_number) meta.idNumber = copy.id_number;
+                    if (copy.branch_id) meta.branchId = copy.branch_id;
+                    if (copy.license_type_interested) meta.licenseCategory = copy.license_type_interested;
 
                     const photo = copy.passport_photo || copy.passportPhoto;
                     if (photo) {
                         copy.passport_photo = photo;
-                        const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
                         meta.passportPhoto = photo;
-                        copy.metadata = meta;
                     }
-                    delete copy.passportPhoto;
+                    copy.metadata = meta;
 
                     if (copy.checkoutRequestId && !copy.checkout_request_id) {
                         copy.checkout_request_id = copy.checkoutRequestId;
                     }
-                    delete copy.checkoutRequestId;
+
+                    const allowedDsStudentCols = new Set([
+                        'id', 'institution_id', 'branch_id', 'user_id', 'admission_number',
+                        'full_name', 'phone', 'email', 'id_number', 'national_id',
+                        'passport_number', 'passport_photo', 'license_type_interested',
+                        'enrollment_date', 'status', 'theory_progress_percent', 'practical_progress_percent',
+                        'theory_test_score', 'practical_test_score', 'ntsa_booking_status',
+                        'assigned_instructor_id', 'assigned_vehicle_id', 'total_fee', 'paid_fee',
+                        'course_duration_days', 'remaining_days', 'prior_attended_days',
+                        'pdl_status', 'notes', 'webauthn_credentials', 'fingerprint_template',
+                        'payment_status', 'activation_date', 'checkout_request_id',
+                        'metadata', 'created_at', 'updated_at'
+                    ]);
+                    Object.keys(copy).forEach(k => {
+                        if (!allowedDsStudentCols.has(k) || copy[k] === undefined) {
+                            delete copy[k];
+                        }
+                    });
 
                     return copy;
                 };
@@ -5062,6 +5669,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (copy.class_name === undefined) copy.class_name = copy.student_class;
                             delete copy.student_class;
                         }
+                        if (copy.admissionNumber !== undefined) {
+                            if (copy.admission_number === undefined) copy.admission_number = copy.admissionNumber;
+                            delete copy.admissionNumber;
+                        }
+                        if (copy.discountAmount !== undefined) {
+                            if (copy.discount_amount === undefined) copy.discount_amount = Number(copy.discountAmount) || 0;
+                            delete copy.discountAmount;
+                        }
+                        if (copy.sponsorName !== undefined) {
+                            if (copy.sponsor_name === undefined) copy.sponsor_name = copy.sponsorName;
+                            delete copy.sponsorName;
+                        }
+                        if (copy.sponsorAmount !== undefined) {
+                            if (copy.sponsor_amount === undefined) copy.sponsor_amount = Number(copy.sponsorAmount) || 0;
+                            delete copy.sponsorAmount;
+                        }
                         copy.total_amount = Number(copy.total_amount || 0);
                         copy.paid_amount = Number(copy.paid_amount || 0);
                         if (copy.balance === undefined || copy.balance === null) {
@@ -5078,12 +5701,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                         const allowedDsInvoiceCols = new Set([
                             'id', 'institution_id', 'branch_id', 'student_id', 'student_name',
-                            'fee_structure_id', 'class_name', 'items', 'total_amount',
-                            'paid_amount', 'balance', 'status', 'invoice_number', 'due_date',
-                            'notes', 'created_at', 'updated_at'
+                            'admission_number', 'fee_structure_id', 'class_name', 'items', 'total_amount',
+                            'paid_amount', 'balance', 'discount_amount', 'sponsor_name', 'sponsor_amount',
+                            'status', 'invoice_number', 'due_date',
+                            'notes', 'metadata', 'created_at', 'updated_at'
                         ]);
                         Object.keys(copy).forEach(k => {
-                            if (!allowedDsInvoiceCols.has(k)) {
+                            if (!allowedDsInvoiceCols.has(k) || copy[k] === undefined) {
                                 delete copy[k];
                             }
                         });
@@ -5111,6 +5735,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (copy.invoice_id === undefined) copy.invoice_id = copy.invoiceId;
                             delete copy.invoiceId;
                         }
+                        ['branch_id', 'invoice_id', 'student_id'].forEach(fk => {
+                            if (copy[fk] === '' || copy[fk] === 'null' || copy[fk] === 'undefined') {
+                                copy[fk] = null;
+                            }
+                        });
                         if (copy.receiptNumber !== undefined) {
                             if (copy.receipt_number === undefined) copy.receipt_number = copy.receiptNumber;
                             delete copy.receiptNumber;
@@ -5346,10 +5975,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ];
                     const invoicePreservedCols = new Set([
                         'notes', 'subtotal', 'sub_total', 'tax_rate', 'taxRate', 'tax_amount', 'taxAmount',
-                        'discount_amount', 'discountAmount', 'paidAmount', 'paid_amount', 'metadata'
+                        'discount_amount', 'discountAmount', 'paidAmount', 'paid_amount', 'metadata',
+                        'student_name', 'studentName', 'admission_number', 'admissionNumber',
+                        'created_at', 'updated_at'
+                    ]);
+                    const receiptPreservedCols = new Set([
+                        'notes', 'metadata', 'student_name', 'studentName',
+                        'admission_number', 'admissionNumber', 'created_at', 'updated_at'
                     ]);
                     transientColumns.forEach(col => {
                         if (moduleName === 'invoices' && invoicePreservedCols.has(col)) {
+                            return;
+                        }
+                        if (moduleName === 'receipts' && receiptPreservedCols.has(col)) {
                             return;
                         }
                         if (col in copy) {
@@ -5358,14 +5996,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
 
                     if (moduleName === 'invoices') {
+                        if (copy.studentName !== undefined) {
+                            if (copy.student_name === undefined) copy.student_name = copy.studentName;
+                            delete copy.studentName;
+                        }
+                        if (copy.admissionNumber !== undefined) {
+                            if (copy.admission_number === undefined) copy.admission_number = copy.admissionNumber;
+                            delete copy.admissionNumber;
+                        }
                         const allowedInvoiceCols = new Set([
                             'id', 'invoice_number', 'institution_id', 'branch_id',
                             'issue_date', 'due_date', 'items', 'total_amount',
-                            'status', 'student_id', 'class_name', 'created_at', 'updated_at',
+                            'status', 'student_id', 'student_name', 'admission_number', 'class_name', 'created_at', 'updated_at',
                             'client_id', 'client_name', 'client_email', 'client_phone',
                             'client_tax_pin', 'client_address', 'currency', 'notes', 'terms',
                             'subtotal', 'tax_rate', 'tax_amount', 'discount_amount',
-                            'amount_paid', 'balance', 'metadata'
+                            'amount_paid', 'paid_amount', 'balance', 'metadata'
                         ]);
                         Object.keys(copy).forEach(k => {
                             if (!allowedInvoiceCols.has(k)) {
@@ -5376,11 +6022,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             delete copy.branch_id;
                         }
                     } else if (moduleName === 'receipts') {
+                        if (copy.studentName !== undefined) {
+                            if (copy.student_name === undefined) copy.student_name = copy.studentName;
+                            delete copy.studentName;
+                        }
+                        if (copy.admissionNumber !== undefined) {
+                            if (copy.admission_number === undefined) copy.admission_number = copy.admissionNumber;
+                            delete copy.admissionNumber;
+                        }
                         const allowedReceiptCols = new Set([
                             'id', 'receipt_number', 'institution_id', 'branch_id',
-                            'payment_date', 'amount_paid', 'paid_for', 'payment_method',
-                            'related_transaction_id', 'invoice_id', 'student_id',
-                            'created_at', 'updated_at'
+                            'payment_date', 'amount_paid', 'amount', 'paid_for', 'payment_method',
+                            'related_transaction_id', 'invoice_id', 'student_id', 'student_name', 'admission_number',
+                            'notes', 'metadata', 'created_at', 'updated_at'
                         ]);
                         Object.keys(copy).forEach(k => {
                             if (!allowedReceiptCols.has(k)) {
@@ -7302,8 +7956,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         ? `ON CONFLICT ("id") DO UPDATE SET ${updateClauses.join(', ')}` 
                                         : `ON CONFLICT ("id") DO NOTHING`;
                                     const upsertQuery = `INSERT INTO public."${targetDbTable}" (${keys.map(k => `"${k}"`).join(', ')}) VALUES (${placeholders.join(', ')}) ${onConflictClause} RETURNING *;`;
-                                    const upRes = await pool.query(upsertQuery, vals).catch((e: any) => {
+                                    const upRes = await pool.query(upsertQuery, vals).catch(async (e: any) => {
                                         console.warn(`[Direct PG Upsert Warning on ${targetDbTable}]:`, e?.message);
+                                        if (targetDbTable === 'invoices' || targetDbTable === 'receipts' || e?.code === '42703' || e?.code === '23503') {
+                                            try {
+                                                _schemaMigrationDone = false;
+                                                _schemaMigrationPromise = null;
+                                                await ensureEssentialSchema(pool);
+                                                return await pool.query(upsertQuery, vals);
+                                            } catch (retryErr: any) {
+                                                console.warn(`[Direct PG Upsert Retry Warning on ${targetDbTable}]:`, retryErr?.message);
+                                            }
+                                        }
                                         return { rows: [item] };
                                     });
                                     if (upRes?.rows && upRes.rows.length > 0) {
@@ -7721,7 +8385,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         continue;
                     }
 
-                    if (moduleName === 'ds_students' || targetDbTable === 'ds_students') {
+                    if (moduleName === 'ds_students' || targetDbTable === 'ds_students' || moduleName === 'ds_invoices' || targetDbTable === 'ds_invoices' || moduleName === 'ds_payments' || targetDbTable === 'ds_payments') {
                         try {
                             const pool = await getPgPool();
                             if (pool) {
@@ -7744,6 +8408,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS activation_date TEXT;
                                         ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_category TEXT;
                                         ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_type_interested TEXT;
+                                        ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                                        ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS admission_number TEXT;
+                                        ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS discount_amount NUMERIC DEFAULT 0;
+                                        ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS sponsor_name TEXT;
+                                        ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS sponsor_amount NUMERIC DEFAULT 0;
+                                        ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                                        ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                                        ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS student_id TEXT;
+                                        ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS student_name TEXT;
+                                        ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS admission_number TEXT;
+                                        ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Completed';
+                                        ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS notes TEXT;
+                                        ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                                        ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS audited_by TEXT;
+                                        ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS audited_at TEXT;
+                                        ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS edit_reason TEXT;
+                                        ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS deletion_reason TEXT;
                                         NOTIFY pgrst, 'reload schema';
                                     `),
                                     2000
@@ -7751,7 +8432,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                         } catch (_) {}
 
-                        const stripDsStudentCol = (item: any) => {
+                        const stripDsCol = (item: any) => {
                             if (!item || typeof item !== 'object') return item;
                             const copy = { ...item };
                             if (offendingCol === 'passport_photo' && copy.passport_photo) {
@@ -7765,7 +8446,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             delete copy[offendingCol];
                             return copy;
                         };
-                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripDsStudentCol) : stripDsStudentCol(currentPayload);
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripDsCol) : stripDsCol(currentPayload);
                         maxRetries--;
                         continue;
                     }
@@ -8185,8 +8866,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const curInstId = (currentPayload as any)?.institution_id || (Array.isArray(currentPayload) ? currentPayload[0]?.institution_id : null);
                         const isGlobalOrSystem = !curInstId || curInstId === 'GLOBAL' || curInstId === 'SYSTEM' || curInstId === 'null' || curInstId === 'undefined' || curInstId === 'inst_GLOBAL' || curInstId === 'inst_SYSTEM';
 
-                        // For log/telemetry tables, global/system scope, or when retries are low: nullify institution_id immediately to satisfy FK
-                        if (isLogOrTelemetryTable || isGlobalOrSystem || maxRetries <= 2) {
+                        // For log/telemetry tables, global/system scope, or when retries are low (excluding ds_ tenant tables): nullify institution_id immediately to satisfy FK
+                        const isDsModule = moduleName.startsWith('ds_') || targetDbTable.startsWith('ds_');
+                        if (!isDsModule && (isLogOrTelemetryTable || isGlobalOrSystem || maxRetries <= 2)) {
                             const nullifyInst = (item: any) => {
                                 if (item && typeof item === 'object') {
                                     item.institution_id = null;
@@ -8238,6 +8920,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             message: 'Student enrollment handled locally.',
                             id: (recordData as any)?.id || (Array.isArray(recordData) ? recordData[0]?.id : null) || getStrParam(id)
                         });
+                    }
+
+                    if (moduleName.startsWith('ds_') || targetDbTable.startsWith('ds_')) {
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await executeWithTimeout(
+                                    pool.query(`
+                                        ALTER TABLE public.ds_students DROP CONSTRAINT IF EXISTS ds_students_user_id_fkey CASCADE;
+                                        ALTER TABLE public.ds_students DROP CONSTRAINT IF EXISTS ds_students_institution_id_fkey CASCADE;
+                                        ALTER TABLE public.ds_students DROP CONSTRAINT IF EXISTS ds_students_branch_id_fkey CASCADE;
+                                        ALTER TABLE public.ds_students DROP CONSTRAINT IF EXISTS ds_students_assigned_instructor_id_fkey CASCADE;
+                                        ALTER TABLE public.ds_students DROP CONSTRAINT IF EXISTS ds_students_assigned_vehicle_id_fkey CASCADE;
+                                        ALTER TABLE public.ds_invoices DROP CONSTRAINT IF EXISTS ds_invoices_student_id_fkey CASCADE;
+                                        ALTER TABLE public.ds_invoices DROP CONSTRAINT IF EXISTS ds_invoices_institution_id_fkey CASCADE;
+                                        ALTER TABLE public.ds_invoices DROP CONSTRAINT IF EXISTS ds_invoices_branch_id_fkey CASCADE;
+                                        ALTER TABLE public.ds_invoices DROP CONSTRAINT IF EXISTS ds_invoices_fee_structure_id_fkey CASCADE;
+                                        ALTER TABLE public.ds_payments DROP CONSTRAINT IF EXISTS ds_payments_student_id_fkey CASCADE;
+                                        ALTER TABLE public.ds_payments DROP CONSTRAINT IF EXISTS ds_payments_invoice_id_fkey CASCADE;
+                                        ALTER TABLE public.ds_payments DROP CONSTRAINT IF EXISTS ds_payments_branch_id_fkey CASCADE;
+                                        ALTER TABLE public.ds_payments DROP CONSTRAINT IF EXISTS ds_payments_institution_id_fkey CASCADE;
+                                        NOTIFY pgrst, 'reload schema';
+                                    `),
+                                    2000
+                                ).catch(() => {});
+                            }
+                        } catch (_) {}
+
+                        const nullifyOptionalDsFKs = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            // Only null optional auxiliary FKs; NEVER null institution_id, student_id, or invoice_id on DS records
+                            ['user_id', 'branch_id', 'fee_structure_id', 'assigned_instructor_id', 'assigned_vehicle_id', 'broadcast_id'].forEach(k => {
+                                if (k in copy) copy[k] = null;
+                            });
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(nullifyOptionalDsFKs) : nullifyOptionalDsFKs(currentPayload);
+                        maxRetries--;
+                        continue;
                     }
 
                     console.warn(`[api/records] Foreign key constraint note on [${moduleName}]: nulling relational IDs and retrying...`);
@@ -8739,7 +9461,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        message.includes('invalid input syntax for type uuid') ||
                                        message.includes('not found in the schema cache');
                 if (isTableMissing) {
-                    if (['school_remedial_duty_roster', 'pm_deposit_refunds', 'pm_inspections', 'pm_utility_readings', 'users', 'ds_invoices', 'ds_payments', 'invoices', 'receipts', 'activity_log', 'activity_logs', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName)) {
+                    if (['school_remedial_duty_roster', 'pm_deposit_refunds', 'pm_inspections', 'pm_utility_readings', 'users', 'ds_students', 'ds_invoices', 'ds_payments', 'ds_lessons', 'ds_leads', 'ds_instructors', 'ds_vehicles', 'ds_expenditures', 'invoices', 'receipts', 'activity_log', 'activity_logs', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName)) {
                         const rawItems = Array.isArray(recordData) ? recordData : [recordData];
                         const instId = rawItems[0]?.institution_id || rawItems[0]?.institutionId || user?.institutionId;
                         if (instId) {
@@ -9013,35 +9735,85 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     currentUpdateData = copy;
                 } else if (moduleName === 'ds_students' && currentUpdateData && typeof currentUpdateData === 'object') {
                     const copy = { ...currentUpdateData };
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                    if (copy.institutionId !== undefined && copy.institution_id === undefined) copy.institution_id = copy.institutionId;
+                    if (copy.branchId !== undefined && copy.branch_id === undefined) copy.branch_id = copy.branchId;
+                    if (copy.userId !== undefined && copy.user_id === undefined) copy.user_id = copy.userId;
+                    if ((copy.fullName || copy.name || copy.studentName) && !copy.full_name) {
+                        copy.full_name = copy.fullName || copy.name || copy.studentName;
+                    }
+                    if (copy.admissionNumber !== undefined && copy.admission_number === undefined) copy.admission_number = copy.admissionNumber;
+                    if (copy.idNumber !== undefined && copy.id_number === undefined) copy.id_number = copy.idNumber;
+                    if (copy.nationalId !== undefined && copy.national_id === undefined) copy.national_id = copy.nationalId;
+                    if (copy.courseDurationDays !== undefined && copy.course_duration_days === undefined) copy.course_duration_days = Number(copy.courseDurationDays) || 0;
+                    if (copy.remainingDays !== undefined && copy.remaining_days === undefined) copy.remaining_days = Number(copy.remainingDays) || 0;
+                    if (copy.priorAttendedDays !== undefined && copy.prior_attended_days === undefined) copy.prior_attended_days = Number(copy.priorAttendedDays) || 0;
+                    if (copy.pdlStatus !== undefined && copy.pdl_status === undefined) copy.pdl_status = copy.pdlStatus;
+                    if (copy.paymentStatus !== undefined && copy.payment_status === undefined) copy.payment_status = copy.paymentStatus;
+                    if (copy.activationDate !== undefined && copy.activation_date === undefined) copy.activation_date = copy.activationDate;
+                    if (copy.enrollmentDate !== undefined && copy.enrollment_date === undefined) copy.enrollment_date = copy.enrollmentDate;
+                    if (copy.theoryProgressPercent !== undefined && copy.theory_progress_percent === undefined) copy.theory_progress_percent = Number(copy.theoryProgressPercent) || 0;
+                    if (copy.practicalProgressPercent !== undefined && copy.practical_progress_percent === undefined) copy.practical_progress_percent = Number(copy.practicalProgressPercent) || 0;
+                    if (copy.theoryTestScore !== undefined && copy.theory_test_score === undefined) copy.theory_test_score = copy.theoryTestScore;
+                    if (copy.practicalTestScore !== undefined && copy.practical_test_score === undefined) copy.practical_test_score = copy.practicalTestScore;
+                    if (copy.ntsaBookingStatus !== undefined && copy.ntsa_booking_status === undefined) copy.ntsa_booking_status = copy.ntsaBookingStatus;
+                    if (copy.assignedInstructorId !== undefined && copy.assigned_instructor_id === undefined) copy.assigned_instructor_id = copy.assignedInstructorId;
+                    if (copy.assignedVehicleId !== undefined && copy.assigned_vehicle_id === undefined) copy.assigned_vehicle_id = copy.assignedVehicleId;
+                    if (copy.totalFee !== undefined && copy.total_fee === undefined) copy.total_fee = Number(copy.totalFee) || 0;
+                    if (copy.paidFee !== undefined && copy.paid_fee === undefined) copy.paid_fee = Number(copy.paidFee) || 0;
+                    if (copy.updatedAt !== undefined && copy.updated_at === undefined) copy.updated_at = copy.updatedAt;
+
                     const cat = copy.license_category || copy.licenseCategory || copy.license_type_interested || copy.licenseTypeInterested;
                     if (cat) {
                         copy.license_type_interested = cat;
                     }
-                    delete copy.license_category;
-                    delete copy.licenseCategory;
-                    delete copy.licenseTypeInterested;
-                    delete copy.preferred_lesson_hours;
-                    delete copy.preferredLessonHours;
 
                     const photo = copy.passport_photo || copy.passportPhoto;
                     if (photo) {
                         copy.passport_photo = photo;
-                        const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
                         meta.passportPhoto = photo;
                         copy.metadata = meta;
                     }
-                    delete copy.passportPhoto;
 
                     if (copy.checkoutRequestId && !copy.checkout_request_id) {
                         copy.checkout_request_id = copy.checkoutRequestId;
                     }
-                    delete copy.checkoutRequestId;
+
+                    const allowedDsStudentCols = new Set([
+                        'id', 'institution_id', 'branch_id', 'user_id', 'admission_number',
+                        'full_name', 'phone', 'email', 'id_number', 'national_id',
+                        'passport_number', 'passport_photo', 'license_type_interested',
+                        'enrollment_date', 'status', 'theory_progress_percent', 'practical_progress_percent',
+                        'theory_test_score', 'practical_test_score', 'ntsa_booking_status',
+                        'assigned_instructor_id', 'assigned_vehicle_id', 'total_fee', 'paid_fee',
+                        'course_duration_days', 'remaining_days', 'prior_attended_days',
+                        'pdl_status', 'notes', 'webauthn_credentials', 'fingerprint_template',
+                        'payment_status', 'activation_date', 'checkout_request_id',
+                        'metadata', 'created_at', 'updated_at'
+                    ]);
+                    Object.keys(copy).forEach(k => {
+                        if (!allowedDsStudentCols.has(k) || copy[k] === undefined) {
+                            delete copy[k];
+                        }
+                    });
 
                     currentUpdateData = copy;
                 } else if (moduleName === 'ds_invoices' && currentUpdateData && typeof currentUpdateData === 'object') {
                     const copy = { ...currentUpdateData };
                     if (copy.studentName !== undefined && copy.student_name === undefined) {
                         copy.student_name = copy.studentName;
+                    }
+                    if (copy.admissionNumber !== undefined && copy.admission_number === undefined) {
+                        copy.admission_number = copy.admissionNumber;
+                    }
+                    if (copy.discountAmount !== undefined && copy.discount_amount === undefined) {
+                        copy.discount_amount = Number(copy.discountAmount) || 0;
+                    }
+                    if (copy.sponsorName !== undefined && copy.sponsor_name === undefined) {
+                        copy.sponsor_name = copy.sponsorName;
+                    }
+                    if (copy.sponsorAmount !== undefined && copy.sponsor_amount === undefined) {
+                        copy.sponsor_amount = Number(copy.sponsorAmount) || 0;
                     }
                     if (copy.feeStructureId !== undefined && copy.fee_structure_id === undefined) {
                         copy.fee_structure_id = copy.feeStructureId;
@@ -9069,12 +9841,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                     const allowedDsInvoiceCols = new Set([
                         'id', 'institution_id', 'branch_id', 'student_id', 'student_name',
-                        'fee_structure_id', 'class_name', 'items', 'total_amount',
-                        'paid_amount', 'balance', 'status', 'invoice_number', 'due_date',
-                        'notes', 'created_at', 'updated_at'
+                        'admission_number', 'fee_structure_id', 'class_name', 'items', 'total_amount',
+                        'paid_amount', 'balance', 'discount_amount', 'sponsor_name', 'sponsor_amount',
+                        'status', 'invoice_number', 'due_date',
+                        'notes', 'metadata', 'created_at', 'updated_at'
                     ]);
                     Object.keys(copy).forEach(k => {
-                        if (!allowedDsInvoiceCols.has(k)) {
+                        if (!allowedDsInvoiceCols.has(k) || copy[k] === undefined) {
                             delete copy[k];
                         }
                     });
@@ -9083,6 +9856,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const copy = { ...currentUpdateData };
                     if (copy.studentName !== undefined && copy.student_name === undefined) {
                         copy.student_name = copy.studentName;
+                    }
+                    if (copy.admissionNumber !== undefined && copy.admission_number === undefined) {
+                        copy.admission_number = copy.admissionNumber;
+                    }
+                    if (copy.branchId !== undefined && copy.branch_id === undefined) {
+                        copy.branch_id = copy.branchId;
                     }
                     if (copy.invoiceId !== undefined && copy.invoice_id === undefined) {
                         copy.invoice_id = copy.invoiceId;
@@ -9104,12 +9883,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                     const allowedDsPaymentCols = new Set([
                         'id', 'institution_id', 'branch_id', 'invoice_id', 'student_id',
-                        'student_name', 'amount', 'payment_method', 'transaction_reference',
-                        'payment_date', 'receipt_number', 'received_by', 'notes',
+                        'student_name', 'admission_number', 'amount', 'payment_method', 'transaction_reference',
+                        'payment_date', 'receipt_number', 'received_by', 'notes', 'status', 'metadata',
+                        'audited_by', 'audited_at', 'edit_reason', 'deletion_reason',
                         'created_at', 'updated_at'
                     ]);
                     Object.keys(copy).forEach(k => {
-                        if (!allowedDsPaymentCols.has(k)) {
+                        if (!allowedDsPaymentCols.has(k) || copy[k] === undefined) {
                             delete copy[k];
                         }
                     });
@@ -9159,10 +9939,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ];
                     const invoicePreservedCols = new Set([
                         'notes', 'subtotal', 'sub_total', 'tax_rate', 'taxRate', 'tax_amount', 'taxAmount',
-                        'discount_amount', 'discountAmount', 'paidAmount', 'paid_amount', 'metadata'
+                        'discount_amount', 'discountAmount', 'paidAmount', 'paid_amount', 'metadata',
+                        'student_name', 'studentName', 'admission_number', 'admissionNumber',
+                        'created_at', 'updated_at'
+                    ]);
+                    const receiptPreservedCols = new Set([
+                        'notes', 'metadata', 'student_name', 'studentName',
+                        'admission_number', 'admissionNumber', 'created_at', 'updated_at'
                     ]);
                     transientColumns.forEach(col => {
                         if (moduleName === 'invoices' && invoicePreservedCols.has(col)) {
+                            return;
+                        }
+                        if (moduleName === 'receipts' && receiptPreservedCols.has(col)) {
                             return;
                         }
                         if (col in copy) {
@@ -9171,14 +9960,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
 
                     if (moduleName === 'invoices') {
+                        if (copy.studentName !== undefined) {
+                            if (copy.student_name === undefined) copy.student_name = copy.studentName;
+                            delete copy.studentName;
+                        }
+                        if (copy.admissionNumber !== undefined) {
+                            if (copy.admission_number === undefined) copy.admission_number = copy.admissionNumber;
+                            delete copy.admissionNumber;
+                        }
                         const allowedInvoiceCols = new Set([
                             'id', 'invoice_number', 'institution_id', 'branch_id',
                             'issue_date', 'due_date', 'items', 'total_amount',
-                            'status', 'student_id', 'class_name', 'created_at', 'updated_at',
+                            'status', 'student_id', 'student_name', 'admission_number', 'class_name', 'created_at', 'updated_at',
                             'client_id', 'client_name', 'client_email', 'client_phone',
                             'client_tax_pin', 'client_address', 'currency', 'notes', 'terms',
                             'subtotal', 'tax_rate', 'tax_amount', 'discount_amount',
-                            'amount_paid', 'balance', 'metadata'
+                            'amount_paid', 'paid_amount', 'balance', 'metadata'
                         ]);
                         Object.keys(copy).forEach(k => {
                             if (!allowedInvoiceCols.has(k)) {
@@ -9189,11 +9986,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             delete copy.branch_id;
                         }
                     } else if (moduleName === 'receipts') {
+                        if (copy.studentName !== undefined) {
+                            if (copy.student_name === undefined) copy.student_name = copy.studentName;
+                            delete copy.studentName;
+                        }
+                        if (copy.admissionNumber !== undefined) {
+                            if (copy.admission_number === undefined) copy.admission_number = copy.admissionNumber;
+                            delete copy.admissionNumber;
+                        }
                         const allowedReceiptCols = new Set([
                             'id', 'receipt_number', 'institution_id', 'branch_id',
-                            'payment_date', 'amount_paid', 'paid_for', 'payment_method',
-                            'related_transaction_id', 'invoice_id', 'student_id',
-                            'created_at', 'updated_at'
+                            'payment_date', 'amount_paid', 'amount', 'paid_for', 'payment_method',
+                            'related_transaction_id', 'invoice_id', 'student_id', 'student_name', 'admission_number',
+                            'notes', 'metadata', 'created_at', 'updated_at'
                         ]);
                         Object.keys(copy).forEach(k => {
                             if (!allowedReceiptCols.has(k)) {
@@ -9951,8 +10756,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     return `$${rawKeys.length + idx + 1}`;
                                 });
                                 const updateSql = `UPDATE public."${targetDbTable}" SET ${setClauses.join(', ')} WHERE "id" IN (${idPlaceholders.join(', ')}) RETURNING *;`;
-                                const patchRes = await pool.query(updateSql, vals).catch((e: any) => {
+                                const patchRes = await pool.query(updateSql, vals).catch(async (e: any) => {
                                     console.warn(`[Direct PG Update Warning on ${targetDbTable}]:`, e?.message);
+                                    if (targetDbTable === 'invoices' || targetDbTable === 'receipts' || e?.code === '42703' || e?.code === '23503') {
+                                        try {
+                                            _schemaMigrationDone = false;
+                                            _schemaMigrationPromise = null;
+                                            await ensureEssentialSchema(pool);
+                                            return await pool.query(updateSql, vals);
+                                        } catch (_) {}
+                                    }
                                     return { rows: idsArray.map(id => ({ id, ...currentUpdateData })) };
                                 });
                                 return res.status(200).json({ success: true, data: patchRes?.rows || idsArray.map(id => ({ id, ...currentUpdateData })) });

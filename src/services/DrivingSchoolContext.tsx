@@ -854,9 +854,55 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     };
                 }
             });
+            // Consolidate students, invoices, and payments with institution-scoped localStorage backup keys
+            let mergedStuds: DSStudent[] = [...(dsStud || [])];
+            let mergedInvs: DSInvoice[] = [...(dsInvs || [])];
+            let mergedPays: DSPayment[] = [...(dsPay || [])];
+            try {
+                const studBackupRaw = localStorage.getItem(`ds_students_backup_${institutionId}`);
+                if (studBackupRaw) {
+                    const parsedStuds = JSON.parse(studBackupRaw);
+                    if (Array.isArray(parsedStuds)) {
+                        const existingIds = new Set(mergedStuds.map(s => s?.id).filter(Boolean));
+                        for (const bs of parsedStuds) {
+                            if (bs?.id && !existingIds.has(bs.id) && matchesInst(bs)) {
+                                mergedStuds.push(bs);
+                                existingIds.add(bs.id);
+                            }
+                        }
+                    }
+                }
+                const invBackupRaw = localStorage.getItem(`ds_invoices_backup_${institutionId}`);
+                if (invBackupRaw) {
+                    const parsedInvs = JSON.parse(invBackupRaw);
+                    if (Array.isArray(parsedInvs)) {
+                        const existingIds = new Set(mergedInvs.map(i => i?.id).filter(Boolean));
+                        for (const bi of parsedInvs) {
+                            if (bi?.id && !existingIds.has(bi.id) && matchesInst(bi)) {
+                                mergedInvs.push(bi);
+                                existingIds.add(bi.id);
+                            }
+                        }
+                    }
+                }
+                const payBackupRaw = localStorage.getItem(`ds_payments_backup_${institutionId}`);
+                if (payBackupRaw) {
+                    const parsedPays = JSON.parse(payBackupRaw);
+                    if (Array.isArray(parsedPays)) {
+                        const existingIds = new Set(mergedPays.map(p => p?.id).filter(Boolean));
+                        for (const bp of parsedPays) {
+                            if (bp?.id && !existingIds.has(bp.id) && matchesInst(bp)) {
+                                mergedPays.push(bp);
+                                existingIds.add(bp.id);
+                            }
+                        }
+                    }
+                }
+            } catch (_) {}
+
             // Auto-heal students that have missing or empty admissionNumber or name
             const existingAdms = new Set<string>();
-            (dsStud || []).forEach(s => {
+            (mergedStuds || []).forEach(s => {
                 const sMeta = (s as any).metadata && typeof (s as any).metadata === 'object' ? (s as any).metadata : {};
                 const adm = s.admissionNumber || (s as any).admission_number || (s as any).admission_no || (s as any).adm_no || (s as any).admNo || sMeta.admissionNumber || sMeta.admission_number || sMeta.admNo;
                 if (adm && String(adm).trim() && String(adm).trim() !== '-') {
@@ -866,7 +912,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const admPrefix = (dsSet?.[0]?.studentIdPrefix || 'ADM-').trim();
             const isNumericAdmPrefix = !isNaN(Number(admPrefix)) && admPrefix !== '';
             let nextAdmNum = 1;
-            (dsStud || []).forEach(s => {
+            (mergedStuds || []).forEach(s => {
                 const sMeta = (s as any).metadata && typeof (s as any).metadata === 'object' ? (s as any).metadata : {};
                 const adm = s.admissionNumber || (s as any).admission_number || (s as any).admission_no || (s as any).adm_no || (s as any).admNo || sMeta.admissionNumber || sMeta.admission_number || sMeta.admNo;
                 if (adm) {
@@ -892,7 +938,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 return cand;
             };
 
-            const healedStudents = (dsStud || []).map(s => {
+            const healedStudents = (mergedStuds || []).map(s => {
                 const sMeta = (s as any).metadata && typeof (s as any).metadata === 'object' ? (s as any).metadata : {};
                 const existingAdm = s.admissionNumber || (s as any).admission_number || (s as any).admission_no || (s as any).adm_no || (s as any).admNo || sMeta.admissionNumber || sMeta.admission_number || sMeta.admNo;
                 const existingName = s.fullName || (s as any).full_name || (s as any).name || (s as any).student_name || (s as any).studentName || sMeta.fullName || sMeta.name || sMeta.full_name;
@@ -907,7 +953,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 }
 
                 if (!existingAdm || !String(existingAdm).trim() || String(existingAdm).trim() === '-') {
-                    const linkedInv = (dsInvs || []).find(inv => 
+                    const linkedInv = (mergedInvs || []).find(inv => 
                         (inv.studentId && (inv.studentId === s.id || (inv as any).admissionNumber === s.id)) ||
                         (inv.studentName && updatedStudent.fullName && inv.studentName.trim().toLowerCase() === updatedStudent.fullName.trim().toLowerCase())
                     );
@@ -918,9 +964,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     updatedStudent = {
                         ...updatedStudent,
                         admissionNumber: newAdm,
-                        admission_number: newAdm,
                         updatedAt: new Date().toISOString()
                     };
+                    (updatedStudent as any).admission_number = newAdm;
                     modified = true;
                 } else if (!s.admissionNumber && existingAdm) {
                     updatedStudent.admissionNumber = String(existingAdm).trim();
@@ -937,7 +983,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             });
 
             // Auto-heal and reconcile invoices: admissionNumber, studentName, studentId, and balances
-            const healedInvoices = (dsInvs || []).map(inv => {
+            const healedInvoices = (mergedInvs || []).map(inv => {
                 let updatedInv = { ...inv };
                 let modified = false;
 
@@ -988,7 +1034,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     modified = true;
                 }
 
-                const linkedPayments = (dsPay || []).filter(p => {
+                const linkedPayments = (mergedPays || []).filter(p => {
                     if (!p || p.status === 'Pending Deletion' || p.status === 'Cancelled' || p.status === 'Rejected') return false;
                     if (p.invoiceId && (p.invoiceId === updatedInv.id || p.invoiceId === updatedInv.invoiceNumber)) return true;
                     if (!p.invoiceId) {
@@ -1020,7 +1066,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             });
 
             // Auto-heal payments that have missing or generic studentName ('Student')
-            const healedPayments = (dsPay || []).map(p => {
+            const healedPayments = (mergedPays || []).map(p => {
                 const rawName = (p.studentName || (p as any).student_name || '').trim();
                 const isGenericOrMissing = !rawName || rawName.toLowerCase() === 'student' || rawName.toLowerCase() === 'learner';
 
@@ -1034,7 +1080,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 );
 
                 const invId = p.invoiceId || (p as any).invoice_id;
-                const matchedInv = (healedInvoices || dsInvs || []).find(inv => 
+                const matchedInv = (healedInvoices || mergedInvs || []).find(inv => 
                     (invId && (inv.id === invId || inv.invoiceNumber === invId)) ||
                     (targetId && (inv.studentId === targetId || (inv as any).admissionNumber === targetId))
                 );
@@ -1084,6 +1130,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             setStudents(healedStudents);
             setInvoices(healedInvoices);
             setPayments(healedPayments);
+            try {
+                localStorage.setItem(`ds_students_backup_${institutionId}`, JSON.stringify(healedStudents));
+                localStorage.setItem(`ds_invoices_backup_${institutionId}`, JSON.stringify(healedInvoices));
+                localStorage.setItem(`ds_payments_backup_${institutionId}`, JSON.stringify(healedPayments));
+            } catch (_) {}
             setMpesaTransactions(dsMpe || []);
             setBankTransactions(dsBnk || []);
             setLeads(prev => {
@@ -1410,6 +1461,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             delete (newStudent as any).skip_welcome_sms;
             
             await apiService.saveModuleRecord('ds_students', newStudent);
+            setStudents(prev => {
+                const next = [newStudent as DSStudent, ...prev.filter(s => s.id !== newStudent.id)];
+                try { localStorage.setItem(`ds_students_backup_${institutionId}`, JSON.stringify(next)); } catch (_) {}
+                return next;
+            });
 
             if (isPrepaid) {
                 const amount = Number(inst.rate_per_student || inst.ratePerStudent || 0);
@@ -1566,7 +1622,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             }
 
             // 3. Update local state immediately for instant feedback
-            setStudents(prev => prev.filter(s => s.id !== id));
+            setStudents(prev => {
+                const next = prev.filter(s => s.id !== id);
+                try { localStorage.setItem(`ds_students_backup_${institutionId}`, JSON.stringify(next)); } catch (_) {}
+                return next;
+            });
             
             success("Student removed successfully");
             await onRefresh();
@@ -1617,7 +1677,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             }
 
             // 4. Update local students state immediately
-            setStudents(prev => prev.filter(s => !idsSet.has(s.id)));
+            setStudents(prev => {
+                const next = prev.filter(s => !idsSet.has(s.id));
+                try { localStorage.setItem(`ds_students_backup_${institutionId}`, JSON.stringify(next)); } catch (_) {}
+                return next;
+            });
             
             success(`${ids.length} student${ids.length === 1 ? '' : 's'} removed successfully`);
             await onRefresh();
@@ -2339,6 +2403,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             delete inv.message;
 
             await apiService.saveModuleRecord('ds_invoices', inv);
+            setInvoices(prev => {
+                const next = [inv as DSInvoice, ...prev.filter(i => i.id !== inv.id)];
+                try { localStorage.setItem(`ds_invoices_backup_${institutionId}`, JSON.stringify(next)); } catch (_) {}
+                return next;
+            });
             success("Invoice generated successfully");
             
             // Trigger Automation
@@ -2514,9 +2583,19 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 summary = distributions.join(', ') + (recalculatedInvoice.balance > 0 ? ` | Balance: KES ${recalculatedInvoice.balance?.toLocaleString()}` : ' | Fully Paid');
 
                 await apiService.saveModuleRecord('ds_invoices', recalculatedInvoice);
+                setInvoices(prev => {
+                    const next = prev.map(i => i.id === recalculatedInvoice.id ? recalculatedInvoice : i);
+                    try { localStorage.setItem(`ds_invoices_backup_${institutionId}`, JSON.stringify(next)); } catch (_) {}
+                    return next;
+                });
             }
 
             await apiService.saveModuleRecord('ds_payments', pay);
+            setPayments(prev => {
+                const next = [pay as DSPayment, ...prev.filter(p => p.id !== pay.id)];
+                try { localStorage.setItem(`ds_payments_backup_${institutionId}`, JSON.stringify(next)); } catch (_) {}
+                return next;
+            });
             
             if (summary) {
                 success(`Payment Recorded: ${summary}`);
@@ -2620,6 +2699,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
         try {
             await apiService.deleteModuleRecord('ds_payments', id);
+            setPayments(prev => {
+                const next = prev.filter(p => p.id !== id);
+                try { localStorage.setItem(`ds_payments_backup_${institutionId}`, JSON.stringify(next)); } catch (_) {}
+                return next;
+            });
 
             if (paymentToDelete.invoiceId) {
                 const invoice = rawInvoices.find(inv => inv.id === paymentToDelete.invoiceId) || invoices.find(inv => inv.id === paymentToDelete.invoiceId);
@@ -2652,6 +2736,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const targetPayments = rawPayments.filter(p => idsSet.has(p.id));
 
             await apiService.deleteModuleRecord('ds_payments', ids.join(','));
+            setPayments(prev => {
+                const next = prev.filter(p => !idsSet.has(p.id));
+                try { localStorage.setItem(`ds_payments_backup_${institutionId}`, JSON.stringify(next)); } catch (_) {}
+                return next;
+            });
 
             const affectedInvoiceIds = new Set<string>();
             targetPayments.forEach(p => {
@@ -2686,6 +2775,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
         try {
             await apiService.deleteModuleRecord('ds_invoices', id);
+            setInvoices(prev => {
+                const next = prev.filter(i => i.id !== id);
+                try { localStorage.setItem(`ds_invoices_backup_${institutionId}`, JSON.stringify(next)); } catch (_) {}
+                return next;
+            });
             success("Invoice deleted successfully");
             await onRefresh();
         } catch (err) {

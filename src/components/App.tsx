@@ -719,7 +719,17 @@ export const App: React.FC = () => {
         if (!Array.isArray(institutions)) return null;
 
         const mergeModules = (inst: Institution) => {
-            const states = (institutionModuleStates || []).filter(m => (m.institutionId || (m as any).institution_id) === inst.id);
+            const instCleanId = cleanId(inst.id);
+            const parentCleanId = cleanId((inst as any).parentInstitutionId || (inst as any).parent_institution_id);
+            const states = (institutionModuleStates || []).filter(m => {
+                const mInstId = m.institutionId || (m as any).institution_id;
+                if (!mInstId) return false;
+                if (mInstId === inst.id) return true;
+                const mClean = cleanId(mInstId);
+                if (instCleanId && mClean === instCleanId) return true;
+                if (parentCleanId && mClean === parentCleanId) return true;
+                return false;
+            });
             const vState = states.find(m => m.moduleId === 'visitor_settings' || (m as any).module_id === 'visitor_settings');
             let vData: any = null;
             if (vState?.data) {
@@ -789,8 +799,16 @@ export const App: React.FC = () => {
             const effectiveCategory = hasDsMod && (!inst.category || inst.category === 'Primary' || inst.category === 'General') ? 'Driving School' : inst.category;
             const effectiveSubType = hasDsMod && (!inst.businessSubType || inst.businessSubType === 'Primary') ? 'Driving School' : inst.businessSubType;
 
+            const rawStatus = (inst.status || (inst as any).subscription_status || 'active').toLowerCase();
+            const normalizedStatus = (['active', 'trial', 'expired', 'suspended'].includes(rawStatus) ? rawStatus : 'active') as Institution['status'];
+            const normalizedSubEndsAt = inst.subscriptionEndsAt || (inst as any).subscription_ends_at;
+            const normalizedTrialEndsAt = inst.trialEndsAt || (inst as any).trial_ends_at;
+
             return {
                 ...inst,
+                status: normalizedStatus,
+                subscriptionEndsAt: normalizedSubEndsAt,
+                trialEndsAt: normalizedTrialEndsAt,
                 institutionType: effectiveType,
                 category: effectiveCategory,
                 businessSubType: effectiveSubType,
@@ -802,7 +820,7 @@ export const App: React.FC = () => {
                 notify_host_on_visitor_arrival: notifyHostOnVisitorArrival,
                 visitorArrivalSmsTemplate,
                 visitor_arrival_sms_template: visitorArrivalSmsTemplate,
-                moduleStates: states
+                moduleStates: states.length > 0 ? states : (inst.moduleStates || [])
             };
         };
 
@@ -1955,10 +1973,15 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             if (consts) setConstituencies(consts);
             if (brs) setBranches(brs);
 
-            const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
+            const userCleanInstId = cleanId(currentUser?.institutionId);
+            const activeInst = insts?.find(i => i.id === currentUser?.institutionId || (userCleanInstId && cleanId(i.id) === userCleanInstId));
+            const activeInstCleanId = cleanId(activeInst?.id);
             const activeInstWithModules = activeInst ? {
                 ...activeInst,
-                moduleStates: (imsPhase1 || []).filter((m: any) => (m.institutionId || m.institution_id) === activeInst.id)
+                moduleStates: (imsPhase1 || []).filter((m: any) => {
+                    const mInstId = m.institutionId || m.institution_id;
+                    return mInstId === activeInst.id || (activeInstCleanId && cleanId(mInstId) === activeInstCleanId);
+                })
             } : null;
             const instType = activeInst?.institutionType || 'General';
             const isSuper = isSuperAdminUser(currentUser) || currentUser?.role === 'super_admin';
@@ -1991,8 +2014,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             const isResellerImpersonating = !!(currentUser as any)?.impersonatedByReseller || !!originalResellerSession || !!localStorage.getItem('eduai_reseller_session') || sessionStorage.getItem('eduai_impersonated_by_reseller') === 'true';
             const isSuperAdminImpersonating = !!currentUser?.isImpersonated || !!originalSuperAdminSession || !!originalResellerSession || !!localStorage.getItem('eduai_super_admin_session') || !!localStorage.getItem('eduai_reseller_session') || isResellerImpersonating;
             const isEduAdmin = !isDsInst && !isDrivingSchool && (EDU_TYPES.includes(instTypeLower) || isEduInstitution(activeInst) || isSchoolInstitution(activeInst)) && currentUser && currentUser.role !== 'super_admin' && !isSuperAdminImpersonating && ['admin', 'head_teacher', 'dos', 'deputy', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'cao', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(currentUser.role);
-            if (isEduAdmin && activeInst && activeInst.status !== 'active') {
-                const activeModules = (imsPhase1 || []).filter((m: any) => (m.institutionId === activeInst.id || m.institution_id === activeInst.id) && (m.status === 'active' || m.status === 'trial'));
+            if (isEduAdmin && activeInst && (activeInst.status || '').toLowerCase() !== 'active') {
+                const activeModules = (imsPhase1 || []).filter((m: any) => {
+                    const mInstId = m.institutionId || m.institution_id;
+                    return (mInstId === activeInst.id || (activeInstCleanId && cleanId(mInstId) === activeInstCleanId)) && (m.status === 'active' || m.status === 'trial');
+                });
                 const dismissedKey = `edu_onboarding_dismissed_${activeInst.id}`;
                 const alreadyDismissed = localStorage.getItem(dismissedKey) === 'true';
                 if (activeModules.length === 0 && !alreadyDismissed) {
@@ -2519,14 +2545,18 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 console.log("[Data Refresh] Optimized Batches Resolved");
 
                 if (insts && insts.length > 0) {
-                    const finalInsts = insts.map(i => ({
-                        ...i,
-                        moduleStates: (imsPhase1 || []).filter((m: any) => (m.institutionId || m.institution_id) === i.id)
-                    }));
+                    const finalInsts = insts.map(i => {
+                        const iClean = cleanId(i.id);
+                        const matchedStates = (imsPhase1 || []).filter((m: any) => {
+                            const mInstId = m.institutionId || m.institution_id;
+                            return mInstId === i.id || (iClean && cleanId(mInstId) === iClean);
+                        });
+                        return {
+                            ...i,
+                            moduleStates: matchedStates.length > 0 ? matchedStates : (i.moduleStates || [])
+                        };
+                    });
                     setInstitutions(prev => {
-                        if (finalInsts.length <= 2 && prev && prev.length > 2) {
-                            return prev;
-                        }
                         const prevMap = new Map((prev || []).map(p => [p.id, p]));
                         finalInsts.forEach(fi => {
                             prevMap.set(fi.id, { ...(prevMap.get(fi.id) || {}), ...fi });
@@ -10584,17 +10614,21 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 const u = matchedUsers[0];
                                 if (u) {
                                     const targetInstId = u.institutionId || (u as any).institution_id;
-                                    let inst = institutions.find(i => i.id === targetInstId);
+                                    const targetCleanId = cleanId(targetInstId);
+                                    let inst = institutions.find(i => i.id === targetInstId || (targetCleanId && cleanId(i.id) === targetCleanId));
                                     
                                     // Institutional Discovery: If institution not in local cache, fetch it
                                     if (!inst && targetInstId && !isClientOffline) {
                                         console.log(`[Login Discovery] Institution ${targetInstId} not in local state. Fetching...`);
                                         try {
-                                            const discovered = await apiService.fetchModuleRecords('institutions', undefined, undefined, { filter: { id: targetInstId } });
+                                            const discovered = await apiService.fetchInstitutions(targetInstId);
                                             if (discovered && Array.isArray(discovered) && discovered.length > 0) {
-                                                inst = discovered[0];
+                                                inst = discovered.find(i => i.id === targetInstId || (targetCleanId && cleanId(i.id) === targetCleanId)) || discovered[0];
                                                 console.log(`[Login Discovery] Found institution: ${inst?.name}`);
-                                                setInstitutions(prev => [...(prev || []), inst!]);
+                                                setInstitutions(prev => {
+                                                    const exists = (prev || []).some(p => p.id === inst!.id);
+                                                    return exists ? (prev || []).map(p => p.id === inst!.id ? { ...p, ...inst! } : p) : [...(prev || []), inst!];
+                                                });
                                             }
                                         } catch (err) {
                                             console.error("[Login Discovery] Institution lookup failed:", err);
