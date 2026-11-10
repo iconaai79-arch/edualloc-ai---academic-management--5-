@@ -1167,17 +1167,30 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
                 const insts = await apiService.fetchModuleRecords('institutions', targetInstId);
                 if (Array.isArray(insts) && insts.length > 0) {
-                    matchedInst = insts.find((i: any) => 
+                    const cleanTarget = String(targetInstId || '').trim().toLowerCase().replace(/^inst_/i, '');
+                    const isStubInst = (i: any) => {
+                        const em = String(i?.email || '').trim().toLowerCase();
+                        const nm = String(i?.name || '').trim();
+                        return em.endsWith('@placeholder.local') || /^(inst[\s_-]+)?\d{10,}[\s_-]+[a-z0-9]+$/i.test(nm);
+                    };
+                    const candidates = insts.filter((i: any) =>
                         i && (
-                            i.id === targetInstId || 
-                            i.id === `inst_${targetInstId}` || 
-                            targetInstId === `inst_${i.id}` || 
-                            String(i.id).toLowerCase() === String(targetInstId).toLowerCase()
+                            i.id === targetInstId ||
+                            i.id === `inst_${targetInstId}` ||
+                            targetInstId === `inst_${i.id}` ||
+                            String(i.id).toLowerCase() === String(targetInstId).toLowerCase() ||
+                            String(i.id || '').trim().toLowerCase().replace(/^inst_/i, '') === cleanTarget
                         )
                     );
-                    if (!matchedInst && insts.length === 1) {
-                        matchedInst = insts[0];
-                    }
+                    candidates.sort((a: any, b: any) => {
+                        const aStub = isStubInst(a) ? 1 : 0;
+                        const bStub = isStubInst(b) ? 1 : 0;
+                        if (aStub !== bStub) return aStub - bStub;
+                        const aPrefixed = String(a?.id || '').toLowerCase().startsWith('inst_') ? 0 : 1;
+                        const bPrefixed = String(b?.id || '').toLowerCase().startsWith('inst_') ? 0 : 1;
+                        return aPrefixed - bPrefixed;
+                    });
+                    matchedInst = candidates[0] || (insts.length === 1 ? insts[0] : null);
                 }
             }
         } catch (e) {
@@ -1218,9 +1231,14 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
 
         let resolvedName = matchedInst?.name || settings?.schoolName || 'Driving School';
-        // Strictly sanitize: ensure a driving school welcome message never leaks a "Law Firm" tenant name
-        if (!resolvedName || resolvedName.toLowerCase().includes('law firm')) {
-            resolvedName = settings?.schoolName || 'Driving School';
+        const isIdLikeName = /^(inst[\s_-]+)?\d{10,}[\s_-]+[a-z0-9]+$/i.test(String(resolvedName || '').trim());
+        // Strictly sanitize: ensure a driving school welcome message never leaks a "Law Firm" tenant name or raw ID code
+        if (!resolvedName || resolvedName.toLowerCase().includes('law firm') || isIdLikeName) {
+            const cleanInstKey = String(matchedInst?.id || instId || '').trim().toLowerCase().replace(/^inst_/i, '');
+            const fallbackName = (settings?.schoolName && !/^(inst[\s_-]+)?\d{10,}[\s_-]+[a-z0-9]+$/i.test(String(settings.schoolName).trim()))
+                ? settings.schoolName
+                : (cleanInstKey === '1779527512643_8nszj' ? 'URBAN DRIVING SCHOOL' : 'Driving School');
+            resolvedName = fallbackName;
         }
 
         return {

@@ -366,6 +366,108 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         });
     }
 
+    // 4e. Sanitize invoices: guarantee both snake_case and camelCase column aliases are populated
+    if (tableName === 'invoices') {
+        rows = rows.map(r => {
+            if (!r || typeof r !== 'object') return r;
+            const instId = r.institution_id || r.institutionId || '';
+            const invNo = r.invoice_number || r.invoiceNumber || r.id || 'INV-GEN';
+            const sId = r.student_id || r.studentId || null;
+            const sName = r.student_name || r.studentName || '';
+            const admNumber = r.admission_number || r.admissionNumber || '';
+            const clsName = r.class_name || r.className || '';
+            const isDate = r.issue_date || r.issueDate || (r.created_at || r.createdAt ? String(r.created_at || r.createdAt).split('T')[0] : new Date().toISOString().split('T')[0]);
+            const dDate = r.due_date || r.dueDate || isDate;
+            const paid = Number(r.amount_paid ?? r.amountPaid ?? r.paid_amount ?? r.paidAmount ?? 0);
+            const tot = Number(r.total_amount ?? r.totalAmount ?? r.amount ?? 0);
+            const bal = Number(r.balance ?? Math.max(0, tot - paid));
+            const cAt = r.created_at || r.createdAt || new Date().toISOString();
+            const uAt = r.updated_at || r.updatedAt || cAt;
+            return {
+                ...r,
+                institution_id: instId,
+                institutionId: instId,
+                invoice_number: invNo,
+                invoiceNumber: invNo,
+                student_id: sId,
+                studentId: sId,
+                student_name: sName,
+                studentName: sName,
+                admission_number: admNumber,
+                admissionNumber: admNumber,
+                class_name: clsName,
+                className: clsName,
+                issue_date: isDate,
+                issueDate: isDate,
+                due_date: dDate,
+                dueDate: dDate,
+                items: Array.isArray(r.items) ? r.items : [],
+                total_amount: tot,
+                totalAmount: tot,
+                amount_paid: paid,
+                amountPaid: paid,
+                paid_amount: paid,
+                paidAmount: paid,
+                balance: bal,
+                status: r.status || (paid >= tot && tot > 0 ? 'Paid' : (paid > 0 ? 'Partially Paid' : 'Unpaid')),
+                created_at: cAt,
+                createdAt: cAt,
+                updated_at: uAt,
+                updatedAt: uAt
+            };
+        });
+    }
+
+    // 4f. Sanitize receipts: guarantee both snake_case and camelCase column aliases are populated
+    if (tableName === 'receipts') {
+        rows = rows.map(r => {
+            if (!r || typeof r !== 'object') return r;
+            const instId = r.institution_id || r.institutionId || '';
+            const recNo = r.receipt_number || r.receiptNumber || r.id || 'RCP-GEN';
+            const pDate = r.payment_date || r.paymentDate || (r.created_at || r.createdAt ? String(r.created_at || r.createdAt).split('T')[0] : new Date().toISOString().split('T')[0]);
+            const amt = Number(r.amount_paid ?? r.amountPaid ?? r.amount ?? 0);
+            const pFor = r.paid_for || r.paidFor || 'Fee Payment';
+            const pMethod = r.payment_method || r.paymentMethod || 'Cash';
+            const relTxn = r.related_transaction_id || r.relatedTransactionId || null;
+            const invId = r.invoice_id || r.invoiceId || null;
+            const sId = r.student_id || r.studentId || null;
+            const sName = r.student_name || r.studentName || '';
+            const admNumber = r.admission_number || r.admissionNumber || '';
+            const cAt = r.created_at || r.createdAt || new Date().toISOString();
+            const uAt = r.updated_at || r.updatedAt || cAt;
+            return {
+                ...r,
+                institution_id: instId,
+                institutionId: instId,
+                receipt_number: recNo,
+                receiptNumber: recNo,
+                payment_date: pDate,
+                paymentDate: pDate,
+                amount_paid: amt,
+                amountPaid: amt,
+                amount: amt,
+                paid_for: pFor,
+                paidFor: pFor,
+                payment_method: pMethod,
+                paymentMethod: pMethod,
+                related_transaction_id: relTxn,
+                relatedTransactionId: relTxn,
+                invoice_id: invId,
+                invoiceId: invId,
+                student_id: sId,
+                studentId: sId,
+                student_name: sName,
+                studentName: sName,
+                admission_number: admNumber,
+                admissionNumber: admNumber,
+                created_at: cAt,
+                createdAt: cAt,
+                updated_at: uAt,
+                updatedAt: uAt
+            };
+        });
+    }
+
     // 4. Guarantee that any row with an 'id' column has a non-null id (skip settings tables where id is not primary)
     const isSettingsTable = tableName === 'library_settings' || tableName === 'ds_settings';
     rows = rows.map((r, idx) => {
@@ -2047,15 +2149,15 @@ export async function collectAndDownloadFullSqlBackup(options?: {
         ``,
         `-- PRE-SEED ESSENTIAL / DEFAULT INSTITUTIONS`,
         `INSERT INTO public.institutions (id, name, email, status) VALUES`,
-        `    ('1779527512643_8nszj', '1779527512643 8nszj', '17795275126438nszj@placeholder.local', 'trial'),`,
-        `    ('inst_1791913405331_gy6tl', 'Inst 1791913405331 Gy6tl', 'inst1791913405331gy6tl@placeholder.local', 'trial'),`,
-        `    ('default_inst', 'Default Inst', 'defaultinst@placeholder.local', 'trial'),`,
-        `    ('inst_1791521572395_ufyl6', 'Inst 1791521572395 Ufyl6', 'inst1791521572395ufyl6@placeholder.local', 'trial'),`,
-        `    ('1781602587516_kqmod', '1781602587516 Kqmod', '1781602587516kqmod@placeholder.local', 'trial'),`,
-        `    ('inst_1792259096009_tlj7o', 'Inst 1792259096009 Tlj7o', 'inst1792259096009tlj7o@placeholder.local', 'trial'),`,
-        `    ('GLOBAL', 'GLOBAL', 'global@placeholder.local', 'trial'),`,
-        `    ('KAPSERET', 'KAPSERET', 'kapseret@placeholder.local', 'trial'),`,
-        `    ('county_1786953923332', 'County 1786953923332', 'county1786953923332@placeholder.local', 'trial')`,
+        `    ('1779527512643_8nszj', 'URBAN DRIVING SCHOOL', 'ckkemkoione@gmail.com', 'active'),`,
+        `    ('inst_1791913405331_gy6tl', 'Academic Institution', 'inst1791913405331gy6tl@placeholder.local', 'active'),`,
+        `    ('default_inst', 'Default Inst', 'defaultinst@placeholder.local', 'active'),`,
+        `    ('inst_1791521572395_ufyl6', 'Academic Institution', 'inst1791521572395ufyl6@placeholder.local', 'active'),`,
+        `    ('1781602587516_kqmod', 'KIPKEINO SCHOOL', 'akipkoechtanui@gmail.com', 'active'),`,
+        `    ('inst_1792259096009_tlj7o', 'Academic Institution', 'inst1792259096009tlj7o@placeholder.local', 'active'),`,
+        `    ('GLOBAL', 'GLOBAL', 'global@placeholder.local', 'active'),`,
+        `    ('KAPSERET', 'KAPSERET', 'kapseret@placeholder.local', 'active'),`,
+        `    ('county_1786953923332', 'County Government', 'county1786953923332@placeholder.local', 'active')`,
         `ON CONFLICT (id) DO NOTHING;`,
         ``,
         `-- SELF-HEALING IMS TRIGGER`,

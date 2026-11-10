@@ -3577,7 +3577,121 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (moduleName === 'institutions') {
-                const records = Array.isArray(data) ? data : (data ? [data] : []);
+                let records = Array.isArray(data) ? data : (data ? [data] : []);
+
+                const isIdLikeInstName = (name?: string, instId?: string): boolean => {
+                    if (!name || typeof name !== 'string' || !name.trim()) return true;
+                    const trimmed = name.trim();
+                    const lower = trimmed.toLowerCase();
+                    if (['unnamed institution', 'academic institution', 'default inst', 'institution', 'global'].includes(lower)) return true;
+                    if (/^(inst[\s_-]+)?\d{10,}[\s_-]+[a-z0-9]+$/i.test(trimmed)) return true;
+                    if (/^county[\s_-]+\d{10,}$/i.test(trimmed)) return true;
+                    if (instId) {
+                        const normName = lower.replace(/^(inst|br)[\s_-]*/i, '').replace(/[\s_-]+/g, '');
+                        const normId = String(instId).trim().toLowerCase().replace(/^(inst|br)[\s_-]*/i, '').replace(/[\s_-]+/g, '');
+                        if (normId && normName === normId) return true;
+                    }
+                    return false;
+                };
+
+                const isPlaceholderInst = (inst: any): boolean => {
+                    if (!inst || typeof inst !== 'object') return false;
+                    const email = String(inst.email || '').trim().toLowerCase();
+                    if (email.endsWith('@placeholder.local')) return true;
+                    if (isIdLikeInstName(inst.name || inst.institution_name, inst.id)) return true;
+                    return false;
+                };
+
+                const cleanInstKey = (idVal?: string): string =>
+                    idVal ? String(idVal).trim().replace(/^inst_/i, '').toLowerCase() : '';
+
+                // Known canonical names for pre-seeded backup rows
+                const KNOWN_INST_OVERRIDES: Record<string, { name: string; institution_type?: string; status?: string }> = {
+                    '1779527512643_8nszj': { name: 'URBAN DRIVING SCHOOL', institution_type: 'Driving School', status: 'active' },
+                    '1781602587516_kqmod': { name: 'KIPKEINO SCHOOL', institution_type: 'Education', status: 'active' }
+                };
+
+                // Group by normalized key to merge & eliminate duplicate unprefixed placeholder rows (e.g. '1779527512643_8nszj' vs 'inst_1779527512643_8nszj')
+                const groupedByCleanKey = new Map<string, any[]>();
+                records.forEach((inst: any) => {
+                    if (!inst || typeof inst !== 'object' || !inst.id) return;
+                    const k = cleanInstKey(inst.id);
+                    const arr = groupedByCleanKey.get(k) || [];
+                    arr.push(inst);
+                    groupedByCleanKey.set(k, arr);
+                });
+
+                const dedupedRecords: any[] = [];
+                groupedByCleanKey.forEach((group, cKey) => {
+                    if (group.length === 1) {
+                        const single = group[0];
+                        if (cKey === 'default_inst' && isPlaceholderInst(single)) {
+                            return; // Skip synthetic default_inst placeholder
+                        }
+                        if (KNOWN_INST_OVERRIDES[cKey] && isPlaceholderInst(single)) {
+                            const ov = KNOWN_INST_OVERRIDES[cKey];
+                            single.name = ov.name;
+                            if (ov.institution_type) {
+                                single.institution_type = ov.institution_type;
+                                single.institutionType = ov.institution_type;
+                            }
+                            if (ov.status) single.status = ov.status;
+                        }
+                        dedupedRecords.push(single);
+                        return;
+                    }
+
+                    // Sort group so the real/canonical record comes first
+                    group.sort((a, b) => {
+                        const aPlace = isPlaceholderInst(a) ? 1 : 0;
+                        const bPlace = isPlaceholderInst(b) ? 1 : 0;
+                        if (aPlace !== bPlace) return aPlace - bPlace;
+                        const aPref = String(a.id || '').startsWith('inst_') ? 0 : 1;
+                        const bPref = String(b.id || '').startsWith('inst_') ? 0 : 1;
+                        if (aPref !== bPref) return aPref - bPref;
+                        const aAct = String(a.status || '').toLowerCase() === 'active' ? 0 : 1;
+                        const bAct = String(b.status || '').toLowerCase() === 'active' ? 0 : 1;
+                        return aAct - bAct;
+                    });
+
+                    const primary = { ...group[0] };
+                    for (let idx = 1; idx < group.length; idx++) {
+                        const sec = group[idx];
+                        Object.keys(sec).forEach(k => {
+                            if ((primary[k] === null || primary[k] === undefined || primary[k] === '') && sec[k] !== null && sec[k] !== undefined && sec[k] !== '') {
+                                primary[k] = sec[k];
+                            }
+                        });
+                        // Background heal placeholder row in DB so direct ID lookups also have the real name & status
+                        if (supabase && isPlaceholderInst(sec) && !isPlaceholderInst(primary)) {
+                            supabase.from('institutions').update({
+                                name: primary.name,
+                                status: primary.status || 'active',
+                                institution_type: primary.institution_type || primary.institutionType,
+                                subscription_ends_at: primary.subscription_ends_at || primary.subscriptionEndsAt
+                            }).eq('id', sec.id).then(() => {}).catch(() => {});
+                        }
+                    }
+
+                    if (KNOWN_INST_OVERRIDES[cKey] && isPlaceholderInst(primary)) {
+                        const ov = KNOWN_INST_OVERRIDES[cKey];
+                        primary.name = ov.name;
+                        if (ov.institution_type) {
+                            primary.institution_type = ov.institution_type;
+                            primary.institutionType = ov.institution_type;
+                        }
+                        if (ov.status) primary.status = ov.status;
+                    }
+
+                    dedupedRecords.push(primary);
+                });
+
+                records = dedupedRecords;
+                if (Array.isArray(data)) {
+                    data = records;
+                } else if (data && records.length > 0) {
+                    data = records[0];
+                }
 
                 // 1. Instant synchronous hydration from metadata & physical columns (0ms)
                 records.forEach((inst: any) => {
@@ -7862,16 +7976,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             let matchedInst: any = null;
 
                             if (isSafeId(trimmedInst) && isSafeId(cleanInst) && isSafeId(prefixedInst)) {
-                                const { data: found } = await executeWithTimeout(
+                                const { data: foundList } = await executeWithTimeout(
                                     supabase
                                         .from('institutions')
-                                        .select('id')
+                                        .select('id, name, email, status')
                                         .or(`id.eq.${trimmedInst},id.eq.${cleanInst},id.eq.${prefixedInst}`)
-                                        .limit(1)
-                                        .maybeSingle(),
+                                        .limit(5),
                                     3000
                                 ).catch(() => ({ data: null }));
-                                matchedInst = found;
+                                if (Array.isArray(foundList) && foundList.length > 0) {
+                                    const nonPlaceholder = foundList.filter((r: any) => !String(r?.email || '').toLowerCase().endsWith('@placeholder.local'));
+                                    const poolToSearch = nonPlaceholder.length > 0 ? nonPlaceholder : foundList;
+                                    matchedInst =
+                                        poolToSearch.find((r: any) => r.id === trimmedInst) ||
+                                        poolToSearch.find((r: any) => r.id === prefixedInst) ||
+                                        poolToSearch[0];
+                                }
                             } else {
                                 const { data: found } = await executeWithTimeout(
                                     supabase
@@ -7905,7 +8025,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     stubs.push({ id: cleanInst, name: stubName, status: 'active' });
                                 }
                                 await executeWithTimeout(
-                                    supabase.from('institutions').upsert(stubs, { onConflict: 'id' }),
+                                    supabase.from('institutions').upsert(stubs, { onConflict: 'id', ignoreDuplicates: true }),
                                     3000
                                 ).catch(() => {});
                             }
@@ -8894,7 +9014,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     { id: curInstId, name: 'Academic Institution', status: 'active' },
                                     { id: clean, name: 'Academic Institution', status: 'active' },
                                     { id: prefixed, name: 'Academic Institution', status: 'active' }
-                                ], { onConflict: 'id' });
+                                ], { onConflict: 'id', ignoreDuplicates: true });
                             } catch (_) {}
 
                             // Also try toggling prefix on currentPayload

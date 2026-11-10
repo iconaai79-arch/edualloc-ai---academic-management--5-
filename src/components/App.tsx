@@ -242,6 +242,50 @@ const SIMULATOR_NAMES: Record<string, string> = {
 
 export const cleanId = (id?: string): string => id ? String(id).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase() : '';
 
+export const isIdLikeInstitutionName = (name?: string, instId?: string): boolean => {
+    if (!name || typeof name !== 'string' || !name.trim()) return true;
+    const trimmed = name.trim();
+    const lower = trimmed.toLowerCase();
+    if (['unnamed institution', 'academic institution', 'default inst', 'institution', 'driving school portal', 'institutional workspace'].includes(lower)) return true;
+    if (/^(inst[\s_-]+)?\d{10,}[\s_-]+[a-z0-9]+$/i.test(trimmed)) return true;
+    if (/^county[\s_-]+\d{10,}$/i.test(trimmed)) return true;
+    if (instId) {
+        const normName = lower.replace(/^(inst|br)[\s_-]*/i, '').replace(/[\s_-]+/g, '');
+        const normId = String(instId).trim().toLowerCase().replace(/^(inst|br)[\s_-]*/i, '').replace(/[\s_-]+/g, '');
+        if (normId && normName === normId) return true;
+    }
+    return false;
+};
+
+export const findBestInstitution = (instList: Institution[] | undefined | null, targetId?: string | null): Institution | undefined => {
+    if (!targetId || !Array.isArray(instList) || instList.length === 0) return undefined;
+    const normTarget = cleanId(targetId);
+    const matches = instList.filter(i => i && (
+        i.id === targetId ||
+        i.id === `inst_${targetId}` ||
+        i.slug === targetId ||
+        (i.useSubdomain && i.customSubdomain === targetId) ||
+        (normTarget && cleanId(i.id) === normTarget)
+    ));
+    if (matches.length === 0) return undefined;
+    if (matches.length === 1) return matches[0];
+    matches.sort((a, b) => {
+        const aPlaceholder = (String(a.email || '').toLowerCase().endsWith('@placeholder.local') || isIdLikeInstitutionName(a.name, a.id)) ? 1 : 0;
+        const bPlaceholder = (String(b.email || '').toLowerCase().endsWith('@placeholder.local') || isIdLikeInstitutionName(b.name, b.id)) ? 1 : 0;
+        if (aPlaceholder !== bPlaceholder) return aPlaceholder - bPlaceholder;
+        const aExact = a.id === targetId ? 0 : 1;
+        const bExact = b.id === targetId ? 0 : 1;
+        if (aExact !== bExact) return aExact - bExact;
+        const aPref = String(a.id || '').startsWith('inst_') ? 0 : 1;
+        const bPref = String(b.id || '').startsWith('inst_') ? 0 : 1;
+        if (aPref !== bPref) return aPref - bPref;
+        const aAct = String(a.status || '').toLowerCase() === 'active' ? 0 : 1;
+        const bAct = String(b.status || '').toLowerCase() === 'active' ? 0 : 1;
+        return aAct - bAct;
+    });
+    return matches[0];
+};
+
 export const App: React.FC = () => {
     const { success, error: toastError, info, warning } = useToast();
     // Security: Disable right-click to prevent source inspection
@@ -713,13 +757,51 @@ export const App: React.FC = () => {
     const getSubjectById = useCallback((id: string) => (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === id), [subjects]);
     const getRoomById = useCallback((id: string) => (Array.isArray(rooms) ? rooms : []).find(r => r && r.id === id), [rooms]);
     const getCountyById = useCallback((id?: string) => !id ? undefined : (Array.isArray(counties) ? counties : []).find(c => c && c.id === id), [counties]);
-    const getInstitutionById = useCallback((id?: string) => !id ? undefined : (Array.isArray(institutions) ? institutions : []).find(i => i && i.id === id), [institutions]);
+    const getInstitutionById = useCallback((id?: string) => !id ? undefined : findBestInstitution(institutions, id), [institutions]);
 
     const activeInstitution = useMemo(() => {
         if (!Array.isArray(institutions)) return null;
 
-        const mergeModules = (inst: Institution) => {
+        const mergeModules = (rawInst: Institution) => {
+            let inst = rawInst;
             const instCleanId = cleanId(inst.id);
+            const betterTwin = findBestInstitution(institutions, inst.id);
+            if (betterTwin && betterTwin.id !== inst.id && (isIdLikeInstitutionName(inst.name, inst.id) || String(inst.email || '').toLowerCase().endsWith('@placeholder.local'))) {
+                inst = {
+                    ...inst,
+                    ...betterTwin,
+                    name: !isIdLikeInstitutionName(betterTwin.name, betterTwin.id) ? betterTwin.name : inst.name
+                };
+            }
+
+            let resolvedInstName = inst.name;
+            if (isIdLikeInstitutionName(resolvedInstName, inst.id)) {
+                const KNOWN_NAMES: Record<string, string> = {
+                    '1779527512643_8nszj': 'URBAN DRIVING SCHOOL',
+                    '1781602587516_kqmod': 'KIPKEINO SCHOOL'
+                };
+                const meta = (inst as any).metadata && typeof (inst as any).metadata === 'object' ? (inst as any).metadata : {};
+                const lh = (inst.letterheadConfig && typeof inst.letterheadConfig === 'object') ? (inst.letterheadConfig as any) : {};
+                const regMatch = (schoolRegistry || []).find(s => s && (s.id === inst.id || s.institutionId === inst.id || (instCleanId && (cleanId(s.id) === instCleanId || cleanId(s.institutionId) === instCleanId))));
+                const candidateNames = [
+                    KNOWN_NAMES[instCleanId],
+                    meta.institutionName,
+                    meta.schoolName,
+                    meta.businessName,
+                    meta.name,
+                    lh.institutionName,
+                    lh.schoolName,
+                    lh.title,
+                    regMatch?.name,
+                    (currentUser as any)?.institutionName,
+                    (currentUser as any)?.schoolName
+                ];
+                const validCandidate = candidateNames.find(c => c && typeof c === 'string' && !isIdLikeInstitutionName(c, inst.id));
+                if (validCandidate) {
+                    resolvedInstName = validCandidate;
+                }
+            }
+
             const parentCleanId = cleanId((inst as any).parentInstitutionId || (inst as any).parent_institution_id);
             const states = (institutionModuleStates || []).filter(m => {
                 const mInstId = m.institutionId || (m as any).institution_id;
@@ -806,6 +888,7 @@ export const App: React.FC = () => {
 
             return {
                 ...inst,
+                name: resolvedInstName || inst.name,
                 status: normalizedStatus,
                 subscriptionEndsAt: normalizedSubEndsAt,
                 trialEndsAt: normalizedTrialEndsAt,
@@ -828,12 +911,7 @@ export const App: React.FC = () => {
         const targetId = activeStoreTenantId || (currentUser && currentUser.role !== 'super_admin' ? currentUser.institutionId : null);
         if (targetId && String(targetId).trim() !== '' && targetId !== 'SYSTEM' && targetId !== 'ALL') {
             const normTarget = cleanId(targetId);
-            let found = institutions.find(i => i && (
-                i.id === targetId || 
-                i.slug === targetId || 
-                (i.useSubdomain && i.customSubdomain === targetId) ||
-                (normTarget && cleanId(i.id) === normTarget)
-            ));
+            let found = findBestInstitution(institutions, targetId);
 
             const branchMatch = (branches || []).find((b: any) => {
                 if (!b) return false;
@@ -950,10 +1028,7 @@ export const App: React.FC = () => {
 
         if (currentUser && !isSuperAdminUnimpersonated && validUserInstId) {
             const normUserInstId = cleanId(validUserInstId);
-            let found = (institutions || []).find(i => i && (
-                i.id === validUserInstId || 
-                (normUserInstId && cleanId(i.id) === normUserInstId)
-            ));
+            let found = findBestInstitution(institutions, validUserInstId);
 
             const userBranchMatch = (branches || []).find((b: any) => {
                 if (!b) return false;
@@ -1339,13 +1414,14 @@ export const App: React.FC = () => {
         )) {
             const parentId = (baseInst as any).parentInstitutionId || (baseInst as any).parent_institution_id;
             if (parentId) {
-                const parent = institutions.find(i => i && (i.id === parentId || cleanId(i.id) === cleanId(parentId)));
+                const parent = findBestInstitution(institutions, parentId);
                 if (parent) {
                     const pBal = parent.smsBalance ?? (parent as any).sms_balance ?? 0;
                     const pCfg = parent.smsConfig || (parent as any).sms_config || {};
                     return {
                         ...parent,
                         ...baseInst,
+                        name: !isIdLikeInstitutionName(baseInst.name, baseInst.id) ? baseInst.name : parent.name,
                         smsBalance: baseInst.smsBalance ?? (baseInst as any).sms_balance ?? pBal,
                         sms_balance: (baseInst as any).sms_balance ?? baseInst.smsBalance ?? pBal,
                         smsConfig: baseInst.smsConfig || (baseInst as any).sms_config || pCfg,
@@ -1359,22 +1435,18 @@ export const App: React.FC = () => {
         }
         const userInstId = currentUser?.institutionId;
         if (userInstId && Array.isArray(institutions)) {
-            const cleanTarget = String(userInstId).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase();
-            const matchedInst = institutions.find(i => i && (
-                i.id === userInstId ||
-                i.id === `inst_${userInstId}` ||
-                (cleanTarget && String(i.id).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase() === cleanTarget)
-            ));
+            const matchedInst = findBestInstitution(institutions, userInstId);
             if (matchedInst) {
                 const parentId = (matchedInst as any).parentInstitutionId || (matchedInst as any).parent_institution_id;
                 if (parentId) {
-                    const parent = institutions.find(i => i && (i.id === parentId || cleanId(i.id) === cleanId(parentId)));
+                    const parent = findBestInstitution(institutions, parentId);
                     if (parent) {
                         const pBal = parent.smsBalance ?? (parent as any).sms_balance ?? 0;
                         const pCfg = parent.smsConfig || (parent as any).sms_config || {};
                         return {
                             ...parent,
                             ...matchedInst,
+                            name: !isIdLikeInstitutionName(matchedInst.name, matchedInst.id) ? matchedInst.name : parent.name,
                             smsBalance: matchedInst.smsBalance ?? (matchedInst as any).sms_balance ?? pBal,
                             sms_balance: (matchedInst as any).sms_balance ?? matchedInst.smsBalance ?? pBal,
                             smsConfig: matchedInst.smsConfig || (matchedInst as any).sms_config || pCfg,
@@ -1389,7 +1461,7 @@ export const App: React.FC = () => {
         }
         return {
             id: currentUser?.institutionId || 'ds_main',
-            name: activeInstitution?.name || 'Driving School Portal',
+            name: (activeInstitution?.name && !isIdLikeInstitutionName(activeInstitution.name, activeInstitution.id)) ? activeInstitution.name : 'Driving School Portal',
             institutionType: 'Driving School',
             category: 'Driving School',
             status: 'active'
@@ -5256,7 +5328,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             });
 
             const targetCounty = (counties || []).find(c => c.id === institutionId || c.code === institutionId || (c.name && cleanId(c.name) === normTargetId));
-            let targetInst = institutions.find(i => i.id === institutionId || (normTargetId && cleanId(i.id) === normTargetId));
+            let targetInst = findBestInstitution(institutions, institutionId);
+            if (targetInst && targetInst.id === `inst_${institutionId}`) {
+                institutionId = targetInst.id;
+            }
             
             if (!targetInst) {
                 if (targetCounty) {

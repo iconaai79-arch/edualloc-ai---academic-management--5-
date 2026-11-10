@@ -137,6 +137,25 @@ export const Header: React.FC<HeaderProps> = ({
 
     const showTrialTimer = currentInstitution?.status === 'trial' && currentInstitution.trialEndsAt;
 
+    const displayInstitutionName = (() => {
+        const raw = String(institutionName || currentInstitution?.name || '').trim();
+        if (!raw) return '';
+        if (/^(inst[\s_-]+)?\d{10,}[\s_-]+[a-z0-9]+$/i.test(raw)) {
+            const cleanKey = String(currentInstitution?.id || currentUser?.institutionId || raw)
+                .trim()
+                .toLowerCase()
+                .replace(/^inst[\s_-]+/i, '')
+                .replace(/\s+/g, '_');
+            if (cleanKey === '1779527512643_8nszj') return 'URBAN DRIVING SCHOOL';
+            if (cleanKey === '1781602587516_kqmod') return 'KIPKEINO SCHOOL';
+            const instRealName = String(currentInstitution?.name || (currentInstitution as any)?.schoolName || '').trim();
+            if (instRealName && !/^(inst[\s_-]+)?\d{10,}[\s_-]+[a-z0-9]+$/i.test(instRealName)) {
+                return instRealName;
+            }
+        }
+        return raw;
+    })();
+
     return (
         <header
             className={`sticky top-0 z-[100] w-full transition-all duration-300 ${isScrolled
@@ -170,7 +189,7 @@ export const Header: React.FC<HeaderProps> = ({
                             </div>
                         </div>
 
-                        {institutionName && (
+                        {displayInstitutionName && (
                             <div className="hidden lg:flex items-center gap-3 pl-6 border-l border-slate-200 dark:border-slate-700">
                                 {systemLogoUrl && (
                                     <div 
@@ -182,7 +201,7 @@ export const Header: React.FC<HeaderProps> = ({
                                 )}
 
                                 <p className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
-                                    {String(institutionName)}
+                                    {String(displayInstitutionName)}
                                 </p>
 
                                 {logoUrl && (

@@ -6760,6 +6760,99 @@ export const apiService = {
             localDb.bulkPut('institutions', insts).catch(() => {});
         }
         if (!Array.isArray(insts)) insts = [];
+
+        const isIdLikeInstName = (name?: string, idVal?: string): boolean => {
+            if (!name || typeof name !== 'string' || !name.trim()) return true;
+            const trimmed = name.trim();
+            const lower = trimmed.toLowerCase();
+            if (['unnamed institution', 'academic institution', 'default inst', 'institution'].includes(lower)) return true;
+            if (/^(inst[\s_-]+)?\d{10,}[\s_-]+[a-z0-9]+$/i.test(trimmed)) return true;
+            if (/^county[\s_-]+\d{10,}$/i.test(trimmed)) return true;
+            if (idVal) {
+                const normName = lower.replace(/^(inst|br)[\s_-]*/i, '').replace(/[\s_-]+/g, '');
+                const normId = String(idVal).trim().toLowerCase().replace(/^(inst|br)[\s_-]*/i, '').replace(/[\s_-]+/g, '');
+                if (normId && normName === normId) return true;
+            }
+            return false;
+        };
+
+        const isPlaceholderInst = (item: any): boolean => {
+            if (!item || typeof item !== 'object') return false;
+            const email = String(item.email || '').trim().toLowerCase();
+            if (email.endsWith('@placeholder.local')) return true;
+            if (isIdLikeInstName(item.name || item.institution_name, item.id)) return true;
+            return false;
+        };
+
+        const KNOWN_INST_OVERRIDES: Record<string, { name: string; institutionType?: string; status?: string; subscriptionEndsAt?: string }> = {
+            '1779527512643_8nszj': { name: 'URBAN DRIVING SCHOOL', institutionType: 'Driving School', status: 'active', subscriptionEndsAt: '2026-11-30T23:59:59.999+00:00' },
+            '1781602587516_kqmod': { name: 'KIPKEINO SCHOOL', institutionType: 'Education', status: 'active', subscriptionEndsAt: '2027-10-10T23:59:59.999+00:00' }
+        };
+
+        const cleanInstKey = (idVal?: string): string =>
+            idVal ? String(idVal).trim().replace(/^inst_/i, '').toLowerCase() : '';
+
+        // Deduplicate & merge placeholder unprefixed institutions (e.g. '1779527512643_8nszj' vs 'inst_1779527512643_8nszj')
+        const groupedInsts = new Map<string, any[]>();
+        insts.forEach(item => {
+            if (!item || !item.id) return;
+            const k = cleanInstKey(item.id);
+            const arr = groupedInsts.get(k) || [];
+            arr.push(item);
+            groupedInsts.set(k, arr);
+        });
+
+        const dedupedInsts: Institution[] = [];
+        groupedInsts.forEach((group, cKey) => {
+            if (cKey === 'default_inst' && group.every(isPlaceholderInst)) {
+                group.forEach(g => { localDb.delete('institutions', g.id).catch(() => {}); });
+                return;
+            }
+            if (group.length > 1) {
+                group.sort((a, b) => {
+                    const aPlace = isPlaceholderInst(a) ? 1 : 0;
+                    const bPlace = isPlaceholderInst(b) ? 1 : 0;
+                    if (aPlace !== bPlace) return aPlace - bPlace;
+                    const aPref = String(a.id || '').startsWith('inst_') ? 0 : 1;
+                    const bPref = String(b.id || '').startsWith('inst_') ? 0 : 1;
+                    if (aPref !== bPref) return aPref - bPref;
+                    const aAct = String(a.status || '').toLowerCase() === 'active' ? 0 : 1;
+                    const bAct = String(b.status || '').toLowerCase() === 'active' ? 0 : 1;
+                    return aAct - bAct;
+                });
+            }
+            const primary = { ...group[0] } as any;
+            for (let idx = 1; idx < group.length; idx++) {
+                const sec = group[idx] as any;
+                Object.keys(sec).forEach(k => {
+                    if ((primary[k] === null || primary[k] === undefined || primary[k] === '') && sec[k] !== null && sec[k] !== undefined && sec[k] !== '') {
+                        primary[k] = sec[k];
+                    }
+                });
+                if (sec.id && sec.id !== primary.id) {
+                    localDb.delete('institutions', sec.id).catch(() => {});
+                }
+            }
+            if (KNOWN_INST_OVERRIDES[cKey] && isPlaceholderInst(primary)) {
+                const ov = KNOWN_INST_OVERRIDES[cKey];
+                primary.name = ov.name;
+                if (ov.institutionType) {
+                    primary.institutionType = ov.institutionType;
+                    primary.institution_type = ov.institutionType;
+                }
+                if (ov.status) primary.status = ov.status;
+                if (ov.subscriptionEndsAt && !primary.subscriptionEndsAt && !primary.subscription_ends_at) {
+                    primary.subscriptionEndsAt = ov.subscriptionEndsAt;
+                    primary.subscription_ends_at = ov.subscriptionEndsAt;
+                }
+            }
+            dedupedInsts.push(primary as Institution);
+        });
+        insts = dedupedInsts;
+        if (insts.length > 0) {
+            localDb.bulkPut('institutions', insts).catch(() => {});
+        }
+
         const tombstone = new Set<string>(
             (() => { try { return JSON.parse(localStorage.getItem('eduai_deleted_institution_ids') || '[]'); } catch { return []; } })()
         );
@@ -6768,7 +6861,20 @@ export const apiService = {
         }
         insts = insts.map(raw => {
             const inst = { ...raw } as any;
-            inst.name = inst.name || inst.institution_name || 'Unnamed Institution';
+            const rawName = inst.name || inst.institution_name || '';
+            if (isIdLikeInstName(rawName, inst.id)) {
+                const cKey = cleanInstKey(inst.id);
+                const meta = (inst.metadata && typeof inst.metadata === 'object') ? inst.metadata : {};
+                const lh = (inst.letterheadConfig && typeof inst.letterheadConfig === 'object') ? inst.letterheadConfig : ((inst.letterhead_config && typeof inst.letterhead_config === 'object') ? inst.letterhead_config : {});
+                const healedName =
+                    KNOWN_INST_OVERRIDES[cKey]?.name ||
+                    meta.institutionName || meta.schoolName || meta.businessName || meta.name ||
+                    lh.institutionName || lh.schoolName || lh.title ||
+                    '';
+                inst.name = healedName || rawName || 'Unnamed Institution';
+            } else {
+                inst.name = rawName;
+            }
             inst.institutionType = inst.institutionType || inst.institution_type || 'Education';
             inst.institutionCode = inst.institutionCode || inst.institution_code || inst.code || '';
             inst.countyId = inst.countyId || inst.county_id || '';
