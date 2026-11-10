@@ -211,6 +211,24 @@ const ensureEssentialSchema = async (pool: any) => {
             updated_at TIMESTAMPTZ DEFAULT NOW()
         );
 
+        -- 0d. Ensure observation_notes table exists
+        CREATE TABLE IF NOT EXISTS public.observation_notes (
+            id TEXT PRIMARY KEY,
+            institution_id TEXT,
+            "institutionId" TEXT,
+            timetable_entry_id TEXT,
+            "timetableEntryId" TEXT,
+            practice_teacher_id TEXT,
+            "practiceTeacherId" TEXT,
+            lecturer_id TEXT,
+            "lecturerId" TEXT,
+            notes TEXT,
+            timestamp TIMESTAMPTZ DEFAULT NOW(),
+            metadata JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
         DO $$
         BEGIN
             -- 1. ds_students, ds_invoices, ds_payments missing columns & relaxed constraints
@@ -757,7 +775,7 @@ const fetchViaDirectPg = async (
     const errMsgStr = String(err?.message || '');
     const isMissingTableError = err?.code === '42P01' || (/relation ".*" does not exist/i.test(errMsgStr) && err?.code !== '42703');
     if (isMissingTableError) {
-      if (table === 'system_settings' || table === 'invoices' || table === 'receipts') {
+      if (table === 'system_settings' || table === 'invoices' || table === 'receipts' || table === 'observation_notes') {
         try {
           _schemaMigrationDone = false;
           _schemaMigrationPromise = null;
