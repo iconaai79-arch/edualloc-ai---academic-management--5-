@@ -620,31 +620,59 @@ const fetchViaDirectPg = async (
     );
     const result = await Promise.race([queryPromise, queryTimeoutPromise]);
     _directPgConsecutiveFailures = 0;
-    if ((!result.rows || result.rows.length === 0) && (table === 'invoices' || table === 'receipts') && wherePart.includes('institution_id')) {
+    if ((!result.rows || result.rows.length === 0) && (table === 'invoices' || table === 'receipts' || table === 'student_enrollments' || table === 'users') && wherePart.includes('institution_id')) {
       try {
         await client.query(`
           DO $$
           BEGIN
             IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'institutionId') THEN
-              EXECUTE 'UPDATE public.${table} SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
+              EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
+              EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
             END IF;
-            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') THEN
-              UPDATE public.${table} t
-              SET institution_id = u.institution_id
-              FROM public.users u
-              WHERE (t.institution_id IS NULL OR t.institution_id = '')
-                AND t.student_id IS NOT NULL
-                AND u.id::text = t.student_id::text
-                AND u.institution_id IS NOT NULL;
+            IF '${table}' = 'student_enrollments' THEN
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'student_enrollments' AND column_name = 'userId') THEN
+                EXECUTE 'UPDATE public.student_enrollments SET user_id = "userId" WHERE (user_id IS NULL OR user_id = '''') AND "userId" IS NOT NULL AND "userId" <> ''''';
+              END IF;
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'student_enrollments' AND column_name = 'admissionNumber') THEN
+                EXECUTE 'UPDATE public.student_enrollments SET admission_number = "admissionNumber" WHERE (admission_number IS NULL OR admission_number = '''') AND "admissionNumber" IS NOT NULL AND "admissionNumber" <> ''''';
+              END IF;
+              IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') THEN
+                EXECUTE 'UPDATE public.student_enrollments se
+                  SET institution_id = COALESCE(NULLIF(se.institution_id, ''''), u.institution_id)
+                  FROM public.users u
+                  WHERE (se.institution_id IS NULL OR se.institution_id = '''')
+                    AND se.user_id IS NOT NULL
+                    AND u.id::text = se.user_id::text
+                    AND u.institution_id IS NOT NULL';
+              END IF;
             END IF;
-            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'student_enrollments') THEN
-              UPDATE public.${table} t
-              SET institution_id = se.institution_id
-              FROM public.student_enrollments se
-              WHERE (t.institution_id IS NULL OR t.institution_id = '')
-                AND t.student_id IS NOT NULL
-                AND (se.id::text = t.student_id::text OR se.student_id::text = t.student_id::text)
-                AND se.institution_id IS NOT NULL;
+            IF '${table}' = 'users' THEN
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'admissionNumber') THEN
+                EXECUTE 'UPDATE public.users SET admission_number = "admissionNumber" WHERE (admission_number IS NULL OR admission_number = '''') AND "admissionNumber" IS NOT NULL AND "admissionNumber" <> ''''';
+              END IF;
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'studentClass') THEN
+                EXECUTE 'UPDATE public.users SET student_class = "studentClass" WHERE (student_class IS NULL OR student_class = '''') AND "studentClass" IS NOT NULL AND "studentClass" <> ''''';
+              END IF;
+            END IF;
+            IF '${table}' IN ('invoices', 'receipts') THEN
+              IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') THEN
+                EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' t
+                  SET institution_id = COALESCE(NULLIF(t.institution_id, ''''), u.institution_id)
+                  FROM public.users u
+                  WHERE (t.institution_id IS NULL OR t.institution_id = '''')
+                    AND t.student_id IS NOT NULL
+                    AND u.id::text = t.student_id::text
+                    AND u.institution_id IS NOT NULL';
+              END IF;
+              IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'student_enrollments') THEN
+                EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' t
+                  SET institution_id = COALESCE(NULLIF(t.institution_id, ''''), se.institution_id)
+                  FROM public.student_enrollments se
+                  WHERE (t.institution_id IS NULL OR t.institution_id = '''')
+                    AND t.student_id IS NOT NULL
+                    AND (se.id::text = t.student_id::text OR (se.user_id IS NOT NULL AND se.user_id::text = t.student_id::text))
+                    AND se.institution_id IS NOT NULL';
+              END IF;
             END IF;
           END $$;
         `);
@@ -3876,7 +3904,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const pgRes = await pool.query(
                                 `SELECT id, institution_id, name, email, role, metadata, created_at, to_jsonb(public.users.*) AS _user_json
                                  FROM public.users
-                                 WHERE (institution_id::text = $1 OR institution_id::text = $2)
+                                 WHERE (
+                                   institution_id::text = $1 
+                                   OR institution_id::text = $2 
+                                   OR (to_jsonb(public.users.*)->>'institutionId') = $1 
+                                   OR (to_jsonb(public.users.*)->>'institutionId') = $2
+                                   OR (to_jsonb(public.users.*)->>'institution_id') = $1
+                                   OR (to_jsonb(public.users.*)->>'institution_id') = $2
+                                 )
                                    AND (
                                      LOWER(COALESCE(role, '')) IN ('student', 'learner', 'pupil', 'cadet', 'scholar')
                                      OR (
