@@ -51,3 +51,4 @@ CREATE POLICY "observation_notes_all_access" ON public.observation_notes FOR ALL
 GRANT ALL ON public.observation_notes TO anon, authenticated, service_role;
 
 COMMIT;
+

@@ -675,21 +675,33 @@ const fetchViaDirectPg = async (
             IF '${table}' IN ('invoices', 'receipts') THEN
               IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') THEN
                 EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' t
-                  SET institution_id = COALESCE(NULLIF(t.institution_id, ''''), u.institution_id)
+                  SET institution_id = COALESCE(NULLIF(t.institution_id, ''''), u.institution_id),
+                      student_name = COALESCE(NULLIF(t.student_name, ''''), u.name),
+                      admission_number = COALESCE(NULLIF(t.admission_number, ''''), u.admission_number)
                   FROM public.users u
-                  WHERE (t.institution_id IS NULL OR t.institution_id = '''')
+                  WHERE (t.institution_id IS NULL OR t.institution_id = '''' OR t.student_name IS NULL OR t.student_name = '''')
                     AND t.student_id IS NOT NULL
-                    AND u.id::text = t.student_id::text
-                    AND u.institution_id IS NOT NULL';
+                    AND (
+                      u.id::text = t.student_id::text
+                      OR (u.admission_number IS NOT NULL AND u.admission_number = t.student_id::text)
+                      OR REPLACE(u.id::text, ''u_'', '''') = t.student_id::text
+                    )';
               END IF;
               IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'student_enrollments') THEN
                 EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' t
-                  SET institution_id = COALESCE(NULLIF(t.institution_id, ''''), se.institution_id)
+                  SET institution_id = COALESCE(NULLIF(t.institution_id, ''''), se.institution_id),
+                      student_name = COALESCE(NULLIF(t.student_name, ''''), se.metadata->>''studentName'', se.metadata->>''fullName'', se.metadata->>''name''),
+                      admission_number = COALESCE(NULLIF(t.admission_number, ''''), se.admission_number)
                   FROM public.student_enrollments se
-                  WHERE (t.institution_id IS NULL OR t.institution_id = '''')
+                  WHERE (t.institution_id IS NULL OR t.institution_id = '''' OR t.student_name IS NULL OR t.student_name = '''')
                     AND t.student_id IS NOT NULL
-                    AND (se.id::text = t.student_id::text OR (se.user_id IS NOT NULL AND se.user_id::text = t.student_id::text))
-                    AND se.institution_id IS NOT NULL';
+                    AND (
+                      se.id::text = t.student_id::text 
+                      OR (se.user_id IS NOT NULL AND se.user_id::text = t.student_id::text)
+                      OR (se.admission_number IS NOT NULL AND se.admission_number = t.student_id::text)
+                      OR REPLACE(se.id::text, ''enr_'', '''') = t.student_id::text
+                      OR (se.user_id IS NOT NULL AND REPLACE(se.user_id, ''u_'', '''') = t.student_id::text)
+                    )';
               END IF;
             END IF;
           END $$;

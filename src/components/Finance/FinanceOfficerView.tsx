@@ -113,6 +113,7 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                 goals={goals || []}
                 feeStructures={feeStructures || []}
                 students={students || []}
+                studentEnrollments={studentEnrollments || []}
                 academicYears={academicYears || []}
                 semesters={semesters || []}
                 institution={currentInstitution}
@@ -139,7 +140,6 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                 onEditUser={onEditUser}
                 onDeleteUser={onDeleteUser}
                 activityLog={activityLog}
-                studentEnrollments={studentEnrollments}
             />
         </div>
     );

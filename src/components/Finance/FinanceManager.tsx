@@ -556,6 +556,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return false;
     }, []);
 
+    const isNameUnknown = useCallback((name: any): boolean => {
+        if (!name) return true;
+        const clean = String(name).trim().toLowerCase();
+        return clean === '' || clean === 'unknown student' || clean === 'unknown' || clean === 'student' || clean === 'null' || clean === 'undefined' || clean === '—' || clean === '-';
+    }, []);
+
     // Pre-indexed admission number map from enrollments (O(1) lookups)
     const enrAdmMap = useMemo(() => {
         const map = new Map<string, string>();
@@ -1040,6 +1046,52 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         const map = new Map<string, any>();
         scopedPropsStudents.forEach((s: any) => map.set(s.id, s));
         allBranchStudents.forEach((s: any) => map.set(s.id, s));
+
+        const allEnrSources = [...(props.studentEnrollments || []), ...(enrollments || [])];
+        allEnrSources.forEach((enr: any) => {
+            if (!enr) return;
+            const enrInstId = enr.institutionId || enr.institution_id || '';
+            if (enrInstId && !relevantInstIds.has(enrInstId) && !relevantInstIds.has(cleanId(enrInstId))) return;
+
+            const existing = map.get(enr.id) || (enr.userId ? map.get(enr.userId) : null);
+            const adm = enr.admissionNumber || enr.admission_number || enr.admNo || enr.metadata?.admissionNumber || existing?.admissionNumber || '';
+            const rawName = ((enr as any).name && !isNameUnknown((enr as any).name)) ? (enr as any).name.trim() :
+                ((enr as any).studentName && !isNameUnknown((enr as any).studentName)) ? String((enr as any).studentName).trim() :
+                (enr.metadata?.studentName && !isNameUnknown(enr.metadata.studentName)) ? enr.metadata.studentName.trim() :
+                (enr.metadata?.name && !isNameUnknown(enr.metadata.name)) ? enr.metadata.name.trim() :
+                (enr.metadata?.fullName && !isNameUnknown(enr.metadata.fullName)) ? enr.metadata.fullName.trim() :
+                (enr.metadata?.parentName && enr.metadata.parentName.trim()) ? enr.metadata.parentName.trim() :
+                existing?.name || (adm ? `Student ${adm}` : 'Student');
+
+            const gLvl = enr.gradeLevel || enr.metadata?.gradeLevel || enr.metadata?.studentClass || enr.studentClass || existing?.gradeLevel || '';
+            const strm = enr.stream || enr.metadata?.stream || existing?.stream || '';
+            const fullCls = enr.studentClass || (gLvl && strm && !gLvl.toLowerCase().includes(strm.toLowerCase()) ? `${gLvl} ${strm}` : (gLvl || strm)) || existing?.studentClass || '';
+
+            const normEnr = {
+                ...(existing || {}),
+                ...enr,
+                id: enr.id || enr.userId,
+                userId: enr.userId || enr.id,
+                user_id: enr.userId || enr.id,
+                name: rawName,
+                fullName: rawName,
+                studentName: rawName,
+                admissionNumber: adm,
+                admission_number: adm,
+                studentClass: fullCls,
+                className: fullCls,
+                gradeLevel: gLvl,
+                stream: strm,
+                institutionId: enr.institutionId || enr.institution_id || activeInstId,
+                institution_id: enr.institutionId || enr.institution_id || activeInstId,
+                role: 'student'
+            };
+
+            map.set(normEnr.id, normEnr);
+            if (normEnr.userId) map.set(normEnr.userId, normEnr);
+            if (adm) map.set(adm, normEnr);
+        });
+
         if (isDrivingSchool && dsStudents.length > 0) {
             dsStudents.forEach((s: any) => {
                 const normStudent = {
@@ -1061,15 +1113,54 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             });
         }
         return Array.from(map.values());
-    }, [props.students, allBranchStudents, dsStudents, isDrivingSchool, props.institution?.id, branches, cleanId]);
+    }, [props.students, props.studentEnrollments, enrollments, allBranchStudents, dsStudents, isDrivingSchool, props.institution?.id, branches, cleanId, isNameUnknown]);
 
     const mergedStudentsMap = useMemo(() => {
         const map = new Map<string, any>();
         mergedStudents.forEach(s => {
-            if (s && s.id) map.set(s.id, s);
+            if (!s) return;
+            if (s.id) {
+                const sIdStr = String(s.id).trim();
+                map.set(sIdStr, s);
+                map.set(sIdStr.toLowerCase(), s);
+                map.set(cleanId(sIdStr), s);
+                const rawId = sIdStr.replace(/^(u_|enr_|usr_|stu_|student_)/i, '');
+                if (rawId) {
+                    map.set(rawId, s);
+                    map.set(rawId.toLowerCase(), s);
+                }
+            }
+            if (s.userId) {
+                const uidStr = String(s.userId).trim();
+                map.set(uidStr, s);
+                map.set(uidStr.toLowerCase(), s);
+                map.set(cleanId(uidStr), s);
+                const rawUid = uidStr.replace(/^(u_|enr_|usr_|stu_|student_)/i, '');
+                if (rawUid) {
+                    map.set(rawUid, s);
+                    map.set(rawUid.toLowerCase(), s);
+                }
+            }
+            const adm = getStudentAdmNumber(s);
+            if (adm) {
+                const admStr = String(adm).trim();
+                map.set(admStr, s);
+                map.set(admStr.toLowerCase(), s);
+                const cleanAdm = admStr.replace(/^(adm-|adm)/i, '').trim();
+                if (cleanAdm) {
+                    map.set(cleanAdm, s);
+                    map.set(cleanAdm.toLowerCase(), s);
+                }
+            }
+            if (s.name && !isNameUnknown(s.name)) {
+                map.set(String(s.name).trim().toLowerCase(), s);
+            }
+            if (s.studentName && !isNameUnknown(s.studentName)) {
+                map.set(String(s.studentName).trim().toLowerCase(), s);
+            }
         });
         return map;
-    }, [mergedStudents]);
+    }, [mergedStudents, cleanId, isNameUnknown, getStudentAdmNumber]);
 
     const commsUsers = useMemo(() => {
         const userMap = new Map<string, any>();
@@ -15242,19 +15333,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
                                         {paginatedStudentInvoices.map(inv => {
-                                            const studentId = inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id;
-                                            const student = (mergedStudents.length > 0 ? mergedStudents : (props.students || [])).find((s: any) => {
-                                                if (!s) return false;
-                                                const sId = s.id || s.userId || s.user_id;
-                                                if (studentId && (sId === studentId || s.id === studentId)) return true;
-                                                const sAdm = getStudentAdmNumber(s);
-                                                const invAdm = inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo;
-                                                if (invAdm && sAdm && String(sAdm).trim().toLowerCase() === String(invAdm).trim().toLowerCase()) return true;
-                                                if ((inv as any).studentName && s.name && String(s.name).trim().toLowerCase() === String((inv as any).studentName).trim().toLowerCase()) return true;
-                                                return false;
-                                            }) || (studentId ? studentFinanceData.find(s => s.id === studentId) : null);
-                                            const admNum = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
-                                            const studentName = student?.name || (inv as any).studentName || (inv as any).student_name || 'Unknown Student';
+                                            const rawStudentId = String(inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id || '').trim();
+                                            const invAdm = String(inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '').trim();
+                                            const invName = String((inv as any).studentName || (inv as any).student_name || '').trim();
+
+                                            let student = rawStudentId ? (mergedStudentsMap.get(rawStudentId) || mergedStudentsMap.get(rawStudentId.toLowerCase()) || mergedStudentsMap.get(cleanId(rawStudentId)) || mergedStudentsMap.get(rawStudentId.replace(/^(u_|enr_|usr_|stu_|student_)/i, ''))) : null;
+                                            if (!student && invAdm) {
+                                                student = mergedStudentsMap.get(invAdm) || mergedStudentsMap.get(invAdm.toLowerCase()) || mergedStudentsMap.get(invAdm.replace(/^(adm-|adm)/i, ''));
+                                            }
+                                            if (!student && invName && !isNameUnknown(invName)) {
+                                                student = mergedStudentsMap.get(invName.toLowerCase());
+                                            }
+                                            if (!student) {
+                                                student = (mergedStudents.length > 0 ? mergedStudents : (props.students || [])).find((s: any) => {
+                                                    if (!s) return false;
+                                                    const sId = String(s.id || s.userId || s.user_id || '').trim().toLowerCase();
+                                                    const rawSId = sId.replace(/^(u_|enr_|usr_|stu_|student_)/i, '');
+                                                    const cleanStId = rawStudentId.toLowerCase().replace(/^(u_|enr_|usr_|stu_|student_)/i, '');
+                                                    if (rawStudentId && (sId === rawStudentId.toLowerCase() || rawSId === cleanStId || sId === cleanStId)) return true;
+                                                    const sAdm = String(getStudentAdmNumber(s) || '').trim().toLowerCase();
+                                                    if (rawStudentId && sAdm && (sAdm === rawStudentId.toLowerCase() || sAdm === cleanStId)) return true;
+                                                    if (invAdm && sAdm && (sAdm === invAdm.toLowerCase() || sAdm === invAdm.toLowerCase().replace(/^(adm-|adm)/i, ''))) return true;
+                                                    if (invName && s.name && String(s.name).trim().toLowerCase() === invName.toLowerCase()) return true;
+                                                    return false;
+                                                }) || (rawStudentId ? studentFinanceData.find(s => s.id === rawStudentId) : null);
+                                            }
+
+                                            const admNum = (student ? getStudentAdmNumber(student) : '') || (invAdm && !isSyntheticAdm(invAdm) ? invAdm : '') || (student && student.admissionNumber) || '—';
+                                            const studentName = (student && student.name && !isNameUnknown(student.name)) ? student.name :
+                                                                (student && (student as any).studentName && !isNameUnknown((student as any).studentName)) ? (student as any).studentName :
+                                                                (invName && !isNameUnknown(invName)) ? invName :
+                                                                (admNum && admNum !== '—' ? `Student ${admNum}` : 'Unknown Student');
                                             const gradeName = (student ? studentClassGroup(student) : null) || (inv as any).studentClass || (inv as any).className || (inv as any).gradeLevel || '—';
                                             const paidAmount = invoicePaidAmountMap.get(inv.id) || 0;
                                             const totalAmount = Number(inv.totalAmount || (inv as any).total_amount || 0);

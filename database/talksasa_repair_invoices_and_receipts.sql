@@ -149,7 +149,13 @@ BEGIN
             "admissionNumber" = COALESCE(NULLIF(i."admissionNumber", ''), u.admission_number),
             class_name = COALESCE(NULLIF(i.class_name, ''), u.student_class)
         FROM public.users u
-        WHERE i.student_id IS NOT NULL AND u.id::text = i.student_id::text;
+        WHERE i.student_id IS NOT NULL 
+          AND (
+            u.id::text = i.student_id::text
+            OR (u.admission_number IS NOT NULL AND u.admission_number = i.student_id::text)
+            OR REPLACE(u.id::text, 'u_', '') = i.student_id::text
+            OR (u.admission_number IS NOT NULL AND u.admission_number = REPLACE(i.student_id::text, 'u_', ''))
+          );
     END IF;
 
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'student_enrollments') THEN
@@ -163,7 +169,14 @@ BEGIN
             "studentName" = COALESCE(NULLIF(i."studentName", ''), se.metadata->>'studentName', se.metadata->>'fullName', se.metadata->>'name'),
             class_name = COALESCE(NULLIF(i.class_name, ''), se.metadata->>'studentClass', se.metadata->>'gradeLevel')
         FROM public.student_enrollments se
-        WHERE i.student_id IS NOT NULL AND (se.id::text = i.student_id::text OR (se.user_id IS NOT NULL AND se.user_id::text = i.student_id::text));
+        WHERE i.student_id IS NOT NULL 
+          AND (
+            se.id::text = i.student_id::text 
+            OR (se.user_id IS NOT NULL AND se.user_id::text = i.student_id::text)
+            OR (se.admission_number IS NOT NULL AND se.admission_number = i.student_id::text)
+            OR REPLACE(se.id::text, 'enr_', '') = i.student_id::text
+            OR (se.user_id IS NOT NULL AND REPLACE(se.user_id::text, 'u_', '') = i.student_id::text)
+          );
     END IF;
 END $$;
 
@@ -273,7 +286,13 @@ BEGIN
             admission_number = COALESCE(NULLIF(r.admission_number, ''), u.admission_number),
             "admissionNumber" = COALESCE(NULLIF(r."admissionNumber", ''), u.admission_number)
         FROM public.users u
-        WHERE r.student_id IS NOT NULL AND u.id::text = r.student_id::text;
+        WHERE r.student_id IS NOT NULL 
+          AND (
+            u.id::text = r.student_id::text
+            OR (u.admission_number IS NOT NULL AND u.admission_number = r.student_id::text)
+            OR REPLACE(u.id::text, 'u_', '') = r.student_id::text
+            OR (u.admission_number IS NOT NULL AND u.admission_number = REPLACE(r.student_id::text, 'u_', ''))
+          );
     END IF;
 
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'student_enrollments') THEN
@@ -286,7 +305,14 @@ BEGIN
             student_name = COALESCE(NULLIF(r.student_name, ''), se.metadata->>'studentName', se.metadata->>'fullName', se.metadata->>'name'),
             "studentName" = COALESCE(NULLIF(r."studentName", ''), se.metadata->>'studentName', se.metadata->>'fullName', se.metadata->>'name')
         FROM public.student_enrollments se
-        WHERE r.student_id IS NOT NULL AND (se.id::text = r.student_id::text OR (se.user_id IS NOT NULL AND se.user_id::text = r.student_id::text));
+        WHERE r.student_id IS NOT NULL 
+          AND (
+            se.id::text = r.student_id::text 
+            OR (se.user_id IS NOT NULL AND se.user_id::text = r.student_id::text)
+            OR (se.admission_number IS NOT NULL AND se.admission_number = r.student_id::text)
+            OR REPLACE(se.id::text, 'enr_', '') = r.student_id::text
+            OR (se.user_id IS NOT NULL AND REPLACE(se.user_id::text, 'u_', '') = r.student_id::text)
+          );
     END IF;
 END $$;
 

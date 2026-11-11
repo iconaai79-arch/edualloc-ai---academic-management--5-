@@ -8139,7 +8139,13 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         expenses,
         goals: financialGoals,
         feeStructures,
-        students: (users || []).filter(u => u.role === 'student'),
+        students: (users || []).filter(u => {
+            if (!u) return false;
+            const r = String(u.role || '').toLowerCase();
+            return ['student', 'learner', 'pupil', 'cadet', 'scholar'].includes(r) ||
+                   (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(r) && (u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).studentClass));
+        }),
+        studentEnrollments,
         academicYears,
         semesters,
         receiptLimit,
@@ -8148,7 +8154,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         setTransactionLimit,
         transactions,
         onLogAction: handleLogAction
-    }), [currentUser, activeInstitution, invoices, receipts, expenses, financialGoals, feeStructures, users, academicYears, semesters, receiptLimit, transactionLimit, transactions]);
+    }), [currentUser, activeInstitution, invoices, receipts, expenses, financialGoals, feeStructures, users, studentEnrollments, academicYears, semesters, receiptLimit, transactionLimit, transactions]);
 
     const supportStaffProps = useMemo<Partial<SupportStaffProps>>(() => ({
         user: currentUser || undefined,
@@ -9685,7 +9691,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             }}
                                             goals={financialGoals}
                                             feeStructures={feeStructures}
-                                            students={(users || []).filter(u => u.role === 'student')}
+                                            students={(users || []).filter(u => {
+                                                 if (!u) return false;
+                                                 const r = String(u.role || '').toLowerCase();
+                                                 return ['student', 'learner', 'pupil', 'cadet', 'scholar'].includes(r) ||
+                                                        (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(r) && (u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).studentClass));
+                                             })}
                                             studentEnrollments={studentEnrollments}
                                             academicYears={academicYears}
                                             semesters={semesters}
