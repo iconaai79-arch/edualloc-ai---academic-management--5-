@@ -171,13 +171,18 @@ export const billingService = {
             const currentSmsBalance = (institution as any).smsBalance || (institution as any).sms_balance || 0;
             const updatedSmsBalance = currentSmsBalance + smsAllocated;
 
-            await apiService.saveModuleRecord('institutions', {
+            const newExpiryIso = expiryDate.toISOString();
+            await apiService.saveInstitution({
                 ...institution,
                 status: 'active',
-                subscriptionEndsAt: expiryDate.toISOString(),
+                subscriptionEndsAt: newExpiryIso,
+                subscription_ends_at: newExpiryIso,
+                isSuspendedForBilling: false,
+                is_suspended_for_billing: false,
                 smsBalance: updatedSmsBalance,
                 sms_balance: updatedSmsBalance
-            }).catch(() => {});
+            } as any).catch(() => {});
+            await apiService.extendModuleSubscription(institution.id, 'all', 30, 'active', newExpiryIso).catch(() => {});
         } catch (instErr) {
             console.warn('[BillingService] Failed to update institution subscription status:', instErr);
         }

@@ -1718,16 +1718,19 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         if (!props.onUpdateInstitution) return;
 
         try {
+            const newEndDateIso = newEndDate.toISOString();
             await props.onUpdateInstitution(extendingInstitution.id, {
-                subscriptionEndsAt: newEndDate.toISOString(),
-                subscription_ends_at: newEndDate.toISOString(),
+                subscriptionEndsAt: newEndDateIso,
+                subscription_ends_at: newEndDateIso,
+                trialEndsAt: newEndDateIso,
+                trial_ends_at: newEndDateIso,
                 status: 'active',
                 isSuspendedForBilling: false,
                 is_suspended_for_billing: false
             });
 
             const daysFromNow = Math.max(1, Math.ceil((newEndDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
-            await apiService.extendModuleSubscription(extendingInstitution.id, 'all', daysFromNow, 'active').catch(() => null);
+            await apiService.extendModuleSubscription(extendingInstitution.id, 'all', daysFromNow, 'active', newEndDateIso).catch(() => null);
 
             if (props.onLogAction) await props.onLogAction(`Manually extended subscription for ${extendingInstitution.name} to ${newEndDate.toLocaleDateString()}`);
 
@@ -1735,6 +1738,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             setExtendingInstitution(null);
             setExtensionDays(30);
             setCustomExpiryDate('');
+            if (props.onRefreshData) await props.onRefreshData();
         } catch (e) {
             alert("Failed to extend subscription.");
         }

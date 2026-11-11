@@ -4532,33 +4532,40 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     }, [timeOffRequests, loadData]);
 
     const onUpdateInstitution = useCallback(async (id: string, data: any) => {
-        const inst = institutions.find(i => i.id === id) || (activeInstitution?.id === id ? activeInstitution : null);
-        if (inst) {
-            const updated = { ...inst, ...data };
-            if (data.visitorAutoFinalizeTime !== undefined || data.visitor_auto_finalize_time !== undefined || data.visitorAutoFinalizeEnabled !== undefined || data.visitor_auto_finalize_enabled !== undefined) {
-                try {
-                    const vTime = data.visitorAutoFinalizeTime || data.visitor_auto_finalize_time || inst.visitorAutoFinalizeTime || (inst as any)?.visitor_auto_finalize_time || '18:00';
-                    const vEnabled = data.visitorAutoFinalizeEnabled ?? (data as any)?.visitor_auto_finalize_enabled ?? inst.visitorAutoFinalizeEnabled ?? (inst as any)?.visitor_auto_finalize_enabled ?? false;
-                    const nHost = data.notifyHostOnVisitorArrival ?? (data as any)?.notify_host_on_visitor_arrival ?? inst.notifyHostOnVisitorArrival ?? true;
-                    const sTemplate = data.visitorArrivalSmsTemplate || (data as any)?.visitor_arrival_sms_template || inst.visitorArrivalSmsTemplate || '';
-                    const payload = {
-                        visitorAutoFinalizeEnabled: vEnabled,
-                        visitorAutoFinalizeTime: vTime,
-                        visitor_auto_finalize_enabled: vEnabled,
-                        visitor_auto_finalize_time: vTime,
-                        notifyHostOnVisitorArrival: nHost,
-                        notify_host_on_visitor_arrival: nHost,
-                        visitorArrivalSmsTemplate: sTemplate,
-                        visitor_arrival_sms_template: sTemplate
-                    };
-                    localStorage.setItem(`eduai_visitor_settings_${id}`, JSON.stringify(payload));
-                    localStorage.setItem('eduai_visitor_settings', JSON.stringify(payload));
-                } catch (_) {}
-            }
-            setInstitutions(prev => prev.map(i => i.id === id ? updated : i));
-            await apiService.saveInstitution(updated);
-            loadData();
+        let inst = institutions.find(i => i.id === id) || (activeInstitution?.id === id ? activeInstitution : null);
+        if (!inst) {
+            try {
+                const fetched = await apiService.fetchInstitutions(id);
+                if (fetched && fetched[0]) inst = fetched[0];
+            } catch (_) {}
         }
+        const updated = { ...(inst || { id, name: 'Academic Institution' }), ...data };
+        if (data.visitorAutoFinalizeTime !== undefined || data.visitor_auto_finalize_time !== undefined || data.visitorAutoFinalizeEnabled !== undefined || data.visitor_auto_finalize_enabled !== undefined) {
+            try {
+                const vTime = data.visitorAutoFinalizeTime || data.visitor_auto_finalize_time || inst?.visitorAutoFinalizeTime || (inst as any)?.visitor_auto_finalize_time || '18:00';
+                const vEnabled = data.visitorAutoFinalizeEnabled ?? (data as any)?.visitor_auto_finalize_enabled ?? inst?.visitorAutoFinalizeEnabled ?? (inst as any)?.visitor_auto_finalize_enabled ?? false;
+                const nHost = data.notifyHostOnVisitorArrival ?? (data as any)?.notify_host_on_visitor_arrival ?? inst?.notifyHostOnVisitorArrival ?? true;
+                const sTemplate = data.visitorArrivalSmsTemplate || (data as any)?.visitor_arrival_sms_template || inst?.visitorArrivalSmsTemplate || '';
+                const payload = {
+                    visitorAutoFinalizeEnabled: vEnabled,
+                    visitorAutoFinalizeTime: vTime,
+                    visitor_auto_finalize_enabled: vEnabled,
+                    visitor_auto_finalize_time: vTime,
+                    notifyHostOnVisitorArrival: nHost,
+                    notify_host_on_visitor_arrival: nHost,
+                    visitorArrivalSmsTemplate: sTemplate,
+                    visitor_arrival_sms_template: sTemplate
+                };
+                localStorage.setItem(`eduai_visitor_settings_${id}`, JSON.stringify(payload));
+                localStorage.setItem('eduai_visitor_settings', JSON.stringify(payload));
+            } catch (_) {}
+        }
+        setInstitutions(prev => {
+            const exists = prev.some(i => i.id === id);
+            return exists ? prev.map(i => i.id === id ? updated : i) : [...prev, updated];
+        });
+        await apiService.saveInstitution(updated);
+        loadData();
     }, [institutions, activeInstitution, loadData]);
 
     const handleLogGateAction = useCallback(async (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => {

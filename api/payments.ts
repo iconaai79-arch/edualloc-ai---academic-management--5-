@@ -1501,7 +1501,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                                             await supabase.from('institutions').update({
                                                 subscription_ends_at: newEndDate.toISOString(),
-                                                status: 'active'
+                                                status: 'active',
+                                                is_suspended_for_billing: false
                                             }).eq('id', instId);
 
                                             const invoiceId = `inv_sub_${Date.now()}`;

@@ -4287,7 +4287,6 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
     sql += `                to_jsonb(COALESCE((NEW.sms_config->>'systemSmsBalance')::int, 0) + bonus_units)\n`;
     sql += `            );\n`;
     sql += `            \n`;
-    sql += `            NEW.smsConfig := NEW.sms_config;\n`;
     sql += `        END IF;\n`;
     sql += `    END IF;\n`;
     sql += `\n`;

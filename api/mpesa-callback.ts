@@ -677,7 +677,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         .from('institutions')
                         .update({
                             subscription_ends_at: newEndDate.toISOString(),
-                            status: 'active' // Automatically reactivate the account
+                            status: 'active',
+                            is_suspended_for_billing: false
                         })
                         .eq('id', transaction.institution_id);
 

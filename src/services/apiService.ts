@@ -6676,7 +6676,8 @@ export const apiService = {
         institutionId: string,
         moduleId: string,
         daysToAdd: number = 30,
-        targetStatus: 'active' | 'trial' | 'expired' | 'suspended' = 'active'
+        targetStatus: 'active' | 'trial' | 'expired' | 'suspended' = 'active',
+        explicitEndDate?: string
     ): Promise<void> {
         const now = new Date();
         const allModuleIds = ['academics', 'finance', 'hr_payroll', 'library', 'school_store', 'timetable', 'his', 'transport', 'boarding', 'enrollment_manager', 'events', 'ng_cdf', 'fiscal_guard', 'eduvote', 'alumni', 'remedials', 'driving_school', 'beauty_college', 'law_firm', 'cooperative', 'milling', 'property', 'restaurant_pos', 'church', 'car_showroom', 'carwash_admin', 'mechanic_admin', 'fuel_station', 'private_security', 'invoicing', 'corporate_invoicing'];
@@ -6686,22 +6687,34 @@ export const apiService = {
             const instList = await apiService.fetchModuleRecords<Institution>('institutions', institutionId);
             if (instList && instList.length > 0) {
                 const inst = instList[0];
-                let currentEnd = now;
-                if (inst.subscriptionEndsAt) {
-                    const parsed = new Date(inst.subscriptionEndsAt);
-                    if (!isNaN(parsed.getTime()) && parsed > now) {
-                        currentEnd = parsed;
+                let newInstEndsAt: string;
+                if (explicitEndDate) {
+                    newInstEndsAt = explicitEndDate;
+                } else {
+                    let currentEnd = now;
+                    const existingSub = inst.subscriptionEndsAt || (inst as any).subscription_ends_at || (targetStatus === 'trial' ? (inst.trialEndsAt || (inst as any).trial_ends_at) : null);
+                    if (existingSub) {
+                        const parsed = new Date(existingSub);
+                        if (!isNaN(parsed.getTime()) && parsed > now) {
+                            currentEnd = parsed;
+                        }
                     }
+                    newInstEndsAt = new Date(currentEnd.getTime() + daysToAdd * 24 * 60 * 60 * 1000).toISOString();
                 }
-                const newInstEndsAt = new Date(currentEnd.getTime() + daysToAdd * 24 * 60 * 60 * 1000).toISOString();
-                await apiService.saveModuleRecord('institutions', {
+
+                await apiService.saveInstitution({
+                    ...inst,
                     id: inst.id,
+                    name: inst.name || 'Academic Institution',
                     status: targetStatus === 'trial' ? 'trial' : 'active',
                     subscriptionEndsAt: newInstEndsAt,
                     subscription_ends_at: newInstEndsAt,
+                    trialEndsAt: targetStatus === 'trial' ? newInstEndsAt : (inst.trialEndsAt || (inst as any).trial_ends_at),
+                    trial_ends_at: targetStatus === 'trial' ? newInstEndsAt : (inst.trialEndsAt || (inst as any).trial_ends_at),
                     isSuspendedForBilling: false,
+                    is_suspended_for_billing: false,
                     updatedAt: now.toISOString()
-                });
+                } as any);
             }
         }
 
@@ -6710,19 +6723,23 @@ export const apiService = {
                 filter: { module_id: mId }
             });
 
-            let currentEndDate = now;
-            if (existing.length > 0) {
-                const record = existing[0];
-                const existingEndStr = record.subscriptionEndsAt || (record as any).subscription_ends_at || record.trialEndsAt || (record as any).trial_ends_at;
-                if (existingEndStr) {
-                    const parsed = new Date(existingEndStr);
-                    if (!isNaN(parsed.getTime()) && parsed > now) {
-                        currentEndDate = parsed;
+            let newEndsAt: string;
+            if (explicitEndDate) {
+                newEndsAt = explicitEndDate;
+            } else {
+                let currentEndDate = now;
+                if (existing.length > 0) {
+                    const record = existing[0];
+                    const existingEndStr = record.subscriptionEndsAt || (record as any).subscription_ends_at || record.trialEndsAt || (record as any).trial_ends_at;
+                    if (existingEndStr) {
+                        const parsed = new Date(existingEndStr);
+                        if (!isNaN(parsed.getTime()) && parsed > now) {
+                            currentEndDate = parsed;
+                        }
                     }
                 }
+                newEndsAt = new Date(currentEndDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000).toISOString();
             }
-
-            const newEndsAt = new Date(currentEndDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000).toISOString();
 
             const moduleState: Partial<InstitutionModuleState> = {
                 id: existing.length > 0 ? existing[0].id : `${institutionId}_${mId}_${Date.now()}`,
@@ -8595,23 +8612,36 @@ export const apiService = {
 
             // Use fallback from currentRequest if the backend select() came back empty 
             const finalRequest = request.id ? request : { ...currentRequest, ...request };
+            const targetInstId = finalRequest.institutionId || (finalRequest as any).institution_id;
 
-            // 3. If approved, extend the institution's trial
-            if (status === 'approved' && finalRequest.institutionId) {
-                const insts = await apiService.fetchModuleRecords<any>('institutions', finalRequest.institutionId);
+            // 3. If approved, extend the institution's subscription / trial
+            if (status === 'approved' && targetInstId) {
+                const insts = await apiService.fetchModuleRecords<any>('institutions', targetInstId);
                 const inst = insts[0];
-                if (!inst) throw new Error("Institution not found for the given request ID: " + finalRequest.institutionId);
+                if (!inst) throw new Error("Institution not found for the given request ID: " + targetInstId);
 
-                // Calculate new expiry date
-                const currentExpiry = inst.trialEndsAt ? new Date(inst.trialEndsAt) : new Date();
+                // Calculate new expiry date based on current subscription or trial end
+                const currentExpiryRaw = inst.subscriptionEndsAt || (inst as any).subscription_ends_at || inst.trialEndsAt || (inst as any).trial_ends_at;
+                const currentExpiry = currentExpiryRaw ? new Date(currentExpiryRaw) : new Date();
                 const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
                 const newExpiry = new Date(baseDate.getTime() + (extensionDays * 24 * 60 * 60 * 1000));
+                const newExpiryIso = newExpiry.toISOString();
 
-                await apiService.saveModuleRecord('institutions', {
-                    id: (request as any).institutionId,
-                    status: 'trial', 
-                    trialEndsAt: newExpiry.toISOString()
-                });
+                await apiService.saveInstitution({
+                    ...inst,
+                    id: targetInstId,
+                    name: inst.name || 'Academic Institution',
+                    status: 'active',
+                    subscriptionEndsAt: newExpiryIso,
+                    subscription_ends_at: newExpiryIso,
+                    trialEndsAt: newExpiryIso,
+                    trial_ends_at: newExpiryIso,
+                    isSuspendedForBilling: false,
+                    is_suspended_for_billing: false,
+                    updatedAt: new Date().toISOString()
+                } as any);
+
+                await apiService.extendModuleSubscription(targetInstId, 'all', extensionDays, 'active', newExpiryIso);
             }
         } catch (error) {
             console.error("Failed to update extension request status:", error);

@@ -4272,8 +4272,6 @@ BEGIN
                 '{systemSmsBalance}', 
                 to_jsonb(COALESCE((NEW.sms_config->>'systemSmsBalance')::int, 0) + bonus_units)
             );
-            
-            NEW.smsConfig := NEW.sms_config;
         END IF;
     END IF;
 
