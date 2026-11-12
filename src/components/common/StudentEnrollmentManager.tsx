@@ -941,6 +941,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         if (enr.metadata?.parents?.[0]?.name && enr.metadata.parents[0].name.trim()) {
             return enr.metadata.parents[0].name.trim();
         }
+        // Sibling enrollment fallback: check if another enrollment for the same user_id holds the real name
+        const rawUid = String(enr.userId || (enr as any)?.user_id || '').trim();
+        if (rawUid && enrollments && enrollments.length > 0) {
+            const cleanTargetUid = rawUid.replace(/^u_/, '');
+            const sibling = enrollments.find(e => {
+                if (e.id === enr.id) return false;
+                const eUid = String(e.userId || (e as any)?.user_id || '').trim();
+                return eUid && (eUid === rawUid || eUid.replace(/^u_/, '') === cleanTargetUid);
+            });
+            if (sibling) {
+                const sName = String((sibling as any).name || (sibling as any).studentName || sibling.metadata?.studentName || sibling.metadata?.name || sibling.metadata?.fullName || '').trim();
+                if (sName && !isNameUnknown(sName)) {
+                    return sName;
+                }
+            }
+        }
         if (enr.admissionNumber) {
             return `Student ${enr.admissionNumber}`;
         }
@@ -948,7 +964,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             return `Student ${enr.assessmentNo || enr.metadata?.assessmentNo}`;
         }
         return 'Unknown Student';
-    }, [findStudentUser]);
+    }, [findStudentUser, enrollments]);
 
     const isEventTargetMatch = (eventTarget: string | undefined | null, enr: StudentEnrollment) => {
         if (!eventTarget) return true;
