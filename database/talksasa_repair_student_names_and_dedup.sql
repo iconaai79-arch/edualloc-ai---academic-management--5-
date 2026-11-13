@@ -110,26 +110,7 @@ WHERE e.user_id = u.id
   AND u.name NOT LIKE 'Student %'
   AND (e.metadata->>'studentName' IS NULL OR e.metadata->>'studentName' = '');
 
--- Step 4: Safely consolidate data and remove duplicate enrollments
--- 4a. Copy real admission numbers from duplicates to records that lack them
-UPDATE public.student_enrollments o
-SET admission_number = d.admission_number
-FROM public.student_enrollments d
-WHERE o.institution_id = d.institution_id
-  AND o.user_id = d.user_id
-  AND (o.admission_number IS NULL OR o.admission_number = '' OR o.admission_number LIKE 'ADM-%')
-  AND (d.admission_number IS NOT NULL AND d.admission_number <> '' AND d.admission_number NOT LIKE 'ADM-%');
-
--- 4b. Copy real studentName from duplicates to records that lack them
-UPDATE public.student_enrollments o
-SET metadata = jsonb_set(COALESCE(o.metadata, '{}'::jsonb), '{studentName}', to_jsonb(d.metadata->>'studentName'))
-FROM public.student_enrollments d
-WHERE o.institution_id = d.institution_id
-  AND o.user_id = d.user_id
-  AND (o.metadata->>'studentName' IS NULL OR o.metadata->>'studentName' = '' OR o.metadata->>'studentName' LIKE 'Student %')
-  AND (d.metadata->>'studentName' IS NOT NULL AND d.metadata->>'studentName' <> '' AND d.metadata->>'studentName' NOT LIKE 'Student %');
-
--- 4c. Delete all duplicate enrollment records, leaving exactly one per (institution_id, user_id)
+-- Step 4: Delete all duplicate enrollment records, leaving exactly one per (institution_id, user_id)
 DELETE FROM public.student_enrollments a
 USING public.student_enrollments b
 WHERE a.institution_id = b.institution_id
