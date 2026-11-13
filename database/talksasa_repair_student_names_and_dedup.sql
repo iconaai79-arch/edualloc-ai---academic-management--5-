@@ -71,6 +71,13 @@ WHERE e.user_id IS NOT NULL
   AND NOT EXISTS (
       SELECT 1 FROM public.users u WHERE u.id = e.user_id
   )
+ORDER BY e.user_id,
+    CASE 
+        WHEN e.metadata->>'studentName' IS NOT NULL 
+             AND e.metadata->>'studentName' <> '' 
+             AND e.metadata->>'studentName' NOT LIKE 'Student %' 
+        THEN 1 ELSE 2 
+    END ASC
 ON CONFLICT (id) DO UPDATE
 SET name = CASE 
         WHEN EXCLUDED.name IS NOT NULL AND EXCLUDED.name <> '' AND EXCLUDED.name NOT LIKE 'Student %' 
@@ -103,17 +110,132 @@ WHERE e.user_id = u.id
   AND u.name NOT LIKE 'Student %'
   AND (e.metadata->>'studentName' IS NULL OR e.metadata->>'studentName' = '');
 
--- Step 4: Safely remove the redundant shadow records (enr_usr_...)
--- Keeps the primary record with admission numbers, streams, and parent contact details
-DELETE FROM public.student_enrollments d
-WHERE d.id LIKE 'enr_usr_%'
-  AND EXISTS (
-      SELECT 1 
-      FROM public.student_enrollments o
-      WHERE o.institution_id = d.institution_id
-        AND o.user_id = d.user_id
-        AND o.id NOT LIKE 'enr_usr_%'
-  );
+-- Step 4: Safely consolidate data and remove all duplicate enrollments per (institution_id, user_id)
+-- 4a. Merge non-null admission numbers and metadata from duplicates into the primary survivor record
+WITH ranked AS (
+    SELECT 
+        id,
+        institution_id,
+        user_id,
+        admission_number,
+        metadata,
+        ROW_NUMBER() OVER (
+            PARTITION BY institution_id, user_id
+            ORDER BY 
+                CASE 
+                    WHEN admission_number IS NOT NULL 
+                         AND admission_number <> '' 
+                         AND admission_number NOT LIKE 'ADM-usr_%' 
+                         AND admission_number NOT LIKE 'ADM-%' 
+                    THEN 1
+                    WHEN admission_number IS NOT NULL AND admission_number <> '' THEN 2
+                    ELSE 3
+                END ASC,
+                CASE 
+                    WHEN metadata->>'studentName' IS NOT NULL 
+                         AND metadata->>'studentName' <> '' 
+                         AND metadata->>'studentName' NOT LIKE 'Student %' 
+                    THEN 1
+                    WHEN metadata->>'studentName' IS NOT NULL AND metadata->>'studentName' <> '' THEN 2
+                    ELSE 3
+                END ASC,
+                CASE 
+                    WHEN metadata->>'parentPhone' IS NOT NULL AND metadata->>'parentPhone' <> '' THEN 1 
+                    ELSE 2 
+                END ASC,
+                CASE WHEN id LIKE 'enr_usr_%' THEN 2 ELSE 1 END ASC,
+                updated_at DESC NULLS LAST,
+                created_at DESC NULLS LAST,
+                id ASC
+        ) AS rn
+    FROM public.student_enrollments
+    WHERE user_id IS NOT NULL AND user_id <> ''
+),
+primary_records AS (
+    SELECT id, institution_id, user_id, admission_number, metadata
+    FROM ranked
+    WHERE rn = 1
+),
+duplicate_candidates AS (
+    SELECT 
+        d.institution_id,
+        d.user_id,
+        MAX(CASE 
+            WHEN d.admission_number IS NOT NULL 
+                 AND d.admission_number <> '' 
+                 AND d.admission_number NOT LIKE 'ADM-%' 
+            THEN d.admission_number 
+            ELSE NULL 
+        END) AS best_dup_adm,
+        MAX(CASE 
+            WHEN d.metadata->>'studentName' IS NOT NULL 
+                 AND d.metadata->>'studentName' <> '' 
+                 AND d.metadata->>'studentName' NOT LIKE 'Student %' 
+            THEN d.metadata->>'studentName' 
+            ELSE NULL 
+        END) AS best_dup_name,
+        MAX(NULLIF(d.metadata->>'parentPhone', '')) AS best_dup_phone,
+        MAX(NULLIF(d.metadata->>'gradeLevel', '')) AS best_dup_grade
+    FROM ranked d
+    WHERE d.rn > 1
+    GROUP BY d.institution_id, d.user_id
+)
+UPDATE public.student_enrollments se
+SET admission_number = COALESCE(NULLIF(se.admission_number, ''), dc.best_dup_adm),
+    metadata = jsonb_strip_nulls(
+        COALESCE(se.metadata, '{}'::jsonb) || 
+        jsonb_build_object(
+            'studentName', COALESCE(NULLIF(se.metadata->>'studentName', ''), dc.best_dup_name),
+            'parentPhone', COALESCE(NULLIF(se.metadata->>'parentPhone', ''), dc.best_dup_phone),
+            'gradeLevel',  COALESCE(NULLIF(se.metadata->>'gradeLevel', ''), dc.best_dup_grade)
+        )
+    )
+FROM primary_records pr
+JOIN duplicate_candidates dc 
+  ON pr.institution_id = dc.institution_id 
+ AND pr.user_id = dc.user_id
+WHERE se.id = pr.id;
+
+-- 4b. Delete all duplicate records (rn > 1), leaving exactly one clean primary record per (institution_id, user_id)
+WITH ranked_enrollments AS (
+    SELECT 
+        id,
+        ROW_NUMBER() OVER (
+            PARTITION BY institution_id, user_id
+            ORDER BY 
+                CASE 
+                    WHEN admission_number IS NOT NULL 
+                         AND admission_number <> '' 
+                         AND admission_number NOT LIKE 'ADM-usr_%' 
+                         AND admission_number NOT LIKE 'ADM-%' 
+                    THEN 1
+                    WHEN admission_number IS NOT NULL AND admission_number <> '' THEN 2
+                    ELSE 3
+                END ASC,
+                CASE 
+                    WHEN metadata->>'studentName' IS NOT NULL 
+                         AND metadata->>'studentName' <> '' 
+                         AND metadata->>'studentName' NOT LIKE 'Student %' 
+                    THEN 1
+                    WHEN metadata->>'studentName' IS NOT NULL AND metadata->>'studentName' <> '' THEN 2
+                    ELSE 3
+                END ASC,
+                CASE 
+                    WHEN metadata->>'parentPhone' IS NOT NULL AND metadata->>'parentPhone' <> '' THEN 1 
+                    ELSE 2 
+                END ASC,
+                CASE WHEN id LIKE 'enr_usr_%' THEN 2 ELSE 1 END ASC,
+                updated_at DESC NULLS LAST,
+                created_at DESC NULLS LAST,
+                id ASC
+        ) AS rn
+    FROM public.student_enrollments
+    WHERE user_id IS NOT NULL AND user_id <> ''
+)
+DELETE FROM public.student_enrollments
+WHERE id IN (
+    SELECT id FROM ranked_enrollments WHERE rn > 1
+);
 
 -- Step 5: Enforce a unique index on (institution_id, user_id) for active enrollments
 CREATE UNIQUE INDEX IF NOT EXISTS uq_idx_student_enrollments_inst_user 
