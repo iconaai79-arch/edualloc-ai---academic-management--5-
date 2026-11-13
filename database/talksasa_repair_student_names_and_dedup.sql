@@ -120,26 +120,29 @@ WHERE o.institution_id = d.institution_id
   AND (o.admission_number IS NULL OR o.admission_number = '' OR o.admission_number LIKE 'ADM-%')
   AND (d.admission_number IS NOT NULL AND d.admission_number <> '' AND d.admission_number NOT LIKE 'ADM-%');
 
--- 4b. Delete all duplicate enrollment records, leaving exactly one per (institution_id, user_id)
-DELETE FROM public.student_enrollments
-WHERE id IN (
-    SELECT id
-    FROM (
-        SELECT id,
-               ROW_NUMBER() OVER (
-                   PARTITION BY institution_id, user_id
-                   ORDER BY 
-                       CASE WHEN admission_number IS NOT NULL AND admission_number <> '' AND admission_number NOT LIKE 'ADM-%' THEN 0 ELSE 1 END,
-                       CASE WHEN metadata->>'studentName' IS NOT NULL AND metadata->>'studentName' <> '' AND metadata->>'studentName' NOT LIKE 'Student %' THEN 0 ELSE 1 END,
-                       CASE WHEN id NOT LIKE 'enr_usr_%' THEN 0 ELSE 1 END,
-                       updated_at DESC NULLS LAST,
-                       id ASC
-               ) AS rn
-        FROM public.student_enrollments
-        WHERE user_id IS NOT NULL AND user_id <> ''
-    ) t
-    WHERE t.rn > 1
-);
+-- 4b. Copy real studentName from duplicates to records that lack them
+UPDATE public.student_enrollments o
+SET metadata = jsonb_set(COALESCE(o.metadata, '{}'::jsonb), '{studentName}', to_jsonb(d.metadata->>'studentName'))
+FROM public.student_enrollments d
+WHERE o.institution_id = d.institution_id
+  AND o.user_id = d.user_id
+  AND (o.metadata->>'studentName' IS NULL OR o.metadata->>'studentName' = '' OR o.metadata->>'studentName' LIKE 'Student %')
+  AND (d.metadata->>'studentName' IS NOT NULL AND d.metadata->>'studentName' <> '' AND d.metadata->>'studentName' NOT LIKE 'Student %');
+
+-- 4c. Delete all duplicate enrollment records, leaving exactly one per (institution_id, user_id)
+DELETE FROM public.student_enrollments a
+USING public.student_enrollments b
+WHERE a.institution_id = b.institution_id
+  AND a.user_id = b.user_id
+  AND a.user_id IS NOT NULL
+  AND a.user_id <> ''
+  AND (
+      (a.id LIKE 'enr_usr_%' AND b.id NOT LIKE 'enr_usr_%')
+      OR (
+          (a.id LIKE 'enr_usr_%') = (b.id LIKE 'enr_usr_%')
+          AND a.id < b.id
+      )
+  );
 
 -- Step 5: Enforce a unique index on (institution_id, user_id) for active enrollments
 CREATE UNIQUE INDEX IF NOT EXISTS uq_idx_student_enrollments_inst_user 
