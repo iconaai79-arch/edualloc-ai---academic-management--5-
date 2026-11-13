@@ -131,6 +131,3 @@ ON public.student_enrollments(institution_id, user_id)
 WHERE user_id IS NOT NULL AND user_id <> '';
 
 COMMIT;
-
--- Verification check
-SELECT COUNT(*) AS total_enrollments FROM public.student_enrollments;
