@@ -2357,7 +2357,7 @@ Please change it after login.`;
                                 </div>
                                 <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Total Learners</h3>
                                 <p className="text-5xl font-black text-white tracking-tighter">
-                                    {(props.users || []).filter(u => u && u.role === 'student').length}
+                                    {(props.users || []).filter(u => u && ['student', 'learner', 'pupil', 'scholar'].includes((u.role || '').toLowerCase())).length}
                                 </p>
                             </div>
                             <div className="bg-slate-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl relative group overflow-hidden">
