@@ -15,7 +15,7 @@ UPDATE public.student_enrollments o
 SET metadata = jsonb_set(
     jsonb_set(
         jsonb_set(
-            COALESCE(NULLIF(o.metadata, '')::jsonb, '{}'::jsonb),
+            COALESCE(NULLIF(o.metadata, 'null'::jsonb), '{}'::jsonb),
             '{studentName}',
             to_jsonb(COALESCE(NULLIF(s.metadata->>'studentName', ''), NULLIF(s.metadata->>'name', ''), NULLIF(s.metadata->>'fullName', '')))
         ),
@@ -86,7 +86,7 @@ UPDATE public.student_enrollments e
 SET metadata = jsonb_set(
     jsonb_set(
         jsonb_set(
-            COALESCE(NULLIF(e.metadata, '')::jsonb, '{}'::jsonb),
+            COALESCE(NULLIF(e.metadata, 'null'::jsonb), '{}'::jsonb),
             '{studentName}',
             to_jsonb(u.name)
         ),
