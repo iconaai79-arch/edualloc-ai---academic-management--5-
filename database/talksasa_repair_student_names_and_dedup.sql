@@ -133,8 +133,4 @@ WHERE user_id IS NOT NULL AND user_id <> '';
 COMMIT;
 
 -- Verification check
-SELECT 
-    COUNT(*) AS total_enrollments,
-    COUNT(CASE WHEN metadata->>'studentName' IS NOT NULL AND metadata->>'studentName' <> '' THEN 1 END) AS with_real_name,
-    COUNT(CASE WHEN admission_number IS NOT NULL AND admission_number <> '' THEN 1 END) AS with_admission_no
-FROM public.student_enrollments;
+SELECT COUNT(*) AS total_enrollments FROM public.student_enrollments;
