@@ -6174,7 +6174,7 @@ Please change it after login.`;
                                             <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
                                                 <div className="flex items-center gap-4 mb-6">
                                                     <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-2xl">
-                                                        <BoltIcon className="w-6 h-6 text-blue-600" />
+                                                        <NcbaIcon className="w-6 h-6 text-blue-600" />
                                                     </div>
                                                     <div>
                                                         <h4 className="text-sm font-black uppercase tracking-widest">NCBA Connectivity &amp; STK Push Testing</h4>
