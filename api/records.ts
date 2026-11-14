@@ -876,6 +876,30 @@ const ensureEssentialSchema = async (pool: any) => {
             ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
             ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
             ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+            -- 10. Migrate legacy Supabase storage URLs to Talksasa local /storage/eduai/ static path
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'system_settings') THEN
+                UPDATE public.system_settings
+                SET data = REPLACE(data::text, 'https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/', '/storage/eduai/')::jsonb
+                WHERE data::text LIKE '%https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/%';
+            END IF;
+
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'institutions') THEN
+                UPDATE public.institutions SET logo_url = REPLACE(logo_url, 'https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/', '/storage/eduai/') WHERE logo_url LIKE '%https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/%';
+                UPDATE public.institutions SET header_image_url = REPLACE(header_image_url, 'https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/', '/storage/eduai/') WHERE header_image_url LIKE '%https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/%';
+                UPDATE public.institutions SET footer_image_url = REPLACE(footer_image_url, 'https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/', '/storage/eduai/') WHERE footer_image_url LIKE '%https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/%';
+                UPDATE public.institutions SET stamp_url = REPLACE(stamp_url, 'https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/', '/storage/eduai/') WHERE stamp_url LIKE '%https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/%';
+                UPDATE public.institutions SET letterhead_config = REPLACE(letterhead_config::text, 'https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/', '/storage/eduai/')::jsonb WHERE letterhead_config::text LIKE '%https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/%';
+                UPDATE public.institutions SET data = REPLACE(data::text, 'https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/', '/storage/eduai/')::jsonb WHERE data::text LIKE '%https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/%';
+            END IF;
+
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'retail_inventory_items') THEN
+                UPDATE public.retail_inventory_items SET image_url = REPLACE(image_url, 'https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/', '/storage/eduai/') WHERE image_url LIKE '%https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/%';
+                UPDATE public.retail_inventory_items SET "imageUrl" = REPLACE("imageUrl", 'https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/', '/storage/eduai/') WHERE "imageUrl" LIKE '%https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/%';
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'retail_inventory_items' AND column_name = 'images') THEN
+                    UPDATE public.retail_inventory_items SET images = REPLACE(images::text, 'https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/', '/storage/eduai/')::jsonb WHERE images::text LIKE '%https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/%';
+                END IF;
+            END IF;
         END $$;
       `);
       _schemaMigrationDone = true;
