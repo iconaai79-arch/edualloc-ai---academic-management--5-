@@ -4447,3 +4447,75 @@ INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institu
 INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_bursar_finance', 'Bursar Jane Doe', 'bursar@edu.com', '0711111114', NULL, 'finance', ARRAY['finance'], 'INST001', NULL, ARRAY['Financial Administration'], NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
 INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_constituency_admin', 'Constituency CDF Officer', 'constituency@app.com', '0722222222', NULL, 'constituency_admin', ARRAY['constituency_admin'], 'Kigumo', NULL, ARRAY['NG-CDF Management'], NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
 INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_support_staff_demo', 'John Kamau (Support Staff)', 'staff@app.com', '0711111115', NULL, 'support_staff', ARRAY['support_staff'], 'INST001', 'dept_maintenance', ARRAY['Maintenance & Facilities','Security','Logistics'], NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
+
+-- ==========================================================================
+-- BIOMETRICS & ATTENDANCE LOGS
+-- ==========================================================================
+
+CREATE TABLE IF NOT EXISTS staff_attendance_logs (
+    id TEXT PRIMARY KEY DEFAULT ('sal_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+    institution_id TEXT,
+    staff_id TEXT,
+    device_id TEXT,
+    device_pin TEXT,
+    punch_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    punch_type INTEGER DEFAULT 0,
+    verification_method INTEGER DEFAULT 1,
+    raw_data TEXT,
+    is_processed BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS biometric_devices (
+    id TEXT PRIMARY KEY DEFAULT ('dev_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+    institution_id TEXT,
+    serial_number TEXT,
+    device_name TEXT,
+    device_model TEXT,
+    protocol TEXT DEFAULT 'dahua',
+    ip_address TEXT,
+    port INTEGER DEFAULT 80,
+    is_active BOOLEAN DEFAULT TRUE,
+    last_sync_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS staff_attendance_daily (
+    id TEXT PRIMARY KEY DEFAULT ('sad_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+    institution_id TEXT,
+    staff_id TEXT,
+    attendance_date DATE DEFAULT CURRENT_DATE,
+    first_in TIMESTAMPTZ,
+    last_out TIMESTAMPTZ,
+    total_hours NUMERIC DEFAULT 0,
+    overtime_hours NUMERIC DEFAULT 0,
+    status TEXT DEFAULT 'present',
+    late_minutes NUMERIC DEFAULT 0,
+    early_leave_minutes NUMERIC DEFAULT 0,
+    punch_count NUMERIC DEFAULT 0,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS biometric_enrollments (
+    id TEXT PRIMARY KEY DEFAULT ('be_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+    institution_id TEXT,
+    staff_id TEXT,
+    device_pin TEXT,
+    fingerprint_index INTEGER DEFAULT 0,
+    fingerprint_template TEXT,
+    card_number TEXT,
+    face_data TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_staff_attendance_logs_inst ON staff_attendance_logs (institution_id);
+CREATE INDEX IF NOT EXISTS idx_staff_attendance_logs_pin ON staff_attendance_logs (device_pin);
+CREATE INDEX IF NOT EXISTS idx_staff_attendance_logs_punch ON staff_attendance_logs (punch_time DESC);
+CREATE INDEX IF NOT EXISTS idx_biometric_devices_inst ON biometric_devices (institution_id);
+CREATE INDEX IF NOT EXISTS idx_biometric_devices_sn ON biometric_devices (serial_number);
