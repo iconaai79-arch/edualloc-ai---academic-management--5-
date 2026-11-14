@@ -567,7 +567,49 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     const [isTestingStk, setIsTestingStk] = useState(false);
     const [isTestingNcba, setIsTestingNcba] = useState(false);
+    const [ncbaTestPhone, setNcbaTestPhone] = useState('');
     const [isTestingFtp, setIsTestingFtp] = useState(false);
+
+    const handleTestNcbaStkPush = async (configToUse: NcbaConfig, institutionId?: string) => {
+        if (!ncbaTestPhone.trim()) {
+            alert('Please enter a phone number (e.g. 2547XXXXXXXX) for the NCBA STK Push test.');
+            return;
+        }
+        setIsTestingNcba(true);
+        try {
+            const c2bUser = (configToUse.username || configToUse.clientId || '').trim();
+            const c2bSecret = (configToUse.clientSecret || configToUse.password || '').trim();
+            const normalizedNcbaConfig = {
+                ...configToUse,
+                username: c2bUser,
+                clientId: c2bUser,
+                clientSecret: c2bSecret,
+                password: c2bSecret
+            };
+            const accountRef = configToUse.accountNumber || '272487';
+            const result = await apiService.post('/api/integrations', {
+                action: 'ncbaInitiateStk',
+                phone: ncbaTestPhone.trim(),
+                phoneNumber: ncbaTestPhone.trim(),
+                recipient: ncbaTestPhone.trim(),
+                amount: 1,
+                accountReference: accountRef,
+                accountNumber: accountRef,
+                institutionId: institutionId || props.currentInstitution?.id,
+                config: normalizedNcbaConfig,
+                metadata: { type: 'one-off', provider: 'ncba' }
+            });
+            if (result.success) {
+                alert(`NCBA STK Push initiated successfully! Check your phone (${ncbaTestPhone.trim()}).\n\nTransaction ID: ${result.transactionId || 'N/A'}\nMessage: ${result.message || 'STK Push Initiated'}\n\nBank Response:\n${JSON.stringify(result.raw || result, null, 2)}`);
+            } else {
+                alert(`NCBA STK Push failed: ${result.message || 'Unknown error'}\n\nBank Response:\n${JSON.stringify(result.raw || result, null, 2)}`);
+            }
+        } catch (err: any) {
+            alert(`NCBA STK Push Error: ${err.message}`);
+        } finally {
+            setIsTestingNcba(false);
+        }
+    };
 
     useEffect(() => {
         setLocalInstSmsConfig(props.currentInstitution?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -2366,6 +2408,26 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <p className="text-xs text-blue-700/70 leading-relaxed">NCBA Bank integration supports C2B STK push and Enterprise Open Banking APIs. Ensure your IP is whitelisted on NCBA's UAT gateway before running live transactions.</p>
                                             </div>
                                             <button onClick={handleSaveGlobalConfigs} className="btn-primary w-full h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save NCBA Configuration</button>
+
+                                            <div className="p-5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">NCBA STK Push Test (KES 1)</label>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="tel"
+                                                        value={ncbaTestPhone}
+                                                        onChange={e => setNcbaTestPhone(e.target.value)}
+                                                        className="form-input flex-1 text-xs font-mono"
+                                                        placeholder="2547XXXXXXXX"
+                                                    />
+                                                    <button
+                                                        onClick={() => handleTestNcbaStkPush(localNcbaConfig)}
+                                                        disabled={isTestingNcba}
+                                                        className="px-5 h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 shadow-sm"
+                                                    >
+                                                        {isTestingNcba ? 'Pushing...' : 'Test STK Push'}
+                                                    </button>
+                                                </div>
+                                            </div>
                                             
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                 <button 
@@ -5381,6 +5443,26 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             placeholder="https://openbankingtest.api.ncbagroup.com/test/apigateway/" 
                                                         />
                                                     </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-200 dark:border-slate-800 space-y-3 mt-6">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">NCBA STK Push Test (KES 1)</label>
+                                                <div className="flex gap-3">
+                                                    <input
+                                                        type="tel"
+                                                        value={ncbaTestPhone}
+                                                        onChange={e => setNcbaTestPhone(e.target.value)}
+                                                        className="form-input flex-1 text-xs font-mono"
+                                                        placeholder="2547XXXXXXXX"
+                                                    />
+                                                    <button
+                                                        onClick={() => handleTestNcbaStkPush(localInstNcbaConfig, props.currentInstitution?.id)}
+                                                        disabled={isTestingNcba}
+                                                        className="px-6 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 shadow-sm"
+                                                    >
+                                                        {isTestingNcba ? 'Pushing...' : 'Test STK Push'}
+                                                    </button>
                                                 </div>
                                             </div>
 

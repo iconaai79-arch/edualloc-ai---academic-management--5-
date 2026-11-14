@@ -1441,6 +1441,49 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         }
     };
 
+    const handleTestNcba = async () => {
+        if (!testRecipient) {
+            alert("Please enter a phone number for the NCBA STK Push test.");
+            return;
+        }
+        setIsTestingNcba(true);
+        try {
+            const c2bUser = (localNcbaConfig.username || localNcbaConfig.clientId || '').trim();
+            const c2bSecret = (localNcbaConfig.clientSecret || localNcbaConfig.password || '').trim();
+            const normalizedNcbaConfig = {
+                ...localNcbaConfig,
+                username: c2bUser,
+                clientId: c2bUser,
+                clientSecret: c2bSecret,
+                password: c2bSecret
+            };
+            const accountRef = localNcbaConfig.accountNumber || '272487';
+            const result = await apiService.post('/api/integrations', {
+                action: 'ncbaInitiateStk',
+                phone: testRecipient,
+                phoneNumber: testRecipient,
+                recipient: testRecipient,
+                amount: 1,
+                accountReference: accountRef,
+                accountNumber: accountRef,
+                transactionDesc: 'NCBA C2B Connectivity Test',
+                config: normalizedNcbaConfig,
+                metadata: { type: 'one-off', provider: 'ncba' }
+            });
+            if (result.success) {
+                alert(`NCBA STK Push initiated successfully! Check your phone (${testRecipient}).\n\nTransaction ID: ${result.transactionId || 'N/A'}\nMessage: ${result.message || 'STK Push Initiated'}\n\nBank Response:\n${JSON.stringify(result.raw || result, null, 2)}`);
+                if (props.onRefreshData) props.onRefreshData();
+            } else {
+                alert(`NCBA STK Push failed: ${result.message || 'Unknown error'}\n\nBank Response:\n${JSON.stringify(result.raw || result, null, 2)}`);
+            }
+        } catch (e: any) {
+            console.error("NCBA STK Test Error:", e);
+            alert(`NCBA STK Push test failed: ${e.message}`);
+        } finally {
+            setIsTestingNcba(false);
+        }
+    };
+
     const handleQueryKcbStatus = async (checkoutRequestId: string) => {
         setIsTesting(true);
         try {
@@ -6128,30 +6171,63 @@ Please change it after login.`;
                                                 </div>
                                             </div>
 
-                                            <div className="pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
-                                                <div className="flex items-center gap-3 w-full sm:w-auto">
-                                                    <button
-                                                        onClick={async () => {
-                                                            setIsTestingNcba(true);
-                                                            try {
-                                                                const res = await apiService.testNcbaAuth(localNcbaConfig);
-                                                                if (res.success) {
-                                                                    alert('NCBA Auth Success: ' + (res.message || 'C2B Authentication successful'));
-                                                                } else {
-                                                                    alert('NCBA Auth Failed: ' + (res.message || 'Check your credentials'));
-                                                                }
-                                                            } catch (err: any) {
-                                                                alert('NCBA Connection Error: ' + err.message);
-                                                            } finally {
-                                                                setIsTestingNcba(false);
-                                                            }
-                                                        }}
-                                                        disabled={isTestingNcba}
-                                                        className="px-5 py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 text-xs font-black uppercase tracking-widest hover:bg-blue-100 transition-colors"
-                                                    >
-                                                        {isTestingNcba ? 'Verifying...' : 'Test NCBA C2B Auth'}
-                                                    </button>
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center gap-4 mb-6">
+                                                    <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-2xl">
+                                                        <BoltIcon className="w-6 h-6 text-blue-600" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-black uppercase tracking-widest">NCBA Connectivity &amp; STK Push Testing</h4>
+                                                        <p className="text-[10px] font-bold text-slate-400">Trigger a KES 1 C2B STK Push or verify authentication</p>
+                                                    </div>
                                                 </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Test Phone Number</label>
+                                                        <div className="flex gap-2">
+                                                            <input
+                                                                type="tel"
+                                                                value={testRecipient}
+                                                                onChange={e => setTestRecipient(e.target.value)}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="2547XXXXXXXX"
+                                                            />
+                                                            <button
+                                                                onClick={handleTestNcba}
+                                                                disabled={isTestingNcba}
+                                                                className="px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shrink-0 shadow-lg shadow-blue-100 dark:shadow-none"
+                                                            >
+                                                                {isTestingNcba ? 'Pushing...' : 'STK Push'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-3">
+                                                        <button
+                                                            onClick={async () => {
+                                                                setIsTestingNcba(true);
+                                                                try {
+                                                                    const res = await apiService.testNcbaAuth(localNcbaConfig);
+                                                                    if (res.success) {
+                                                                        alert('NCBA Auth Success: ' + (res.message || 'C2B Authentication successful'));
+                                                                    } else {
+                                                                        alert('NCBA Auth Failed: ' + (res.message || 'Check your credentials'));
+                                                                    }
+                                                                } catch (err: any) {
+                                                                    alert('NCBA Connection Error: ' + err.message);
+                                                                } finally {
+                                                                    setIsTestingNcba(false);
+                                                                }
+                                                            }}
+                                                            disabled={isTestingNcba}
+                                                            className="h-12 px-5 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 text-xs font-black uppercase tracking-widest hover:bg-blue-100 transition-colors"
+                                                        >
+                                                            {isTestingNcba ? 'Verifying...' : 'Test NCBA C2B Auth'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-6 border-t flex flex-col sm:flex-row justify-end items-center gap-4">
                                                 <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs w-full sm:w-auto">Save NCBA Settings</button>
                                             </div>
                                         </div>
