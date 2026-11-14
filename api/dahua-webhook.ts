@@ -132,11 +132,101 @@ const getPgPool = async () => {
             _pgPool = null;
         });
 
+        await ensureDahuaTables(_pgPool).catch(() => {});
+
         return _pgPool;
     } catch (e: any) {
         console.warn('[Direct SQL Pool in Dahua Init Warning]:', e?.message || e);
         _directPgDisabledUntil = Date.now() + 30000;
         return null;
+    }
+};
+
+let _dahuaTablesEnsured = false;
+const ensureDahuaTables = async (pool: any) => {
+    if (_dahuaTablesEnsured || !pool) return;
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS public.staff_attendance_logs (
+                id TEXT PRIMARY KEY DEFAULT ('sal_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+                institution_id TEXT,
+                staff_id TEXT,
+                device_id TEXT,
+                device_pin TEXT,
+                punch_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                punch_type INTEGER DEFAULT 0,
+                verification_method INTEGER DEFAULT 1,
+                raw_data TEXT,
+                is_processed BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS public.biometric_devices (
+                id TEXT PRIMARY KEY DEFAULT ('dev_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+                institution_id TEXT,
+                serial_number TEXT,
+                device_name TEXT,
+                device_model TEXT,
+                protocol TEXT DEFAULT 'dahua',
+                ip_address TEXT,
+                port INTEGER DEFAULT 80,
+                is_active BOOLEAN DEFAULT TRUE,
+                last_sync_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+
+            DO $$
+            BEGIN
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS staff_id TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "staffId" TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS device_id TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "deviceId" TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS device_pin TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "devicePin" TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS punch_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "punchTime" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS punch_type INTEGER DEFAULT 0;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "punchType" INTEGER DEFAULT 0;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS verification_method INTEGER DEFAULT 1;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "verificationMethod" INTEGER DEFAULT 1;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS raw_data TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "rawData" TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS is_processed BOOLEAN DEFAULT FALSE;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "isProcessed" BOOLEAN DEFAULT FALSE;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS serial_number TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "serialNumber" TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS device_name TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "deviceName" TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS device_model TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "deviceModel" TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS protocol TEXT DEFAULT 'dahua';
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS ip_address TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "ipAddress" TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS port INTEGER DEFAULT 80;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT TRUE;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMPTZ;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "lastSyncAt" TIMESTAMPTZ;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+            END $$;
+        `);
+        _dahuaTablesEnsured = true;
+    } catch (e: any) {
+        console.warn('[Dahua Webhook] Table self-heal warning:', e?.message || e);
     }
 };
 
@@ -158,6 +248,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (action === 'discover') {
             const supabase = getSupabase(req);
             const pool = await getPgPool();
+            if (pool) await ensureDahuaTables(pool).catch(() => {});
             if (!supabase && !pool) {
                 console.error('[Dahua Webhook] Database not configured: Neither Supabase nor Talksasa DATABASE_URL available');
                 return res.status(500).json({ error: 'DB not configured' });
@@ -277,6 +368,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (action === 'status' || action === 'sync') {
             const supabase = getSupabase(req);
             const pool = await getPgPool();
+            if (pool) await ensureDahuaTables(pool).catch(() => {});
             let recentCount = 0;
             let lastSeen: string | null = null;
 
@@ -349,6 +441,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'POST') {
         const supabase = getSupabase(req);
         const pool = await getPgPool();
+        if (pool) await ensureDahuaTables(pool).catch(() => {});
         if (!supabase && !pool) {
             console.error('[Dahua Webhook] Database not configured: Neither Supabase nor Talksasa DATABASE_URL available');
             return res.status(500).json({ error: 'Server configuration error: Database not configured' });

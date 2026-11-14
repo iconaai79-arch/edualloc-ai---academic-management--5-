@@ -125,11 +125,54 @@ const getPgPool = async () => {
             _pgPool = null;
         });
 
+        await ensureZktecoTables(_pgPool).catch(() => {});
+
         return _pgPool;
     } catch (e: any) {
         console.warn('[Direct SQL Pool in ZKTeco Init Warning]:', e?.message || e);
         _directPgDisabledUntil = Date.now() + 30000;
         return null;
+    }
+};
+
+let _zktecoTablesEnsured = false;
+const ensureZktecoTables = async (pool: any) => {
+    if (_zktecoTablesEnsured || !pool) return;
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS public.staff_attendance_logs (
+                id TEXT PRIMARY KEY DEFAULT ('sal_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+                institution_id TEXT,
+                staff_id TEXT,
+                device_id TEXT,
+                device_pin TEXT,
+                punch_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                punch_type INTEGER DEFAULT 0,
+                verification_method INTEGER DEFAULT 1,
+                raw_data TEXT,
+                is_processed BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS public.biometric_devices (
+                id TEXT PRIMARY KEY DEFAULT ('dev_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+                institution_id TEXT,
+                serial_number TEXT,
+                device_name TEXT,
+                device_model TEXT,
+                protocol TEXT DEFAULT 'adms',
+                ip_address TEXT,
+                port INTEGER DEFAULT 80,
+                is_active BOOLEAN DEFAULT TRUE,
+                last_sync_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        _zktecoTablesEnsured = true;
+    } catch (e: any) {
+        console.warn('[ZKTeco Webhook] Table self-heal warning:', e?.message || e);
     }
 };
 

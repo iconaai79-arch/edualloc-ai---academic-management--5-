@@ -429,6 +429,33 @@ ALTER TABLE public."staff_attendance_daily" ADD COLUMN IF NOT EXISTS "notes" TEX
 ALTER TABLE public."staff_attendance_daily" ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
 ALTER TABLE public."staff_attendance_daily" ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
 
+-- Table: public."staff_attendance_logs"
+CREATE TABLE IF NOT EXISTS public."staff_attendance_logs" (
+    "id" TEXT PRIMARY KEY DEFAULT ('sal_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20))
+);
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "institution_id" TEXT;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "staffId" TEXT;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "staff_id" TEXT;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "deviceId" TEXT;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "device_id" TEXT;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "devicePin" TEXT;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "device_pin" TEXT;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "punchTime" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "punch_time" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "punchType" INTEGER DEFAULT 0;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "punch_type" INTEGER DEFAULT 0;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "verificationMethod" INTEGER DEFAULT 1;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "verification_method" INTEGER DEFAULT 1;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "rawData" TEXT;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "raw_data" TEXT;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "isProcessed" BOOLEAN DEFAULT FALSE;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "is_processed" BOOLEAN DEFAULT FALSE;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public."staff_attendance_logs" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+
 -- Table: public."subject_allocations"
 CREATE TABLE IF NOT EXISTS public."subject_allocations" (
     "id" TEXT PRIMARY KEY

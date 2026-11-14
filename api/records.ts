@@ -229,6 +229,117 @@ const ensureEssentialSchema = async (pool: any) => {
             updated_at TIMESTAMPTZ DEFAULT NOW()
         );
 
+        -- 0e. Ensure staff_attendance_logs & biometric tables exist
+        CREATE TABLE IF NOT EXISTS public.staff_attendance_logs (
+            id TEXT PRIMARY KEY DEFAULT ('sal_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+            institution_id TEXT,
+            "institutionId" TEXT,
+            staff_id TEXT,
+            "staffId" TEXT,
+            device_id TEXT,
+            "deviceId" TEXT,
+            device_pin TEXT,
+            "devicePin" TEXT,
+            punch_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "punchTime" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            punch_type INTEGER DEFAULT 0,
+            "punchType" INTEGER DEFAULT 0,
+            verification_method INTEGER DEFAULT 1,
+            "verificationMethod" INTEGER DEFAULT 1,
+            raw_data TEXT,
+            "rawData" TEXT,
+            is_processed BOOLEAN DEFAULT FALSE,
+            "isProcessed" BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS public.biometric_devices (
+            id TEXT PRIMARY KEY DEFAULT ('dev_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+            institution_id TEXT,
+            "institutionId" TEXT,
+            serial_number TEXT,
+            "serialNumber" TEXT,
+            device_name TEXT,
+            "deviceName" TEXT,
+            device_model TEXT,
+            "deviceModel" TEXT,
+            ip_address TEXT,
+            "ipAddress" TEXT,
+            port INTEGER DEFAULT 80,
+            location_description TEXT,
+            "locationDescription" TEXT,
+            protocol TEXT DEFAULT 'dahua',
+            push_url TEXT,
+            "pushUrl" TEXT,
+            last_sync_at TIMESTAMPTZ,
+            "lastSyncAt" TIMESTAMPTZ,
+            is_active BOOLEAN DEFAULT TRUE,
+            "isActive" BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            last_ip TEXT,
+            "lastIp" TEXT,
+            requests_count NUMERIC DEFAULT 0,
+            "requestsCount" NUMERIC DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS public.staff_attendance_daily (
+            id TEXT PRIMARY KEY DEFAULT ('sad_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+            institution_id TEXT,
+            "institutionId" TEXT,
+            staff_id TEXT,
+            "staffId" TEXT,
+            attendance_date DATE DEFAULT CURRENT_DATE,
+            "attendanceDate" DATE DEFAULT CURRENT_DATE,
+            first_in TIMESTAMPTZ,
+            "firstIn" TIMESTAMPTZ,
+            last_out TIMESTAMPTZ,
+            "lastOut" TIMESTAMPTZ,
+            total_hours NUMERIC DEFAULT 0,
+            "totalHours" NUMERIC DEFAULT 0,
+            overtime_hours NUMERIC DEFAULT 0,
+            "overtimeHours" NUMERIC DEFAULT 0,
+            status TEXT DEFAULT 'present',
+            late_minutes NUMERIC DEFAULT 0,
+            "lateMinutes" NUMERIC DEFAULT 0,
+            early_leave_minutes NUMERIC DEFAULT 0,
+            "earlyLeaveMinutes" NUMERIC DEFAULT 0,
+            punch_count NUMERIC DEFAULT 0,
+            "punchCount" NUMERIC DEFAULT 0,
+            notes TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS public.biometric_enrollments (
+            id TEXT PRIMARY KEY DEFAULT ('be_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+            institution_id TEXT,
+            "institutionId" TEXT,
+            staff_id TEXT,
+            "staffId" TEXT,
+            device_pin TEXT,
+            "devicePin" TEXT,
+            fingerprint_index INTEGER DEFAULT 0,
+            "fingerprintIndex" INTEGER DEFAULT 0,
+            fingerprint_template TEXT,
+            card_number TEXT,
+            "cardNumber" TEXT,
+            face_data TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            "isActive" BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+
         DO $$
         BEGIN
             -- 1. ds_students, ds_invoices, ds_payments missing columns & relaxed constraints
@@ -548,6 +659,59 @@ const ensureEssentialSchema = async (pool: any) => {
                 END IF;
                 UPDATE public.receipts SET branch_id = NULL WHERE branch_id IS NOT NULL AND (branch_id = institution_id OR branch_id LIKE 'inst_%' OR branch_id = '');
                 UPDATE public.receipts SET created_at = NOW() WHERE created_at IS NULL;
+            END IF;
+
+            -- 8. staff_attendance_logs & biometric_devices columns
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'staff_attendance_logs') THEN
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS staff_id TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "staffId" TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS device_id TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "deviceId" TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS device_pin TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "devicePin" TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS punch_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "punchTime" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS punch_type INTEGER DEFAULT 0;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "punchType" INTEGER DEFAULT 0;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS verification_method INTEGER DEFAULT 1;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "verificationMethod" INTEGER DEFAULT 1;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS raw_data TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "rawData" TEXT;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS is_processed BOOLEAN DEFAULT FALSE;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "isProcessed" BOOLEAN DEFAULT FALSE;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.staff_attendance_logs ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+            END IF;
+
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'biometric_devices') THEN
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS serial_number TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "serialNumber" TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS device_name TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "deviceName" TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS device_model TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "deviceModel" TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS ip_address TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "ipAddress" TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS port INTEGER DEFAULT 80;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS location_description TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "locationDescription" TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS protocol TEXT DEFAULT 'dahua';
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS push_url TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "pushUrl" TEXT;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMPTZ;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "lastSyncAt" TIMESTAMPTZ;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT TRUE;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
             END IF;
         END $$;
       `);
