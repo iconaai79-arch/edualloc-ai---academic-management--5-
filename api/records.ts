@@ -229,6 +229,111 @@ const ensureEssentialSchema = async (pool: any) => {
             updated_at TIMESTAMPTZ DEFAULT NOW()
         );
 
+        -- 0e. Ensure building_floors, building_offices, and visitor tables exist
+        CREATE TABLE IF NOT EXISTS public.building_floors (
+            id TEXT PRIMARY KEY,
+            institution_id TEXT,
+            "institutionId" TEXT,
+            floor_number INTEGER DEFAULT 0,
+            "floorNumber" INTEGER DEFAULT 0,
+            floor_name TEXT NOT NULL DEFAULT 'Ground Floor',
+            "floorName" TEXT,
+            description TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS public.building_offices (
+            id TEXT PRIMARY KEY,
+            floor_id TEXT,
+            "floorId" TEXT,
+            institution_id TEXT,
+            "institutionId" TEXT,
+            office_number TEXT DEFAULT '',
+            "officeNumber" TEXT,
+            tenant_name TEXT DEFAULT '',
+            "tenantName" TEXT,
+            contact_person_name TEXT DEFAULT '',
+            "contactPersonName" TEXT,
+            contact_phone TEXT DEFAULT '',
+            "contactPhone" TEXT,
+            contact_email TEXT,
+            "contactEmail" TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS public.building_visitor_logs (
+            id TEXT PRIMARY KEY,
+            institution_id TEXT,
+            "institutionId" TEXT,
+            office_id TEXT,
+            "officeId" TEXT,
+            visitor_name TEXT DEFAULT '',
+            "visitorName" TEXT,
+            phone_number TEXT DEFAULT '',
+            "phoneNumber" TEXT,
+            id_number TEXT DEFAULT '',
+            "idNumber" TEXT,
+            vehicle_plate TEXT,
+            "vehiclePlate" TEXT,
+            purpose TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'registered',
+            notified_at TEXT,
+            "notifiedAt" TEXT,
+            authorized_by_host BOOLEAN DEFAULT FALSE,
+            "authorizedByHost" BOOLEAN DEFAULT FALSE,
+            entry_logged_by TEXT,
+            "entryLoggedBy" TEXT,
+            time_in TEXT,
+            "timeIn" TEXT,
+            security_notes TEXT,
+            "securityNotes" TEXT,
+            exit_logged_by TEXT,
+            "exitLoggedBy" TEXT,
+            time_out TEXT,
+            "timeOut" TEXT,
+            host_id TEXT,
+            "hostId" TEXT,
+            host_name TEXT,
+            "hostName" TEXT,
+            host_phone TEXT,
+            "hostPhone" TEXT,
+            notify_host_sms BOOLEAN DEFAULT FALSE,
+            "notifyHostSms" BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS public.building_visitor_assets (
+            id TEXT PRIMARY KEY,
+            visitor_log_id TEXT,
+            "visitorLogId" TEXT,
+            institution_id TEXT,
+            "institutionId" TEXT,
+            item_name TEXT DEFAULT '',
+            "itemName" TEXT,
+            serial_number TEXT,
+            "serialNumber" TEXT,
+            notes TEXT,
+            verified_at_exit BOOLEAN DEFAULT FALSE,
+            "verifiedAtExit" BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+
+        DO $$
+        DECLARE
+            tbl text;
+            b_tables text[] := ARRAY['building_floors', 'building_offices', 'building_visitor_logs', 'building_visitor_assets'];
+        BEGIN
+            FOREACH tbl IN ARRAY b_tables LOOP
+                EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role, postgres', tbl);
+            END LOOP;
+        EXCEPTION WHEN OTHERS THEN
+            -- ignore grant errors on roles that might not exist in standalone environments
+        END $$;
+
         -- 0e. Ensure staff_attendance_logs & biometric tables exist
         CREATE TABLE IF NOT EXISTS public.staff_attendance_logs (
             id TEXT PRIMARY KEY DEFAULT ('sal_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
@@ -1153,7 +1258,7 @@ const fetchViaDirectPg = async (
     const errMsgStr = String(err?.message || '');
     const isMissingTableError = err?.code === '42P01' || (/relation ".*" does not exist/i.test(errMsgStr) && err?.code !== '42703');
     if (isMissingTableError) {
-      if (table === 'system_settings' || table === 'invoices' || table === 'receipts' || table === 'observation_notes') {
+      if (['system_settings', 'invoices', 'receipts', 'observation_notes', 'building_offices', 'building_floors', 'building_visitor_logs', 'building_visitor_assets'].includes(table)) {
         try {
           _schemaMigrationDone = false;
           _schemaMigrationPromise = null;
@@ -8544,7 +8649,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     const upsertQuery = `INSERT INTO public."${targetDbTable}" (${keys.map(k => `"${k}"`).join(', ')}) VALUES (${placeholders.join(', ')}) ${onConflictClause} RETURNING *;`;
                                     const upRes = await pool.query(upsertQuery, vals).catch(async (e: any) => {
                                         console.warn(`[Direct PG Upsert Warning on ${targetDbTable}]:`, e?.message);
-                                        if (targetDbTable === 'invoices' || targetDbTable === 'receipts' || e?.code === '42703' || e?.code === '23503') {
+                                        if (targetDbTable === 'invoices' || targetDbTable === 'receipts' || e?.code === '42703' || e?.code === '23503' || e?.code === '42P01') {
                                             try {
                                                 _schemaMigrationDone = false;
                                                 _schemaMigrationPromise = null;
@@ -11395,7 +11500,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 const updateSql = `UPDATE public."${targetDbTable}" SET ${setClauses.join(', ')} WHERE "id" IN (${idPlaceholders.join(', ')}) RETURNING *;`;
                                 let patchRes = await pool.query(updateSql, vals).catch(async (e: any) => {
                                     console.warn(`[Direct PG Update Warning on ${targetDbTable}]:`, e?.message);
-                                    if (targetDbTable === 'invoices' || targetDbTable === 'receipts' || targetDbTable === 'finance_numbering_configs' || e?.code === '42703' || e?.code === '23503') {
+                                    if (targetDbTable === 'invoices' || targetDbTable === 'receipts' || targetDbTable === 'finance_numbering_configs' || e?.code === '42703' || e?.code === '23503' || e?.code === '42P01') {
                                         try {
                                             _schemaMigrationDone = false;
                                             _schemaMigrationPromise = null;

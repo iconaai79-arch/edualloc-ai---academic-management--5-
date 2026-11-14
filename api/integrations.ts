@@ -1133,12 +1133,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let settings: any = {};
         let pgSettings: any = null;
         let sbSettings: any = null;
+        const isPhNcbaVal = (v: any): boolean => {
+            const s = String(v || '').trim();
+            return !s || s.toUpperCase().startsWith('YOUR_') || s.toUpperCase().includes('PLACEHOLDER') || s === '••••••••' || s === '********';
+        };
+        const extractValidNcbaInObj = (cfg: any): { u: string; s: string } => {
+            if (!cfg || typeof cfg !== 'object') return { u: '', s: '' };
+            const u = [cfg.username, cfg.user_id, cfg.userId, cfg.clientId, cfg.client_id, cfg.consumerKey, cfg.consumer_key, cfg.openBankingUserId, cfg.open_banking_user_id]
+                .map(v => String(v || '').trim()).find(v => !isPhNcbaVal(v)) || '';
+            const s = [cfg.clientSecret, cfg.client_secret, cfg.secretKey, cfg.secret_key, cfg.password, cfg.consumerSecret, cfg.consumer_secret, cfg.openBankingPassword, cfg.open_banking_password]
+                .map(v => String(v || '').trim()).find(v => !isPhNcbaVal(v)) || '';
+            return { u, s };
+        };
         const hasValidNcbaInObj = (cfg: any): boolean => {
             if (!cfg || typeof cfg !== 'object') return false;
-            const u = String(cfg.username || cfg.user_id || cfg.userId || cfg.clientId || cfg.client_id || cfg.consumerKey || '').trim();
-            const s = String(cfg.clientSecret || cfg.client_secret || cfg.secretKey || cfg.secret_key || cfg.password || cfg.consumerSecret || '').trim();
-            const isPh = (v: string) => !v || v.toUpperCase().startsWith('YOUR_') || v.toUpperCase().includes('PLACEHOLDER') || v === '••••••••' || v === '********';
-            return Boolean(!isPh(u) && !isPh(s));
+            const { u, s } = extractValidNcbaInObj(cfg);
+            return Boolean(u && s);
         };
         try {
             const pool = await getPgPool();
@@ -1148,9 +1158,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     for (const row of pgRes.rows) {
                         if (String(row.id || '') === 'ping') continue;
                         const rowData = typeof row.data === 'object' && row.data !== null ? { ...row.data } : {};
-                        if (row.ncba_config && typeof row.ncba_config === 'object' && Object.keys(row.ncba_config).length > 0) {
-                            rowData.ncba_config = { ...(rowData.ncba_config || {}), ...row.ncba_config };
-                            rowData.ncbaConfig = { ...(rowData.ncbaConfig || {}), ...row.ncba_config };
+                        const dataNcba = rowData.ncba_config || rowData.ncbaConfig;
+                        const colNcba = row.ncba_config && typeof row.ncba_config === 'object' && Object.keys(row.ncba_config).length > 0 ? row.ncba_config : null;
+                        if (colNcba) {
+                            const mergedRowNcba = hasValidNcbaInObj(dataNcba) && !hasValidNcbaInObj(colNcba)
+                                ? { ...colNcba, ...dataNcba }
+                                : { ...(dataNcba || {}), ...colNcba };
+                            const { u, s } = extractValidNcbaInObj(mergedRowNcba);
+                            if (u && s) {
+                                mergedRowNcba.username = u;
+                                mergedRowNcba.clientId = u;
+                                mergedRowNcba.client_id = u;
+                                mergedRowNcba.clientSecret = s;
+                                mergedRowNcba.client_secret = s;
+                                mergedRowNcba.password = s;
+                            }
+                            rowData.ncba_config = mergedRowNcba;
+                            rowData.ncbaConfig = mergedRowNcba;
                         }
                         if (!pgSettings && Object.keys(rowData).length > 0) {
                             pgSettings = rowData;
@@ -2939,11 +2963,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let normalized = url.trim().replace(/\/+$/, '');
             if (!normalized.startsWith('http')) normalized = 'https://' + normalized;
             
-            // Legacy Migration: Auto-swap old host for new gateway
-            if (normalized.includes('api.ncbagroup.com')) {
-                console.log(`[NCBA Integration] Auto-migrating legacy URL: ${normalized} -> https://c2bapis.ncbagroup.com`);
-                normalized = normalized.replace('api.ncbagroup.com', 'c2bapis.ncbagroup.com');
+            // Legacy & Sandbox Migration: Auto-swap old host or unresolvable sandbox host for live C2B gateway
+            if (normalized.includes('://api.ncbagroup.com') || normalized.includes('sandbox.ncbagroup.com')) {
+                console.log(`[NCBA Integration] Auto-migrating URL: ${normalized} -> https://c2bapis.ncbagroup.com`);
+                normalized = normalized
+                    .replace('://api.ncbagroup.com', '://c2bapis.ncbagroup.com')
+                    .replace('sandbox.ncbagroup.com', 'c2bapis.ncbagroup.com');
             }
+            // Strip accidental endpoint paths if user pasted full token/stk path into Base URL
+            normalized = normalized.replace(/\/payments\/api\/v1.*$/i, '');
             return normalized;
         }
         
@@ -2960,17 +2988,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const getNcbaCredentials = (config: any) => {
             if (!config || typeof config !== 'object') return { id: '', sec: '' };
-            // NCBA 2024 Simplified Model: Uses Username and Secret Key (prioritize username over legacy clientId)
-            const rawId = sanitizeNcbaVal(
-                config.username || config.user_id || config.userId ||
-                config.clientId || config.client_id || config.consumerKey || config.consumer_key || ''
-            );
-            const rawSec = sanitizeNcbaVal(
-                config.clientSecret || config.client_secret || config.secretKey || config.secret_key ||
-                config.password || config.consumerSecret || config.consumer_secret || ''
-            );
-            const id = isNcbaPlaceholder(rawId) ? '' : rawId;
-            const sec = isNcbaPlaceholder(rawSec) ? '' : rawSec;
+            // NCBA 2024 Simplified Model: Pick first non-placeholder ID and Secret across all supported fields
+            const idCandidates = [
+                config.username, config.user_id, config.userId,
+                config.clientId, config.client_id, config.consumerKey, config.consumer_key,
+                config.openBankingUserId, config.open_banking_user_id
+            ];
+            const secCandidates = [
+                config.clientSecret, config.client_secret, config.secretKey, config.secret_key,
+                config.password, config.consumerSecret, config.consumer_secret,
+                config.openBankingPassword, config.open_banking_password
+            ];
+            const id = idCandidates.map(v => sanitizeNcbaVal(String(v || ''))).find(v => !isNcbaPlaceholder(v)) || '';
+            const sec = secCandidates.map(v => sanitizeNcbaVal(String(v || ''))).find(v => !isNcbaPlaceholder(v)) || '';
             
             return { id, sec };
         };
@@ -3023,9 +3053,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             // Pick primary config that actually has valid credentials
-            // For platform services (buying SMS units, subscriptions), prioritize global system settings over empty institution configs
+            // For platform services (buying SMS units, subscriptions), prioritize global Super Admin settings and request config over institution configs
             const candidates = isPlatformService
-                ? [reqNcba, sysNcba, instNcba]
+                ? [sysNcba, reqNcba, instNcba]
                 : [reqNcba, instNcba, sysNcba];
 
             let primary = candidates.find(c => hasValidNcbaCreds(c)) || null;
@@ -3088,21 +3118,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return { config: null, targetInstId: resolvedInstId };
             }
 
-            // Merge non-empty fallback fields (like baseUrl, paybill, accountNumber, debitAccount) from sysNcba / instNcba / reqNcba
+            // Merge non-empty fallback fields (like baseUrl, paybill, accountNumber, debitAccount)
+            // For platform services (SMS purchase, subscriptions), do NOT let an unconfigured institution's sandbox baseUrl/paybill overwrite Super Admin global config
             const merged: any = {
                 paybill: '880100',
                 accountNumber: '272487',
                 baseUrl: 'https://c2bapis.ncbagroup.com'
             };
-            for (const src of [sysNcba, instNcba, reqNcba, primary]) {
+            const mergeSources = isPlatformService
+                ? [hasValidNcbaCreds(instNcba) ? instNcba : null, reqNcba, sysNcba, primary]
+                : [sysNcba, instNcba, reqNcba, primary];
+            for (const src of mergeSources) {
                 if (src && typeof src === 'object') {
                     for (const [k, v] of Object.entries(src)) {
                         if (v !== undefined && v !== null && v !== '') {
+                            if (typeof v === 'string' && isNcbaPlaceholder(v)) continue;
+                            if ((k === 'baseUrl' || k === 'base_url') && String(v).includes('sandbox.ncbagroup.com') && !hasValidNcbaCreds(src)) continue;
                             merged[k] = v;
                         }
                     }
                 }
             }
+            merged.baseUrl = normalizeNcbaUrl(merged.baseUrl || merged.base_url);
             // Ensure primary credentials win
             const { id, sec } = getNcbaCredentials(primary);
             if (id) {
@@ -3131,6 +3168,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                              VALUES ('1', $1::jsonb, NOW())
                              ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
                             [JSON.stringify(updatedGlobal)]
+                        ).catch(() => {});
+                        await pool.query(
+                            `UPDATE public.system_settings SET data = $1::jsonb, updated_at = NOW() WHERE id::text = 'global'`,
+                            [JSON.stringify(updatedGlobal)]
+                        ).catch(() => {});
+                        await pool.query(
+                            `UPDATE public.system_settings SET ncba_config = $1::jsonb WHERE id::text IN ('1', 'global')`,
+                            [JSON.stringify(merged)]
                         ).catch(() => {});
                     }
                     if (supabase) {
@@ -6023,7 +6068,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'testNcbaAuth') {
-            const ncba = bodyConfig || settings?.ncba_config || settings?.ncbaConfig || {};
+            const { config: resolvedNcba } = await resolveNcbaConfig(bodyConfig, paramsMap.institutionId || 'GLOBAL', true);
+            const ncba = resolvedNcba || bodyConfig || settings?.ncba_config || settings?.ncbaConfig || {};
             const diagnostics: any = {
                 fields: {},
                 connection: {},
@@ -6031,6 +6077,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
 
             const fieldMapping: Record<string, string> = {
+                'username': 'Username',
                 'clientId': 'Username',
                 'client_id': 'Username',
                 'consumerKey': 'Username',
@@ -6039,6 +6086,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 'client_secret': 'Secret Key',
                 'secretKey': 'Secret Key',
                 'secret_key': 'Secret Key',
+                'password': 'Secret Key',
                 'consumerSecret': 'Secret Key',
                 'consumer_secret': 'Secret Key'
             };
@@ -6117,11 +6165,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 ...ncba,
                                 username: cId,
                                 clientId: cId,
+                                client_id: cId,
                                 clientSecret: cSec,
+                                client_secret: cSec,
                                 password: cSec,
                                 paybill: ncba.paybill || '880100',
                                 accountNumber: ncba.accountNumber || ncba.account_number || '272487',
-                                baseUrl: ncba.baseUrl || ncba.base_url || 'https://c2bapis.ncbagroup.com'
+                                account_number: ncba.accountNumber || ncba.account_number || '272487',
+                                baseUrl: normalizeNcbaUrl(ncba.baseUrl || ncba.base_url || 'https://c2bapis.ncbagroup.com')
                             };
                             const updatedGlobal = {
                                 ...(settings || {}),
@@ -6136,6 +6187,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                      ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
                                     [JSON.stringify(updatedGlobal)]
                                 ).catch(() => {});
+                                await pool.query(
+                                    `UPDATE public.system_settings SET data = $1::jsonb, updated_at = NOW() WHERE id::text = 'global'`,
+                                    [JSON.stringify(updatedGlobal)]
+                                ).catch(() => {});
+                                await pool.query(
+                                    `UPDATE public.system_settings SET ncba_config = $1::jsonb WHERE id::text IN ('1', 'global')`,
+                                    [JSON.stringify(verifiedNcba)]
+                                ).catch(() => {});
                             }
                             if (supabase) {
                                 await supabase.from('system_settings').upsert({
@@ -6147,15 +6206,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         } catch (_) {}
                     }
 
-                    return res.status(200).json({ success: true, diagnostics, hint: `Authentication successful! Token retrieved: ${maskedToken}` });
+                    const msg = `Authentication successful! Token retrieved: ${maskedToken}`;
+                    return res.status(200).json({ success: true, diagnostics, message: msg, hint: msg });
                 } else if (authMethod === 'basic') {
                     // Specific handling for Basic Auth which bypasses token generation
                     diagnostics.tokenStatus = 'Skipped (Direct Auth Mode)';
                     diagnostics.gatewayReachable = true;
-                    return res.status(200).json({ success: true, diagnostics, hint: 'Direct Basic Authentication (Bank Handshake) verified successfully. No token required for this strategy.' });
+                    const msg = 'Direct Basic Authentication (Bank Handshake) verified successfully. No token required for this strategy.';
+                    return res.status(200).json({ success: true, diagnostics, message: msg, hint: msg });
                 } else {
                     diagnostics.tokenStatus = 'Failed: No token returned';
-                    return res.status(200).json({ success: false, diagnostics, hint: 'Bank server reached, but no token was issued. Check if your NCBA credentials support Bearer auth.' });
+                    const msg = 'Bank server reached, but no token was issued. Check if your NCBA credentials support Bearer auth.';
+                    return res.status(200).json({ success: false, diagnostics, message: msg, hint: msg });
                 }
             } catch (err: any) {
                 diagnostics.tokenStatus = `Failed: ${err.message}`;
@@ -6163,14 +6225,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const testUrl = normalizeNcbaUrl(ncba.baseUrl || ncba.base_url);
                 const getRes = await fetchWithTimeout(testUrl, { method: 'GET' }).catch(() => null);
                 diagnostics.gatewayReachable = !!getRes;
+                const hintMsg = err.message.includes('401') 
+                    ? `Bank rejected your ID/Secret. Error: ${err.message}` 
+                    : `Network timeout or unreachable URL. Gateway: ${diagnostics.gatewayReachable ? 'UP' : 'DOWN'}`;
 
                 return res.status(200).json({ 
                     success: false, 
                     diagnostics, 
                     error: err.message,
-                    hint: err.message.includes('401') 
-                        ? `Bank rejected your 10-char ID/Secret. Error: ${err.message}` 
-                        : `Network timeout or unreachable URL. Gateway: ${diagnostics.gatewayReachable ? 'UP' : 'DOWN'}`
+                    message: err.message || hintMsg,
+                    hint: hintMsg
                 });
             }
         }
@@ -6265,7 +6329,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             try {
-                const accountRef = paramsMap.accountReference || paramsMap.accountNumber || paramsMap.metadata?.accountReference || (isPlatformService ? `SMS-${targetInstId}` : targetInstId);
+                const rawAccountRef = paramsMap.accountReference || paramsMap.accountNumber || paramsMap.metadata?.accountReference || paramsMap.metadata?.accountNumber;
+                const accountRef = (rawAccountRef && !/^(SMS-|SUB-|inst_|SYSTEM|GLOBAL|EDUAI)/i.test(String(rawAccountRef).trim()))
+                    ? rawAccountRef
+                    : (ncbaConfig.accountNumber || ncbaConfig.account_number || rawAccountRef || (isPlatformService ? `SMS-${targetInstId}` : targetInstId));
                 const result = await initiateNcbaPayment(ncbaConfig, targetAmount, phone || recipient, accountRef);
                 const resData = result as any;
                 // Extreme ID extraction - search every possible key variant

@@ -7895,6 +7895,8 @@ export const apiService = {
                     phone: formattedPhone,
                     phoneNumber: formattedPhone,
                     amount, 
+                    accountReference: config?.accountNumber || config?.account_number || metadata?.accountReference,
+                    accountNumber: config?.accountNumber || config?.account_number || metadata?.accountNumber,
                     config, 
                     metadata, 
                     provider 
@@ -8341,7 +8343,35 @@ export const apiService = {
                 },
                 body: JSON.stringify({ action: 'testNcbaAuth', config })
             });
-            return response.json();
+            const res = await response.json();
+            if (res?.success && config && typeof config === 'object') {
+                const u = String(config.username || config.clientId || config.openBankingUserId || '').trim();
+                const s = String(config.clientSecret || config.password || config.openBankingPassword || '').trim();
+                if (u && s) {
+                    const normalized = {
+                        ...config,
+                        username: u,
+                        clientId: u,
+                        clientSecret: s,
+                        password: s,
+                        paybill: config.paybill || '880100',
+                        accountNumber: config.accountNumber || '272487',
+                        baseUrl: (config.baseUrl && !String(config.baseUrl).includes('sandbox.ncbagroup.com')) ? config.baseUrl : 'https://c2bapis.ncbagroup.com'
+                    };
+                    try {
+                        safeLocalStorage.setItem('eduai_ncba_config_cache', JSON.stringify(normalized));
+                        const existingSys = JSON.parse(localStorage.getItem('eduai_system_settings_cache') || '{}');
+                        const mergedSys = { ...existingSys, ncbaConfig: normalized, ncba_config: normalized };
+                        safeLocalStorage.setItem('eduai_system_settings_cache', JSON.stringify(mergedSys));
+                        fetch('/api/system?action=saveSettings', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ settings: mergedSys })
+                        }).catch(() => {});
+                    } catch (_) {}
+                }
+            }
+            return res;
         } catch (e) {
             console.error("NCBA Auth Test Failed:", e);
             return { success: false, message: "Auth Handshake Failed" };

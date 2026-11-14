@@ -149,12 +149,19 @@ async function fetchSystemSettingsFromDb(supabase: any): Promise<any> {
     let pgData: any = null;
     let sbData: any = null;
 
+    const isPh = (v: string) => !v || v.toUpperCase().startsWith('YOUR_') || v.toUpperCase().includes('PLACEHOLDER') || v === '••••••••' || v === '********';
+    const extractValidNcbaCreds = (cfg: any): { u: string; s: string } => {
+        if (!cfg || typeof cfg !== 'object') return { u: '', s: '' };
+        const idFields = [cfg.username, cfg.user_id, cfg.userId, cfg.clientId, cfg.client_id, cfg.consumerKey, cfg.consumer_key, cfg.openBankingUserId, cfg.open_banking_user_id];
+        const secFields = [cfg.clientSecret, cfg.client_secret, cfg.secretKey, cfg.secret_key, cfg.password, cfg.consumerSecret, cfg.consumer_secret, cfg.openBankingPassword, cfg.open_banking_password];
+        const u = idFields.map(v => String(v || '').trim()).find(v => !isPh(v)) || '';
+        const s = secFields.map(v => String(v || '').trim()).find(v => !isPh(v)) || '';
+        return { u, s };
+    };
     const hasValidNcbaObj = (cfg: any): boolean => {
         if (!cfg || typeof cfg !== 'object') return false;
-        const u = String(cfg.username || cfg.user_id || cfg.userId || cfg.clientId || cfg.client_id || cfg.consumerKey || '').trim();
-        const s = String(cfg.clientSecret || cfg.client_secret || cfg.secretKey || cfg.secret_key || cfg.password || cfg.consumerSecret || '').trim();
-        const isPh = (v: string) => !v || v.toUpperCase().startsWith('YOUR_') || v.toUpperCase().includes('PLACEHOLDER') || v === '••••••••' || v === '********';
-        return Boolean(!isPh(u) && !isPh(s));
+        const { u, s } = extractValidNcbaCreds(cfg);
+        return Boolean(u && s);
     };
 
     // 1. Direct PostgreSQL query (Talksasa Database)
@@ -167,9 +174,24 @@ async function fetchSystemSettingsFromDb(supabase: any): Promise<any> {
                     const rowId = String(row.id || '');
                     if (rowId === 'ping') continue;
                     const rData = typeof row.data === 'object' && row.data !== null ? { ...row.data } : {};
-                    if (row.ncba_config && typeof row.ncba_config === 'object' && Object.keys(row.ncba_config).length > 0) {
-                        rData.ncba_config = { ...(rData.ncba_config || {}), ...row.ncba_config };
-                        rData.ncbaConfig = { ...(rData.ncbaConfig || {}), ...row.ncba_config };
+                    const dataNcba = rData.ncba_config || rData.ncbaConfig;
+                    const colNcba = row.ncba_config && typeof row.ncba_config === 'object' && Object.keys(row.ncba_config).length > 0 ? row.ncba_config : null;
+                    if (colNcba) {
+                        // Never allow placeholder/invalid column values to overwrite valid credentials in data JSONB
+                        const mergedRowNcba = hasValidNcbaObj(dataNcba) && !hasValidNcbaObj(colNcba)
+                            ? { ...colNcba, ...dataNcba }
+                            : { ...(dataNcba || {}), ...colNcba };
+                        const { u, s } = extractValidNcbaCreds(mergedRowNcba);
+                        if (u && s) {
+                            mergedRowNcba.username = u;
+                            mergedRowNcba.clientId = u;
+                            mergedRowNcba.client_id = u;
+                            mergedRowNcba.clientSecret = s;
+                            mergedRowNcba.client_secret = s;
+                            mergedRowNcba.password = s;
+                        }
+                        rData.ncba_config = mergedRowNcba;
+                        rData.ncbaConfig = mergedRowNcba;
                     }
                     if (!pgData && Object.keys(rData).length > 0) {
                         pgData = rData;
@@ -223,6 +245,10 @@ async function fetchSystemSettingsFromDb(supabase: any): Promise<any> {
                          VALUES ('1', $1::jsonb, NOW())
                          ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
                         [JSON.stringify(settingsData)]
+                    ).catch(() => {});
+                    await pool.query(
+                        `UPDATE public.system_settings SET ncba_config = $1::jsonb WHERE id::text IN ('1', 'global')`,
+                        [JSON.stringify(bestNcba)]
                     ).catch(() => {});
                 }
             } catch (_) {}
@@ -344,7 +370,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 try {
                     const bypassCache = req.query.fresh === '1' || req.query.fresh === 'true' || Boolean(req.query._t);
                     const cachedNcba = _cachedSettings?.data?.ncba_config || _cachedSettings?.data?.ncbaConfig;
-                    const cachedHasNcba = Boolean(cachedNcba && (cachedNcba.username || cachedNcba.clientId) && (cachedNcba.clientSecret || cachedNcba.password));
+                    const isPhVal = (v: any) => {
+                        const s = String(v || '').trim();
+                        return !s || s.toUpperCase().startsWith('YOUR_') || s.toUpperCase().includes('PLACEHOLDER') || s === '••••••••' || s === '********';
+                    };
+                    const cachedHasNcba = Boolean(
+                        cachedNcba &&
+                        !isPhVal(cachedNcba.username || cachedNcba.clientId || cachedNcba.openBankingUserId) &&
+                        !isPhVal(cachedNcba.clientSecret || cachedNcba.password || cachedNcba.openBankingPassword)
+                    );
 
                     // Check in-memory fresh cache first (< 60s), unless bypass requested or cached settings lack NCBA config
                     if (!bypassCache && cachedHasNcba && _cachedSettings && (Date.now() - _cachedSettings.timestamp < SETTINGS_CACHE_TTL_MS)) {
@@ -427,10 +461,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const { settings } = req.body;
                 if (!settings) return res.status(400).json({ error: 'Settings payload required' });
 
+                const isPhVal = (v: any) => {
+                    const s = String(v || '').trim();
+                    return !s || s.toUpperCase().startsWith('YOUR_') || s.toUpperCase().includes('PLACEHOLDER') || s === '••••••••' || s === '********';
+                };
+                const extractValidCreds = (cfg: any) => {
+                    if (!cfg || typeof cfg !== 'object') return { u: '', s: '' };
+                    const u = [cfg.username, cfg.user_id, cfg.userId, cfg.clientId, cfg.client_id, cfg.openBankingUserId].map(v => String(v || '').trim()).find(v => !isPhVal(v)) || '';
+                    const s = [cfg.clientSecret, cfg.client_secret, cfg.secretKey, cfg.secret_key, cfg.password, cfg.openBankingPassword].map(v => String(v || '').trim()).find(v => !isPhVal(v)) || '';
+                    return { u, s };
+                };
+
                 const ncbaCfg = settings.ncba_config || settings.ncbaConfig || null;
                 if (ncbaCfg && typeof ncbaCfg === 'object') {
-                    const u = String(ncbaCfg.username || ncbaCfg.user_id || ncbaCfg.userId || ncbaCfg.clientId || ncbaCfg.client_id || '').trim();
-                    const s = String(ncbaCfg.clientSecret || ncbaCfg.client_secret || ncbaCfg.secretKey || ncbaCfg.secret_key || ncbaCfg.password || '').trim();
+                    const { u, s } = extractValidCreds(ncbaCfg);
                     const normalizedNcba = {
                         ...ncbaCfg,
                         ...(u ? { username: u, clientId: u, client_id: u } : {}),
@@ -460,11 +504,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const exRow = existingRes?.rows?.[0];
                             if (exRow?.data && typeof exRow.data === 'object') {
                                 const exData = exRow.data;
-                                const exNcba = exData.ncba_config || exData.ncbaConfig || exRow.ncba_config;
+                                const exDataNcba = exData.ncba_config || exData.ncbaConfig;
+                                const exColNcba = exRow.ncba_config;
+                                const exDataCreds = extractValidCreds(exDataNcba);
+                                const exNcba = (exDataCreds.u && exDataCreds.s) ? exDataNcba : exColNcba;
+                                const exCreds = extractValidCreds(exNcba);
                                 const newNcba = settings.ncba_config || settings.ncbaConfig;
-                                const newHasCreds = Boolean(newNcba && (newNcba.username || newNcba.clientId) && (newNcba.clientSecret || newNcba.password));
+                                const newCreds = extractValidCreds(newNcba);
+                                const newHasCreds = Boolean(newCreds.u && newCreds.s);
                                 mergedSettings = { ...exData, ...settings };
-                                if (!newHasCreds && exNcba) {
+                                if (!newHasCreds && exCreds.u && exCreds.s && exNcba) {
                                     mergedSettings.ncba_config = exNcba;
                                     mergedSettings.ncbaConfig = exNcba;
                                 }

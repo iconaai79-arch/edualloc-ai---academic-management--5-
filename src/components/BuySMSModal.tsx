@@ -55,15 +55,36 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
 
     const calculatedTotal = units * smsUnitPrice;
 
+    const isPhVal = (v: any): boolean => {
+        const s = String(v || '').trim();
+        return !s || s.toUpperCase().startsWith('YOUR_') || s.toUpperCase().includes('PLACEHOLDER') || s === '••••••••' || s === '********';
+    };
+
+    const extractNcbaCreds = (cfg: any): { u: string; s: string } => {
+        if (!cfg || typeof cfg !== 'object') return { u: '', s: '' };
+        const u = [cfg.username, cfg.user_id, cfg.userId, cfg.clientId, cfg.client_id, cfg.consumerKey, cfg.openBankingUserId, cfg.open_banking_user_id]
+            .map(v => String(v || '').trim()).find(v => !isPhVal(v)) || '';
+        const s = [cfg.clientSecret, cfg.client_secret, cfg.secretKey, cfg.secret_key, cfg.password, cfg.consumerSecret, cfg.openBankingPassword, cfg.open_banking_password]
+            .map(v => String(v || '').trim()).find(v => !isPhVal(v)) || '';
+        return { u, s };
+    };
+
     const hasValidNcba = (cfg: any): boolean => {
         if (!cfg || typeof cfg !== 'object') return false;
-        const user = String(cfg.username || cfg.user_id || cfg.userId || cfg.clientId || cfg.client_id || cfg.consumerKey || '').trim();
-        const sec = String(cfg.clientSecret || cfg.client_secret || cfg.secretKey || cfg.secret_key || cfg.password || cfg.consumerSecret || '').trim();
-        const isPlaceholder = (v: string) => !v || v.toUpperCase().startsWith('YOUR_') || v.toUpperCase().includes('PLACEHOLDER');
-        return Boolean(
-            cfg.isMock === true || cfg.isMock === 'true' ||
-            (!isPlaceholder(user) && !isPlaceholder(sec))
-        );
+        if (cfg.isMock === true || cfg.isMock === 'true') return true;
+        const { u, s } = extractNcbaCreds(cfg);
+        return Boolean(u && s);
+    };
+
+    const normalizeNcbaBaseUrl = (url?: string): string => {
+        if (!url) return 'https://c2bapis.ncbagroup.com';
+        let clean = url.trim().replace(/\/+$/, '');
+        if (!clean.startsWith('http')) clean = 'https://' + clean;
+        if (clean.includes('sandbox.ncbagroup.com') || clean.includes('api.ncbagroup.com')) {
+            clean = clean.replace('sandbox.ncbagroup.com', 'c2bapis.ncbagroup.com').replace('api.ncbagroup.com', 'c2bapis.ncbagroup.com');
+        }
+        clean = clean.replace(/\/payments\/api\/v1.*$/i, '');
+        return clean;
     };
 
     const getCachedNcba = (): any => {
@@ -86,22 +107,34 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
     const resolvedNcbaConfig = React.useMemo(() => {
         const sysCfg = systemSettings?.ncbaConfig || (systemSettings as any)?.ncba_config;
         const cachedCfg = getCachedNcba();
-        const candidates = [sysCfg, ncbaConfig, cachedCfg];
-        const primary = candidates.find(c => hasValidNcba(c)) || sysCfg || ncbaConfig || cachedCfg;
+        // For platform services like SMS purchases, prioritize Super Admin global/cached config over unconfigured tenant configs
+        const candidates = [cachedCfg, sysCfg, ncbaConfig];
+        const primary = candidates.find(c => hasValidNcba(c)) || cachedCfg || sysCfg || ncbaConfig;
         if (!primary) return undefined;
-        const user = String(primary.username || primary.user_id || primary.userId || primary.clientId || primary.client_id || '').trim();
-        const sec = String(primary.clientSecret || primary.client_secret || primary.secretKey || primary.secret_key || primary.password || '').trim();
+        const { u, s } = extractNcbaCreds(primary);
+
+        const mergedBaseUrl = normalizeNcbaBaseUrl(
+            (hasValidNcba(primary) ? primary.baseUrl : null) ||
+            cachedCfg?.baseUrl ||
+            sysCfg?.baseUrl ||
+            (hasValidNcba(ncbaConfig) ? ncbaConfig?.baseUrl : null) ||
+            'https://c2bapis.ncbagroup.com'
+        );
+
         return {
-            ...(cachedCfg || {}),
+            ...(hasValidNcba(ncbaConfig) ? ncbaConfig : {}),
             ...(sysCfg || {}),
-            ...(ncbaConfig || {}),
+            ...(cachedCfg || {}),
             ...primary,
-            username: user,
-            clientId: user,
-            clientSecret: sec,
-            password: sec,
-            paybill: primary.paybill || sysCfg?.paybill || ncbaConfig?.paybill || cachedCfg?.paybill || '880100',
-            accountNumber: primary.accountNumber || sysCfg?.accountNumber || ncbaConfig?.accountNumber || cachedCfg?.accountNumber || '272487'
+            username: u,
+            clientId: u,
+            client_id: u,
+            clientSecret: s,
+            client_secret: s,
+            password: s,
+            baseUrl: mergedBaseUrl,
+            paybill: primary.paybill || cachedCfg?.paybill || sysCfg?.paybill || ncbaConfig?.paybill || '880100',
+            accountNumber: primary.accountNumber || cachedCfg?.accountNumber || sysCfg?.accountNumber || ncbaConfig?.accountNumber || '272487'
         };
     }, [systemSettings, ncbaConfig]);
 
