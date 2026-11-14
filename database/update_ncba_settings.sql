@@ -1,5 +1,5 @@
 -- =========================================================================
--- NCBA CONFIGURATION UPDATE SCRIPT FOR TALKSASA POSTGRESQL
+-- NCBA CONFIGURATION UPDATE SCRIPT FOR TALKSASA POSTGRESQL (FIXED)
 -- File: database/update_ncba_settings.sql
 -- =========================================================================
 
@@ -8,7 +8,12 @@ ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS ncba_config JSONB;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS ncba_config JSONB;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "ncbaConfig" JSONB;
 
--- 2. Update global system_settings (row id = 1)
+-- 2. Ensure row '1' exists in system_settings
+INSERT INTO public.system_settings (id, data, updated_at)
+VALUES ('1', '{}'::jsonb, CURRENT_TIMESTAMP)
+ON CONFLICT (id) DO NOTHING;
+
+-- 3. Update global system_settings (matches '1' or 'global' safely as TEXT)
 -- Stores credentials in both snake_case and camelCase to guarantee 100% compatibility across all services
 UPDATE public.system_settings
 SET 
@@ -48,10 +53,11 @@ SET
             'account_number', '272487'
         ),
         true
-    )
-WHERE id = 1;
+    ),
+    updated_at = CURRENT_TIMESTAMP
+WHERE id::text IN ('1', 'global');
 
--- 3. Also synchronize into data->ncbaConfig (camelCase key used by frontend UI)
+-- 4. Also synchronize into data->ncbaConfig (camelCase key used by frontend UI)
 UPDATE public.system_settings
 SET data = jsonb_set(
     data,
@@ -68,12 +74,12 @@ SET data = jsonb_set(
     ),
     true
 )
-WHERE id = 1;
+WHERE id::text IN ('1', 'global');
 
--- 4. Verify the updated configuration
+-- 5. Verify the updated configuration
 SELECT 
     id,
     data->'ncba_config' AS ncba_snake_case,
     data->'ncbaConfig' AS ncba_camel_case
 FROM public.system_settings 
-WHERE id = 1;
+WHERE id::text IN ('1', 'global');
