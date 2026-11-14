@@ -57,17 +57,32 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
 
     const hasValidNcba = (cfg: any): boolean => {
         if (!cfg || typeof cfg !== 'object') return false;
+        const user = String(cfg.username || cfg.user_id || cfg.userId || cfg.clientId || cfg.client_id || cfg.consumerKey || '').trim();
+        const sec = String(cfg.clientSecret || cfg.client_secret || cfg.secretKey || cfg.secret_key || cfg.password || cfg.consumerSecret || '').trim();
+        const isPlaceholder = (v: string) => !v || v.toUpperCase().startsWith('YOUR_') || v.toUpperCase().includes('PLACEHOLDER');
         return Boolean(
             cfg.isMock === true || cfg.isMock === 'true' ||
-            (cfg.clientId || cfg.client_id || cfg.username || cfg.consumerKey)
+            (!isPlaceholder(user) && !isPlaceholder(sec))
         );
     };
 
     const resolvedNcbaConfig = React.useMemo(() => {
         const sysCfg = systemSettings?.ncbaConfig || (systemSettings as any)?.ncba_config;
-        if (hasValidNcba(sysCfg)) return sysCfg;
-        if (hasValidNcba(ncbaConfig)) return ncbaConfig;
-        return sysCfg || ncbaConfig || undefined;
+        const primary = hasValidNcba(sysCfg) ? sysCfg : (hasValidNcba(ncbaConfig) ? ncbaConfig : (sysCfg || ncbaConfig));
+        if (!primary) return undefined;
+        const user = String(primary.username || primary.user_id || primary.userId || primary.clientId || primary.client_id || '').trim();
+        const sec = String(primary.clientSecret || primary.client_secret || primary.secretKey || primary.secret_key || primary.password || '').trim();
+        return {
+            ...(sysCfg || {}),
+            ...(ncbaConfig || {}),
+            ...primary,
+            username: user,
+            clientId: user,
+            clientSecret: sec,
+            password: sec,
+            paybill: primary.paybill || sysCfg?.paybill || ncbaConfig?.paybill || '880100',
+            accountNumber: primary.accountNumber || sysCfg?.accountNumber || ncbaConfig?.accountNumber || '272487'
+        };
     }, [systemSettings, ncbaConfig]);
 
     React.useEffect(() => {

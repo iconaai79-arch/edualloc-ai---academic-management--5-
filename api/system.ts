@@ -149,8 +149,30 @@ async function fetchSystemSettingsFromDb(supabase: any): Promise<any> {
     let settingsData: any = null;
     let pgrstErr: any = null;
 
-    // 1. Attempt PostgREST query with a 3.5s timeout if Supabase is present
-    if (supabase) {
+    // 1. Primary: Direct PostgreSQL query (Talksasa Database)
+    try {
+        const pool = await getPgPool();
+        if (pool) {
+            const pgRes = await pool.query("SELECT * FROM public.system_settings WHERE id::text = '1' OR id::text = 'global' ORDER BY updated_at DESC NULLS LAST LIMIT 1");
+            if (pgRes?.rows && pgRes.rows.length > 0) {
+                const row = pgRes.rows[0];
+                const rowData = typeof row.data === 'object' && row.data !== null ? { ...row.data } : {};
+                if (row.ncba_config && typeof row.ncba_config === 'object' && Object.keys(row.ncba_config).length > 0) {
+                    rowData.ncba_config = { ...(rowData.ncba_config || {}), ...row.ncba_config };
+                    rowData.ncbaConfig = { ...(rowData.ncbaConfig || {}), ...row.ncba_config };
+                }
+                if (Object.keys(rowData).length > 0) {
+                    console.log('[System API] getSettings successfully fetched via Direct PostgreSQL pool.');
+                    settingsData = rowData;
+                }
+            }
+        }
+    } catch (pgErr: any) {
+        console.warn('[System API] Direct PostgreSQL fetch for getSettings failed:', pgErr?.message || pgErr);
+    }
+
+    // 2. Fallback: PostgREST query with a 3.5s timeout if Direct PG returned nothing
+    if (!settingsData && supabase) {
         try {
             const pgrstQuery = supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
             const timeoutPromise = new Promise((_, reject) => 
@@ -164,25 +186,6 @@ async function fetchSystemSettingsFromDb(supabase: any): Promise<any> {
             }
         } catch (err: any) {
             pgrstErr = err;
-        }
-    }
-
-    // 2. Direct PostgreSQL query (Talksasa Database)
-    if (!settingsData) {
-        try {
-            const pool = await getPgPool();
-            if (pool) {
-                const pgRes = await pool.query("SELECT data FROM public.system_settings WHERE id::text = '1' OR id::text = 'global' ORDER BY updated_at DESC NULLS LAST LIMIT 1");
-                if (pgRes?.rows && pgRes.rows.length > 0 && pgRes.rows[0].data) {
-                    const rowData = pgRes.rows[0].data;
-                    if (typeof rowData === 'object' && Object.keys(rowData).length > 0) {
-                        console.log('[System API] getSettings successfully fetched via Direct PostgreSQL pool.');
-                        settingsData = rowData;
-                    }
-                }
-            }
-        } catch (pgErr: any) {
-            console.warn('[System API] Direct PostgreSQL fetch for getSettings failed:', pgErr?.message || pgErr);
         }
     }
 
@@ -384,41 +387,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 let saved = false;
                 let saveError: any = null;
 
-                // 1. PostgREST upsert
+                // 1. Primary: Direct PostgreSQL (Talksasa Database)
                 try {
-                    const { error } = await supabase.from('system_settings').upsert({
-                        id: 1,
-                        data: settings,
-                        updated_at: new Date().toISOString()
-                    });
-                    if (!error) {
+                    const pool = await getPgPool();
+                    if (pool) {
+                        const ncbaCfg = settings.ncba_config || settings.ncbaConfig || null;
+                        await pool.query(`ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS ncba_config JSONB;`).catch(() => {});
+                        await pool.query(
+                            `INSERT INTO public.system_settings (id, data, ncba_config, updated_at)
+                             VALUES ('1', $1::jsonb, $2::jsonb, NOW())
+                             ON CONFLICT (id) DO UPDATE
+                             SET data = EXCLUDED.data,
+                                 ncba_config = COALESCE(EXCLUDED.ncba_config, public.system_settings.ncba_config),
+                                 updated_at = NOW()`,
+                            [JSON.stringify(settings), ncbaCfg ? JSON.stringify(ncbaCfg) : null]
+                        );
                         saved = true;
-                    } else {
-                        saveError = error;
+                        console.log('[System API] saveSettings successfully persisted via Direct PostgreSQL pool.');
                     }
-                } catch (pgrstSaveErr: any) {
-                    saveError = pgrstSaveErr;
+                } catch (pgErr: any) {
+                    console.error('[System API] Direct PostgreSQL saveSettings error:', pgErr);
+                    saveError = pgErr;
                 }
 
-                // 2. Direct PG Fallback if PostgREST reset connection or timed out
-                if (!saved) {
+                // 2. Secondary / Fallback: PostgREST upsert
+                if (supabase) {
                     try {
-                        const pool = await getPgPool();
-                        if (pool) {
-                            await pool.query(
-                                `INSERT INTO public.system_settings (id, data, updated_at)
-                                 VALUES ('1', $1::jsonb, NOW())
-                                 ON CONFLICT (id) DO UPDATE
-                                 SET data = EXCLUDED.data, updated_at = NOW()`,
-                                [JSON.stringify(settings)]
-                            );
+                        const { error } = await supabase.from('system_settings').upsert({
+                            id: 1,
+                            data: settings,
+                            updated_at: new Date().toISOString()
+                        });
+                        if (!error) {
                             saved = true;
                             saveError = null;
-                            console.log('[System API] saveSettings successfully persisted via Direct PostgreSQL pool fallback.');
+                        } else if (!saved) {
+                            saveError = error;
                         }
-                    } catch (pgErr: any) {
-                        console.error('[System API] Direct PostgreSQL saveSettings fallback error:', pgErr);
-                        saveError = saveError || pgErr;
+                    } catch (pgrstSaveErr: any) {
+                        if (!saved) saveError = pgrstSaveErr;
                     }
                 }
 

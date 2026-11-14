@@ -1150,6 +1150,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     coopConfig: localCoopConfig,
                     ncbaConfig: {
                         ...localNcbaConfig,
+                        paybill: (localNcbaConfig.paybill || '880100').replace(/[^\x20-\x7E]/g, '').trim(),
+                        accountNumber: (localNcbaConfig.accountNumber || '272487').replace(/[^\x20-\x7E]/g, '').trim(),
                         username: (localNcbaConfig.username || localNcbaConfig.clientId || '').replace(/[^\x20-\x7E]/g, '').trim(),
                         clientId: (localNcbaConfig.username || localNcbaConfig.clientId || '').replace(/[^\x20-\x7E]/g, '').trim(),
                         clientSecret: (localNcbaConfig.clientSecret || localNcbaConfig.password || '').replace(/[^\x20-\x7E]/g, '').trim(),

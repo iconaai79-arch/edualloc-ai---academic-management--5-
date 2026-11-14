@@ -984,6 +984,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             // Sanitize NCBA Credentials before saving to prevent invisible character 401s
             const sanitizedNcba = {
                 ...localNcbaConfig,
+                paybill: (localNcbaConfig.paybill || '880100').replace(/[^\x20-\x7E]/g, '').trim(),
+                accountNumber: (localNcbaConfig.accountNumber || '272487').replace(/[^\x20-\x7E]/g, '').trim(),
                 username: (localNcbaConfig.username || localNcbaConfig.clientId || '').replace(/[^\x20-\x7E]/g, '').trim(),
                 clientId: (localNcbaConfig.username || localNcbaConfig.clientId || '').replace(/[^\x20-\x7E]/g, '').trim(),
                 clientSecret: (localNcbaConfig.clientSecret || localNcbaConfig.password || '').replace(/[^\x20-\x7E]/g, '').trim(),
@@ -5697,9 +5699,18 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             setIsSavingInstGateways(true);
                                             setSaveInstGatewaysStatus('idle');
                                             try {
+                                                const sanitizedInstNcba = {
+                                                    ...localInstNcbaConfig,
+                                                    paybill: (localInstNcbaConfig.paybill || '880100').replace(/[^\x20-\x7E]/g, '').trim(),
+                                                    accountNumber: (localInstNcbaConfig.accountNumber || '272487').replace(/[^\x20-\x7E]/g, '').trim(),
+                                                    username: (localInstNcbaConfig.username || localInstNcbaConfig.clientId || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                                                    clientId: (localInstNcbaConfig.username || localInstNcbaConfig.clientId || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                                                    clientSecret: (localInstNcbaConfig.clientSecret || localInstNcbaConfig.password || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                                                    password: (localInstNcbaConfig.clientSecret || localInstNcbaConfig.password || '').replace(/[^\x20-\x7E]/g, '').trim()
+                                                };
                                                 await props.onUpdateInstitution(props.currentInstitution.id, { 
                                                     mpesaConfig: localInstMpesaConfig,
-                                                    ncbaConfig: localInstNcbaConfig,
+                                                    ncbaConfig: sanitizedInstNcba,
                                                     googleDriveConfig: localInstGoogleDriveConfig
                                                 });
                                                 setSaveInstGatewaysStatus('success');
