@@ -1,14 +1,320 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-// Self-contained Supabase service client factory to avoid external lib crashes
+// Self-contained Supabase service client factory with Direct PostgreSQL fallback shim
+let _pgPool: any = null;
+let _forcePlaintextPg = false;
+const getPgPool = async () => {
+    if (_pgPool) return _pgPool;
+    const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.VITE_DATABASE_URL || process.env.SUPABASE_DB_URL;
+    if (!dbUrl) return null;
+    try {
+        const pgMod: any = await import('pg');
+        const PoolClass = pgMod.Pool || pgMod.default?.Pool;
+        if (!PoolClass) return null;
+        let cleanConnString = dbUrl.trim();
+        let disableSsl = _forcePlaintextPg;
+        try {
+            const parsedUrl = new URL(cleanConnString);
+            const h = (parsedUrl.hostname || '').toLowerCase();
+            if (
+                _forcePlaintextPg ||
+                parsedUrl.searchParams.get('sslmode') === 'disable' ||
+                parsedUrl.searchParams.get('ssl') === 'false' ||
+                process.env.PGSSLMODE === 'disable' ||
+                h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === 'host.docker.internal' || h === '::1' ||
+                h.startsWith('user-') || h.startsWith('service-') || h === 'db' || h === 'postgres' ||
+                h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.docker')
+            ) {
+                disableSsl = true;
+            }
+            parsedUrl.searchParams.delete('sslmode');
+            cleanConnString = parsedUrl.toString();
+        } catch {
+            if (_forcePlaintextPg || /([?&])sslmode=disable/i.test(cleanConnString) || /([?&])ssl=false/i.test(cleanConnString) || process.env.PGSSLMODE === 'disable') {
+                disableSsl = true;
+            }
+            cleanConnString = cleanConnString
+                .replace(/([?&])sslmode=[^&]*(&|$)/g, (_match, prefix, suffix) => suffix === '&' ? prefix : '')
+                .replace(/\?$/, '');
+        }
+        _pgPool = new PoolClass({
+            connectionString: cleanConnString,
+            ssl: disableSsl ? false : { rejectUnauthorized: false },
+            max: 3,
+            connectionTimeoutMillis: 5000,
+            idleTimeoutMillis: 15000
+        });
+        _pgPool.on('error', (err: any) => {
+            if (/does not support SSL/i.test(err?.message || '')) {
+                _forcePlaintextPg = true;
+            }
+            try { _pgPool?.end().catch(() => {}); } catch (_) {}
+            _pgPool = null;
+        });
+        return _pgPool;
+    } catch (_) {
+        return null;
+    }
+};
+
+const _tableColsCache = new Map<string, Map<string, string>>();
+const getTableColumns = async (pool: any, table: string): Promise<Map<string, string>> => {
+    if (_tableColsCache.has(table)) return _tableColsCache.get(table)!;
+    const res = await pool.query(
+        `SELECT column_name, data_type, udt_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1`,
+        [table]
+    );
+    const map = new Map<string, string>();
+    for (const r of (res?.rows || [])) {
+        map.set(r.column_name, (r.data_type || r.udt_name || '').toLowerCase());
+    }
+    if (map.size > 0) _tableColsCache.set(table, map);
+    return map;
+};
+
+const formatPgCol = (col: string): string => {
+    const clean = col.trim();
+    if (clean.includes('->>')) {
+        const [base, jsonKey] = clean.split('->>');
+        return `("${base.replace(/[^a-zA-Z0-9_]/g, '')}"->>'${jsonKey.replace(/'/g, "''")}')`;
+    }
+    return `"${clean.replace(/[^a-zA-Z0-9_]/g, '')}"`;
+};
+
+const createPgSupabaseShim = () => {
+    return {
+        from(table: string) {
+            const safeTable = table.replace(/[^a-zA-Z0-9_]/g, '');
+            let op: 'select' | 'insert' | 'update' | 'upsert' | 'delete' = 'select';
+            let payloadData: any = null;
+            const whereClauses: string[] = [];
+            const params: any[] = [];
+            let orderClause = '';
+            let limitVal: number | null = null;
+            let isSingle = false;
+
+            const addCondition = (col: string, operator: 'eq' | 'ilike', val: any) => {
+                params.push(val === null || val === undefined ? '' : String(val));
+                const idx = params.length;
+                const colSql = formatPgCol(col);
+                if (operator === 'ilike') {
+                    whereClauses.push(`${colSql}::text ILIKE $${idx}::text`);
+                } else {
+                    whereClauses.push(`${colSql}::text = $${idx}::text`);
+                }
+            };
+
+            const execute = async (): Promise<{ data: any; error: any }> => {
+                try {
+                    const pool = await getPgPool();
+                    if (!pool) return { data: null, error: { message: 'Database pool unavailable' } };
+
+                    const whereSql = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+
+                    if (op === 'select') {
+                        const sql = `SELECT * FROM public."${safeTable}"${whereSql}${orderClause}${limitVal ? ` LIMIT ${limitVal}` : ''}`;
+                        const res = await pool.query(sql, params);
+                        let rows = res?.rows || [];
+                        rows = rows.map((r: any) => {
+                            if (r && r.data && typeof r.data === 'object' && !Array.isArray(r.data)) {
+                                return { ...r.data, ...r };
+                            }
+                            return r;
+                        });
+                        if (isSingle) {
+                            return { data: rows[0] || null, error: null };
+                        }
+                        return { data: rows, error: null };
+                    }
+
+                    if (op === 'delete') {
+                        if (!whereSql) return { data: null, error: { message: 'Delete requires where clause' } };
+                        const sql = `DELETE FROM public."${safeTable}"${whereSql} RETURNING *`;
+                        const res = await pool.query(sql, params);
+                        return { data: res?.rows || [], error: null };
+                    }
+
+                    const colMap = await getTableColumns(pool, safeTable);
+
+                    if (op === 'insert' || op === 'upsert') {
+                        const items = Array.isArray(payloadData) ? payloadData : [payloadData];
+                        const insertedRows: any[] = [];
+                        for (const rawItem of items) {
+                            if (!rawItem || typeof rawItem !== 'object') continue;
+                            const item: Record<string, any> = { ...rawItem };
+                            if (colMap.has('data') && !item.data) {
+                                item.data = { ...rawItem };
+                            }
+                            const cols: string[] = [];
+                            const vals: any[] = [];
+                            const placeholders: string[] = [];
+                            for (const [k, v] of Object.entries(item)) {
+                                if (v === undefined) continue;
+                                if (colMap.size > 0 && !colMap.has(k)) continue;
+                                const colType = colMap.get(k) || '';
+                                cols.push(`"${k.replace(/[^a-zA-Z0-9_]/g, '')}"`);
+                                if (v !== null && typeof v === 'object' && !(v instanceof Date) && (colType.includes('json') || k === 'payload' || k === 'metadata' || k === 'data' || k === 'items')) {
+                                    vals.push(JSON.stringify(v));
+                                    placeholders.push(`$${vals.length}::jsonb`);
+                                } else {
+                                    vals.push(v);
+                                    placeholders.push(`$${vals.length}`);
+                                }
+                            }
+                            if (cols.length === 0) continue;
+                            let sql = `INSERT INTO public."${safeTable}" (${cols.join(', ')}) VALUES (${placeholders.join(', ')})`;
+                            if (op === 'upsert' && cols.includes('"id"')) {
+                                const updatePairs = cols.filter(c => c !== '"id"').map(c => `${c} = EXCLUDED.${c}`);
+                                if (updatePairs.length > 0) {
+                                    sql += ` ON CONFLICT ("id") DO UPDATE SET ${updatePairs.join(', ')}`;
+                                } else {
+                                    sql += ` ON CONFLICT ("id") DO NOTHING`;
+                                }
+                            }
+                            sql += ` RETURNING *`;
+                            const res = await pool.query(sql, vals);
+                            if (res?.rows?.[0]) insertedRows.push(res.rows[0]);
+                        }
+                        return { data: isSingle ? (insertedRows[0] || null) : insertedRows, error: null };
+                    }
+
+                    if (op === 'update') {
+                        if (!whereSql) return { data: null, error: { message: 'Update requires where clause' } };
+                        const setClauses: string[] = [];
+                        const updateVals: any[] = [...params];
+                        for (const [k, v] of Object.entries(payloadData || {})) {
+                            if (v === undefined) continue;
+                            if (colMap.size > 0 && !colMap.has(k)) continue;
+                            const colType = colMap.get(k) || '';
+                            const colName = `"${k.replace(/[^a-zA-Z0-9_]/g, '')}"`;
+                            if (v !== null && typeof v === 'object' && !(v instanceof Date) && (colType.includes('json') || k === 'payload' || k === 'metadata' || k === 'data' || k === 'items')) {
+                                updateVals.push(JSON.stringify(v));
+                                setClauses.push(`${colName} = $${updateVals.length}::jsonb`);
+                            } else {
+                                updateVals.push(v);
+                                setClauses.push(`${colName} = $${updateVals.length}`);
+                            }
+                        }
+                        if (setClauses.length === 0) return { data: [], error: null };
+                        const sql = `UPDATE public."${safeTable}" SET ${setClauses.join(', ')}${whereSql} RETURNING *`;
+                        const res = await pool.query(sql, updateVals);
+                        return { data: isSingle ? (res?.rows?.[0] || null) : (res?.rows || []), error: null };
+                    }
+
+                    return { data: null, error: null };
+                } catch (err: any) {
+                    return { data: null, error: { message: err?.message || String(err) } };
+                }
+            };
+
+            const builder: any = {
+                select(_cols?: string) {
+                    if (op === 'select') op = 'select';
+                    return builder;
+                },
+                insert(data: any) {
+                    op = 'insert';
+                    payloadData = data;
+                    return builder;
+                },
+                upsert(data: any) {
+                    op = 'upsert';
+                    payloadData = data;
+                    return builder;
+                },
+                update(data: any) {
+                    op = 'update';
+                    payloadData = data;
+                    return builder;
+                },
+                delete() {
+                    op = 'delete';
+                    return builder;
+                },
+                eq(col: string, val: any) {
+                    addCondition(col, 'eq', val);
+                    return builder;
+                },
+                ilike(col: string, val: any) {
+                    addCondition(col, 'ilike', val);
+                    return builder;
+                },
+                in(col: string, vals: any[]) {
+                    if (!Array.isArray(vals) || vals.length === 0) {
+                        whereClauses.push('1 = 0');
+                    } else {
+                        params.push(vals.map(v => String(v)));
+                        whereClauses.push(`${formatPgCol(col)}::text = ANY($${params.length}::text[])`);
+                    }
+                    return builder;
+                },
+                or(expr: string) {
+                    if (!expr) return builder;
+                    const parts = expr.split(',').map(s => s.trim()).filter(Boolean);
+                    const subClauses: string[] = [];
+                    for (const part of parts) {
+                        const m = part.match(/^([a-zA-Z0-9_>-]+)\.(eq|ilike|ieq)\.(.*)$/);
+                        if (m) {
+                            const [, col, opStr, val] = m;
+                            params.push(val);
+                            const idx = params.length;
+                            const colSql = formatPgCol(col);
+                            if (opStr === 'ilike' || opStr === 'ieq') {
+                                subClauses.push(`${colSql}::text ILIKE $${idx}::text`);
+                            } else {
+                                subClauses.push(`${colSql}::text = $${idx}::text`);
+                            }
+                        }
+                    }
+                    if (subClauses.length > 0) {
+                        whereClauses.push(`(${subClauses.join(' OR ')})`);
+                    }
+                    return builder;
+                },
+                order(col: string, opts?: { ascending?: boolean }) {
+                    const dir = opts?.ascending ? 'ASC' : 'DESC';
+                    orderClause = ` ORDER BY ${formatPgCol(col)} ${dir} NULLS LAST`;
+                    return builder;
+                },
+                limit(n: number) {
+                    limitVal = Number(n) || 1;
+                    return builder;
+                },
+                maybeSingle() {
+                    isSingle = true;
+                    if (!limitVal) limitVal = 1;
+                    return builder;
+                },
+                single() {
+                    isSingle = true;
+                    if (!limitVal) limitVal = 1;
+                    return builder;
+                },
+                then(onfulfilled?: any, onrejected?: any) {
+                    return execute().then(onfulfilled, onrejected);
+                },
+                catch(onrejected?: any) {
+                    return execute().catch(onrejected);
+                }
+            };
+
+            return builder;
+        }
+    } as any;
+};
+
 const getSupabase = () => {
     const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) return null;
-    return createClient(url, key, {
-        auth: { persistSession: false, autoRefreshToken: false }
-    });
+    if (url && key) {
+        return createClient(url, key, {
+            auth: { persistSession: false, autoRefreshToken: false }
+        });
+    }
+    const hasPg = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.VITE_DATABASE_URL || process.env.SUPABASE_DB_URL);
+    if (hasPg) return createPgSupabaseShim();
+    return null;
 };
 
 // Local phone normalization helper
