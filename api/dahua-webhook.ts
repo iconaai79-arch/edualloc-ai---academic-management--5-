@@ -473,6 +473,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const createTimeStr = data.CreateTime || data.createTime || ev.CreateTime || ev.createTime || data.Time || ev.Time;
                 
                 const effectivePin = userId || cardNo || (data.Name ? String(data.Name) : 'Unknown_User');
+                const devSn = (data.SN || data.SerialNo || data.DeviceID || data.DeviceId || body?.SN || body?.SerialNo || body?.DeviceId || req.query.device_id || req.query.deviceId || req.query.SN || req.query.sn || data.Name || 'Door1').toString().trim();
+                const devName = data.DeviceName || body?.DeviceName || data.Name || 'Dahua Face Terminal';
+                const devModel = data.DeviceType || body?.DeviceType || 'Dahua Facial Recognition Terminal';
+                const clientIp = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim();
+
                 if (!cardNo && !userId && !data.Name && !ev.Code) continue;
 
                 // Determine timestamp
@@ -484,7 +489,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (!isNaN(parsed.getTime())) punchTime = parsed;
                 }
 
-                // Resolve matching user from Supabase or Direct PostgreSQL (Talksasa)
+                // Resolve matching user and institution from Supabase or Direct PostgreSQL (Talksasa)
                 let matchedUserId: string | null = null;
                 let matchedInstitutionId: string | null = null;
 
@@ -527,7 +532,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     }
 
-                    // Fallback institution_id if user is not yet matched/enrolled
+                    // Look up device in biometric_devices to inherit its configured institution
+                    if (!matchedInstitutionId && devSn) {
+                        try {
+                            const { data: devMatch } = await supabase
+                                .from('biometric_devices')
+                                .select('institution_id, id')
+                                .or(`serial_number.eq.${devSn},id.eq.${devSn},device_name.ilike.%${devSn}%`)
+                                .limit(1)
+                                .maybeSingle();
+                            if (devMatch?.institution_id) {
+                                matchedInstitutionId = devMatch.institution_id;
+                            }
+                        } catch (_) {}
+                    }
+
+                    // Fallback institution_id if user/device is not yet matched/enrolled
                     if (!matchedInstitutionId) {
                         const queryInst = (req.query.institution_id || req.query.institutionId || req.query.instId || '').toString().trim();
                         if (queryInst) {
@@ -542,13 +562,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (matchedInstitutionId) {
                         const { error: insErr } = await supabase.from('staff_attendance_logs').insert([{
                             institution_id: matchedInstitutionId,
+                            institutionId: matchedInstitutionId,
                             staff_id: matchedUserId,
+                            staffId: matchedUserId,
+                            device_id: devSn,
+                            deviceId: devSn,
                             device_pin: effectivePin,
+                            devicePin: effectivePin,
                             punch_time: punchTime.toISOString(),
+                            punchTime: punchTime.toISOString(),
                             punch_type: 0,
+                            punchType: 0,
                             verification_method: 4, // Face / Biometric
+                            verificationMethod: 4,
                             raw_data: JSON.stringify(data),
-                            is_processed: !!matchedUserId
+                            rawData: JSON.stringify(data),
+                            is_processed: !!matchedUserId,
+                            isProcessed: !!matchedUserId
                         }]);
                         if (insErr) {
                             console.error('[Dahua Webhook] Error inserting staff_attendance_log:', insErr);
@@ -645,6 +675,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     }
 
+                    // Look up device in biometric_devices to inherit its configured institution
+                    if (!matchedInstitutionId && devSn) {
+                        try {
+                            const devRes = await pool.query(
+                                `SELECT institution_id, id FROM public.biometric_devices 
+                                 WHERE (serial_number = $1 OR id = $1 OR device_name ILIKE '%' || $1 || '%') 
+                                 LIMIT 1`,
+                                [devSn]
+                            );
+                            if (devRes.rows && devRes.rows.length > 0 && devRes.rows[0].institution_id) {
+                                matchedInstitutionId = devRes.rows[0].institution_id;
+                            }
+                        } catch (devErr) {
+                            console.warn('[Dahua Webhook PG] Biometric device match query warn:', devErr);
+                        }
+                    }
+
                     if (!matchedInstitutionId) {
                         const queryInst = (req.query.institution_id || req.query.institutionId || req.query.instId || '').toString().trim();
                         if (queryInst) {
@@ -661,11 +708,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         try {
                             await pool.query(
                                 `INSERT INTO public.staff_attendance_logs 
-                                 (institution_id, staff_id, device_pin, punch_time, punch_type, verification_method, raw_data, is_processed) 
-                                 VALUES ($1, $2, $3, $4, 0, 4, $5, $6)`,
+                                 (institution_id, "institutionId", staff_id, "staffId", device_id, "deviceId", device_pin, "devicePin", punch_time, "punchTime", punch_type, "punchType", verification_method, "verificationMethod", raw_data, "rawData", is_processed, "isProcessed") 
+                                 VALUES ($1, $1, $2, $2, $3, $3, $4, $4, $5, $5, 0, 0, 4, 4, $6, $6, $7, $7)`,
                                 [
                                     matchedInstitutionId,
                                     matchedUserId,
+                                    devSn,
                                     effectivePin,
                                     punchTime.toISOString(),
                                     JSON.stringify(data),
