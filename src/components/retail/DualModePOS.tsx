@@ -118,6 +118,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
     // Logistics & Carrier Charges state
     const [couriers, setCouriers] = useState<any[]>([]);
     const [deliveryRates, setDeliveryRates] = useState<any[]>([]);
+    const [deliverySearchQuery, setDeliverySearchQuery] = useState('');
     const [includeCarrierCharges, setIncludeCarrierCharges] = useState(false);
     const [selectedDeliveryRateId, setSelectedDeliveryRateId] = useState<string>('');
     const [customCarrierName, setCustomCarrierName] = useState('');
@@ -532,6 +533,19 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
 
     // Dynamic carrier charges calculation
     const selectedDeliveryRate = deliveryRates.find(r => r.id === selectedDeliveryRateId);
+
+    const filteredDeliveryRates = useMemo(() => {
+        if (!deliverySearchQuery.trim()) return deliveryRates;
+        const q = deliverySearchQuery.toLowerCase().trim();
+        return deliveryRates.filter(rate => {
+            const dest = String(rate.destination || '').toLowerCase();
+            const matchedCourier = couriers.find(c => c.id === (rate.courier_id || rate.courierId));
+            const courier = String(rate.courier_name || rate.courierName || matchedCourier?.name || '').toLowerCase();
+            const price = String(rate.rate || '');
+            return dest.includes(q) || courier.includes(q) || price.includes(q);
+        });
+    }, [deliveryRates, deliverySearchQuery, couriers]);
+
     const carrierCharge = useMemo(() => {
         if (!includeCarrierCharges) return 0;
         if (selectedDeliveryRateId && selectedDeliveryRateId !== 'custom' && selectedDeliveryRate) {
@@ -2092,12 +2106,51 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                                 {includeCarrierCharges && (
                                                     <div className="space-y-4 pt-3 border-t border-slate-200/60 dark:border-slate-700/50 animate-in fade-in slide-in-from-top-2">
                                                         {deliveryRates.length > 0 && (
-                                                            <div className="space-y-2">
-                                                                <span className="text-[9px] font-black uppercase tracking-[.2em] text-slate-400">
-                                                                    Preset Delivery Destination Rates
-                                                                </span>
-                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
-                                                                    {deliveryRates.map(rate => {
+                                                            <div className="space-y-2.5">
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="text-[9px] font-black uppercase tracking-[.2em] text-slate-400">
+                                                                            Preset Delivery Destination Rates
+                                                                        </span>
+                                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                                                                            {filteredDeliveryRates.length}{filteredDeliveryRates.length !== deliveryRates.length ? ` / ${deliveryRates.length}` : ''}
+                                                                        </span>
+                                                                    </div>
+                                                                    {deliverySearchQuery && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setDeliverySearchQuery('')}
+                                                                            className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline font-bold"
+                                                                        >
+                                                                            Clear Search
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Search Bar */}
+                                                                <div className="relative">
+                                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                                                    <input
+                                                                        type="text"
+                                                                        value={deliverySearchQuery}
+                                                                        onChange={e => setDeliverySearchQuery(e.target.value)}
+                                                                        placeholder="Search route, town, CBD, or courier (e.g. Meru, Athi River, Fargo)..."
+                                                                        className="w-full pl-8 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+                                                                    />
+                                                                    {deliverySearchQuery && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setDeliverySearchQuery('')}
+                                                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                                                            title="Clear search"
+                                                                        >
+                                                                            <X className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
+                                                                    {filteredDeliveryRates.map(rate => {
                                                                         const isSelected = selectedDeliveryRateId === rate.id;
                                                                         const courierName = rate.courier_name || rate.courierName || couriers.find(c => c.id === (rate.courier_id || rate.courierId))?.name || 'Courier';
                                                                         return (
@@ -2140,6 +2193,24 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                                                         <Tag className="w-4 h-4 text-amber-600" />
                                                                     </button>
                                                                 </div>
+
+                                                                {filteredDeliveryRates.length === 0 && (
+                                                                    <div className="p-3.5 text-center border border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50">
+                                                                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                                                            No preset rates match "<span className="font-bold text-slate-700 dark:text-slate-200">{deliverySearchQuery}</span>".
+                                                                        </p>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setSelectedDeliveryRateId('custom');
+                                                                                setCustomDestination(deliverySearchQuery);
+                                                                            }}
+                                                                            className="mt-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline"
+                                                                        >
+                                                                            Use "{deliverySearchQuery}" as custom destination &rarr;
+                                                                        </button>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         )}
 

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../../services/apiService';
-import { TruckIcon as Truck, PlusIcon as Plus, TrashIcon as Trash, MapPinIcon as MapPin, CurrencyIcon as Currency, UserIcon as UserCircle, EnvelopeIcon as Envelope, PhoneIcon as Phone, CheckCircleIcon as CheckCircle, XCircleIcon as XCircle, PencilIcon as Pencil, UploadIcon as Upload } from '../icons';
+import { TruckIcon as Truck, PlusIcon as Plus, TrashIcon as Trash, MapPinIcon as MapPin, CurrencyIcon as Currency, UserIcon as UserCircle, EnvelopeIcon as Envelope, PhoneIcon as Phone, CheckCircleIcon as CheckCircle, XCircleIcon as XCircle, PencilIcon as Pencil, UploadIcon as Upload, MagnifyingGlassIcon as Search, XIcon as X } from '../icons';
 import { RetailRatesExcelImportModal } from './RetailRatesExcelImportModal';
 
 interface Courier {
@@ -42,6 +42,18 @@ export function RetailLogisticsManager({ institutionId }: Props) {
     const [showAddRate, setShowAddRate] = useState(false);
     const [showImportRates, setShowImportRates] = useState(false);
     const [activeTab, setActiveTab] = useState<'couriers' | 'rates'>('couriers');
+    const [rateSearchQuery, setRateSearchQuery] = useState('');
+
+    const filteredRates = useMemo(() => {
+        if (!rateSearchQuery.trim()) return rates;
+        const q = rateSearchQuery.toLowerCase().trim();
+        return rates.filter(r => {
+            const dest = String(r.destination || '').toLowerCase();
+            const courier = String(r.courier_name || r.courierName || '').toLowerCase();
+            const price = String(r.rate ?? '');
+            return dest.includes(q) || courier.includes(q) || price.includes(q);
+        });
+    }, [rates, rateSearchQuery]);
 
     const [newCourier, setNewCourier] = useState<Partial<Courier>>({ status: 'Active' });
     const [newRate, setNewRate] = useState<Partial<DeliveryRate>>({ status: 'Active', estimated_days: 1 });
@@ -421,6 +433,33 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                                 </div>
                             </div>
 
+                            {/* Search & Quick Filter */}
+                            <div className="flex items-center justify-between gap-3 mb-4">
+                                <div className="relative flex-1 max-w-md">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        value={rateSearchQuery}
+                                        onChange={e => setRateSearchQuery(e.target.value)}
+                                        placeholder="Search delivery routes, destination towns, or couriers..."
+                                        className="w-full pl-9 pr-8 py-2 bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                                    />
+                                    {rateSearchQuery && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setRateSearchQuery('')}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                            title="Clear search"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+                                <span className="text-xs font-bold text-slate-400 whitespace-nowrap">
+                                    {filteredRates.length} {filteredRates.length === 1 ? 'route' : 'routes'} {rateSearchQuery ? `found (of ${rates.length})` : 'configured'}
+                                </span>
+                            </div>
+
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
                                     <thead>
@@ -433,7 +472,7 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                        {rates.map(r => {
+                                        {filteredRates.map(r => {
                                             const courierInfo = resolveCourier(r);
                                             const estDays = Number(r.estimated_days ?? (r as any).estimatedDays ?? 1);
                                             const rateFee = Number(r.rate ?? 0);
@@ -484,6 +523,13 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                                                 </tr>
                                             );
                                         })}
+                                        {filteredRates.length === 0 && (
+                                            <tr>
+                                                <td colSpan={5} className="py-8 text-center text-slate-400 font-semibold text-xs">
+                                                    {rateSearchQuery ? `No delivery routes match "${rateSearchQuery}".` : 'No delivery rates configured yet.'}
+                                                </td>
+                                            </tr>
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
