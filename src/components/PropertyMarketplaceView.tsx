@@ -616,14 +616,14 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                     </div>
 
                     <div className="flex items-center gap-4 ml-auto">
-                        {/* Onboard Client Direct Button in Top Bar */}
+                        {/* Register Account Direct Button in Top Bar */}
                         <button
                             onClick={() => setShowOnboardClientModal(true)}
                             className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1 rounded-full font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm hover:scale-105 active:scale-95 transition-all"
-                            title="Onboard New Client or Supplier to Marketplace"
+                            title="Register Account on Marketplace"
                         >
                             <span>✨</span>
-                            <span>Onboard Client</span>
+                            <span>Register Account</span>
                         </button>
 
                         {/* 1-Tap Mobile App Install Button in Top Bar */}
@@ -754,15 +754,15 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             </div>
                         </div>
 
-                        {/* Right: Onboard Client, Quick RFQ & Trade Assurance Badges */}
+                        {/* Right: Register Account, Quick RFQ & Trade Assurance Badges */}
                         <div className="hidden lg:flex items-center gap-3">
                             <button
                                 onClick={() => setShowOnboardClientModal(true)}
                                 className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 transition-all"
-                                title="Onboard New Client to Marketplace"
+                                title="Register Account on Marketplace"
                             >
                                 <UserPlusIcon className="w-4 h-4 text-slate-950" />
-                                <span>Onboard Client</span>
+                                <span>Register Account</span>
                             </button>
 
                             <button
@@ -1089,7 +1089,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             </div>
                         </div>
 
-                        {/* Onboard Client Direct CTA */}
+                        {/* Register Account Direct CTA */}
                         <div className="pt-3 mt-3 border-t border-slate-100 dark:border-slate-800">
                             <button
                                 type="button"
@@ -1097,7 +1097,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                 className="w-full bg-slate-900 hover:bg-slate-800 text-white py-2 px-3 rounded-xl font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm hover:scale-[1.02] active:scale-95"
                             >
                                 <span>✨</span>
-                                <span>Onboard Client / Supplier</span>
+                                <span>Register Account</span>
                             </button>
                         </div>
                     </div>

@@ -235,14 +235,14 @@ export const MarketplaceClientOnboardingModal: React.FC<MarketplaceClientOnboard
                         <div>
                             <div className="flex items-center gap-2">
                                 <span className="bg-white text-[#FF6000] text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm">
-                                    Direct Onboarding
+                                    Instant Registration
                                 </span>
                                 <span className="text-amber-200 text-xs font-bold flex items-center gap-1">
                                     <ShieldCheckIcon className="w-3.5 h-3.5" /> Instant Activation
                                 </span>
                             </div>
                             <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white mt-1">
-                                Onboard Client to Marketplace
+                                Register Account on Marketplace
                             </h2>
                         </div>
                     </div>
@@ -261,7 +261,7 @@ export const MarketplaceClientOnboardingModal: React.FC<MarketplaceClientOnboard
 
                             <div>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                    Client Successfully Onboarded!
+                                    Account Successfully Registered!
                                 </h3>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                     <strong>{createdCredentials.instName}</strong> is now registered and active on the EduAI Marketplace.
@@ -483,12 +483,12 @@ export const MarketplaceClientOnboardingModal: React.FC<MarketplaceClientOnboard
                                     {isSubmitting ? (
                                         <>
                                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                            <span>Provisioning Client Tenant & Marketplace Access...</span>
+                                            <span>Registering Account & Provisioning Marketplace Access...</span>
                                         </>
                                     ) : (
                                         <>
                                             <UserPlusIcon className="w-4 h-4" />
-                                            <span>Complete Client Onboarding to Marketplace</span>
+                                            <span>Register Account on Marketplace</span>
                                         </>
                                     )}
                                 </button>
