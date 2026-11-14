@@ -10093,7 +10093,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                  onBack={() => setShowTransportHub(false)}
                             />
                          ) : showMarketplace ? (
-                            <PropertyMarketplaceView carListings={carListings} />
+                            <PropertyMarketplaceView 
+                                carListings={carListings} 
+                                onClientOnboarded={(newInst) => {
+                                    setInstitutions(prev => [newInst, ...(prev || [])]);
+                                }}
+                            />
                           ) : (new URLSearchParams(window.location.search).get('view') === 'scan-to-pay' || new URLSearchParams(window.location.search).get('view') === 'scantopay' || new URLSearchParams(window.location.search).get('view') === 'pay') ? (
                              <Suspense fallback={<SystemPulseLoader message="Loading Scan to Pay Portal..." />}>
                                  <PublicScanToPayView 
@@ -10942,7 +10947,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     }
                     hasCurrentUser={!!currentUser}
                     isPublicView={showMarketplace || showMarketing || showGuestPortal || showGuestFeedback || showTenantStore}
-                    hideReturnToLogin={showTenantStore}
+                    hideReturnToLogin={showTenantStore || showMarketplace || window.location.hostname === 'marketplace.eduai.co.ke' || window.location.hostname.includes('marketplace')}
                     onReturn={() => {
                         handleLogout();
                         setImpersonatedRole(null);

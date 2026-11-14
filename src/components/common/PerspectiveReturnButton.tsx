@@ -14,9 +14,17 @@ export const PerspectiveReturnButton: React.FC<{
     isPublicView?: boolean;
     hideReturnToLogin?: boolean;
 }> = ({ role, isImpersonatedSession, impersonatorType, onReturn, onRestoreSession, hasCurrentUser, isPublicView, hideReturnToLogin }) => {
+    const isMarketplaceHost = typeof window !== 'undefined' && (
+        window.location.hostname === 'marketplace.eduai.co.ke' || 
+        window.location.hostname.includes('marketplace') ||
+        new URLSearchParams(window.location.search).get('view') === 'marketplace' ||
+        new URLSearchParams(window.location.search).get('view') === 'auto_market' ||
+        new URLSearchParams(window.location.search).get('view') === 'showroom'
+    );
+
     if (!role && !isImpersonatedSession && hasCurrentUser) return null;
     if (!hasCurrentUser && !isPublicView) return null;
-    if (!hasCurrentUser && hideReturnToLogin) return null;
+    if (!hasCurrentUser && (hideReturnToLogin || isMarketplaceHost)) return null;
 
     const isReseller = impersonatorType === 'reseller';
 

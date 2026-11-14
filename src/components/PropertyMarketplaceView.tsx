@@ -23,13 +23,16 @@ import { TruckIcon } from './icons/TruckIcon';
 import { CarIcon } from './icons/CarIcon';
 import { PlusIcon } from './icons/PlusIcon';
 import { MinusIcon } from './icons/MinusIcon';
+import { UserPlusIcon } from './icons/UserPlusIcon';
 import { CourierSignupModal } from './retail/CourierSignupModal';
 import { VehicleMarketplaceView } from './VehicleMarketplaceView';
+import { MarketplaceClientOnboardingModal } from './public/MarketplaceClientOnboardingModal';
 
 interface PropertyMarketplaceViewProps {
     onInquire?: (listing: PMListing) => void;
     carListings?: CarListing[];
     onBackToPortal?: () => void;
+    onClientOnboarded?: (institution: Institution) => void;
 }
 
 // Category list for B2B Wholesale megamenu & quick tabs
@@ -46,7 +49,7 @@ const WHOLESALE_CATEGORIES = [
     { id: 'solar', name: 'Solar & Utilities', icon: '⚡', query: 'solar' },
 ];
 
-export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = ({ onInquire, carListings, onBackToPortal }) => {
+export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = ({ onInquire, carListings, onBackToPortal, onClientOnboarded }) => {
     const [listings, setListings] = useState<PMListing[]>([]);
     const [retailProducts, setRetailProducts] = useState<RetailInventoryItem[]>([]);
     const [vehicleListings, setVehicleListings] = useState<CarListing[]>([]);
@@ -95,6 +98,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
     // EduAI Wholesale RFQ (Request for Quotation) Modal State
     const [showRfqModal, setShowRfqModal] = useState(false);
+    const [showOnboardClientModal, setShowOnboardClientModal] = useState(false);
     const [rfqProductQuery, setRfqProductQuery] = useState('');
     const [rfqQuantity, setRfqQuantity] = useState<number>(50);
     const [rfqTargetPrice, setRfqTargetPrice] = useState('');
@@ -612,6 +616,16 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                     </div>
 
                     <div className="flex items-center gap-4 ml-auto">
+                        {/* Onboard Client Direct Button in Top Bar */}
+                        <button
+                            onClick={() => setShowOnboardClientModal(true)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1 rounded-full font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                            title="Onboard New Client or Supplier to Marketplace"
+                        >
+                            <span>✨</span>
+                            <span>Onboard Client</span>
+                        </button>
+
                         {/* 1-Tap Mobile App Install Button in Top Bar */}
                         <button
                             onClick={handleInstallApp}
@@ -679,13 +693,21 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                 </div>
                             </div>
 
-                            {/* Mobile Action for RFQ */}
-                            <button
-                                onClick={() => setShowRfqModal(true)}
-                                className="md:hidden bg-white/20 hover:bg-white/30 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-white/30"
-                            >
-                                + Post RFQ
-                            </button>
+                            {/* Mobile Actions */}
+                            <div className="md:hidden flex items-center gap-1.5">
+                                <button
+                                    onClick={() => setShowOnboardClientModal(true)}
+                                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black uppercase px-2.5 py-1.5 rounded-lg shadow-sm flex items-center gap-1"
+                                >
+                                    <span>✨</span> Onboard
+                                </button>
+                                <button
+                                    onClick={() => setShowRfqModal(true)}
+                                    className="bg-white/20 hover:bg-white/30 text-white text-[10px] font-black uppercase px-2.5 py-1.5 rounded-lg border border-white/30"
+                                >
+                                    + Post RFQ
+                                </button>
+                            </div>
                         </div>
 
                         {/* Center: EduAI Wholesale Universal Wholesale Omnibar Search */}
@@ -732,11 +754,20 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             </div>
                         </div>
 
-                        {/* Right: Quick RFQ & Trade Assurance Badges */}
-                        <div className="hidden lg:flex items-center gap-4">
+                        {/* Right: Onboard Client, Quick RFQ & Trade Assurance Badges */}
+                        <div className="hidden lg:flex items-center gap-3">
+                            <button
+                                onClick={() => setShowOnboardClientModal(true)}
+                                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 transition-all"
+                                title="Onboard New Client to Marketplace"
+                            >
+                                <UserPlusIcon className="w-4 h-4 text-slate-950" />
+                                <span>Onboard Client</span>
+                            </button>
+
                             <button
                                 onClick={() => setShowRfqModal(true)}
-                                className="bg-amber-300 hover:bg-amber-200 text-slate-950 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-md hover:scale-105 active:scale-95 transition-all"
+                                className="bg-amber-300 hover:bg-amber-200 text-slate-950 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 transition-all"
                             >
                                 <ClipboardListIcon className="w-4 h-4 text-[#FF6000]" />
                                 <span>Request For Quote</span>
@@ -1056,6 +1087,18 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             <div className="flex items-center gap-1.5 text-slate-500">
                                 <span>⚡</span> Average response time: ~2 hours
                             </div>
+                        </div>
+
+                        {/* Onboard Client Direct CTA */}
+                        <div className="pt-3 mt-3 border-t border-slate-100 dark:border-slate-800">
+                            <button
+                                type="button"
+                                onClick={() => setShowOnboardClientModal(true)}
+                                className="w-full bg-slate-900 hover:bg-slate-800 text-white py-2 px-3 rounded-xl font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm hover:scale-[1.02] active:scale-95"
+                            >
+                                <span>✨</span>
+                                <span>Onboard Client / Supplier</span>
+                            </button>
                         </div>
                     </div>
 
@@ -2075,6 +2118,18 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 onClose={() => setShowCourierSignup(false)}
                 institutionId={registratorInstId}
                 onSuccess={() => {}}
+            />
+
+            {/* Marketplace Direct Client Onboarding Modal */}
+            <MarketplaceClientOnboardingModal
+                isOpen={showOnboardClientModal}
+                onClose={() => setShowOnboardClientModal(false)}
+                onClientOnboarded={(newInst) => {
+                    setInstitutions(prev => [newInst, ...prev]);
+                    if (onClientOnboarded) {
+                        onClientOnboarded(newInst);
+                    }
+                }}
             />
         </div>
     );
