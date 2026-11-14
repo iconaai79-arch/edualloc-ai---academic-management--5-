@@ -190,4 +190,33 @@ BEGIN
         ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS sms_config JSONB;
         ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "smsConfig" JSONB;
     END IF;
+
+    -- Ensure finance_numbering_configs snake_case & camelCase columns exist
+    CREATE TABLE IF NOT EXISTS public.finance_numbering_configs (
+        id TEXT PRIMARY KEY,
+        institution_id TEXT DEFAULT 'GLOBAL',
+        "institutionId" TEXT,
+        document_type TEXT,
+        "documentType" TEXT,
+        prefix TEXT DEFAULT 'DOC-',
+        next_number INTEGER DEFAULT 1001,
+        "nextNumber" NUMERIC DEFAULT 1001,
+        metadata JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        "createdAt" TEXT,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        "updatedAt" TEXT
+    );
+    ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS institution_id TEXT DEFAULT 'GLOBAL';
+    ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+    ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS document_type TEXT;
+    ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS "documentType" TEXT;
+    ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS prefix TEXT DEFAULT 'DOC-';
+    ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS next_number INTEGER DEFAULT 1001;
+    ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS "nextNumber" NUMERIC DEFAULT 1001;
+    ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+    ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+    ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+    ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+    ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
 END $$;

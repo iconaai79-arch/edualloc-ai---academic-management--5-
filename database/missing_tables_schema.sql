@@ -626,53 +626,83 @@ ALTER TABLE public."school_bank_accounts" ADD COLUMN IF NOT EXISTS "enableCustom
 CREATE TABLE IF NOT EXISTS public."finance_numbering_configs" (
     "id" TEXT PRIMARY KEY
 );
+ALTER TABLE public."finance_numbering_configs" ADD COLUMN IF NOT EXISTS "institution_id" TEXT DEFAULT 'GLOBAL';
 ALTER TABLE public."finance_numbering_configs" ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+ALTER TABLE public."finance_numbering_configs" ADD COLUMN IF NOT EXISTS "document_type" TEXT;
 ALTER TABLE public."finance_numbering_configs" ADD COLUMN IF NOT EXISTS "documentType" TEXT;
 ALTER TABLE public."finance_numbering_configs" ADD COLUMN IF NOT EXISTS "prefix" TEXT;
+ALTER TABLE public."finance_numbering_configs" ADD COLUMN IF NOT EXISTS "next_number" INTEGER DEFAULT 1001;
 ALTER TABLE public."finance_numbering_configs" ADD COLUMN IF NOT EXISTS "nextNumber" NUMERIC DEFAULT 0;
+ALTER TABLE public."finance_numbering_configs" ADD COLUMN IF NOT EXISTS "metadata" JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public."finance_numbering_configs" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public."finance_numbering_configs" ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+ALTER TABLE public."finance_numbering_configs" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public."finance_numbering_configs" ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
 
 -- Table: public."invoice_clients"
 CREATE TABLE IF NOT EXISTS public."invoice_clients" (
     "id" TEXT PRIMARY KEY
 );
+ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "institution_id" TEXT DEFAULT 'GLOBAL';
 ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "client_name" TEXT;
 ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "clientName" TEXT;
+ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "contact_person" TEXT;
 ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "contactPerson" TEXT;
 ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "email" TEXT;
 ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "phone" TEXT;
+ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "tax_pin" TEXT;
 ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "taxPin" TEXT;
 ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "address" TEXT;
 ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "city" TEXT;
 ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "notes" TEXT;
 ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "metadata" JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public."invoice_clients" ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
 
 -- Table: public."company_invoice_settings"
 CREATE TABLE IF NOT EXISTS public."company_invoice_settings" (
     "id" TEXT PRIMARY KEY
 );
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "institution_id" TEXT DEFAULT 'GLOBAL';
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "invoice_prefix" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "invoicePrefix" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "quote_prefix" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "quotePrefix" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "receipt_prefix" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "receiptPrefix" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "currency" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "tax_rate" NUMERIC DEFAULT 0;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "taxRate" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "tax_name" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "taxName" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "payment_terms_days" NUMERIC DEFAULT 0;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "paymentTermsDays" NUMERIC DEFAULT 0;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "bank_name" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "bankName" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "account_name" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "accountName" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "account_number" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "accountNumber" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "mpesa_paybill" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "mpesaPaybill" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "mpesa_till" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "mpesaTill" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "notes_template" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "notesTemplate" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "terms_template" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "termsTemplate" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "logo_url" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "logoUrl" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "stamp_url" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "stampUrl" TEXT;
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "metadata" JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public."company_invoice_settings" ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
 
 -- Table: public."institution_wallets"

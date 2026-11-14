@@ -732,6 +732,150 @@ const ensureEssentialSchema = async (pool: any) => {
                 ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
                 ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
             END IF;
+
+            -- 9. finance_numbering_configs, invoice_clients & company_invoice_settings
+            CREATE TABLE IF NOT EXISTS public.finance_numbering_configs (
+                id TEXT PRIMARY KEY,
+                institution_id TEXT DEFAULT 'GLOBAL',
+                "institutionId" TEXT,
+                document_type TEXT,
+                "documentType" TEXT,
+                prefix TEXT DEFAULT 'DOC-',
+                next_number INTEGER DEFAULT 1001,
+                "nextNumber" NUMERIC DEFAULT 1001,
+                metadata JSONB DEFAULT '{}'::jsonb,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                "createdAt" TEXT,
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                "updatedAt" TEXT
+            );
+            ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS institution_id TEXT DEFAULT 'GLOBAL';
+            ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+            ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS document_type TEXT;
+            ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS "documentType" TEXT;
+            ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS prefix TEXT DEFAULT 'DOC-';
+            ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS next_number INTEGER DEFAULT 1001;
+            ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS "nextNumber" NUMERIC DEFAULT 1001;
+            ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+            ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+            ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+            ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+            ALTER TABLE public.finance_numbering_configs ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+            ALTER TABLE public.finance_numbering_configs DROP CONSTRAINT IF EXISTS finance_numbering_configs_institution_id_fkey;
+            BEGIN
+                ALTER TABLE public.finance_numbering_configs ALTER COLUMN institution_id DROP NOT NULL;
+                ALTER TABLE public.finance_numbering_configs ALTER COLUMN document_type DROP NOT NULL;
+                ALTER TABLE public.finance_numbering_configs ALTER COLUMN prefix DROP NOT NULL;
+                ALTER TABLE public.finance_numbering_configs ALTER COLUMN next_number DROP NOT NULL;
+            EXCEPTION WHEN OTHERS THEN NULL;
+            END;
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'finance_numbering_configs' AND column_name = 'institutionId') THEN
+                EXECUTE 'UPDATE public.finance_numbering_configs SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL';
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'finance_numbering_configs' AND column_name = 'documentType') THEN
+                EXECUTE 'UPDATE public.finance_numbering_configs SET document_type = "documentType" WHERE (document_type IS NULL OR document_type = '''') AND "documentType" IS NOT NULL';
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'finance_numbering_configs' AND column_name = 'nextNumber') THEN
+                EXECUTE 'UPDATE public.finance_numbering_configs SET next_number = COALESCE(NULLIF("nextNumber"::text, '''')::numeric::integer, 1001) WHERE (next_number IS NULL OR next_number = 0) AND "nextNumber" IS NOT NULL';
+            END IF;
+
+            CREATE TABLE IF NOT EXISTS public.invoice_clients (
+                id TEXT PRIMARY KEY,
+                institution_id TEXT DEFAULT 'GLOBAL',
+                "institutionId" TEXT,
+                client_name TEXT,
+                "clientName" TEXT,
+                contact_person TEXT,
+                "contactPerson" TEXT,
+                email TEXT,
+                phone TEXT,
+                tax_pin TEXT,
+                "taxPin" TEXT,
+                address TEXT,
+                city TEXT,
+                notes TEXT,
+                metadata JSONB DEFAULT '{}'::jsonb,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                "createdAt" TEXT,
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                "updatedAt" TEXT
+            );
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS institution_id TEXT DEFAULT 'GLOBAL';
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS client_name TEXT;
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS "clientName" TEXT;
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS contact_person TEXT;
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS "contactPerson" TEXT;
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS email TEXT;
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS phone TEXT;
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS tax_pin TEXT;
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS "taxPin" TEXT;
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS address TEXT;
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS city TEXT;
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS notes TEXT;
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+            ALTER TABLE public.invoice_clients ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+            CREATE TABLE IF NOT EXISTS public.company_invoice_settings (
+                id TEXT PRIMARY KEY,
+                institution_id TEXT DEFAULT 'GLOBAL',
+                "institutionId" TEXT,
+                invoice_prefix TEXT,
+                "invoicePrefix" TEXT,
+                quote_prefix TEXT,
+                "quotePrefix" TEXT,
+                receipt_prefix TEXT,
+                "receiptPrefix" TEXT,
+                currency TEXT DEFAULT 'KES',
+                tax_rate NUMERIC DEFAULT 0,
+                "taxRate" TEXT,
+                tax_name TEXT,
+                "taxName" TEXT,
+                payment_terms_days NUMERIC DEFAULT 0,
+                "paymentTermsDays" NUMERIC DEFAULT 0,
+                bank_name TEXT,
+                "bankName" TEXT,
+                account_name TEXT,
+                "accountName" TEXT,
+                account_number TEXT,
+                "accountNumber" TEXT,
+                mpesa_paybill TEXT,
+                "mpesaPaybill" TEXT,
+                mpesa_till TEXT,
+                "mpesaTill" TEXT,
+                notes_template TEXT,
+                "notesTemplate" TEXT,
+                terms_template TEXT,
+                "termsTemplate" TEXT,
+                logo_url TEXT,
+                "logoUrl" TEXT,
+                stamp_url TEXT,
+                "stampUrl" TEXT,
+                metadata JSONB DEFAULT '{}'::jsonb,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS institution_id TEXT DEFAULT 'GLOBAL';
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS invoice_prefix TEXT;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS quote_prefix TEXT;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS receipt_prefix TEXT;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'KES';
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS tax_rate NUMERIC DEFAULT 0;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS tax_name TEXT;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS payment_terms_days NUMERIC DEFAULT 0;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS bank_name TEXT;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS account_name TEXT;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS account_number TEXT;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS mpesa_paybill TEXT;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS mpesa_till TEXT;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS notes_template TEXT;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS terms_template TEXT;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS logo_url TEXT;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS stamp_url TEXT;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+            ALTER TABLE public.company_invoice_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
         END $$;
       `);
       _schemaMigrationDone = true;
@@ -11193,6 +11337,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                     if (c.is_active !== undefined) c.is_active = Boolean(c.is_active);
                     currentUpdateData = c;
+                } else if ((moduleName === 'finance_numbering_configs' || targetDbTable === 'finance_numbering_configs') && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const c = { ...currentUpdateData };
+                    if (c.institutionId !== undefined && c.institution_id === undefined) { c.institution_id = c.institutionId; delete c.institutionId; }
+                    if (c.documentType !== undefined && c.document_type === undefined) { c.document_type = c.documentType; delete c.documentType; }
+                    if (c.nextNumber !== undefined && c.next_number === undefined) { c.next_number = Number(c.nextNumber) || 1001; delete c.nextNumber; }
+                    if (c.createdAt !== undefined && c.created_at === undefined) { c.created_at = c.createdAt; delete c.createdAt; }
+                    if (c.updatedAt !== undefined && c.updated_at === undefined) { c.updated_at = c.updatedAt; delete c.updatedAt; }
+                    currentUpdateData = c;
                 }
                 let data: any = null;
                 let error: any = null;
@@ -11203,7 +11355,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     try {
                         const pool = await getPgPool();
                         if (pool && currentUpdateData) {
-                            const rawKeys = Object.keys(currentUpdateData).filter(k => /^[a-zA-Z0-9_]+$/.test(k) && currentUpdateData[k] !== undefined);
+                            const rawKeys = Object.keys(currentUpdateData).filter(k => /^[a-zA-Z0-9_]+$/.test(k) && currentUpdateData[k] !== undefined && k !== 'id');
                             if (rawKeys.length > 0 && idsArray.length > 0) {
                                 const vals: any[] = [];
                                 const setClauses = rawKeys.map((k, idx) => {
@@ -11217,9 +11369,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     return `$${rawKeys.length + idx + 1}`;
                                 });
                                 const updateSql = `UPDATE public."${targetDbTable}" SET ${setClauses.join(', ')} WHERE "id" IN (${idPlaceholders.join(', ')}) RETURNING *;`;
-                                const patchRes = await pool.query(updateSql, vals).catch(async (e: any) => {
+                                let patchRes = await pool.query(updateSql, vals).catch(async (e: any) => {
                                     console.warn(`[Direct PG Update Warning on ${targetDbTable}]:`, e?.message);
-                                    if (targetDbTable === 'invoices' || targetDbTable === 'receipts' || e?.code === '42703' || e?.code === '23503') {
+                                    if (targetDbTable === 'invoices' || targetDbTable === 'receipts' || targetDbTable === 'finance_numbering_configs' || e?.code === '42703' || e?.code === '23503') {
                                         try {
                                             _schemaMigrationDone = false;
                                             _schemaMigrationPromise = null;
@@ -11227,9 +11379,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                             return await pool.query(updateSql, vals);
                                         } catch (_) {}
                                     }
-                                    return { rows: idsArray.map(id => ({ id, ...currentUpdateData })) };
+                                    return { rows: [] };
                                 });
-                                return res.status(200).json({ success: true, data: patchRes?.rows || idsArray.map(id => ({ id, ...currentUpdateData })) });
+                                // If 0 rows were updated for singleton/config tables, upsert the row so it is persisted
+                                if ((!patchRes?.rows || patchRes.rows.length === 0) && idsArray.length === 1 && ['finance_numbering_configs', 'company_invoice_settings', 'system_settings'].includes(targetDbTable)) {
+                                    try {
+                                        const upsertKeys = ['id', ...rawKeys];
+                                        const upsertVals = [idsArray[0], ...rawKeys.map(k => {
+                                            const v = currentUpdateData[k];
+                                            return (v !== null && typeof v === 'object') ? JSON.stringify(v) : v;
+                                        })];
+                                        const upsertPlaceholders = upsertKeys.map((_, idx) => `$${idx + 1}`).join(', ');
+                                        const upsertSet = rawKeys.map(k => `"${k}" = EXCLUDED."${k}"`).join(', ');
+                                        const upsertSql = `INSERT INTO public."${targetDbTable}" (${upsertKeys.map(k => `"${k}"`).join(', ')}) VALUES (${upsertPlaceholders}) ON CONFLICT ("id") DO UPDATE SET ${upsertSet} RETURNING *;`;
+                                        patchRes = await pool.query(upsertSql, upsertVals);
+                                    } catch (_) {}
+                                }
+                                return res.status(200).json({ success: true, data: (patchRes?.rows && patchRes.rows.length > 0) ? patchRes.rows : idsArray.map(id => ({ id, ...currentUpdateData })) });
                             }
                         }
                     } catch (directPatchErr: any) {
