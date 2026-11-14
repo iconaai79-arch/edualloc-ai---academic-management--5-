@@ -492,6 +492,25 @@ const ensureEssentialSchema = async (pool: any) => {
                 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS is_suspended_for_billing BOOLEAN DEFAULT FALSE;
                 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "isSuspendedForBilling" BOOLEAN DEFAULT FALSE;
                 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS kcb_config JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "kcbConfig" JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS mpesa_config JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "mpesaConfig" JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS ncba_config JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "ncbaConfig" JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS equity_config JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "equityConfig" JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS im_config JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "imConfig" JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS airtel_money_config JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "airtelMoneyConfig" JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS intasend_config JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "intasendConfig" JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS coop_config JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "coopConfig" JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS sms_config JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "smsConfig" JSONB;
                 BEGIN
                     ALTER TABLE public.institutions ALTER COLUMN email DROP NOT NULL;
                     ALTER TABLE public.institutions ALTER COLUMN name DROP NOT NULL;

@@ -4683,7 +4683,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const pool = await getPgPool();
                         const instIdForMpesa = getParam('institutionId') || getParam('institution_id') || transaction?.institution_id;
                         if (pool && instIdForMpesa && instIdForMpesa !== 'GLOBAL' && instIdForMpesa !== 'SYSTEM') {
-                            const pgRes = await pool.query('SELECT mpesa_config, data FROM public.institutions WHERE id = $1 LIMIT 1', [instIdForMpesa]);
+                            const pgRes = await pool.query('SELECT * FROM public.institutions WHERE id = $1 LIMIT 1', [instIdForMpesa]).catch(() => null);
                             const r = pgRes?.rows?.[0];
                             if (r) {
                                 const d = parseJsonIfString(r.data) || {};
@@ -4693,10 +4693,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                         if (pool && !mpesa.consumerKey && !mpesa.consumer_key) {
                             const fbRes = await pool.query(
-                                `SELECT mpesa_config, data FROM public.institutions
-                                 WHERE mpesa_config IS NOT NULL OR data::text LIKE '%consumerKey%'
-                                 ORDER BY CASE WHEN UPPER(name) LIKE '%ABMIS%' THEN 0 ELSE 1 END, updated_at DESC NULLS LAST LIMIT 5`
-                            );
+                                `SELECT * FROM public.institutions
+                                 WHERE data::text LIKE '%consumerKey%' OR data::text LIKE '%mpesa%'
+                                 ORDER BY updated_at DESC NULLS LAST LIMIT 5`
+                            ).catch(() => null);
                             for (const r of (fbRes?.rows || [])) {
                                 const d = parseJsonIfString(r.data) || {};
                                 const im = parseJsonIfString(r.mpesa_config || r.mpesaConfig || d.mpesa_config || d.mpesaConfig);
@@ -4827,7 +4827,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (!instRow) {
                             const pool = await getPgPool();
                             if (pool) {
-                                const pgRes = await pool.query('SELECT kcb_config, data FROM public.institutions WHERE id = $1 LIMIT 1', [instId]);
+                                const pgRes = await pool.query('SELECT * FROM public.institutions WHERE id = $1 LIMIT 1', [instId]).catch(() => null);
                                 instRow = pgRes?.rows?.[0] || null;
                             }
                         }
@@ -4861,8 +4861,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 sysData = pgRes?.rows?.[0]?.data || null;
                             }
                         }
-                        if (sysData?.kcb_config || sysData?.kcbConfig) {
-                            const sc = sysData.kcb_config || sysData.kcbConfig;
+                        if (typeof sysData === 'string') {
+                            try { sysData = JSON.parse(sysData); } catch (_) {}
+                        }
+                        const sc = sysData?.kcb_config || sysData?.kcbConfig || sysData?.companyDetails?.kcbConfig || sysData?.company_details?.kcb_config || sysData?.companyDetails?.kcb_config;
+                        if (sc) {
                             const parsed = typeof sc === 'string' ? JSON.parse(sc) : sc;
                             kcbConfig = { ...parsed, ...kcbConfig };
                         }
@@ -4907,21 +4910,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         ResultDesc: 'Transaction checked successfully.'
                     };
                 } else if (!appKey || !appSecret) {
-                    // Cannot query KCB API without credentials. Maintain pending status and wait for callback webhook.
-                    console.log(`[KCB Query] No API credentials available to query gateway for CRID: ${checkoutRequestId}. Awaiting bank callback.`);
-                    if (transaction && (transaction.status === 'completed' || transaction.status === 'success')) {
-                        finalStatus = 'completed';
-                    } else if (transaction && transaction.status === 'failed') {
-                        finalStatus = 'failed';
-                    } else {
-                        finalStatus = 'pending';
+                    // Check if checkoutRequestId is a Safaricom Daraja STK ID (ws_CO_...) and can be queried via M-Pesa
+                    let queriedDaraja = false;
+                    if (checkoutRequestId.startsWith('ws_CO_') && mpesa && (mpesa.consumerKey || mpesa.consumer_key)) {
+                        try {
+                            const cKey = (mpesa.consumerKey || mpesa.consumer_key || '').trim();
+                            const cSec = (mpesa.consumerSecret || mpesa.consumer_secret || '').trim();
+                            const pBill = (mpesa.paybillNumber || mpesa.paybill_number || '').trim();
+                            const pKey = (mpesa.passkey || '').trim();
+                            if (cKey && cSec && pBill && pKey) {
+                                console.log(`[KCB Query Fallback -> Daraja] Querying Safaricom for ${checkoutRequestId}`);
+                                const authStr = Buffer.from(`${cKey}:${cSec}`).toString('base64');
+                                const bUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
+                                const oauthReq = await fetchWithTimeout(`${bUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+                                    headers: { 'Authorization': `Basic ${authStr}` }
+                                });
+                                if (oauthReq.ok) {
+                                    const { access_token } = await oauthReq.json() as any;
+                                    const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+                                    const password = Buffer.from(pBill + pKey + timestamp).toString('base64');
+                                    const statusRes = await fetchWithTimeout(`${bUrl}/mpesa/stkpush/v1/query`, {
+                                        method: 'POST',
+                                        headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ 
+                                            BusinessShortCode: pBill, 
+                                            Password: password, 
+                                            Timestamp: timestamp, 
+                                            CheckoutRequestID: checkoutRequestId 
+                                        })
+                                    });
+                                    const statusData = await statusRes.json() as any;
+                                    externalData = statusData;
+                                    if (String(statusData.ResultCode) === '0') {
+                                        finalStatus = 'completed';
+                                        queriedDaraja = true;
+                                    } else if (statusData.errorCode === '500.002.1001') {
+                                        finalStatus = 'pending';
+                                        queriedDaraja = true;
+                                    } else if (statusData.ResultCode) {
+                                        finalStatus = 'failed';
+                                        queriedDaraja = true;
+                                    }
+                                }
+                            }
+                        } catch (dErr) {
+                            console.warn('[KCB Query Fallback -> Daraja] Error polling Safaricom:', dErr);
+                        }
                     }
-                    externalData = {
-                        status: finalStatus.toUpperCase(),
-                        message: finalStatus === 'pending'
-                            ? 'Awaiting customer authorization on phone or callback confirmation...'
-                            : (finalStatus === 'completed' ? 'Payment confirmed.' : 'Payment failed.')
-                    };
+
+                    if (!queriedDaraja) {
+                        console.log(`[KCB Query] No API credentials available to query gateway for CRID: ${checkoutRequestId}. Awaiting bank callback.`);
+                        if (transaction && (transaction.status === 'completed' || transaction.status === 'success')) {
+                            finalStatus = 'completed';
+                        } else if (transaction && transaction.status === 'failed') {
+                            finalStatus = 'failed';
+                        } else {
+                            finalStatus = 'pending';
+                        }
+                        externalData = {
+                            status: finalStatus.toUpperCase(),
+                            message: finalStatus === 'pending'
+                                ? 'Awaiting customer authorization on phone or callback confirmation...'
+                                : (finalStatus === 'completed' ? 'Payment confirmed.' : 'Payment failed.')
+                        };
+                    }
                 } else {
                     try {
                         const authHeaderVal = Buffer.from(`${appKey}:${appSecret}`).toString('base64');
