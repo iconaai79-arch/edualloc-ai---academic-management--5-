@@ -1150,10 +1150,10 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     coopConfig: localCoopConfig,
                     ncbaConfig: {
                         ...localNcbaConfig,
-                        clientId: (localNcbaConfig.clientId || '').replace(/[^\x20-\x7E]/g, '').trim(),
-                        clientSecret: (localNcbaConfig.clientSecret || '').replace(/[^\x20-\x7E]/g, '').trim(),
-                        username: (localNcbaConfig.username || '').replace(/[^\x20-\x7E]/g, '').trim(),
-                        password: (localNcbaConfig.password || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                        username: (localNcbaConfig.username || localNcbaConfig.clientId || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                        clientId: (localNcbaConfig.username || localNcbaConfig.clientId || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                        clientSecret: (localNcbaConfig.clientSecret || localNcbaConfig.password || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                        password: (localNcbaConfig.clientSecret || localNcbaConfig.password || '').replace(/[^\x20-\x7E]/g, '').trim(),
                         subscriptionKey: (localNcbaConfig.subscriptionKey || '').replace(/[^\x20-\x7E]/g, '').trim(),
                         openBankingUserId: (localNcbaConfig.openBankingUserId || '').replace(/[^\x20-\x7E]/g, '').trim(),
                         openBankingPassword: (localNcbaConfig.openBankingPassword || '').replace(/[^\x20-\x7E]/g, '').trim(),
@@ -6014,44 +6014,23 @@ Please change it after login.`;
 
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                         <div>
-                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Client ID (10 chars)</label>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Username</label>
                                                             <input
                                                                 type="text"
-                                                                value={localNcbaConfig.clientId || ''}
-                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, clientId: e.target.value })}
+                                                                value={localNcbaConfig.username || localNcbaConfig.clientId || ''}
+                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, username: e.target.value, clientId: e.target.value })}
                                                                 className="form-input w-full rounded-2xl text-xs font-mono"
-                                                                placeholder="e.g. 10-char ID"
+                                                                placeholder="e.g. NCBA API Username"
                                                             />
                                                         </div>
                                                         <div>
-                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Client Secret</label>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Secret Key</label>
                                                             <input
                                                                 type="password"
-                                                                value={localNcbaConfig.clientSecret || ''}
-                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, clientSecret: e.target.value })}
+                                                                value={localNcbaConfig.clientSecret || localNcbaConfig.password || ''}
+                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, clientSecret: e.target.value, password: e.target.value })}
                                                                 className="form-input w-full rounded-2xl text-xs font-mono"
-                                                                placeholder="32-char Secret"
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                        <div>
-                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">API Username</label>
-                                                            <input
-                                                                type="text"
-                                                                value={localNcbaConfig.username || ''}
-                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, username: e.target.value })}
-                                                                className="form-input w-full rounded-2xl text-xs font-bold"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">API Password</label>
-                                                            <input
-                                                                type="password"
-                                                                value={localNcbaConfig.password || ''}
-                                                                onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, password: e.target.value })}
-                                                                className="form-input w-full rounded-2xl text-xs font-bold"
+                                                                placeholder="e.g. NCBA Secret Key"
                                                             />
                                                         </div>
                                                     </div>
