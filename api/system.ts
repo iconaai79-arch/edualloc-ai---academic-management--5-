@@ -638,6 +638,125 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(200).json({ success: true, results });
             }
 
+            if (action === 'get_biometric_telemetry') {
+                let logs: any[] = [];
+                let devices: any[] = [];
+                const pool = await getPgPool();
+                if (pool) {
+                    try {
+                        const devRes = await pool.query(
+                            `SELECT d.*, i.name as institution_name 
+                             FROM public.biometric_devices d 
+                             LEFT JOIN public.institutions i ON (i.id = d.institution_id OR i.id = d."institutionId")
+                             ORDER BY d.last_sync_at DESC NULLS LAST LIMIT 100`
+                        ).catch(() => ({ rows: [] }));
+                        devices = devRes.rows || [];
+
+                        const logRes = await pool.query(
+                            `SELECT l.*, i.name as institution_name, u.name as staff_name
+                             FROM public.staff_attendance_logs l
+                             LEFT JOIN public.institutions i ON (i.id = l.institution_id OR i.id = l."institutionId")
+                             LEFT JOIN public.users u ON (u.id = l.staff_id OR u.id = l."staffId")
+                             ORDER BY l.punch_time DESC NULLS LAST LIMIT 250`
+                        ).catch(() => ({ rows: [] }));
+                        logs = logRes.rows || [];
+                    } catch (pgErr) {
+                        console.error('[get_biometric_telemetry PG error]:', pgErr);
+                    }
+                }
+                if (logs.length === 0 && supabase) {
+                    try {
+                        const { data: sbDevs } = await supabase.from('biometric_devices').select('*').limit(50);
+                        if (sbDevs) devices = sbDevs;
+                        const { data: sbLogs } = await supabase.from('staff_attendance_logs').select('*').order('punch_time', { ascending: false }).limit(200);
+                        if (sbLogs) logs = sbLogs;
+                    } catch (_) {}
+                }
+                return res.status(200).json({ success: true, devices, logs });
+            }
+
+            if (action === 'reassign_biometric_device') {
+                const { deviceId, deviceSn, deviceName, institutionId, reassignLogs } = req.body || {};
+                if (!institutionId) {
+                    return res.status(400).json({ error: 'institutionId is required' });
+                }
+                const targetDev = (deviceSn || deviceId || 'Door1').trim();
+                let updatedLogsCount = 0;
+                let deviceUpdated = false;
+
+                const pool = await getPgPool();
+                if (pool) {
+                    try {
+                        // Upsert or register in biometric_devices
+                        const upsertDev = await pool.query(
+                            `INSERT INTO public.biometric_devices (id, institution_id, "institutionId", serial_number, "serialNumber", device_name, "deviceName", device_model, protocol, is_active, last_sync_at)
+                             VALUES ($1, $2, $2, $3, $3, $4, $4, 'Dahua Facial Recognition Terminal', 'dahua', true, NOW())
+                             ON CONFLICT (id) DO UPDATE SET 
+                                institution_id = EXCLUDED.institution_id, 
+                                "institutionId" = EXCLUDED."institutionId",
+                                serial_number = COALESCE(NULLIF(public.biometric_devices.serial_number, ''), EXCLUDED.serial_number),
+                                last_sync_at = NOW()
+                             RETURNING id;`,
+                            [`dev_${targetDev.toLowerCase()}`, institutionId, targetDev, deviceName || `Dahua Face Terminal (${targetDev})`]
+                        );
+                        deviceUpdated = Boolean(upsertDev.rows?.length);
+
+                        // Reassign past logs from this device to the target institution
+                        if (reassignLogs !== false) {
+                            const logRes = await pool.query(
+                                `UPDATE public.staff_attendance_logs
+                                 SET institution_id = $1, "institutionId" = $1, device_id = $2, "deviceId" = $2
+                                 WHERE (device_id = $2 OR "deviceId" = $2 OR device_pin = $2 OR raw_data ILIKE '%' || $2 || '%')
+                                 RETURNING id;`,
+                                [institutionId, targetDev]
+                            );
+                            updatedLogsCount = logRes.rows?.length || 0;
+                        }
+                    } catch (pgErr: any) {
+                        console.error('[reassign_biometric_device PG error]:', pgErr);
+                    }
+                }
+
+                if (supabase) {
+                    try {
+                        await supabase.from('biometric_devices').upsert([{
+                            id: `dev_${targetDev.toLowerCase()}`,
+                            institution_id: institutionId,
+                            serial_number: targetDev,
+                            device_name: deviceName || `Dahua Face Terminal (${targetDev})`,
+                            device_model: 'Dahua Facial Recognition Terminal',
+                            protocol: 'dahua',
+                            is_active: true,
+                            last_sync_at: new Date().toISOString()
+                        }]);
+                        deviceUpdated = true;
+
+                        if (reassignLogs !== false) {
+                            const { data: updatedLogs } = await supabase
+                                .from('staff_attendance_logs')
+                                .update({
+                                    institution_id: institutionId,
+                                    device_id: targetDev
+                                })
+                                .or(`device_id.eq.${targetDev},device_pin.eq.${targetDev},raw_data.ilike.%${targetDev}%`)
+                                .select('id');
+                            if (updatedLogs) updatedLogsCount = Math.max(updatedLogsCount, updatedLogs.length);
+                        }
+                    } catch (sbErr) {
+                        console.warn('[reassign_biometric_device SB error]:', sbErr);
+                    }
+                }
+
+                return res.status(200).json({
+                    success: true,
+                    deviceId: targetDev,
+                    institutionId,
+                    deviceUpdated,
+                    updatedLogsCount,
+                    message: `Device "${targetDev}" successfully linked to institution. Reassigned ${updatedLogsCount} historical attendance log(s).`
+                });
+            }
+
             if (action === 'migrate') {
                 const { sql } = req.body;
                 return res.status(200).json({

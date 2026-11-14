@@ -68,6 +68,8 @@ import { CurrencyIcon } from './icons/CurrencyIcon';
 import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
 import { LockClosedIcon } from './icons/LockClosedIcon';
 import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { FingerPrintIcon } from './icons/FingerPrintIcon';
+import { SuperAdminDahuaManager } from './SuperAdmin/SuperAdminDahuaManager';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
 import { MapPinIcon } from './icons/MapPinIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
@@ -588,7 +590,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
     const { success, error: toastError, info: toastInfo } = useToast();
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations' | 'marketing' | 'expenses' | 'latency'>(() => {
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations' | 'marketing' | 'expenses' | 'latency' | 'dahua_biometrics'>(() => {
         const params = new URLSearchParams(window.location.search);
         const view = params.get('view');
         if (view === 'showroom' || params.get('showroom')) return 'auto_marketplace';
@@ -1989,6 +1991,7 @@ Please change it after login.`;
         { key: 'all_users', label: 'Global Users', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
         { key: 'communications', label: 'Communications', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
         { key: 'integrations', label: 'WhatsApp Gateway', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2 text-emerald-400" /> },
+        { key: 'dahua_biometrics', label: 'Dahua Biometrics', icon: <FingerPrintIcon className="w-5 h-5 mr-2 text-violet-400" /> },
         { key: 'user_activity', label: 'Audit Trail', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
         { key: 'demo_requests', label: 'Demo Leads', icon: <CalendarIcon className="w-5 h-5 mr-2" /> },
         { key: 'lead_scout', label: 'Gemini 1.5 Scout', icon: <SparklesIcon className="w-5 h-5 mr-2 text-indigo-500" /> },
@@ -4185,6 +4188,15 @@ Please change it after login.`;
                             onUpdateCompanyDetails={props.onUpdateCompanyDetails}
                             institutions={institutions}
                             currentUser={currentUser}
+                        />
+                    </div>
+                )}
+
+                {activeTab === 'dahua_biometrics' && (
+                    <div className="animate-fade-in-up">
+                        <SuperAdminDahuaManager
+                            institutions={institutions}
+                            onRefreshData={onRefreshData}
                         />
                     </div>
                 )}
