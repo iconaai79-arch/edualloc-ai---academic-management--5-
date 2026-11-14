@@ -69,7 +69,7 @@ import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
 import { LockClosedIcon } from './icons/LockClosedIcon';
 import { EnvelopeIcon } from './icons/EnvelopeIcon';
 import { FingerPrintIcon } from './icons/FingerPrintIcon';
-import { SuperAdminDahuaManager } from './SuperAdmin/SuperAdminDahuaManager';
+import { SuperAdminDahuaManager } from './superadmin/SuperAdminDahuaManager';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
 import { MapPinIcon } from './icons/MapPinIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
