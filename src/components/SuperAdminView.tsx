@@ -5768,6 +5768,12 @@ Please change it after login.`;
                                                 <Cog8ToothIcon className="w-4 h-4" /> Gateways Control
                                             </button>
                                             <button 
+                                                onClick={() => setBillingSubTab('ncba')} 
+                                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${billingSubTab === 'ncba' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                                            >
+                                                <NcbaIcon className="w-4 h-4" /> NCBA Bank
+                                            </button>
+                                            <button 
                                                 onClick={() => setBillingSubTab('kcb')} 
                                                 className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${billingSubTab === 'kcb' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
                                             >
@@ -5908,6 +5914,7 @@ Please change it after login.`;
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 {[
                                                     { id: 'mpesa', name: 'Safaricom M-Pesa', icon: MpesaIcon, color: 'text-green-600', bg: 'bg-green-50' },
+                                                    { id: 'ncba', name: 'NCBA Bank (C2B & Open Banking)', icon: NcbaIcon, color: 'text-blue-600', bg: 'bg-blue-50' },
                                                     { id: 'airtel', name: 'Airtel Money', icon: CreditCardIcon, color: 'text-red-500', bg: 'bg-red-50' },
                                                     { id: 'intasend', name: 'Intasend (Card/Airtel)', icon: CreditCardIcon, color: 'text-indigo-600', bg: 'bg-indigo-50' },
                                                     { id: 'equity', name: 'Equity Bank Biller', icon: CreditCardIcon, color: 'text-red-700', bg: 'bg-red-50' },
