@@ -12,23 +12,55 @@ const getSupabase = () => {
 };
 
 let _pgPool: any = null;
+let _forcePlaintextPg = false;
 const getPgPool = async () => {
     if (_pgPool) return _pgPool;
-    const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SUPABASE_DB_URL;
+    const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.VITE_DATABASE_URL || process.env.SUPABASE_DB_URL;
     if (!dbUrl) return null;
     try {
         const pgMod: any = await import('pg');
         const PoolClass = pgMod.Pool || pgMod.default?.Pool;
         if (!PoolClass) return null;
-        const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
+        let cleanConnString = dbUrl.trim();
+        let disableSsl = _forcePlaintextPg;
+        try {
+            const parsedUrl = new URL(cleanConnString);
+            const h = (parsedUrl.hostname || '').toLowerCase();
+            if (
+                _forcePlaintextPg ||
+                parsedUrl.searchParams.get('sslmode') === 'disable' ||
+                parsedUrl.searchParams.get('ssl') === 'false' ||
+                process.env.PGSSLMODE === 'disable' ||
+                h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === 'host.docker.internal' || h === '::1' ||
+                h.startsWith('user-') || h.startsWith('service-') || h === 'db' || h === 'postgres' ||
+                h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.docker')
+            ) {
+                disableSsl = true;
+            }
+            parsedUrl.searchParams.delete('sslmode');
+            cleanConnString = parsedUrl.toString();
+        } catch {
+            if (_forcePlaintextPg || /([?&])sslmode=disable/i.test(cleanConnString) || /([?&])ssl=false/i.test(cleanConnString) || process.env.PGSSLMODE === 'disable') {
+                disableSsl = true;
+            }
+            cleanConnString = cleanConnString
+                .replace(/([?&])sslmode=[^&]*(&|$)/g, (_match, prefix, suffix) => suffix === '&' ? prefix : '')
+                .replace(/\?$/, '');
+        }
         _pgPool = new PoolClass({
-            connectionString: dbUrl,
-            ssl: isLocal ? false : { rejectUnauthorized: false },
+            connectionString: cleanConnString,
+            ssl: disableSsl ? false : { rejectUnauthorized: false },
             max: 3,
-            connectionTimeoutMillis: 4000,
-            idleTimeoutMillis: 10000
+            connectionTimeoutMillis: 5000,
+            idleTimeoutMillis: 15000
         });
-        _pgPool.on('error', () => {});
+        _pgPool.on('error', (err: any) => {
+            if (/does not support SSL/i.test(err?.message || '')) {
+                _forcePlaintextPg = true;
+            }
+            try { _pgPool?.end().catch(() => {}); } catch (_) {}
+            _pgPool = null;
+        });
         return _pgPool;
     } catch (_) {
         return null;
@@ -520,11 +552,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        // Fallback to body.config for backward compatibility
-        if (!kcbConfig.appKey && !kcbConfig.app_key && (body.config || body.kcbConfig)) {
+        // Merge body.config (if provided, non-empty values take precedence over DB fallback)
+        if (body.config || body.kcbConfig) {
             let sc = body.config || body.kcbConfig;
-            const parsedBody = typeof sc === 'string' ? JSON.parse(sc) : sc;
-            kcbConfig = { ...kcbConfig, ...parsedBody };
+            const parsedBody = typeof sc === 'string' ? (() => { try { return JSON.parse(sc); } catch (_) { return {}; } })() : sc;
+            if (parsedBody && typeof parsedBody === 'object') {
+                for (const [k, v] of Object.entries(parsedBody)) {
+                    if (v !== undefined && v !== null && v !== '') {
+                        kcbConfig[k] = v;
+                    }
+                }
+            }
         }
 
         const appKey = String(kcbConfig.appKey || kcbConfig.app_key || '').trim();
@@ -583,6 +621,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const shortCode = finalOrgShortCode;
+        const useSharedShortCode = finalSharedShortCode;
 
         // Normalize phone to KCB-required international format: 2547XXXXXXXX or 2541XXXXXXXX
         const normalizePhone = (p: string): string => {
@@ -1013,18 +1052,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch (e: any) {
             console.error('[KCB STK Initiate] Exception:', e);
             
-            await supabase.from('integration_logs').insert({
-                provider: 'kcb_stk_push_initiate',
-                payload: {
-                    phoneNumber,
-                    amount,
-                    shortCode,
-                    error: e.message,
-                    fallback: isKcbDemo ? 'sandbox_bypass' : 'none'
-                },
-                status: 'failed',
-                created_at: new Date().toISOString()
-            });
+            try {
+                if (supabase) {
+                    await supabase.from('integration_logs').insert({
+                        provider: 'kcb_stk_push_initiate',
+                        payload: {
+                            phoneNumber,
+                            amount,
+                            shortCode,
+                            error: e.message,
+                            fallback: isKcbDemo ? 'sandbox_bypass' : 'none'
+                        },
+                        status: 'failed',
+                        created_at: new Date().toISOString()
+                    });
+                } else if (pool) {
+                    await pool.query(
+                        'INSERT INTO public.integration_logs (provider, payload, status, created_at) VALUES ($1, $2::jsonb, $3, $4)',
+                        ['kcb_stk_push_initiate', JSON.stringify({ phoneNumber, amount, shortCode, error: e.message, fallback: isKcbDemo ? 'sandbox_bypass' : 'none' }), 'failed', new Date().toISOString()]
+                    ).catch(() => {});
+                }
+            } catch (_) {}
 
             if (isKcbDemo) {
                 const checkoutRequestId = `KCB_CO_Mock_Fallback_${Date.now()}`;
@@ -1119,18 +1167,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Fallback to system_settings if still missing
         if (!kcbConfig.appKey && !kcbConfig.app_key) {
             try {
+                let sDataObj: any = null;
+                const pool = await getPgPool();
+                if (pool) {
+                    const pgRes = await pool.query("SELECT data FROM public.system_settings WHERE id::text = '1' OR id::text = 'global' ORDER BY updated_at DESC NULLS LAST LIMIT 1").catch(() => null);
+                    sDataObj = pgRes?.rows?.[0]?.data || null;
+                }
                 const supabaseDb = getSupabase();
-                if (supabaseDb) {
+                if (!sDataObj && supabaseDb) {
                     const { data: sData } = await supabaseDb
                         .from('system_settings')
                         .select('data')
                         .eq('id', 1)
                         .maybeSingle();
-                    if (sData?.data?.kcb_config || sData?.data?.kcbConfig) {
-                        const sc = sData.data.kcb_config || sData.data.kcbConfig;
-                        const parsed = typeof sc === 'string' ? JSON.parse(sc) : sc;
-                        kcbConfig = { ...parsed, ...kcbConfig };
-                    }
+                    sDataObj = sData?.data || null;
+                }
+                if (sDataObj?.kcb_config || sDataObj?.kcbConfig) {
+                    const sc = sDataObj.kcb_config || sDataObj.kcbConfig;
+                    const parsed = typeof sc === 'string' ? JSON.parse(sc) : sc;
+                    kcbConfig = { ...parsed, ...kcbConfig };
                 }
             } catch (sysErr) {
                 console.warn('[KCB Query] Error fetching system_settings kcb_config:', sysErr);
