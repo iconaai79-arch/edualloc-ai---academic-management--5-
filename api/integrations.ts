@@ -5645,12 +5645,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
                                     : 'https://api.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
                             ));
-                            const kcbShortCode = String(kcb.shortCode || kcb.short_code || '522533').trim();
-                            const kcbTill = String(kcb.tillNumber || kcb.till_number || '').trim();
+                            const kcbShortCode = String(kcb.shortCode || kcb.short_code || '').trim();
+                            const kcbTill = String(kcb.tillNumber || kcb.till_number || (kcbShortCode && kcbShortCode !== '522533' ? kcbShortCode : '')).trim();
                             const useShared = kcb.sharedShortCode !== undefined ? Boolean(kcb.sharedShortCode) : (kcb.shared_short_code !== undefined ? Boolean(kcb.shared_short_code) : true);
                             const kcbPasskey = String(kcb.passkey || kcb.pass_key || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919').trim();
-                            const invoiceNo = (accountRef.replace(/[^a-zA-Z0-9]/g, '') || `ORD${Date.now().toString().slice(-8)}`).slice(0, 12);
-                            const effectiveOrgShortCode = (useShared && kcbTill && kcbShortCode === kcbTill) ? '522533' : (kcbShortCode || '522533');
+                            const effectiveOrgShortCode = kcbEnv === 'sandbox'
+                                ? (useShared ? '522533' : (kcbShortCode || '522533'))
+                                : (kcbShortCode || kcbTill || '522533');
+                            let invoiceNo = (accountRef.replace(/[^a-zA-Z0-9]/g, '') || `ORD${Date.now().toString().slice(-8)}`).slice(0, 12);
+                            if (useShared && kcbTill) {
+                                const tillPrefix = `${kcbTill}-`;
+                                if (!accountRef.startsWith(tillPrefix)) {
+                                    const cleanRaw = accountRef.replace(/[^a-zA-Z0-9]/g, '') || '0001';
+                                    const allowedSuffixLength = Math.max(1, 12 - tillPrefix.length);
+                                    const suffix = cleanRaw.length > allowedSuffixLength
+                                        ? cleanRaw.substring(cleanRaw.length - allowedSuffixLength)
+                                        : cleanRaw.padStart(allowedSuffixLength, '0');
+                                    invoiceNo = `${kcbTill}-${suffix}`;
+                                } else {
+                                    invoiceNo = accountRef.substring(0, 12);
+                                }
+                            }
+                            const defaultCallbackBase = `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`;
+                            const kcbCallbackUrl = kcb.callbackUrl || (
+                                targetInstitutionId && targetInstitutionId !== 'GLOBAL' && targetInstitutionId !== 'SYSTEM'
+                                    ? `${defaultCallbackBase}?institutionId=${encodeURIComponent(targetInstitutionId)}`
+                                    : defaultCallbackBase
+                            );
                             const kcbPayload: Record<string, any> = {
                                 phoneNumber: formattedPhone,
                                 amount: String(Math.max(1, Math.round(amount))),
@@ -5658,8 +5679,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 sharedShortCode: useShared,
                                 orgShortCode: effectiveOrgShortCode,
                                 orgPassKey: kcbPasskey,
-                                callbackUrl: kcb.callbackUrl || `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`,
-                                transactionDescription: (transactionDesc || 'Payment').replace(/[^a-zA-Z0-9]/g, '').slice(0, 13) || 'Payment'
+                                callbackUrl: kcbCallbackUrl,
+                                transactionDescription: (transactionDesc || 'Payment').substring(0, 13) || 'Payment'
                             };
                             if (useShared && kcbTill) kcbPayload.tillNumber = kcbTill;
 

@@ -597,18 +597,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     finalSharedShortCode = true;
                 } else {
                     const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
-                    if (isCustomPaybill) {
-                        finalOrgShortCode = configShortCode;
-                        finalSharedShortCode = false;
-                    } else if (finalTillNumber && configShortCode === finalTillNumber) {
-                        // Merchant entered their KCB Till Number into both shortCode and tillNumber under KCB Shared Paybill 522533
-                        finalOrgShortCode = '522533';
-                        finalSharedShortCode = true;
-                    } else {
-                        finalOrgShortCode = configShortCode;
-                        finalSharedShortCode = true;
+                    finalOrgShortCode = configShortCode;
+                    finalSharedShortCode = !isCustomPaybill;
+                    if (finalSharedShortCode && !finalTillNumber) {
+                        finalTillNumber = configShortCode;
                     }
                 }
+            } else if (finalTillNumber) {
+                finalOrgShortCode = finalTillNumber;
+                finalSharedShortCode = true;
             } else if (organizationShortCode) {
                 if (organizationShortCode === '522533') {
                     finalOrgShortCode = '522533';
@@ -755,21 +752,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from((shortCode || '123456') + passkeyVal + timestamp).toString('base64');
 
-            const rawInvoiceNumber = accountReference || transactionReference || `ORD${Date.now().toString().slice(-8)}`;
-            // Clean invoice number to strictly alphanumeric, no spaces, hyphens, or symbols (max 12 characters per Safaricom/KCB spec)
-            const cleanInvoiceNumber = (rawInvoiceNumber.replace(/[^a-zA-Z0-9]/g, '') || `ORD${Date.now().toString().slice(-8)}`).slice(0, 12);
-            const cleanTransactionDesc = (transactionDesc || 'Marketplace').replace(/[^a-zA-Z0-9]/g, '').slice(0, 13) || 'Payment';
+            const rawInvoiceNumber = accountReference || transactionReference || `INV_${Date.now()}`;
+            let formattedInvoiceNumber = rawInvoiceNumber;
+            // For KCB Shared ShortCode (522533 / Till routing), invoiceNumber MUST be prefixed with "${tillNumber}-" and <= 12 chars
+            if (useSharedShortCode && finalTillNumber) {
+                const tillPrefix = `${finalTillNumber}-`;
+                if (!rawInvoiceNumber.startsWith(tillPrefix)) {
+                    const cleanRaw = rawInvoiceNumber.replace(/[^a-zA-Z0-9]/g, '') || '0001';
+                    const prefixLength = tillPrefix.length;
+                    const allowedSuffixLength = Math.max(1, 12 - prefixLength);
+                    const suffix = cleanRaw.length > allowedSuffixLength
+                        ? cleanRaw.substring(cleanRaw.length - allowedSuffixLength)
+                        : cleanRaw.padStart(allowedSuffixLength, '0');
+                    formattedInvoiceNumber = `${finalTillNumber}-${suffix}`;
+                } else {
+                    formattedInvoiceNumber = rawInvoiceNumber.substring(0, 12);
+                }
+            } else {
+                formattedInvoiceNumber = (rawInvoiceNumber.replace(/[^a-zA-Z0-9]/g, '') || `ORD${Date.now().toString().slice(-8)}`).slice(0, 12);
+            }
+            const cleanTransactionDesc = (transactionDesc || 'Payment').substring(0, 13) || 'Payment';
 
             // Resolve callback URL — prefer explicitly-configured URL, then x-forwarded-host, then host header
-            const callbackUrl = kcbConfig.callbackUrl ||
-                `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`;
+            const defaultCallbackBase = `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`;
+            const callbackUrl = kcbConfig.callbackUrl || (
+                institutionId && institutionId !== 'GLOBAL' && institutionId !== 'SYSTEM'
+                    ? `${defaultCallbackBase}?institutionId=${encodeURIComponent(institutionId)}`
+                    : defaultCallbackBase
+            );
 
             // Build a clean Buni API payload — only send fields that KCB Buni spec expects.
             // Sending unknown/extra fields causes KCB to return HTTP 500 "Internal Server Error".
             const stkPayload: Record<string, any> = {
                 phoneNumber: phoneNumber,
                 amount: String(Math.max(1, Math.round(amount))),
-                invoiceNumber: cleanInvoiceNumber,
+                invoiceNumber: formattedInvoiceNumber,
                 sharedShortCode: useSharedShortCode,
                 orgShortCode: shortCode || '522533',
                 orgPassKey: passkeyVal || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
@@ -1147,17 +1164,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Load institution kcb_config if not provided in body
         if ((!kcbConfig.appKey && !kcbConfig.app_key) && institutionId && institutionId !== 'GLOBAL' && institutionId !== 'SYSTEM') {
             try {
+                let instRow: any = null;
+                const pool = await getPgPool();
+                if (pool) {
+                    const pgRes = await pool.query('SELECT * FROM public.institutions WHERE id = $1 LIMIT 1', [institutionId]).catch(() => null);
+                    instRow = pgRes?.rows?.[0] || null;
+                }
                 const supabaseDb = getSupabase();
-                if (supabaseDb) {
+                if (!instRow && supabaseDb) {
                     const { data: instData } = await supabaseDb
                         .from('institutions')
-                        .select('kcb_config')
+                        .select('*')
                         .eq('id', institutionId)
                         .maybeSingle();
-                    if (instData?.kcb_config) {
-                        const parsed = typeof instData.kcb_config === 'string' ? JSON.parse(instData.kcb_config) : instData.kcb_config;
-                        kcbConfig = { ...parsed, ...kcbConfig };
-                    }
+                    instRow = instData;
+                }
+                const instDataObj = typeof instRow?.data === 'string' ? (() => { try { return JSON.parse(instRow.data); } catch (_) { return {}; } })() : (instRow?.data || {});
+                const rawInstKcb = instRow?.kcb_config || instRow?.kcbConfig || instDataObj?.kcb_config || instDataObj?.kcbConfig;
+                if (rawInstKcb) {
+                    const parsed = typeof rawInstKcb === 'string' ? JSON.parse(rawInstKcb) : rawInstKcb;
+                    kcbConfig = { ...parsed, ...kcbConfig };
                 }
             } catch (instErr) {
                 console.warn('[KCB Query] Error fetching institution kcb_config:', instErr);
@@ -1355,6 +1381,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (!queryRes.ok) {
+                if (queryRes.status === 404) {
+                    // KCB Buni production does not expose /mm/api/request/1.0.0/query; rely on callback/IPN reconciliation
+                    return res.status(200).json({
+                        success: true,
+                        status: 'PENDING',
+                        message: 'Waiting for customer PIN entry and callback confirmation.',
+                        mpesaReceiptNumber: null
+                    });
+                }
                 let errMsg = `KCB Status query failed with status ${queryRes.status}.`;
                 if (queryText.includes('900901') || queryText.includes('Sandbox key offered')) {
                     errMsg = 'KCB Key Mismatch (Error 900901): Sandbox key offered to Production endpoint. Please switch Environment to "Sandbox" in Settings.';

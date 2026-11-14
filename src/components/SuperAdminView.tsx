@@ -1522,12 +1522,13 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         }
     };
 
-    const handleQueryKcbStatus = async (checkoutRequestId: string) => {
+    const handleQueryKcbStatus = async (checkoutRequestId: string, overrideConfig?: any, overrideInstitutionId?: string) => {
         setIsTesting(true);
         try {
             const result = await apiService.post('/api/payments/kcb-query', {
                 checkoutRequestId,
-                config: localKcbConfig
+                config: overrideConfig || (managingKcbFor ? tenantKcbConfig : localKcbConfig),
+                institutionId: overrideInstitutionId || managingKcbFor?.id
             });
             if (result.success) {
                 const receiptLine = result.mpesaReceiptNumber ? `\nM-Pesa Ref: ${result.mpesaReceiptNumber}` : '';
@@ -8516,7 +8517,7 @@ Please change it after login.`;
                                                         timestamp: new Date().toISOString()
                                                     });
 
-                                                    alert("KCB STK Push initiated successfully for this tenant. Check your phone.");
+                                                    alert(`KCB STK Push initiated successfully for this tenant. Check your phone (${testRecipient}).\n\nCheckout Request ID: ${checkoutRequestId}`);
                                                     if (props.onRefreshData) props.onRefreshData();
                                                 } else {
                                                     const detailsLine = result.details ? `\n\nDetails:\n${typeof result.details === 'object' ? JSON.stringify(result.details) : result.details}` : '';
@@ -8547,20 +8548,30 @@ Please change it after login.`;
                                 <div className="max-h-48 overflow-y-auto space-y-2">
                                     {(() => {
                                         const kcbTxns = (props.transactions || []).filter(t => {
-                                            const isKcbTxn = t.checkoutRequestId?.startsWith('KCB_') || 
+                                            const anyT = t as any;
+                                            const isKcbTxn = t.id?.startsWith('KCB_') ||
+                                                             t.checkoutRequestId?.startsWith('KCB_') ||
+                                                             anyT.checkout_request_id?.startsWith('KCB_') ||
+                                                             anyT.provider === 'kcb' ||
                                                              t.metadata?.provider === 'kcb' || 
                                                              (typeof t.metadata === 'string' && t.metadata.includes('"provider":"kcb"')) ||
                                                              (t.metadata && (t.metadata as any).provider === 'kcb');
-                                            return isKcbTxn && t.institutionId === managingKcbFor.id;
+                                            const txnInstId = t.institutionId || anyT.institution_id;
+                                            return isKcbTxn && txnInstId === managingKcbFor.id;
                                         });
 
                                         return (
                                             <>
-                                                {kcbTxns.map((txn: MpesaTransaction) => (
+                                                {kcbTxns.map((txn: MpesaTransaction) => {
+                                                    const anyTxn = txn as any;
+                                                    const displayPhone = txn.phoneNumber || anyTxn.phone_number || 'N/A';
+                                                    const rawTime = txn.timestamp || anyTxn.created_at;
+                                                    const crid = txn.checkoutRequestId || anyTxn.checkout_request_id;
+                                                    return (
                                                     <div key={txn.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
                                                         <div>
-                                                            <div className="text-[10px] font-black text-slate-900 dark:text-white">{txn.phoneNumber}</div>
-                                                            <div className="text-[8px] font-bold text-slate-400 uppercase">{new Date(txn.timestamp)?.toLocaleString()}</div>
+                                                            <div className="text-[10px] font-black text-slate-900 dark:text-white">{displayPhone}</div>
+                                                            <div className="text-[8px] font-bold text-slate-400 uppercase">{rawTime ? new Date(rawTime).toLocaleString() : ''}</div>
                                                         </div>
                                                         <div className="text-right">
                                                             <div className="text-[10px] font-black text-indigo-600">KES {txn.amount}</div>
@@ -8571,9 +8582,9 @@ Please change it after login.`;
                                                                 }`}>
                                                                     {txn.status}
                                                                 </span>
-                                                                {txn.status === 'pending' && txn.checkoutRequestId && (
+                                                                {txn.status === 'pending' && crid && (
                                                                     <button 
-                                                                        onClick={() => handleQueryKcbStatus(txn.checkoutRequestId!)}
+                                                                        onClick={() => handleQueryKcbStatus(crid, tenantKcbConfig, managingKcbFor.id)}
                                                                         className="text-[8px] font-black uppercase text-slate-400 hover:text-indigo-600 underline"
                                                                     >
                                                                         Query
@@ -8582,7 +8593,8 @@ Please change it after login.`;
                                                             </div>
                                                         </div>
                                                     </div>
-                                                ))}
+                                                    );
+                                                })}
                                                 {kcbTxns.length === 0 && (
                                                     <div className="text-center py-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest opacity-50 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
                                                         No logs for this tenant
