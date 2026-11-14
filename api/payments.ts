@@ -1023,10 +1023,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             const cleanTransactionDesc = (transactionDesc || 'Payment').substring(0, 13) || 'Payment';
 
-            // Resolve callback URL — prefer explicitly-configured URL, then x-forwarded-host, then host header
+            // Resolve callback URL — prefer explicitly-configured URL, then public portal host
             // Note: Do NOT append query strings (?institutionId=...) to callbackUrl as KCB/Safaricom drops STK requests with query params in CallBackURL
-            const callbackUrl = kcbConfig.callbackUrl ||
-                `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`;
+            const rawHost = String(req.headers['x-forwarded-host'] || req.headers.host || 'portal.eduai.co.ke').split(',')[0].trim();
+            const publicHost = (!rawHost || rawHost.includes('localhost') || rawHost.includes('127.0.0.1') || rawHost.includes('0.0.0.0') || rawHost.includes('service-') || rawHost.includes('user-') || rawHost === 'eduai.co.ke' || rawHost === 'www.eduai.co.ke' || rawHost.includes(':'))
+                ? 'portal.eduai.co.ke'
+                : rawHost;
+            const callbackUrl = kcbConfig.callbackUrl || `https://${publicHost}/api/kcb-stk-callback`;
 
             // Build a clean Buni API payload — only send fields that KCB Buni spec expects.
             // Sending unknown/extra fields causes KCB to return HTTP 500 "Internal Server Error".

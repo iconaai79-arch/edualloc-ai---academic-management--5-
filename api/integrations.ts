@@ -5666,8 +5666,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     invoiceNo = accountRef.substring(0, 12);
                                 }
                             }
-                            const kcbCallbackUrl = kcb.callbackUrl ||
-                                `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`;
+                            const rawHost = String(req.headers['x-forwarded-host'] || req.headers.host || 'portal.eduai.co.ke').split(',')[0].trim();
+                            const publicHost = (!rawHost || rawHost.includes('localhost') || rawHost.includes('127.0.0.1') || rawHost.includes('0.0.0.0') || rawHost.includes('service-') || rawHost.includes('user-') || rawHost === 'eduai.co.ke' || rawHost === 'www.eduai.co.ke' || rawHost.includes(':'))
+                                ? 'portal.eduai.co.ke'
+                                : rawHost;
+                            const kcbCallbackUrl = kcb.callbackUrl || `https://${publicHost}/api/kcb-stk-callback`;
                             const kcbPayload: Record<string, any> = {
                                 phoneNumber: formattedPhone,
                                 amount: String(Math.max(1, Math.round(amount))),
