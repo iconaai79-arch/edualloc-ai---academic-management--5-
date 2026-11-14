@@ -16,13 +16,121 @@ import { createClient } from '@supabase/supabase-js';
  *   (for pending server commands stored persistently in Supabase)
  */
 
-const getSupabase = () => {
-    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) return null;
+const getSupabase = (req?: VercelRequest) => {
+    const url = process.env.SUPABASE_URL || 
+                process.env.VITE_SUPABASE_URL ||
+                (req?.headers?.['x-supabase-url'] as string);
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+                process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 
+                (req?.headers?.['x-supabase-service-key'] as string) ||
+                process.env.SUPABASE_ANON_KEY || 
+                process.env.VITE_SUPABASE_ANON_KEY ||
+                (req?.headers?.['x-supabase-key'] as string) ||
+                (req?.headers?.['x-supabase-anon-key'] as string);
+
+    if (!url || !key) {
+        if (!url) console.error('[ZKTeco Webhook] Missing Supabase URL (SUPABASE_URL or VITE_SUPABASE_URL)');
+        if (!key) console.error('[ZKTeco Webhook] Missing Supabase Key (SUPABASE_SERVICE_ROLE_KEY / VITE_SUPABASE_ANON_KEY)');
+        return null;
+    }
     return createClient(url, key, {
         auth: { persistSession: false, autoRefreshToken: false }
     });
+};
+
+// Direct PostgreSQL Connection Pool Singleton for Talksasa / Docker / non-Supabase deployments
+let _pgPool: any = null;
+let _directPgDisabledUntil = 0;
+let _forcePlaintextPg = false;
+let _fallbackDatabaseName: string | null = null;
+
+const getPgPool = async () => {
+    if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
+        return null;
+    }
+    if (Date.now() < _directPgDisabledUntil) {
+        return null;
+    }
+    if (_pgPool) return _pgPool;
+    const connectionString = 
+        process.env.DATABASE_URL || 
+        process.env.POSTGRES_URL || 
+        process.env.VITE_DATABASE_URL ||
+        process.env.SUPABASE_DB_URL ||
+        (process.env.PGHOST && process.env.PGUSER ? `postgresql://${encodeURIComponent(process.env.PGUSER)}:${encodeURIComponent(process.env.PGPASSWORD || '')}@${process.env.PGHOST}:${process.env.PGPORT || 5432}/${process.env.PGDATABASE || process.env.PGUSER}` : null);
+    if (!connectionString) return null;
+
+    try {
+        const pgModule: any = await import('pg');
+        const Pool = pgModule.Pool || pgModule.default?.Pool || null;
+        if (!Pool) return null;
+
+        let cleanConnString = connectionString.trim();
+        if (_fallbackDatabaseName) {
+            try {
+                const u = new URL(cleanConnString);
+                u.pathname = `/${_fallbackDatabaseName}`;
+                cleanConnString = u.toString();
+            } catch (_) {
+                cleanConnString = cleanConnString.replace(/\/[a-zA-Z0-9_-]+(\?|$)/, `/${_fallbackDatabaseName}$1`);
+            }
+        }
+        let disableSsl = _forcePlaintextPg;
+        try {
+            const parsedUrl = new URL(cleanConnString);
+            const h = (parsedUrl.hostname || '').toLowerCase();
+            if (
+                _forcePlaintextPg ||
+                parsedUrl.searchParams.get('sslmode') === 'disable' ||
+                parsedUrl.searchParams.get('ssl') === 'false' ||
+                process.env.PGSSLMODE === 'disable' ||
+                h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === 'host.docker.internal' || h === '::1' ||
+                h.startsWith('user-') || h.startsWith('service-') || h === 'db' || h === 'postgres' ||
+                h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.docker')
+            ) {
+                disableSsl = true;
+            }
+            parsedUrl.searchParams.delete('sslmode');
+            cleanConnString = parsedUrl.toString();
+        } catch {
+            if (_forcePlaintextPg || /([?&])sslmode=disable/i.test(cleanConnString) || /([?&])ssl=false/i.test(cleanConnString) || process.env.PGSSLMODE === 'disable') {
+                disableSsl = true;
+            }
+            cleanConnString = cleanConnString
+                .replace(/([?&])sslmode=[^&]*(&|$)/g, (_match, prefix, suffix) => suffix === '&' ? prefix : '')
+                .replace(/\?$/, '');
+        }
+
+        _pgPool = new Pool({
+            connectionString: cleanConnString,
+            ssl: disableSsl ? false : { rejectUnauthorized: false },
+            connectionTimeoutMillis: 7000,
+            statement_timeout: 8000,
+            max: 5,
+            idleTimeoutMillis: 30000,
+        });
+
+        _pgPool.on('error', (err: any) => {
+            console.warn('[Direct SQL Pool Error in ZKTeco Webhook]:', err?.message || err);
+            if (/does not support SSL/i.test(err?.message || '') || err?.code === '08006' || err?.code === '08001') {
+                _forcePlaintextPg = true;
+                _directPgDisabledUntil = 0;
+            } else if (err?.code === '3D000' || /database ".*" does not exist/i.test(err?.message || '')) {
+                _fallbackDatabaseName = 'postgres';
+                _directPgDisabledUntil = 0;
+            } else {
+                _directPgDisabledUntil = Date.now() + 15000;
+            }
+            try { _pgPool?.end().catch(() => {}); } catch (_) {}
+            _pgPool = null;
+        });
+
+        return _pgPool;
+    } catch (e: any) {
+        console.warn('[Direct SQL Pool in ZKTeco Init Warning]:', e?.message || e);
+        _directPgDisabledUntil = Date.now() + 30000;
+        return null;
+    }
 };
 
 // Global command counter seed
@@ -45,7 +153,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const fingerIndex = (req.query.fingerIndex || req.query.finger_index || '0').toString().trim();
     const clientIp = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').toString().split(',')[0].trim();
 
-    const supabase = getSupabase();
+    const supabase = getSupabase(req);
 
     // ─── Track real hardware pings in database ───
     if (serialNumber && !action && supabase) {
@@ -343,8 +451,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ─── POST: Attendance log upload ───
     if (req.method === 'POST') {
         res.setHeader('Content-Type', 'text/plain');
-        if (!supabase) {
-            console.error('[ZKTeco] Supabase client not configured');
+        const pool = await getPgPool();
+        if (!supabase && !pool) {
+            console.error('[ZKTeco] Neither Supabase nor Talksasa PostgreSQL (DATABASE_URL) is configured');
             return res.status(500).send('ERR: Server configuration error');
         }
 
@@ -370,24 +479,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let resolvedInstitutionId = institutionId;
 
             if (serialNumber) {
-                const { data: device } = await supabase
-                    .from('biometric_devices')
-                    .select('id, institution_id, requests_count')
-                    .ilike('serial_number', serialNumber)
-                    .maybeSingle();
-
-                if (device) {
-                    deviceId = device.id;
-                    resolvedInstitutionId = resolvedInstitutionId || device.institution_id;
-
-                    await supabase
+                if (supabase) {
+                    const { data: device } = await supabase
                         .from('biometric_devices')
-                        .update({ 
-                            last_sync_at: new Date().toISOString(),
-                            last_ip: clientIp,
-                            requests_count: (device.requests_count || 0) + 1
-                        })
-                        .eq('id', device.id);
+                        .select('id, institution_id, requests_count')
+                        .ilike('serial_number', serialNumber)
+                        .maybeSingle();
+
+                    if (device) {
+                        deviceId = device.id;
+                        resolvedInstitutionId = resolvedInstitutionId || device.institution_id;
+
+                        await supabase
+                            .from('biometric_devices')
+                            .update({ 
+                                last_sync_at: new Date().toISOString(),
+                                last_ip: clientIp,
+                                requests_count: (device.requests_count || 0) + 1
+                            })
+                            .eq('id', device.id);
+                    }
+                } else if (pool) {
+                    try {
+                        const devRes = await pool.query(
+                            'SELECT id, institution_id, requests_count FROM public.biometric_devices WHERE serial_number ILIKE $1 LIMIT 1',
+                            [serialNumber]
+                        );
+                        if (devRes.rows && devRes.rows.length > 0) {
+                            deviceId = devRes.rows[0].id;
+                            resolvedInstitutionId = resolvedInstitutionId || devRes.rows[0].institution_id;
+                            await pool.query(
+                                'UPDATE public.biometric_devices SET last_sync_at = $1, last_ip = $2, requests_count = COALESCE(requests_count, 0) + 1 WHERE id = $3',
+                                [new Date().toISOString(), clientIp, deviceId]
+                            );
+                        }
+                    } catch (_) {}
                 }
             }
 
@@ -414,16 +540,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (isNaN(punchTime.getTime())) continue;
 
                 let staffId: string | null = null;
-                const { data: enrollment } = await supabase
-                    .from('biometric_enrollments')
-                    .select('staff_id')
-                    .eq('institution_id', resolvedInstitutionId)
-                    .eq('device_pin', pin)
-                    .eq('is_active', true)
-                    .maybeSingle();
+                if (supabase) {
+                    const { data: enrollment } = await supabase
+                        .from('biometric_enrollments')
+                        .select('staff_id')
+                        .eq('institution_id', resolvedInstitutionId)
+                        .eq('device_pin', pin)
+                        .eq('is_active', true)
+                        .maybeSingle();
 
-                if (enrollment) {
-                    staffId = enrollment.staff_id;
+                    if (enrollment) {
+                        staffId = enrollment.staff_id;
+                    }
+                } else if (pool) {
+                    try {
+                        const enrRes = await pool.query(
+                            'SELECT staff_id FROM public.biometric_enrollments WHERE institution_id = $1 AND device_pin = $2 AND is_active = true LIMIT 1',
+                            [resolvedInstitutionId, pin]
+                        );
+                        if (enrRes.rows && enrRes.rows.length > 0) {
+                            staffId = enrRes.rows[0].staff_id;
+                        }
+                    } catch (_) {}
                 }
 
                 records.push({
@@ -440,13 +578,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (records.length > 0) {
-                const { error } = await supabase
-                    .from('staff_attendance_logs')
-                    .insert(records);
+                if (supabase) {
+                    const { error } = await supabase
+                        .from('staff_attendance_logs')
+                        .insert(records);
 
-                if (error) {
-                    console.error('[ZKTeco] Insert error:', error);
-                    return res.status(200).send(`ERR: ${error.message}`);
+                    if (error) {
+                        console.error('[ZKTeco] Insert error:', error);
+                        return res.status(200).send(`ERR: ${error.message}`);
+                    }
+                } else if (pool) {
+                    for (const r of records) {
+                        try {
+                            await pool.query(
+                                `INSERT INTO public.staff_attendance_logs 
+                                 (institution_id, staff_id, device_pin, punch_time, punch_type, verification_method, raw_data, is_processed) 
+                                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                                [r.institution_id, r.staff_id, r.device_pin, r.punch_time, r.punch_type, r.verification_method, r.raw_data, r.is_processed]
+                            );
+                        } catch (e) {
+                            console.error('[ZKTeco PG] Insert error:', e);
+                        }
+                    }
                 }
 
                 console.log(`[ZKTeco] Inserted ${records.length} records`);

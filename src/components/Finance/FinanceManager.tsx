@@ -1043,76 +1043,118 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                    (sBranchId && (relevantInstIds.has(sBranchId) || relevantInstIds.has(cleanId(sBranchId))));
         });
 
-        const map = new Map<string, any>();
-        scopedPropsStudents.forEach((s: any) => map.set(s.id, s));
-        allBranchStudents.forEach((s: any) => map.set(s.id, s));
+        // Clean student name helper to strip newlines, escape sequences, and repeated names
+        const cleanStudentName = (name: any): string => {
+            if (!name) return '';
+            let cleaned = String(name)
+                .replace(/\\r\\n|\\n|\\r/g, ' ')
+                .replace(/[\r\n\t]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            const words = cleaned.split(' ');
+            if (words.length >= 2 && words.length % 2 === 0) {
+                const half = words.length / 2;
+                const firstHalf = words.slice(0, half).join(' ').toLowerCase();
+                const secondHalf = words.slice(half).join(' ').toLowerCase();
+                if (firstHalf === secondHalf) {
+                    cleaned = words.slice(0, half).join(' ');
+                }
+            }
+            return cleaned;
+        };
+
+        // Unique student storage map: key = canonical student identifier
+        const studentMap = new Map<string, any>();
+        // Helper index for fast resolution during merge (maps id/userId/adm to canonicalKey)
+        const idIndex = new Map<string, string>();
+        const admIndex = new Map<string, string>();
+
+        const registerStudent = (s: any, isEnrollment = false) => {
+            if (!s) return;
+            const sId = String(s.id || '').trim();
+            const sUserId = String(s.userId || s.user_id || '').trim();
+            const rawAdm = String(s.admissionNumber || s.admission_number || s.admNo || s.adm_no || s.metadata?.admissionNumber || s.metadata?.admNo || '').trim();
+            const cleanAdm = rawAdm && rawAdm !== '—' && !isSyntheticAdm(rawAdm) ? rawAdm.toLowerCase() : '';
+
+            // Find existing canonical key if already registered
+            let existingKey: string | undefined = undefined;
+            if (sUserId) existingKey = idIndex.get(sUserId.toLowerCase()) || idIndex.get(cleanId(sUserId).toLowerCase());
+            if (!existingKey && sId) existingKey = idIndex.get(sId.toLowerCase()) || idIndex.get(cleanId(sId).toLowerCase());
+            if (!existingKey && cleanAdm) existingKey = admIndex.get(cleanAdm) || admIndex.get(cleanAdm.replace(/^0+/, ''));
+
+            const canonicalKey = existingKey || sUserId || sId || (cleanAdm ? `adm_${cleanAdm}` : `stu_${Math.random()}`);
+            const existing = studentMap.get(canonicalKey);
+
+            const rawName = ((s as any).name && !isNameUnknown((s as any).name)) ? (s as any).name.trim() :
+                ((s as any).studentName && !isNameUnknown((s as any).studentName)) ? String((s as any).studentName).trim() :
+                (s.metadata?.studentName && !isNameUnknown(s.metadata.studentName)) ? s.metadata.studentName.trim() :
+                (s.metadata?.name && !isNameUnknown(s.metadata.name)) ? s.metadata.name.trim() :
+                (s.metadata?.fullName && !isNameUnknown(s.metadata.fullName)) ? s.metadata.fullName.trim() :
+                (s.metadata?.parentName && s.metadata.parentName.trim()) ? s.metadata.parentName.trim() :
+                existing?.name || (rawAdm ? `Student ${rawAdm}` : 'Student');
+
+            const sanitizedName = cleanStudentName(rawName);
+
+            const gLvl = s.gradeLevel || s.metadata?.gradeLevel || s.metadata?.studentClass || s.studentClass || existing?.gradeLevel || '';
+            const strm = s.stream || s.metadata?.stream || existing?.stream || '';
+            const fullCls = s.studentClass || (gLvl && strm && !gLvl.toLowerCase().includes(strm.toLowerCase()) ? `${gLvl} ${strm}` : (gLvl || strm)) || existing?.studentClass || '';
+            const effectiveAdm = (rawAdm && rawAdm !== '—' && !isSyntheticAdm(rawAdm))
+                ? rawAdm
+                : (existing?.admissionNumber || rawAdm || '');
+
+            const mergedObj = {
+                ...(existing || {}),
+                ...s,
+                id: existing?.id || s.id || sUserId,
+                userId: existing?.userId || sUserId || s.id,
+                user_id: existing?.user_id || sUserId || s.id,
+                name: sanitizedName,
+                fullName: sanitizedName,
+                studentName: sanitizedName,
+                admissionNumber: effectiveAdm,
+                admission_number: effectiveAdm,
+                studentClass: fullCls,
+                className: fullCls,
+                gradeLevel: gLvl,
+                stream: strm,
+                institutionId: s.institutionId || s.institution_id || existing?.institutionId || activeInstId,
+                institution_id: s.institutionId || s.institution_id || existing?.institution_id || activeInstId,
+                role: 'student'
+            };
+
+            studentMap.set(canonicalKey, mergedObj);
+
+            // Index mapping to canonicalKey
+            if (sId) {
+                idIndex.set(sId.toLowerCase(), canonicalKey);
+                idIndex.set(cleanId(sId).toLowerCase(), canonicalKey);
+            }
+            if (sUserId) {
+                idIndex.set(sUserId.toLowerCase(), canonicalKey);
+                idIndex.set(cleanId(sUserId).toLowerCase(), canonicalKey);
+            }
+            if (cleanAdm) {
+                admIndex.set(cleanAdm, canonicalKey);
+                admIndex.set(cleanAdm.replace(/^0+/, ''), canonicalKey);
+            }
+        };
+
+        scopedPropsStudents.forEach((s: any) => registerStudent(s));
+        allBranchStudents.forEach((s: any) => registerStudent(s));
 
         const allEnrSources = [...(props.studentEnrollments || []), ...(enrollments || [])];
         allEnrSources.forEach((enr: any) => {
             if (!enr) return;
             const enrInstId = enr.institutionId || enr.institution_id || '';
             if (enrInstId && !relevantInstIds.has(enrInstId) && !relevantInstIds.has(cleanId(enrInstId))) return;
-
-            const existing = map.get(enr.id) || (enr.userId ? map.get(enr.userId) : null);
-            const adm = enr.admissionNumber || enr.admission_number || enr.admNo || enr.metadata?.admissionNumber || existing?.admissionNumber || '';
-            const rawName = ((enr as any).name && !isNameUnknown((enr as any).name)) ? (enr as any).name.trim() :
-                ((enr as any).studentName && !isNameUnknown((enr as any).studentName)) ? String((enr as any).studentName).trim() :
-                (enr.metadata?.studentName && !isNameUnknown(enr.metadata.studentName)) ? enr.metadata.studentName.trim() :
-                (enr.metadata?.name && !isNameUnknown(enr.metadata.name)) ? enr.metadata.name.trim() :
-                (enr.metadata?.fullName && !isNameUnknown(enr.metadata.fullName)) ? enr.metadata.fullName.trim() :
-                (enr.metadata?.parentName && enr.metadata.parentName.trim()) ? enr.metadata.parentName.trim() :
-                existing?.name || (adm ? `Student ${adm}` : 'Student');
-
-            const gLvl = enr.gradeLevel || enr.metadata?.gradeLevel || enr.metadata?.studentClass || enr.studentClass || existing?.gradeLevel || '';
-            const strm = enr.stream || enr.metadata?.stream || existing?.stream || '';
-            const fullCls = enr.studentClass || (gLvl && strm && !gLvl.toLowerCase().includes(strm.toLowerCase()) ? `${gLvl} ${strm}` : (gLvl || strm)) || existing?.studentClass || '';
-
-            const normEnr = {
-                ...(existing || {}),
-                ...enr,
-                id: enr.id || enr.userId,
-                userId: enr.userId || enr.id,
-                user_id: enr.userId || enr.id,
-                name: rawName,
-                fullName: rawName,
-                studentName: rawName,
-                admissionNumber: adm,
-                admission_number: adm,
-                studentClass: fullCls,
-                className: fullCls,
-                gradeLevel: gLvl,
-                stream: strm,
-                institutionId: enr.institutionId || enr.institution_id || activeInstId,
-                institution_id: enr.institutionId || enr.institution_id || activeInstId,
-                role: 'student'
-            };
-
-            map.set(normEnr.id, normEnr);
-            if (normEnr.userId) map.set(normEnr.userId, normEnr);
-            if (adm) map.set(adm, normEnr);
+            registerStudent(enr, true);
         });
 
         if (isDrivingSchool && dsStudents.length > 0) {
-            dsStudents.forEach((s: any) => {
-                const normStudent = {
-                    ...s,
-                    id: s.id,
-                    name: s.fullName || s.name || s.studentName,
-                    fullName: s.fullName || s.name || s.studentName,
-                    admissionNumber: s.admissionNumber || s.admission_number || s.id,
-                    admission_number: s.admissionNumber || s.admission_number || s.id,
-                    branchId: s.branchId || s.branch_id,
-                    branch_id: s.branchId || s.branch_id,
-                    institutionId: s.institutionId || s.institution_id || props.institution?.id,
-                    institution_id: s.institutionId || s.institution_id || props.institution?.id
-                };
-                map.set(s.id, normStudent);
-                if (normStudent.admissionNumber) {
-                    map.set(normStudent.admissionNumber, normStudent);
-                }
-            });
+            dsStudents.forEach((s: any) => registerStudent(s));
         }
-        return Array.from(map.values());
+
+        return Array.from(studentMap.values());
     }, [props.students, props.studentEnrollments, enrollments, allBranchStudents, dsStudents, isDrivingSchool, props.institution?.id, branches, cleanId, isNameUnknown]);
 
     const mergedStudentsMap = useMemo(() => {
@@ -4882,7 +4924,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
         }
 
-        return filteredStudents.map(s => {
+        const rawResults = filteredStudents.map(s => {
             const sId = String(s.id || s.userId || s.user_id || '').trim();
             const cleanSId = cleanId(sId).toLowerCase();
             const sIdStripped = stripPrefix(sId);
@@ -5191,6 +5233,29 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
             };
         });
+
+        // Deduplication safeguard: guarantee each student appears only once
+        const uniqueFinanceData: any[] = [];
+        const seenStudentSet = new Set<string>();
+
+        for (const item of rawResults) {
+            const rawAdm = String(item.admissionNumber || '').trim().toLowerCase();
+            const cleanAdm = rawAdm && rawAdm !== '—' && !isSyntheticAdm(rawAdm) ? rawAdm.replace(/^0+/, '') : '';
+            const rawId = String(item.userId || item.id || '').trim().toLowerCase();
+            const cleanItemName = String(item.name || '').trim().toLowerCase();
+
+            if (rawId && seenStudentSet.has(`id:${rawId}`)) continue;
+            if (cleanAdm && seenStudentSet.has(`adm:${cleanAdm}`)) continue;
+            if (!rawId && !cleanAdm && cleanItemName && seenStudentSet.has(`name:${cleanItemName}`)) continue;
+
+            if (rawId) seenStudentSet.add(`id:${rawId}`);
+            if (cleanAdm) seenStudentSet.add(`adm:${cleanAdm}`);
+            if (cleanItemName) seenStudentSet.add(`name:${cleanItemName}`);
+
+            uniqueFinanceData.push(item);
+        }
+
+        return uniqueFinanceData;
     }, [mergedStudents, mappedInvoices, mappedReceipts, mergedEnrollments, matchesSelectedBranch, getStudentAdmNumber, cleanId, isSyntheticAdm, effectiveCourses, getStudentClassName, getStudentStream, getStudentTransportOpeningBalance]);
 
     const availableClassesForBalances = useMemo(() => {
@@ -22673,7 +22738,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             <TD cls="text-slate-400 font-bold">{itemIndex}</TD>
                                                                             <TD cls="font-extrabold text-xs sm:text-sm tracking-tight text-slate-900 dark:text-white">
                                                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                                                    <span>{s.name}</span>
+                                                                                    <span>{String(s.name || '').replace(/\\r\\n|\\n|\\r/g, ' ').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim()}</span>
                                                                                     {s.isGraduated && (
                                                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800/60 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0 shadow-xs">
                                                                                             🎓 Graduated
