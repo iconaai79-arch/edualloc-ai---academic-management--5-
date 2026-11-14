@@ -1142,6 +1142,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         scopedPropsStudents.forEach((s: any) => registerStudent(s));
         allBranchStudents.forEach((s: any) => registerStudent(s));
 
+        // Also register students from props.users who are students or match institution
+        (props.users || []).forEach((u: any) => {
+            if (!u) return;
+            const uRole = String(u.role || '').toLowerCase();
+            const isStudentLike = ['student', 'learner', 'pupil', 'cadet', 'scholar'].includes(uRole) ||
+                (u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).adm_no || (u as any).studentClass || (u as any).classLevel || (u as any).gradeLevel);
+            if (isStudentLike || String(u.id || '').startsWith('usr_') || String(u.id || '').startsWith('u_')) {
+                const uInstId = u.institutionId || (u as any).institution_id || '';
+                if (!uInstId || relevantInstIds.has(uInstId) || relevantInstIds.has(cleanId(uInstId))) {
+                    registerStudent(u);
+                }
+            }
+        });
+
         const allEnrSources = [...(props.studentEnrollments || []), ...(enrollments || [])];
         allEnrSources.forEach((enr: any) => {
             if (!enr) return;
@@ -1155,7 +1169,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
 
         return Array.from(studentMap.values());
-    }, [props.students, props.studentEnrollments, enrollments, allBranchStudents, dsStudents, isDrivingSchool, props.institution?.id, branches, cleanId, isNameUnknown]);
+    }, [props.students, props.users, props.studentEnrollments, enrollments, allBranchStudents, dsStudents, isDrivingSchool, props.institution?.id, branches, cleanId, isNameUnknown]);
 
     const mergedStudentsMap = useMemo(() => {
         const map = new Map<string, any>();
@@ -1201,8 +1215,30 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 map.set(String(s.studentName).trim().toLowerCase(), s);
             }
         });
+
+        // Also index directly from props.users and props.students as fallback safety
+        (props.users || []).forEach((u: any) => {
+            if (!u || !u.id) return;
+            const uidStr = String(u.id).trim();
+            if (!map.has(uidStr)) map.set(uidStr, u);
+            if (!map.has(uidStr.toLowerCase())) map.set(uidStr.toLowerCase(), u);
+            const raw = uidStr.replace(/^(u_|enr_|usr_|stu_|student_)/i, '');
+            if (raw && !map.has(raw)) map.set(raw, u);
+            if (raw && !map.has(raw.toLowerCase())) map.set(raw.toLowerCase(), u);
+            const adm = getStudentAdmNumber(u);
+            if (adm) {
+                const aStr = String(adm).trim();
+                if (!map.has(aStr)) map.set(aStr, u);
+                if (!map.has(aStr.toLowerCase())) map.set(aStr.toLowerCase(), u);
+            }
+            if (u.name && !isNameUnknown(u.name)) {
+                const nStr = String(u.name).trim().toLowerCase();
+                if (!map.has(nStr)) map.set(nStr, u);
+            }
+        });
+
         return map;
-    }, [mergedStudents, cleanId, isNameUnknown, getStudentAdmNumber]);
+    }, [mergedStudents, props.users, cleanId, isNameUnknown, getStudentAdmNumber]);
 
     const commsUsers = useMemo(() => {
         const userMap = new Map<string, any>();
@@ -21556,6 +21592,99 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             {/* Fee Collection Report — with 3D Per-Class Graphical Analytics, Class Filtering & Pagination */}
                             {reportsSubTab === 'collection' && (() => {
                                 const allStudentsList = mergedStudents.length > 0 ? mergedStudents : (props.students || []);
+
+                                const resolveCollectionInvoiceStudent = (inv: any) => {
+                                    if (!inv) return { student: null, studentName: '—', admNo: '—', className: 'General' };
+
+                                    const rawStudentId = String(inv.studentId || inv.student_id || inv.userId || inv.user_id || '').trim();
+                                    const invAdm = String(inv.admissionNumber || inv.admission_number || inv.studentAdmissionNumber || inv.admNo || inv.adm_no || inv.metadata?.admissionNumber || inv.metadata?.admNo || '').trim();
+                                    const invName = String(inv.studentName || inv.student_name || '').trim();
+                                    const cleanStId = rawStudentId.toLowerCase().replace(/^(u_|enr_|usr_|stu_|student_)/i, '');
+
+                                    // 1. Direct Map lookup (O(1)) from mergedStudentsMap
+                                    let student = rawStudentId ? (
+                                        mergedStudentsMap.get(rawStudentId) ||
+                                        mergedStudentsMap.get(rawStudentId.toLowerCase()) ||
+                                        mergedStudentsMap.get(cleanId(rawStudentId)) ||
+                                        (cleanStId ? mergedStudentsMap.get(cleanStId) : null)
+                                    ) : null;
+
+                                    if (!student && invAdm) {
+                                        student = mergedStudentsMap.get(invAdm) ||
+                                                  mergedStudentsMap.get(invAdm.toLowerCase()) ||
+                                                  mergedStudentsMap.get(invAdm.replace(/^(adm-|adm)/i, ''));
+                                    }
+
+                                    if (!student && invName && !isNameUnknown(invName)) {
+                                        student = mergedStudentsMap.get(invName.toLowerCase());
+                                    }
+
+                                    // 2. Fallback scan across all available student/user collections
+                                    if (!student) {
+                                        const pool = [
+                                            ...(mergedStudents.length > 0 ? mergedStudents : []),
+                                            ...(props.students || []),
+                                            ...(props.users || [])
+                                        ];
+                                        student = pool.find((s: any) => {
+                                            if (!s) return false;
+                                            const sId = String(s.id || '').trim().toLowerCase();
+                                            const sUid = String(s.userId || s.user_id || '').trim().toLowerCase();
+                                            const rawSId = sId.replace(/^(u_|enr_|usr_|stu_|student_)/i, '');
+                                            const rawSUid = sUid.replace(/^(u_|enr_|usr_|stu_|student_)/i, '');
+
+                                            if (rawStudentId) {
+                                                const rLower = rawStudentId.toLowerCase();
+                                                if (sId === rLower || sUid === rLower || (cleanStId && (rawSId === cleanStId || rawSUid === cleanStId))) return true;
+                                            }
+
+                                            const sAdm = String(getStudentAdmNumber(s) || '').trim().toLowerCase();
+                                            if (rawStudentId && sAdm && (sAdm === rawStudentId.toLowerCase() || (cleanStId && sAdm === cleanStId))) return true;
+                                            if (invAdm && sAdm && (sAdm === invAdm.toLowerCase() || sAdm === invAdm.toLowerCase().replace(/^(adm-|adm)/i, ''))) return true;
+                                            if (invName && s.name && String(s.name).trim().toLowerCase() === invName.toLowerCase()) return true;
+                                            return false;
+                                        });
+                                    }
+
+                                    // 3. Fallback to studentFinanceData if available
+                                    if (!student && rawStudentId && Array.isArray(studentFinanceData)) {
+                                        student = studentFinanceData.find(s => s.id === rawStudentId || (cleanStId && String(s.id).toLowerCase().replace(/^(u_|enr_|usr_|stu_|student_)/i, '') === cleanStId)) || null;
+                                    }
+
+                                    // 4. Resolve Admission Number
+                                    let admNo = (student ? getStudentAdmNumber(student) : '') ||
+                                                (invAdm && !isSyntheticAdm(invAdm) ? invAdm : '') ||
+                                                (rawStudentId ? (enrAdmMap.get(rawStudentId.toLowerCase()) || (cleanStId ? enrAdmMap.get(cleanStId) : '') || txnsAdmMap.get(rawStudentId.toLowerCase()) || (cleanStId ? txnsAdmMap.get(cleanStId) : '')) : '') ||
+                                                (student?.admissionNumber || student?.admission_number || student?.admNo || '') ||
+                                                '—';
+
+                                    // 5. Resolve Student Name
+                                    let studentName = (student && student.name && !isNameUnknown(student.name)) ? student.name :
+                                                      (student && (student as any).studentName && !isNameUnknown((student as any).studentName)) ? (student as any).studentName :
+                                                      (student && (student as any).fullName && !isNameUnknown((student as any).fullName)) ? (student as any).fullName :
+                                                      (invName && !isNameUnknown(invName)) ? invName :
+                                                      '';
+
+                                    // If still blank, check props.users directly
+                                    if (!studentName && rawStudentId) {
+                                        const u = (props.users || []).find((usr: any) => usr && (usr.id === rawStudentId || (cleanStId && String(usr.id).replace(/^(u_|enr_|usr_|stu_|student_)/i, '') === cleanStId)));
+                                        if (u && u.name && !isNameUnknown(u.name)) {
+                                            studentName = u.name;
+                                            if (admNo === '—') admNo = getStudentAdmNumber(u) || u.admissionNumber || u.admission_number || u.admNo || '—';
+                                        }
+                                    }
+
+                                    if (!studentName) {
+                                        studentName = (admNo && admNo !== '—' && !isSyntheticAdm(admNo)) ? `Student ${admNo}` : (rawStudentId || '—');
+                                    }
+
+                                    // 6. Resolve Class
+                                    const className = (student ? ((student as any).className || studentClassGroup(student)) : null) ||
+                                                      inv.studentClass || inv.className || inv.gradeLevel || (student as any)?.studentClass || 'General';
+
+                                    return { student, studentName, admNo, className };
+                                };
+
                                 // 1. Compute comprehensive per-class financial metrics for 3D visualizations
                                 const classMap: Record<string, {
                                     className: string;
@@ -21569,8 +21698,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 }> = {};
 
                                 mappedInvoices.forEach((inv: any) => {
-                                    const student = allStudentsList.find((s: any) => s.id === inv.studentId);
-                                    const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.className || inv.gradeLevel || 'General');
+                                    const { className: cls } = resolveCollectionInvoiceStudent(inv);
                                     if (!classMap[cls]) {
                                         classMap[cls] = {
                                             className: cls,
@@ -21591,7 +21719,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     classMap[cls].collected += Math.min(invAmt, paid);
                                     classMap[cls].outstanding += bal;
                                     classMap[cls].invoicesCount += 1;
-                                    if (inv.studentId) classMap[cls].studentsSet.add(inv.studentId);
+                                    const rawSid = inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id;
+                                    if (rawSid) classMap[cls].studentsSet.add(rawSid);
                                     if (bal <= 0) classMap[cls].clearedCount += 1;
                                     else classMap[cls].pendingCount += 1;
                                 });
@@ -21607,10 +21736,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                 // 2. Filter individual invoices based on active filters
                                 const filteredInvoices = mappedInvoices.filter((inv: any) => {
-                                    const student = allStudentsList.find((s: any) => s.id === inv.studentId);
-                                    const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.className || inv.gradeLevel || 'General');
-                                    const sName = student?.name || inv.studentName || '';
-                                    const sAdm = (student?.admissionNumber || (student as any)?.admission_number || studentAdmissionNumber(student) || '');
+                                    const { studentName: sName, admNo: sAdm, className: cls } = resolveCollectionInvoiceStudent(inv);
                                     const invNum = inv.invoiceNumber || inv.id || '';
 
                                     // Class filter
@@ -21621,7 +21747,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     // Search filter
                                     if (collectionSearchQuery.trim()) {
                                         const q = collectionSearchQuery.trim().toLowerCase();
-                                        const matches = sName.toLowerCase().includes(q) || sAdm.toLowerCase().includes(q) || invNum.toLowerCase().includes(q) || cls.toLowerCase().includes(q);
+                                        const matches = (sName && sName.toLowerCase().includes(q)) || 
+                                                        (sAdm && sAdm.toLowerCase().includes(q)) || 
+                                                        invNum.toLowerCase().includes(q) || 
+                                                        cls.toLowerCase().includes(q);
                                         if (!matches) return false;
                                     }
 
@@ -22044,27 +22173,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <button
                                                         type="button"
                                                         onClick={() => {
-                                                            const allStudentsList = mergedStudents.length > 0 ? mergedStudents : (props.students || []);
                                                             const rows = filteredInvoices.map((inv: any) => {
-                                                                const studentId = inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id;
-                                                                const student = allStudentsList.find((s: any) => {
-                                                                    if (!s) return false;
-                                                                    const sId = s.id || s.userId || s.user_id;
-                                                                    if (studentId && (sId === studentId || s.id === studentId)) return true;
-                                                                    const sAdm = getStudentAdmNumber(s);
-                                                                    const invAdm = inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo;
-                                                                    if (invAdm && sAdm && String(sAdm).trim().toLowerCase() === String(invAdm).trim().toLowerCase()) return true;
-                                                                    if ((inv as any).studentName && s.name && String(s.name).trim().toLowerCase() === String((inv as any).studentName).trim().toLowerCase()) return true;
-                                                                    return false;
-                                                                }) || (props.students || []).find((s: any) => s.id === inv.studentId);
+                                                                const { studentName, admNo, className: cls } = resolveCollectionInvoiceStudent(inv);
                                                                 const paid = invoicePaidAmountMap.get(inv.id) || 0;
                                                                 const invAmt = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
                                                                 const bal = invAmt - paid;
-                                                                const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.studentClass || inv.className || inv.gradeLevel || '—');
-                                                                const sAdm = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
                                                                 return [
-                                                                    student?.name || (inv as any).studentName || (inv as any).student_name || '—',
-                                                                    sAdm,
+                                                                    studentName,
+                                                                    admNo,
                                                                     cls,
                                                                     inv.invoiceNumber || inv.id?.slice(-8),
                                                                     invAmt,
@@ -22083,7 +22199,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <button
                                                         type="button"
                                                         onClick={() => {
-                                                            const allStudentsList = mergedStudents.length > 0 ? mergedStudents : (props.students || []);
                                                             setPdfPreviewModal({
                                                                 title: `OFFICIAL FEE COLLECTION & REALIZATION REPORT`,
                                                                 subtitle: `${props.institution.name} — ${filteredInvoices.length} Invoices Listed (Class: ${collectionClassFilter === 'All' ? 'All Classes' : collectionClassFilter}, Status: ${collectionStatusFilter})`,
@@ -22094,25 +22209,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 paid: activeCollected,
                                                                 balance: activeOutstanding,
                                                                 items: filteredInvoices.map((inv: any) => {
-                                                                    const studentId = inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id;
-                                                                    const student = allStudentsList.find((s: any) => {
-                                                                        if (!s) return false;
-                                                                        const sId = s.id || s.userId || s.user_id;
-                                                                        if (studentId && (sId === studentId || s.id === studentId)) return true;
-                                                                        const sAdm = getStudentAdmNumber(s);
-                                                                        const invAdm = inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo;
-                                                                        if (invAdm && sAdm && String(sAdm).trim().toLowerCase() === String(invAdm).trim().toLowerCase()) return true;
-                                                                        if ((inv as any).studentName && s.name && String(s.name).trim().toLowerCase() === String((inv as any).studentName).trim().toLowerCase()) return true;
-                                                                        return false;
-                                                                    }) || (props.students || []).find((s: any) => s.id === inv.studentId);
+                                                                    const { studentName, admNo, className: cls } = resolveCollectionInvoiceStudent(inv);
                                                                     const paid = invoicePaidAmountMap.get(inv.id) || 0;
                                                                     const invAmt = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
                                                                     const bal = invAmt - paid;
-                                                                    const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.studentClass || inv.className || inv.gradeLevel || '—');
-                                                                    const sAdm = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
                                                                     return {
-                                                                        name: student?.name || (inv as any).studentName || (inv as any).student_name || '—',
-                                                                        adm: sAdm,
+                                                                        name: studentName,
+                                                                        adm: admNo,
                                                                         cls: cls,
                                                                         inv: invAmt,
                                                                         pd: paid,
@@ -22129,7 +22232,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <button
                                                         type="button"
                                                         onClick={() => {
-                                                            const allStudentsList = mergedStudents.length > 0 ? mergedStudents : (props.students || []);
                                                             setPdfPreviewModal({
                                                                 title: `OFFICIAL FEE COLLECTION & REALIZATION REPORT`,
                                                                 subtitle: `${props.institution.name} — ${filteredInvoices.length} Invoices Listed (Class: ${collectionClassFilter === 'All' ? 'All Classes' : collectionClassFilter}, Status: ${collectionStatusFilter})`,
@@ -22140,25 +22242,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 paid: activeCollected,
                                                                 balance: activeOutstanding,
                                                                 items: filteredInvoices.map((inv: any) => {
-                                                                    const studentId = inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id;
-                                                                    const student = allStudentsList.find((s: any) => {
-                                                                        if (!s) return false;
-                                                                        const sId = s.id || s.userId || s.user_id;
-                                                                        if (studentId && (sId === studentId || s.id === studentId)) return true;
-                                                                        const sAdm = getStudentAdmNumber(s);
-                                                                        const invAdm = inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo;
-                                                                        if (invAdm && sAdm && String(sAdm).trim().toLowerCase() === String(invAdm).trim().toLowerCase()) return true;
-                                                                        if ((inv as any).studentName && s.name && String(s.name).trim().toLowerCase() === String((inv as any).studentName).trim().toLowerCase()) return true;
-                                                                        return false;
-                                                                    }) || (props.students || []).find((s: any) => s.id === inv.studentId);
+                                                                    const { studentName, admNo, className: cls } = resolveCollectionInvoiceStudent(inv);
                                                                     const paid = invoicePaidAmountMap.get(inv.id) || 0;
                                                                     const invAmt = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
                                                                     const bal = invAmt - paid;
-                                                                    const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.studentClass || inv.className || inv.gradeLevel || '—');
-                                                                    const sAdm = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
                                                                     return {
-                                                                        name: student?.name || (inv as any).studentName || (inv as any).student_name || '—',
-                                                                        adm: sAdm,
+                                                                        name: studentName,
+                                                                        adm: admNo,
                                                                         cls: cls,
                                                                         inv: invAmt,
                                                                         pd: paid,
@@ -22227,20 +22317,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             </tr>
                                                         ) : (
                                                             paginatedInvoices.map((inv: any, i: number) => {
-                                                                const allStudentsList = mergedStudents.length > 0 ? mergedStudents : (props.students || []);
-                                                                const studentId = inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id;
-                                                                const student = allStudentsList.find((s: any) => {
-                                                                    if (!s) return false;
-                                                                    const sId = s.id || s.userId || s.user_id;
-                                                                    if (studentId && (sId === studentId || s.id === studentId)) return true;
-                                                                    const sAdm = getStudentAdmNumber(s);
-                                                                    const invAdm = inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo;
-                                                                    if (invAdm && sAdm && String(sAdm).trim().toLowerCase() === String(invAdm).trim().toLowerCase()) return true;
-                                                                    if ((inv as any).studentName && s.name && String(s.name).trim().toLowerCase() === String((inv as any).studentName).trim().toLowerCase()) return true;
-                                                                    return false;
-                                                                }) || (props.students || []).find((s: any) => s.id === inv.studentId);
-                                                                const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.studentClass || inv.className || inv.gradeLevel || '—');
-                                                                const sAdm = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
+                                                                const { studentName, admNo, className: cls } = resolveCollectionInvoiceStudent(inv);
                                                                 const paid = invoicePaidAmountMap.get(inv.id) || 0;
                                                                 const invAmt = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
                                                                 const bal = invAmt - paid;
@@ -22249,8 +22326,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 return (
                                                                     <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                                                                         <td className="py-3 px-4">
-                                                                            <p className="font-black text-slate-900 dark:text-white text-xs">{student?.name || (inv as any).studentName || (inv as any).student_name || inv.studentId || '—'}</p>
-                                                                            <p className="text-[9px] text-slate-400 font-mono font-bold uppercase tracking-wider mt-0.5">Adm: {sAdm}</p>
+                                                                            <p className="font-black text-slate-900 dark:text-white text-xs">{studentName}</p>
+                                                                            <p className="text-[9px] text-slate-400 font-mono font-bold uppercase tracking-wider mt-0.5">Adm: {admNo}</p>
                                                                         </td>
                                                                         <td className="py-3 px-4 font-bold text-slate-700 dark:text-slate-300">
                                                                             <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-[10px] font-black">
