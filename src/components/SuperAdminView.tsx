@@ -1043,9 +1043,33 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             setLocalFtpConfig(companyDetails.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
             setLocalKcbConfig(companyDetails.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
             setLocalCoopConfig(companyDetails.coopConfig || { serviceName: 'KEWISCO SACCO', connectionID: 'TEST', connectionPassword: 'CoopTest', institutionCode: '210001918' });
-            setLocalNcbaConfig(companyDetails.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://c2bapis.ncbagroup.com', environment: 'production' });
+            let initialNcba = companyDetails.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://c2bapis.ncbagroup.com', environment: 'production' };
+            if (!initialNcba.username && !initialNcba.clientId) {
+                try {
+                    const cachedNcba = localStorage.getItem('eduai_ncba_config_cache');
+                    if (cachedNcba) {
+                        const parsed = JSON.parse(cachedNcba);
+                        if (parsed && (parsed.username || parsed.clientId)) {
+                            initialNcba = { ...initialNcba, ...parsed };
+                        }
+                    }
+                } catch (_) {}
+            } else {
+                try {
+                    localStorage.setItem('eduai_ncba_config_cache', JSON.stringify(initialNcba));
+                } catch (_) {}
+            }
+            setLocalNcbaConfig(initialNcba);
         }
     }, [companyDetails]);
+
+    useEffect(() => {
+        if (localNcbaConfig && (localNcbaConfig.username || localNcbaConfig.clientId) && (localNcbaConfig.clientSecret || localNcbaConfig.password)) {
+            try {
+                localStorage.setItem('eduai_ncba_config_cache', JSON.stringify(localNcbaConfig));
+            } catch (_) {}
+        }
+    }, [localNcbaConfig]);
 
     const handleLocalImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer' | 'stamp') => {
         const file = e.target.files?.[0];
@@ -1454,12 +1478,24 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             const c2bSecret = (localNcbaConfig.clientSecret || localNcbaConfig.password || '').trim();
             const normalizedNcbaConfig = {
                 ...localNcbaConfig,
+                paybill: (localNcbaConfig.paybill || '880100').trim(),
+                accountNumber: (localNcbaConfig.accountNumber || '272487').trim(),
                 username: c2bUser,
                 clientId: c2bUser,
                 clientSecret: c2bSecret,
                 password: c2bSecret
             };
-            const accountRef = localNcbaConfig.accountNumber || '272487';
+            try {
+                localStorage.setItem('eduai_ncba_config_cache', JSON.stringify(normalizedNcbaConfig));
+                if (c2bUser && c2bSecret) {
+                    apiService.saveCompanySettings({
+                        ...companyDetails,
+                        ...localCompanyInfo,
+                        ncbaConfig: normalizedNcbaConfig
+                    } as any).catch(() => {});
+                }
+            } catch (_) {}
+            const accountRef = normalizedNcbaConfig.accountNumber || '272487';
             const result = await apiService.post('/api/integrations', {
                 action: 'ncbaInitiateStk',
                 phone: testRecipient,

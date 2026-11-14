@@ -146,24 +146,41 @@ const getPgPool = async () => {
 };
 
 async function fetchSystemSettingsFromDb(supabase: any): Promise<any> {
-    let settingsData: any = null;
-    let pgrstErr: any = null;
+    let pgData: any = null;
+    let sbData: any = null;
 
-    // 1. Primary: Direct PostgreSQL query (Talksasa Database)
+    const hasValidNcbaObj = (cfg: any): boolean => {
+        if (!cfg || typeof cfg !== 'object') return false;
+        const u = String(cfg.username || cfg.user_id || cfg.userId || cfg.clientId || cfg.client_id || cfg.consumerKey || '').trim();
+        const s = String(cfg.clientSecret || cfg.client_secret || cfg.secretKey || cfg.secret_key || cfg.password || cfg.consumerSecret || '').trim();
+        const isPh = (v: string) => !v || v.toUpperCase().startsWith('YOUR_') || v.toUpperCase().includes('PLACEHOLDER') || v === '••••••••' || v === '********';
+        return Boolean(!isPh(u) && !isPh(s));
+    };
+
+    // 1. Direct PostgreSQL query (Talksasa Database)
     try {
         const pool = await getPgPool();
         if (pool) {
-            const pgRes = await pool.query("SELECT * FROM public.system_settings WHERE id::text = '1' OR id::text = 'global' ORDER BY updated_at DESC NULLS LAST LIMIT 1");
+            const pgRes = await pool.query("SELECT * FROM public.system_settings ORDER BY updated_at DESC NULLS LAST");
             if (pgRes?.rows && pgRes.rows.length > 0) {
-                const row = pgRes.rows[0];
-                const rowData = typeof row.data === 'object' && row.data !== null ? { ...row.data } : {};
-                if (row.ncba_config && typeof row.ncba_config === 'object' && Object.keys(row.ncba_config).length > 0) {
-                    rowData.ncba_config = { ...(rowData.ncba_config || {}), ...row.ncba_config };
-                    rowData.ncbaConfig = { ...(rowData.ncbaConfig || {}), ...row.ncba_config };
-                }
-                if (Object.keys(rowData).length > 0) {
-                    console.log('[System API] getSettings successfully fetched via Direct PostgreSQL pool.');
-                    settingsData = rowData;
+                for (const row of pgRes.rows) {
+                    const rowId = String(row.id || '');
+                    if (rowId === 'ping') continue;
+                    const rData = typeof row.data === 'object' && row.data !== null ? { ...row.data } : {};
+                    if (row.ncba_config && typeof row.ncba_config === 'object' && Object.keys(row.ncba_config).length > 0) {
+                        rData.ncba_config = { ...(rData.ncba_config || {}), ...row.ncba_config };
+                        rData.ncbaConfig = { ...(rData.ncbaConfig || {}), ...row.ncba_config };
+                    }
+                    if (!pgData && Object.keys(rData).length > 0) {
+                        pgData = rData;
+                    } else if (pgData) {
+                        const rowNcba = rData.ncba_config || rData.ncbaConfig;
+                        const curNcba = pgData.ncba_config || pgData.ncbaConfig;
+                        if (hasValidNcbaObj(rowNcba) && !hasValidNcbaObj(curNcba)) {
+                            pgData.ncba_config = rowNcba;
+                            pgData.ncbaConfig = rowNcba;
+                        }
+                    }
                 }
             }
         }
@@ -171,22 +188,47 @@ async function fetchSystemSettingsFromDb(supabase: any): Promise<any> {
         console.warn('[System API] Direct PostgreSQL fetch for getSettings failed:', pgErr?.message || pgErr);
     }
 
-    // 2. Fallback: PostgREST query with a 3.5s timeout if Direct PG returned nothing
-    if (!settingsData && supabase) {
+    // 2. PostgREST / Supabase query (also checked if Direct PG lacks valid ncba_config so credentials saved in Supabase are merged)
+    const pgHasNcba = hasValidNcbaObj(pgData?.ncba_config || pgData?.ncbaConfig);
+    if ((!pgData || !pgHasNcba) && supabase) {
         try {
             const pgrstQuery = supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
             const timeoutPromise = new Promise((_, reject) => 
                 setTimeout(() => reject(new Error('PostgREST query timeout (3500ms)')), 3500)
             );
             const { data, error }: any = await Promise.race([pgrstQuery, timeoutPromise]);
-            if (error && error.code !== 'PGRST116') {
-                pgrstErr = error;
-            } else if (data?.data && typeof data.data === 'object' && Object.keys(data.data).length > 0) {
-                settingsData = data.data;
+            if (!error && data?.data && typeof data.data === 'object' && Object.keys(data.data).length > 0) {
+                sbData = data.data;
             }
-        } catch (err: any) {
-            pgrstErr = err;
+        } catch (_) {}
+    }
+
+    let settingsData: any = null;
+    if (pgData && sbData) {
+        settingsData = { ...sbData, ...pgData };
+        const pgNcba = pgData.ncba_config || pgData.ncbaConfig;
+        const sbNcba = sbData.ncba_config || sbData.ncbaConfig;
+        const bestNcba = hasValidNcbaObj(pgNcba) ? pgNcba : (hasValidNcbaObj(sbNcba) ? sbNcba : (pgNcba || sbNcba));
+        if (bestNcba) {
+            settingsData.ncba_config = bestNcba;
+            settingsData.ncbaConfig = bestNcba;
         }
+        // Auto-sync valid NCBA config from Supabase into Direct PG if Direct PG was missing it
+        if (!hasValidNcbaObj(pgNcba) && hasValidNcbaObj(sbNcba)) {
+            try {
+                const pool = await getPgPool();
+                if (pool) {
+                    await pool.query(
+                        `INSERT INTO public.system_settings (id, data, updated_at)
+                         VALUES ('1', $1::jsonb, NOW())
+                         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+                        [JSON.stringify(settingsData)]
+                    ).catch(() => {});
+                }
+            } catch (_) {}
+        }
+    } else {
+        settingsData = pgData || sbData || null;
     }
 
     if (settingsData) {
@@ -300,24 +342,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (action === 'getSettings') {
                 try {
-                    // Check in-memory fresh cache first (< 60s)
-                    if (_cachedSettings && (Date.now() - _cachedSettings.timestamp < SETTINGS_CACHE_TTL_MS)) {
-                        res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+                    const bypassCache = req.query.fresh === '1' || req.query.fresh === 'true' || Boolean(req.query._t);
+                    const cachedNcba = _cachedSettings?.data?.ncba_config || _cachedSettings?.data?.ncbaConfig;
+                    const cachedHasNcba = Boolean(cachedNcba && (cachedNcba.username || cachedNcba.clientId) && (cachedNcba.clientSecret || cachedNcba.password));
+
+                    // Check in-memory fresh cache first (< 60s), unless bypass requested or cached settings lack NCBA config
+                    if (!bypassCache && cachedHasNcba && _cachedSettings && (Date.now() - _cachedSettings.timestamp < SETTINGS_CACHE_TTL_MS)) {
+                        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
                         return res.status(200).json(_cachedSettings.data);
                     }
 
-                    // Fetch from Database (PostgREST with Direct PostgreSQL fallback)
+                    // Fetch from Database (Direct PostgreSQL + Supabase merged)
                     const dbSettings = await fetchSystemSettingsFromDb(supabase);
                     if (dbSettings) {
                         _cachedSettings = { data: dbSettings, timestamp: Date.now() };
-                        res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+                        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
                         return res.status(200).json(dbSettings);
                     }
 
                     // If DB fetch failed (e.g. temporary network reset) but we have previous cached data, serve stale
                     if (_cachedSettings?.data) {
                         console.warn('[System API] Serving stale cached settings due to upstream network reset.');
-                        res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=60');
+                        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
                         return res.status(200).json(_cachedSettings.data);
                     }
 
@@ -381,6 +427,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const { settings } = req.body;
                 if (!settings) return res.status(400).json({ error: 'Settings payload required' });
 
+                const ncbaCfg = settings.ncba_config || settings.ncbaConfig || null;
+                if (ncbaCfg && typeof ncbaCfg === 'object') {
+                    const u = String(ncbaCfg.username || ncbaCfg.user_id || ncbaCfg.userId || ncbaCfg.clientId || ncbaCfg.client_id || '').trim();
+                    const s = String(ncbaCfg.clientSecret || ncbaCfg.client_secret || ncbaCfg.secretKey || ncbaCfg.secret_key || ncbaCfg.password || '').trim();
+                    const normalizedNcba = {
+                        ...ncbaCfg,
+                        ...(u ? { username: u, clientId: u, client_id: u } : {}),
+                        ...(s ? { clientSecret: s, client_secret: s, password: s } : {}),
+                        paybill: ncbaCfg.paybill || '880100',
+                        accountNumber: ncbaCfg.accountNumber || ncbaCfg.account_number || '272487',
+                        account_number: ncbaCfg.accountNumber || ncbaCfg.account_number || '272487'
+                    };
+                    settings.ncba_config = normalizedNcba;
+                    settings.ncbaConfig = normalizedNcba;
+                }
+
                 // Update memory cache immediately
                 _cachedSettings = { data: settings, timestamp: Date.now() };
 
@@ -391,17 +453,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 try {
                     const pool = await getPgPool();
                     if (pool) {
-                        const ncbaCfg = settings.ncba_config || settings.ncbaConfig || null;
-                        await pool.query(`ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS ncba_config JSONB;`).catch(() => {});
+                        // Merge with any existing data in system_settings so partial updates never wipe existing gateway keys
+                        let mergedSettings = { ...settings };
+                        try {
+                            const existingRes = await pool.query("SELECT data, ncba_config FROM public.system_settings WHERE id::text = '1' OR id::text = 'global' ORDER BY updated_at DESC NULLS LAST LIMIT 1").catch(() => null);
+                            const exRow = existingRes?.rows?.[0];
+                            if (exRow?.data && typeof exRow.data === 'object') {
+                                const exData = exRow.data;
+                                const exNcba = exData.ncba_config || exData.ncbaConfig || exRow.ncba_config;
+                                const newNcba = settings.ncba_config || settings.ncbaConfig;
+                                const newHasCreds = Boolean(newNcba && (newNcba.username || newNcba.clientId) && (newNcba.clientSecret || newNcba.password));
+                                mergedSettings = { ...exData, ...settings };
+                                if (!newHasCreds && exNcba) {
+                                    mergedSettings.ncba_config = exNcba;
+                                    mergedSettings.ncbaConfig = exNcba;
+                                }
+                            }
+                        } catch (_) {}
+
+                        _cachedSettings = { data: mergedSettings, timestamp: Date.now() };
+
                         await pool.query(
-                            `INSERT INTO public.system_settings (id, data, ncba_config, updated_at)
-                             VALUES ('1', $1::jsonb, $2::jsonb, NOW())
+                            `INSERT INTO public.system_settings (id, data, updated_at)
+                             VALUES ('1', $1::jsonb, NOW())
                              ON CONFLICT (id) DO UPDATE
                              SET data = EXCLUDED.data,
-                                 ncba_config = COALESCE(EXCLUDED.ncba_config, public.system_settings.ncba_config),
                                  updated_at = NOW()`,
-                            [JSON.stringify(settings), ncbaCfg ? JSON.stringify(ncbaCfg) : null]
+                            [JSON.stringify(mergedSettings)]
                         );
+                        // Also keep any 'global' row in sync if present
+                        await pool.query(
+                            `UPDATE public.system_settings SET data = $1::jsonb, updated_at = NOW() WHERE id::text = 'global'`,
+                            [JSON.stringify(mergedSettings)]
+                        ).catch(() => {});
+                        // Optional top-level ncba_config column sync if column exists
+                        if (mergedSettings.ncba_config) {
+                            await pool.query(`ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS ncba_config JSONB;`).catch(() => {});
+                            await pool.query(
+                                `UPDATE public.system_settings SET ncba_config = $1::jsonb WHERE id::text = '1' OR id::text = 'global'`,
+                                [JSON.stringify(mergedSettings.ncba_config)]
+                            ).catch(() => {});
+                        }
                         saved = true;
                         console.log('[System API] saveSettings successfully persisted via Direct PostgreSQL pool.');
                     }
@@ -415,7 +507,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     try {
                         const { error } = await supabase.from('system_settings').upsert({
                             id: 1,
-                            data: settings,
+                            data: _cachedSettings?.data || settings,
                             updated_at: new Date().toISOString()
                         });
                         if (!error) {

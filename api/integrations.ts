@@ -1129,28 +1129,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
-        // Fetch global platform settings (prioritize Direct PostgreSQL on Talksasa)
+        // Fetch global platform settings (merge Direct PostgreSQL and Supabase so no credentials are missed)
         let settings: any = {};
+        let pgSettings: any = null;
+        let sbSettings: any = null;
+        const hasValidNcbaInObj = (cfg: any): boolean => {
+            if (!cfg || typeof cfg !== 'object') return false;
+            const u = String(cfg.username || cfg.user_id || cfg.userId || cfg.clientId || cfg.client_id || cfg.consumerKey || '').trim();
+            const s = String(cfg.clientSecret || cfg.client_secret || cfg.secretKey || cfg.secret_key || cfg.password || cfg.consumerSecret || '').trim();
+            const isPh = (v: string) => !v || v.toUpperCase().startsWith('YOUR_') || v.toUpperCase().includes('PLACEHOLDER') || v === '••••••••' || v === '********';
+            return Boolean(!isPh(u) && !isPh(s));
+        };
         try {
             const pool = await getPgPool();
             if (pool) {
-                const pgRes = await pool.query("SELECT * FROM public.system_settings WHERE id::text = '1' OR id::text = 'global' ORDER BY updated_at DESC NULLS LAST LIMIT 1");
+                const pgRes = await pool.query("SELECT * FROM public.system_settings ORDER BY updated_at DESC NULLS LAST");
                 if (pgRes?.rows && pgRes.rows.length > 0) {
-                    const row = pgRes.rows[0];
-                    const rowData = typeof row.data === 'object' && row.data !== null ? { ...row.data } : {};
-                    if (row.ncba_config && typeof row.ncba_config === 'object' && Object.keys(row.ncba_config).length > 0) {
-                        rowData.ncba_config = { ...(rowData.ncba_config || {}), ...row.ncba_config };
-                        rowData.ncbaConfig = { ...(rowData.ncbaConfig || {}), ...row.ncba_config };
+                    for (const row of pgRes.rows) {
+                        if (String(row.id || '') === 'ping') continue;
+                        const rowData = typeof row.data === 'object' && row.data !== null ? { ...row.data } : {};
+                        if (row.ncba_config && typeof row.ncba_config === 'object' && Object.keys(row.ncba_config).length > 0) {
+                            rowData.ncba_config = { ...(rowData.ncba_config || {}), ...row.ncba_config };
+                            rowData.ncbaConfig = { ...(rowData.ncbaConfig || {}), ...row.ncba_config };
+                        }
+                        if (!pgSettings && Object.keys(rowData).length > 0) {
+                            pgSettings = rowData;
+                        } else if (pgSettings) {
+                            const rNcba = rowData.ncba_config || rowData.ncbaConfig;
+                            const cNcba = pgSettings.ncba_config || pgSettings.ncbaConfig;
+                            if (hasValidNcbaInObj(rNcba) && !hasValidNcbaInObj(cNcba)) {
+                                pgSettings.ncba_config = rNcba;
+                                pgSettings.ncbaConfig = rNcba;
+                            }
+                        }
                     }
-                    if (Object.keys(rowData).length > 0) settings = rowData;
                 }
             }
         } catch (_) {}
-        if ((!settings || Object.keys(settings).length === 0) && supabase) {
+        const pgHasValidNcba = hasValidNcbaInObj(pgSettings?.ncba_config || pgSettings?.ncbaConfig);
+        if ((!pgSettings || !pgHasValidNcba) && supabase) {
             try {
                 const { data: settingsData } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
-                if (settingsData?.data) settings = settingsData.data;
+                if (settingsData?.data && typeof settingsData.data === 'object') {
+                    sbSettings = settingsData.data;
+                }
             } catch (_) {}
+        }
+        if (pgSettings && sbSettings) {
+            settings = { ...sbSettings, ...pgSettings };
+            const pNcba = pgSettings.ncba_config || pgSettings.ncbaConfig;
+            const sNcba = sbSettings.ncba_config || sbSettings.ncbaConfig;
+            const bestNcba = hasValidNcbaInObj(pNcba) ? pNcba : (hasValidNcbaInObj(sNcba) ? sNcba : (pNcba || sNcba));
+            if (bestNcba) {
+                settings.ncba_config = bestNcba;
+                settings.ncbaConfig = bestNcba;
+            }
+        } else {
+            settings = pgSettings || sbSettings || {};
         }
         
         const getBranding = async (instId?: string) => {
@@ -2995,7 +3030,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             let primary = candidates.find(c => hasValidNcbaCreds(c)) || null;
 
-            // If still no valid credentials found, scan institutions table in Direct PG for any valid ncba_config
+            // If still no valid credentials found, scan institutions table in Direct PG and Supabase for any valid ncba_config
             if (!primary) {
                 try {
                     const pool = await getPgPool();
@@ -3003,7 +3038,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const fbRes = await pool.query(
                             `SELECT * FROM public.institutions
                              WHERE ncba_config IS NOT NULL OR data::text LIKE '%ncba%'
-                             ORDER BY updated_at DESC NULLS LAST LIMIT 10`
+                             ORDER BY updated_at DESC NULLS LAST LIMIT 20`
                         ).catch(() => null);
                         for (const r of (fbRes?.rows || [])) {
                             const d = parseJsonIfString(r.data) || {};
@@ -3015,6 +3050,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     }
                 } catch (_) {}
+            }
+            if (!primary && supabase) {
+                try {
+                    const { data: sbInsts } = await supabase.from('institutions').select('id, ncba_config, data').limit(30);
+                    for (const r of (sbInsts || [])) {
+                        const d = parseJsonIfString(r.data) || {};
+                        const cand = toCamelCase(parseJsonIfString(r.ncba_config || (r as any).ncbaConfig || d.ncba_config || d.ncbaConfig));
+                        if (hasValidNcbaCreds(cand)) {
+                            primary = cand;
+                            break;
+                        }
+                    }
+                } catch (_) {}
+            }
+            // Fallback to environment variables if configured
+            if (!primary) {
+                const envUser = process.env.NCBA_USERNAME || process.env.NCBA_USER_ID || process.env.NCBA_CLIENT_ID || '';
+                const envSec = process.env.NCBA_SECRET_KEY || process.env.NCBA_CLIENT_SECRET || process.env.NCBA_PASSWORD || '';
+                if (envUser && envSec) {
+                    primary = {
+                        username: envUser,
+                        clientId: envUser,
+                        clientSecret: envSec,
+                        password: envSec,
+                        paybill: process.env.NCBA_PAYBILL || '880100',
+                        accountNumber: process.env.NCBA_ACCOUNT_NUMBER || '272487',
+                        baseUrl: process.env.NCBA_BASE_URL || 'https://c2bapis.ncbagroup.com'
+                    };
+                }
             }
 
             if (!primary) {
@@ -3048,6 +3112,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (sec) {
                 merged.clientSecret = sec;
                 merged.password = sec;
+            }
+
+            // Self-healing persistence: if valid NCBA credentials were supplied (e.g. during Super Admin STK test)
+            // and global system_settings in Direct PG didn't have valid NCBA credentials yet, auto-save them!
+            if (hasValidNcbaCreds(merged) && !hasValidNcbaCreds(sysNcba)) {
+                try {
+                    const updatedGlobal = {
+                        ...(settings || {}),
+                        ncba_config: merged,
+                        ncbaConfig: merged
+                    };
+                    settings = updatedGlobal;
+                    const pool = await getPgPool();
+                    if (pool) {
+                        await pool.query(
+                            `INSERT INTO public.system_settings (id, data, updated_at)
+                             VALUES ('1', $1::jsonb, NOW())
+                             ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+                            [JSON.stringify(updatedGlobal)]
+                        ).catch(() => {});
+                    }
+                    if (supabase) {
+                        await supabase.from('system_settings').upsert({
+                            id: 1,
+                            data: updatedGlobal,
+                            updated_at: new Date().toISOString()
+                        }).catch(() => {});
+                    }
+                } catch (_) {}
             }
 
             return { config: merged, targetInstId: resolvedInstId };
@@ -5995,6 +6088,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         validChars: true,
                         info: 'Type: Header, Param: Authorization, Value: Bearer <String>'
                     };
+
+                    // Auto-persist verified NCBA credentials into system_settings so SMS purchases & subscriptions work immediately
+                    if (cId && cSec) {
+                        try {
+                            const verifiedNcba = {
+                                ...(settings?.ncba_config || settings?.ncbaConfig || {}),
+                                ...ncba,
+                                username: cId,
+                                clientId: cId,
+                                clientSecret: cSec,
+                                password: cSec,
+                                paybill: ncba.paybill || '880100',
+                                accountNumber: ncba.accountNumber || ncba.account_number || '272487',
+                                baseUrl: ncba.baseUrl || ncba.base_url || 'https://c2bapis.ncbagroup.com'
+                            };
+                            const updatedGlobal = {
+                                ...(settings || {}),
+                                ncba_config: verifiedNcba,
+                                ncbaConfig: verifiedNcba
+                            };
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await pool.query(
+                                    `INSERT INTO public.system_settings (id, data, updated_at)
+                                     VALUES ('1', $1::jsonb, NOW())
+                                     ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+                                    [JSON.stringify(updatedGlobal)]
+                                ).catch(() => {});
+                            }
+                            if (supabase) {
+                                await supabase.from('system_settings').upsert({
+                                    id: 1,
+                                    data: updatedGlobal,
+                                    updated_at: new Date().toISOString()
+                                }).catch(() => {});
+                            }
+                        } catch (_) {}
+                    }
 
                     return res.status(200).json({ success: true, diagnostics, hint: `Authentication successful! Token retrieved: ${maskedToken}` });
                 } else if (authMethod === 'basic') {

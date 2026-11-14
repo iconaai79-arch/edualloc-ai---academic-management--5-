@@ -66,13 +66,33 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
         );
     };
 
+    const getCachedNcba = (): any => {
+        try {
+            const direct = localStorage.getItem('eduai_ncba_config_cache');
+            if (direct) {
+                const parsed = JSON.parse(direct);
+                if (hasValidNcba(parsed)) return parsed;
+            }
+            const sysRaw = localStorage.getItem('eduai_system_settings_cache');
+            if (sysRaw) {
+                const parsedSys = JSON.parse(sysRaw);
+                const c = parsedSys?.ncbaConfig || parsedSys?.ncba_config;
+                if (hasValidNcba(c)) return c;
+            }
+        } catch (_) {}
+        return null;
+    };
+
     const resolvedNcbaConfig = React.useMemo(() => {
         const sysCfg = systemSettings?.ncbaConfig || (systemSettings as any)?.ncba_config;
-        const primary = hasValidNcba(sysCfg) ? sysCfg : (hasValidNcba(ncbaConfig) ? ncbaConfig : (sysCfg || ncbaConfig));
+        const cachedCfg = getCachedNcba();
+        const candidates = [sysCfg, ncbaConfig, cachedCfg];
+        const primary = candidates.find(c => hasValidNcba(c)) || sysCfg || ncbaConfig || cachedCfg;
         if (!primary) return undefined;
         const user = String(primary.username || primary.user_id || primary.userId || primary.clientId || primary.client_id || '').trim();
         const sec = String(primary.clientSecret || primary.client_secret || primary.secretKey || primary.secret_key || primary.password || '').trim();
         return {
+            ...(cachedCfg || {}),
             ...(sysCfg || {}),
             ...(ncbaConfig || {}),
             ...primary,
@@ -80,8 +100,8 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
             clientId: user,
             clientSecret: sec,
             password: sec,
-            paybill: primary.paybill || sysCfg?.paybill || ncbaConfig?.paybill || '880100',
-            accountNumber: primary.accountNumber || sysCfg?.accountNumber || ncbaConfig?.accountNumber || '272487'
+            paybill: primary.paybill || sysCfg?.paybill || ncbaConfig?.paybill || cachedCfg?.paybill || '880100',
+            accountNumber: primary.accountNumber || sysCfg?.accountNumber || ncbaConfig?.accountNumber || cachedCfg?.accountNumber || '272487'
         };
     }, [systemSettings, ncbaConfig]);
 
@@ -95,7 +115,8 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                 ? [...sData.enabledGateways]
                 : ['mpesa'];
             const sysNcba = sData?.ncbaConfig || (sData as any)?.ncba_config;
-            if ((hasValidNcba(sysNcba) || hasValidNcba(ncbaConfig)) && !rawGateways.includes('ncba')) {
+            const cachedCfg = getCachedNcba();
+            if ((hasValidNcba(sysNcba) || hasValidNcba(ncbaConfig) || hasValidNcba(cachedCfg)) && !rawGateways.includes('ncba')) {
                 rawGateways.push('ncba');
             }
             setEnabledGateways(rawGateways);

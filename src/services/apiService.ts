@@ -7242,6 +7242,13 @@ export const apiService = {
     },
     async saveAllocation(data: Partial<AllocationRequest>): Promise<void> { await apiService.saveModuleRecord('allocation_requests', data); },
     async fetchCompanySettings(): Promise<CompanyDetails | null> {
+        const hasValidNcba = (cfg: any): boolean => {
+            if (!cfg || typeof cfg !== 'object') return false;
+            const u = String(cfg.username || cfg.user_id || cfg.userId || cfg.clientId || cfg.client_id || cfg.consumerKey || '').trim();
+            const s = String(cfg.clientSecret || cfg.client_secret || cfg.secretKey || cfg.secret_key || cfg.password || cfg.consumerSecret || '').trim();
+            return Boolean(u && s && !u.toUpperCase().startsWith('YOUR_') && !s.toUpperCase().startsWith('YOUR_'));
+        };
+
         const parseAndNormalize = (rawJson: any): CompanyDetails | null => {
             const rawSettings = toCamelCase(rawJson) || null;
             if (rawSettings) {
@@ -7251,15 +7258,30 @@ export const apiService = {
                     ...ps,
                     alumnaeRegistrationFeeEnabled: feeFlag !== undefined ? (feeFlag === true || feeFlag === 'true' || feeFlag === 1) : true
                 };
+                if (!hasValidNcba(rawSettings.ncbaConfig)) {
+                    try {
+                        const localNcbaRaw = localStorage.getItem('eduai_ncba_config_cache');
+                        if (localNcbaRaw) {
+                            const localNcba = toCamelCase(JSON.parse(localNcbaRaw));
+                            if (hasValidNcba(localNcba)) {
+                                rawSettings.ncbaConfig = localNcba;
+                            }
+                        }
+                    } catch (_) {}
+                } else {
+                    try {
+                        safeLocalStorage.setItem('eduai_ncba_config_cache', JSON.stringify(rawSettings.ncbaConfig));
+                    } catch (_) {}
+                }
             }
             return rawSettings;
         };
 
-        // Tier 1: Fetch from /api/system?action=getSettings (accelerated by Edge Cache)
+        // Tier 1: Fetch from /api/system?action=getSettings
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 6000);
-            const response = await fetch('/api/system?action=getSettings', { signal: controller.signal });
+            const response = await fetch(`/api/system?action=getSettings&_t=${Date.now()}`, { signal: controller.signal, cache: 'no-store' });
             clearTimeout(timeoutId);
 
             if (response.ok) {
@@ -7310,7 +7332,7 @@ export const apiService = {
             if (cachedData) {
                 return parseAndNormalize(JSON.parse(cachedData));
             }
-            const lsData = ls.get('system_settings').find((s: any) => s.id === 1);
+            const lsData = ls.get('system_settings').find((s: any) => s.id === 1 || s.id === '1');
             if (lsData?.data) {
                 return parseAndNormalize(lsData.data);
             }
@@ -7323,7 +7345,17 @@ export const apiService = {
         return { data: settings };
     },
     async saveCompanySettings(settings: CompanyDetails): Promise<void> {
-        const payload = toSnakeCase(settings);
+        const payload = {
+            ...toSnakeCase(settings),
+            ...(settings.ncbaConfig ? { ncbaConfig: settings.ncbaConfig, ncba_config: settings.ncbaConfig } : {})
+        };
+        try {
+            safeLocalStorage.setItem('eduai_system_settings_cache', JSON.stringify(payload));
+            if (settings.ncbaConfig && (settings.ncbaConfig.username || settings.ncbaConfig.clientId)) {
+                safeLocalStorage.setItem('eduai_ncba_config_cache', JSON.stringify(settings.ncbaConfig));
+            }
+            ls.upsert('system_settings', { id: 1, data: payload });
+        } catch (_) {}
         try {
             const response = await fetch('/api/system?action=saveSettings', {
                 method: 'POST',
@@ -7334,7 +7366,6 @@ export const apiService = {
         } catch (err) {
             console.warn('[saveCompanySettings] Failed to save via /api/system:', err);
         }
-        ls.upsert('system_settings', { id: 1, data: payload });
     },
     async fetchTimetable(institutionId: string): Promise<TimetableEntry[]> { return apiService.fetchModuleRecords('timetable_entries', institutionId); },
     async saveTimetable(institutionId: string, ayId: string, semId: string, entries: TimetableEntry[]): Promise<void> {
