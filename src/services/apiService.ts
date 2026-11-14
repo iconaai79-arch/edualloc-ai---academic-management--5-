@@ -10273,7 +10273,8 @@ export const apiService = {
                 if (kcbResponse.ok) {
                     const kcbData = await kcbResponse.json();
                     const checkoutId = kcbData.CheckoutRequestID || kcbData.checkoutRequestId || kcbData.data?.CheckoutRequestID || kcbData.data?.checkoutRequestId;
-                    if ((kcbData.success || kcbData.ResponseCode === '0') && checkoutId && !String(checkoutId).startsWith('KCB_CO_Mock_')) {
+                    const isValidRealCheckout = Boolean(checkoutId && !String(checkoutId).startsWith('KCB_CO_') && !String(checkoutId).startsWith('ws_CO_Mock_'));
+                    if (kcbData.success && isValidRealCheckout) {
                         return {
                             ...kcbData,
                             success: true,
@@ -10282,6 +10283,7 @@ export const apiService = {
                             checkoutRequestId: checkoutId
                         };
                     }
+                    console.warn('[apiService] KCB STK Push was not accepted for delivery or missing real CheckoutRequestID (' + (kcbData.message || 'No checkout ID') + '), cascading to Safaricom Daraja / Multi-Gateway');
                 }
             } catch (kcbErr) {
                 console.warn('[apiService] KCB STK Push attempt skipped, falling back to Safaricom Daraja:', kcbErr);

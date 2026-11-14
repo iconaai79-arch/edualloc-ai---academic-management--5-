@@ -507,8 +507,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const pgRes = await pool.query("SELECT data FROM public.system_settings WHERE id::text = '1' OR id::text = 'global' ORDER BY updated_at DESC NULLS LAST LIMIT 1");
                     sDataObj = pgRes?.rows?.[0]?.data || null;
                 }
-                if (sDataObj?.kcb_config || sDataObj?.kcbConfig) {
-                    const sc = sDataObj.kcb_config || sDataObj.kcbConfig;
+                if (typeof sDataObj === 'string') {
+                    try { sDataObj = JSON.parse(sDataObj); } catch (_) {}
+                }
+                const sc = sDataObj?.kcb_config || sDataObj?.kcbConfig || sDataObj?.companyDetails?.kcbConfig || sDataObj?.company_details?.kcb_config || sDataObj?.companyDetails?.kcb_config;
+                if (sc) {
                     const parsedSc = typeof sc === 'string' ? JSON.parse(sc) : sc;
                     kcbConfig = { ...parsedSc, ...kcbConfig };
                 }
@@ -581,12 +584,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const shortCode = finalOrgShortCode;
 
-        // Normalize phone to KCB-required international format: 2547XXXXXXXX
+        // Normalize phone to KCB-required international format: 2547XXXXXXXX or 2541XXXXXXXX
         const normalizePhone = (p: string): string => {
             let n = p.replace(/[^\d]/g, '');
-            if (n.startsWith('2540')) n = '254' + n.substring(4); // fix 2540X -> 254X
-            else if (n.startsWith('0')) n = '254' + n.substring(1);  // 07X -> 2547X
-            else if (n.length === 9) n = '254' + n;                   // 7XXXXXXXX -> 2547XXXXXXXX
+            if (n.startsWith('2540')) n = '254' + n.substring(4); // fix 25407X -> 2547X
+            else if (n.startsWith('0')) n = '254' + n.substring(1);  // 07X/01X -> 2547X/2541X
+            else if (n.length === 9) n = '254' + n;                   // 7XXXXXXXX/1XXXXXXXX -> 2547XXXXXXXX/2541XXXXXXXX
             return n;
         };
         const phoneNumber = normalizePhone(rawPhone);
@@ -713,29 +716,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from((shortCode || '123456') + passkeyVal + timestamp).toString('base64');
 
-            const rawInvoiceNumber = accountReference || transactionReference || `INV_${Date.now()}`;
-            let formattedInvoiceNumber = rawInvoiceNumber;
-            const useSharedShortCode = kcbConfig.sharedShortCode !== undefined
-                ? Boolean(kcbConfig.sharedShortCode)
-                : (kcbConfig.shared_short_code !== undefined
-                    ? Boolean(kcbConfig.shared_short_code)
-                    : finalSharedShortCode);
-
-            if (useSharedShortCode && finalTillNumber) {
-                const tillPrefix = `${finalTillNumber}-`;
-                if (!rawInvoiceNumber.startsWith(tillPrefix)) {
-                    const prefixLength = tillPrefix.length;
-                    const allowedSuffixLength = Math.max(1, 12 - prefixLength);
-                    const suffix = rawInvoiceNumber.length > allowedSuffixLength
-                        ? rawInvoiceNumber.substring(rawInvoiceNumber.length - allowedSuffixLength)
-                        : rawInvoiceNumber.padStart(allowedSuffixLength, '0');
-                    formattedInvoiceNumber = `${finalTillNumber}-${suffix}`;
-                } else {
-                    formattedInvoiceNumber = rawInvoiceNumber.substring(0, 12);
-                }
-            } else {
-                formattedInvoiceNumber = rawInvoiceNumber.substring(0, 12);
-            }
+            const rawInvoiceNumber = accountReference || transactionReference || `ORD${Date.now().toString().slice(-8)}`;
+            // Clean invoice number to strictly alphanumeric, no spaces, hyphens, or symbols (max 12 characters per Safaricom/KCB spec)
+            const cleanInvoiceNumber = (rawInvoiceNumber.replace(/[^a-zA-Z0-9]/g, '') || `ORD${Date.now().toString().slice(-8)}`).slice(0, 12);
+            const cleanTransactionDesc = (transactionDesc || 'Marketplace').replace(/[^a-zA-Z0-9]/g, '').slice(0, 13) || 'Payment';
 
             // Resolve callback URL — prefer explicitly-configured URL, then x-forwarded-host, then host header
             const callbackUrl = kcbConfig.callbackUrl ||
@@ -745,13 +729,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Sending unknown/extra fields causes KCB to return HTTP 500 "Internal Server Error".
             const stkPayload: Record<string, any> = {
                 phoneNumber: phoneNumber,
-                amount: String(Math.round(amount)),
-                invoiceNumber: formattedInvoiceNumber,
+                amount: String(Math.max(1, Math.round(amount))),
+                invoiceNumber: cleanInvoiceNumber,
                 sharedShortCode: useSharedShortCode,
                 orgShortCode: shortCode || '522533',
                 orgPassKey: passkeyVal || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
                 callbackUrl: callbackUrl,
-                transactionDescription: (transactionDesc || 'Payment').substring(0, 13)
+                transactionDescription: cleanTransactionDesc
             };
 
             // Include tillNumber only when using shared shortcode — required for routing
@@ -865,146 +849,148 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
-            if (true) {
-                const checkoutRequestId = 
-                    stkPushData.response?.CheckoutRequestID || 
-                    stkPushData.response?.checkoutRequestID || 
-                    stkPushData.response?.checkoutRequestId || 
-                    stkPushData.CheckoutRequestID || 
-                    stkPushData.checkoutRequestID || 
-                    stkPushData.checkoutRequestId || 
-                    `KCB_CO_${Date.now()}`;
-                
-                // KCB may return response codes or result codes in various casing
-                const responseCode = String(
-                    stkPushData.response?.responseCode ??
-                    stkPushData.response?.ResponseCode ??
-                    stkPushData.response?.statusCode ??
-                    stkPushData.response?.StatusCode ??
-                    stkPushData.ResponseCode ?? stkPushData.responseCode ?? 
-                    stkPushData.ResultCode ?? stkPushData.resultCode ??
-                    stkPushData.statusCode ?? stkPushData.StatusCode ??
-                    stkPushData.Result?.ResultCode ?? 
-                    stkPushData.header?.statusCode ??
-                    '0'
-                );
+            const realCheckoutRequestId = 
+                stkPushData.response?.CheckoutRequestID || 
+                stkPushData.response?.checkoutRequestID || 
+                stkPushData.response?.checkoutRequestId || 
+                stkPushData.CheckoutRequestID || 
+                stkPushData.checkoutRequestID || 
+                stkPushData.checkoutRequestId || 
+                null;
+            
+            const kcbHeaderCode = stkPushData.header?.statusCode !== undefined ? String(stkPushData.header.statusCode) : null;
+            const kcbHeaderDesc = stkPushData.header?.statusDescription || stkPushData.header?.statusdescription || '';
 
-                const isSuccess = responseCode === '0' || responseCode === '00' || responseCode === 'SUCCESS' || responseCode === 'SUCCESSFUL';
-                const message = 
-                    stkPushData.response?.responseDescription ||
-                    stkPushData.response?.ResponseDescription ||
-                    stkPushData.response?.customerMessage ||
-                    stkPushData.response?.CustomerMessage ||
-                    stkPushData.ResponseDescription || 
-                    stkPushData.responseDescription || 
-                    stkPushData.customerMessage || 
-                    stkPushData.CustomerMessage || 
-                    (isSuccess ? 'KCB STK Push initiated successfully.' : 'KCB Gateway rejected the request.');
+            const rawRespCode = 
+                stkPushData.response?.responseCode ??
+                stkPushData.response?.ResponseCode ??
+                stkPushData.ResponseCode ?? stkPushData.responseCode ?? 
+                stkPushData.ResultCode ?? stkPushData.resultCode ??
+                stkPushData.Result?.ResultCode ??
+                null;
 
-                if (isSuccess) {
-                    try {
-                        if (supabase) {
-                            await supabase.from('integration_logs').insert({
-                                provider: 'kcb_stk_push_initiate',
-                                payload: {
-                                    shortCode,
-                                    amount,
-                                    phoneNumber,
-                                    checkoutRequestId: checkoutRequestId,
-                                    status: 'initiated'
-                                },
-                                status: 'success',
-                                created_at: new Date().toISOString()
-                            });
-                        } else if (pool) {
-                            await pool.query(
-                                'INSERT INTO public.integration_logs (provider, payload, status, created_at) VALUES ($1, $2::jsonb, $3, $4)',
-                                ['kcb_stk_push_initiate', JSON.stringify({ shortCode, amount, phoneNumber, checkoutRequestId, status: 'initiated' }), 'success', new Date().toISOString()]
-                            ).catch(() => {});
-                        }
-                    } catch (_) {}
+            const isHeaderOk = kcbHeaderCode === null || kcbHeaderCode === '0' || kcbHeaderCode === '00';
+            const isRespCodeOk = rawRespCode === null || String(rawRespCode) === '0' || String(rawRespCode) === '00' || String(rawRespCode).toUpperCase() === 'SUCCESS';
+            const hasRealCheckoutId = Boolean(realCheckoutRequestId);
 
-                    // Insert a pending transaction so callback webhook can reconcile it later
-                    // Use metadata from the request body if provided (e.g. event_registration type)
-                    // otherwise derive it from paymentType
-                    const bodyMetadata = body.metadata && typeof body.metadata === 'object' ? body.metadata : null;
-                    const resolvedMetadata = bodyMetadata || {
-                        type: paymentType === 'Rent' ? 'invoice' : (paymentType === 'Deposit' ? 'deposit' : 'utility'),
-                        paymentType,
-                        payerPhoneNumber: phoneNumber,
-                        payerName: resolvedName
-                    };
-                    // Always ensure payerPhoneNumber and payerName are present
-                    if (!resolvedMetadata.payerPhoneNumber) resolvedMetadata.payerPhoneNumber = phoneNumber;
-                    if (!resolvedMetadata.payerName) resolvedMetadata.payerName = resolvedName;
+            const isSuccess = isHeaderOk && isRespCodeOk && hasRealCheckoutId;
 
-                    console.log(`[KCB STK] Saving pending transaction with metadata type: ${resolvedMetadata.type}`);
+            const message = 
+                (isSuccess ? (stkPushData.response?.customerMessage || stkPushData.customerMessage || stkPushData.response?.responseDescription || 'KCB STK Push initiated successfully. Please enter your PIN on your phone.') : null) ||
+                kcbHeaderDesc ||
+                stkPushData.response?.responseDescription ||
+                stkPushData.response?.ResponseDescription ||
+                stkPushData.response?.customerMessage ||
+                stkPushData.response?.CustomerMessage ||
+                stkPushData.ResponseDescription || 
+                stkPushData.customerMessage || 
+                stkPushData.message ||
+                stkPushData.fault?.description ||
+                (hasRealCheckoutId ? 'KCB Gateway rejected the request.' : 'KCB Gateway did not return a valid CheckoutRequestID. The prompt could not be delivered to the phone.');
 
-                    try {
-                        if (supabase) {
-                            await supabase.from('mpesa_transactions').insert({
-                                id: `txn_${Date.now()}`,
-                                transaction_id: `KCB_${checkoutRequestId}`,
-                                checkout_request_id: checkoutRequestId,
-                                institution_id: institutionId || 'SYSTEM',
-                                amount: amount,
-                                phone_number: phoneNumber,
-                                status: 'pending',
-                                payer_name: resolvedName,
-                                provider: 'kcb',
-                                metadata: resolvedMetadata
-                            });
-                        } else if (pool) {
-                            await pool.query(
-                                `INSERT INTO public.mpesa_transactions (id, transaction_id, checkout_request_id, institution_id, amount, phone_number, status, payer_name, provider, metadata)
-                                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)`,
-                                [`txn_${Date.now()}`, `KCB_${checkoutRequestId}`, checkoutRequestId, institutionId || 'SYSTEM', amount, phoneNumber, 'pending', resolvedName, 'kcb', JSON.stringify(resolvedMetadata)]
-                            ).catch(() => {});
-                        }
-                    } catch (_) {}
+            if (isSuccess && realCheckoutRequestId) {
+                const checkoutRequestId = realCheckoutRequestId;
+                try {
+                    if (supabase) {
+                        await supabase.from('integration_logs').insert({
+                            provider: 'kcb_stk_push_initiate',
+                            payload: {
+                                shortCode,
+                                amount,
+                                phoneNumber,
+                                checkoutRequestId: checkoutRequestId,
+                                status: 'initiated'
+                            },
+                            status: 'success',
+                            created_at: new Date().toISOString()
+                        });
+                    } else if (pool) {
+                        await pool.query(
+                            'INSERT INTO public.integration_logs (provider, payload, status, created_at) VALUES ($1, $2::jsonb, $3, $4)',
+                            ['kcb_stk_push_initiate', JSON.stringify({ shortCode, amount, phoneNumber, checkoutRequestId, status: 'initiated' }), 'success', new Date().toISOString()]
+                        ).catch(() => {});
+                    }
+                } catch (_) {}
 
-                    return res.status(200).json({
-                        success: true,
-                        ResponseCode: responseCode,
-                        CheckoutRequestID: checkoutRequestId,
-                        message: message,
-                        rawResponse: stkPushData
-                    });
-                } else {
-                    // Gateway returned an error response in JSON even though HTTP was 200
-                    try {
-                        if (supabase) {
-                            await supabase.from('integration_logs').insert({
-                                provider: 'kcb_stk_push_initiate',
-                                payload: {
-                                    shortCode,
-                                    amount,
-                                    phoneNumber,
-                                    checkoutRequestId: checkoutRequestId,
-                                    status: 'failed',
-                                    error: message,
-                                    rawResponse: stkPushData
-                                },
+                // Insert a pending transaction so callback webhook can reconcile it later
+                const bodyMetadata = body.metadata && typeof body.metadata === 'object' ? body.metadata : null;
+                const resolvedMetadata = bodyMetadata || {
+                    type: paymentType === 'Rent' ? 'invoice' : (paymentType === 'Deposit' ? 'deposit' : 'utility'),
+                    paymentType,
+                    payerPhoneNumber: phoneNumber,
+                    payerName: resolvedName
+                };
+                if (!resolvedMetadata.payerPhoneNumber) resolvedMetadata.payerPhoneNumber = phoneNumber;
+                if (!resolvedMetadata.payerName) resolvedMetadata.payerName = resolvedName;
+
+                console.log(`[KCB STK] Saving pending transaction with metadata type: ${resolvedMetadata.type}`);
+
+                try {
+                    if (supabase) {
+                        await supabase.from('mpesa_transactions').insert({
+                            id: `txn_${Date.now()}`,
+                            transaction_id: `KCB_${checkoutRequestId}`,
+                            checkout_request_id: checkoutRequestId,
+                            institution_id: institutionId || 'SYSTEM',
+                            amount: amount,
+                            phone_number: phoneNumber,
+                            status: 'pending',
+                            payer_name: resolvedName,
+                            provider: 'kcb',
+                            metadata: resolvedMetadata
+                        });
+                    } else if (pool) {
+                        await pool.query(
+                            `INSERT INTO public.mpesa_transactions (id, transaction_id, checkout_request_id, institution_id, amount, phone_number, status, payer_name, provider, metadata)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)`,
+                            [`txn_${Date.now()}`, `KCB_${checkoutRequestId}`, checkoutRequestId, institutionId || 'SYSTEM', amount, phoneNumber, 'pending', resolvedName, 'kcb', JSON.stringify(resolvedMetadata)]
+                        ).catch(() => {});
+                    }
+                } catch (_) {}
+
+                return res.status(200).json({
+                    success: true,
+                    ResponseCode: '0',
+                    CheckoutRequestID: checkoutRequestId,
+                    checkoutRequestId: checkoutRequestId,
+                    message: message,
+                    rawResponse: stkPushData
+                });
+            } else {
+                // Gateway returned an error response or failed to issue a real CheckoutRequestID
+                try {
+                    if (supabase) {
+                        await supabase.from('integration_logs').insert({
+                            provider: 'kcb_stk_push_initiate',
+                            payload: {
+                                shortCode,
+                                amount,
+                                phoneNumber,
+                                checkoutRequestId: realCheckoutRequestId || null,
                                 status: 'failed',
-                                created_at: new Date().toISOString()
-                            });
-                        } else if (pool) {
-                            await pool.query(
-                                'INSERT INTO public.integration_logs (provider, payload, status, created_at) VALUES ($1, $2::jsonb, $3, $4)',
-                                ['kcb_stk_push_initiate', JSON.stringify({ shortCode, amount, phoneNumber, checkoutRequestId, status: 'failed', error: message, rawResponse: stkPushData }), 'failed', new Date().toISOString()]
-                            ).catch(() => {});
-                        }
-                    } catch (_) {}
+                                error: message,
+                                rawResponse: stkPushData
+                            },
+                            status: 'failed',
+                            created_at: new Date().toISOString()
+                        });
+                    } else if (pool) {
+                        await pool.query(
+                            'INSERT INTO public.integration_logs (provider, payload, status, created_at) VALUES ($1, $2::jsonb, $3, $4)',
+                            ['kcb_stk_push_initiate', JSON.stringify({ shortCode, amount, phoneNumber, checkoutRequestId: realCheckoutRequestId || null, status: 'failed', error: message, rawResponse: stkPushData }), 'failed', new Date().toISOString()]
+                        ).catch(() => {});
+                    }
+                } catch (_) {}
 
-                    return res.status(200).json({
-                        success: false,
-                        ResponseCode: responseCode,
-                        CheckoutRequestID: checkoutRequestId,
-                        message: message,
-                        details: stkPushData,
-                        rawResponse: stkPushData
-                    });
-                }
+                return res.status(200).json({
+                    success: false,
+                    ResponseCode: rawRespCode || kcbHeaderCode || '1',
+                    CheckoutRequestID: realCheckoutRequestId || undefined,
+                    checkoutRequestId: realCheckoutRequestId || undefined,
+                    message: message,
+                    details: stkPushData,
+                    rawResponse: stkPushData
+                });
             }
 
             return res.status(200).json({

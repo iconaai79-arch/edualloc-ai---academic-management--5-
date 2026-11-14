@@ -186,7 +186,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             });
 
             const checkoutId = response?.CheckoutRequestID || response?.checkoutRequestId || response?.data?.CheckoutRequestID;
-            if (!checkoutId || String(checkoutId).startsWith('KCB_CO_Mock_') || String(checkoutId).startsWith('ws_CO_Mock_')) {
+            if (!checkoutId || String(checkoutId).startsWith('KCB_CO_Mock_') || String(checkoutId).startsWith('ws_CO_Mock_') || String(checkoutId).startsWith('KCB_CO_')) {
                 throw new Error(response?.message || 'Unable to send STK Push to your phone. Please check your phone number and try again.');
             }
 

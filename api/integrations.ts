@@ -5464,19 +5464,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const kcbTill = String(kcb.tillNumber || kcb.till_number || '').trim();
                             const useShared = kcb.sharedShortCode !== undefined ? Boolean(kcb.sharedShortCode) : (kcb.shared_short_code !== undefined ? Boolean(kcb.shared_short_code) : true);
                             const kcbPasskey = String(kcb.passkey || kcb.pass_key || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919').trim();
-                            const invoiceNo = useShared && kcbTill
-                                ? `${kcbTill}-${accountRef.slice(-Math.max(1, 11 - kcbTill.length))}`.substring(0, 12)
-                                : accountRef.substring(0, 12);
+                            const invoiceNo = (accountRef.replace(/[^a-zA-Z0-9]/g, '') || `ORD${Date.now().toString().slice(-8)}`).slice(0, 12);
                             const effectiveOrgShortCode = (useShared && kcbTill && kcbShortCode === kcbTill) ? '522533' : (kcbShortCode || '522533');
                             const kcbPayload: Record<string, any> = {
                                 phoneNumber: formattedPhone,
-                                amount: String(Math.round(amount)),
+                                amount: String(Math.max(1, Math.round(amount))),
                                 invoiceNumber: invoiceNo,
                                 sharedShortCode: useShared,
                                 orgShortCode: effectiveOrgShortCode,
                                 orgPassKey: kcbPasskey,
                                 callbackUrl: kcb.callbackUrl || `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`,
-                                transactionDescription: transactionDesc.substring(0, 13)
+                                transactionDescription: (transactionDesc || 'Payment').replace(/[^a-zA-Z0-9]/g, '').slice(0, 13) || 'Payment'
                             };
                             if (useShared && kcbTill) kcbPayload.tillNumber = kcbTill;
 
@@ -5487,27 +5485,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }, 15000);
                             if (kcbStkRes.ok) {
                                 const kcbStkData: any = await kcbStkRes.json().catch(() => ({}));
-                                const checkoutId = kcbStkData.response?.CheckoutRequestID || kcbStkData.response?.checkoutRequestID || kcbStkData.CheckoutRequestID || kcbStkData.checkoutRequestId || `KCB_CO_${Date.now()}`;
-                                await recordPendingMpesaTxn({
-                                    id: `txn_${Date.now()}`,
-                                    transaction_id: `KCB_${checkoutId}`,
-                                    checkout_request_id: checkoutId,
-                                    institution_id: targetInstitutionId,
-                                    amount: amount,
-                                    phone_number: formattedPhone,
-                                    status: 'pending',
-                                    provider: 'kcb',
-                                    metadata: paramsMap.metadata || {}
-                                });
-                                return res.status(200).json({
-                                    success: true,
-                                    provider: 'kcb',
-                                    ResponseCode: '0',
-                                    CheckoutRequestID: checkoutId,
-                                    checkoutRequestId: checkoutId,
-                                    message: 'KCB M-Pesa prompt sent successfully.',
-                                    data: { ...kcbStkData, ResponseCode: '0', CheckoutRequestID: checkoutId }
-                                });
+                                const checkoutId = kcbStkData.response?.CheckoutRequestID || kcbStkData.response?.checkoutRequestID || kcbStkData.CheckoutRequestID || kcbStkData.checkoutRequestId;
+                                const isKcbSuccess = Boolean(checkoutId && (kcbStkData.header?.statusCode === undefined || String(kcbStkData.header.statusCode) === '0'));
+                                if (isKcbSuccess) {
+                                    await recordPendingMpesaTxn({
+                                        id: `txn_${Date.now()}`,
+                                        transaction_id: `KCB_${checkoutId}`,
+                                        checkout_request_id: checkoutId,
+                                        institution_id: targetInstitutionId,
+                                        amount: amount,
+                                        phone_number: formattedPhone,
+                                        status: 'pending',
+                                        provider: 'kcb',
+                                        metadata: paramsMap.metadata || {}
+                                    });
+                                    return res.status(200).json({
+                                        success: true,
+                                        provider: 'kcb',
+                                        ResponseCode: '0',
+                                        CheckoutRequestID: checkoutId,
+                                        checkoutRequestId: checkoutId,
+                                        message: 'KCB M-Pesa prompt sent successfully.',
+                                        data: { ...kcbStkData, ResponseCode: '0', CheckoutRequestID: checkoutId }
+                                    });
+                                } else {
+                                    const kcbDesc = kcbStkData?.header?.statusDescription || kcbStkData?.response?.responseDescription || kcbStkData?.message || 'KCB Buni did not return a valid CheckoutRequestID';
+                                    console.warn('[M-Pesa Fallback -> KCB Buni] Rejected:', kcbDesc, 'Cascading to next gateway...');
+                                    lastGatewayError = `KCB: ${kcbDesc}`;
+                                }
                             }
                         }
                     }
