@@ -9183,10 +9183,10 @@ export const apiService = {
                 const endTime = r.endTime || r.end_time || meta.endTime || meta.end_time || raw.endTime || raw.end_time || '';
                 const stream = r.stream || meta.stream || raw.stream || '';
 
-                let numH = r.hours ?? r.durationHours ?? r.duration_hours ?? meta.hours ?? meta.durationHours ?? meta.duration_hours;
-                let numM = r.durationMinutes ?? r.duration_minutes ?? meta.durationMinutes ?? meta.duration_minutes;
+                let numH = r.hours ?? r.durationHours ?? r.duration_hours ?? (r as any)["durationHours"] ?? (raw as any)["durationHours"] ?? meta.hours ?? meta.durationHours ?? meta.duration_hours;
+                let numM = r.durationMinutes ?? r.duration_minutes ?? (r as any)["durationMinutes"] ?? (raw as any)["durationMinutes"] ?? meta.durationMinutes ?? meta.duration_minutes;
 
-                if ((numH === undefined || numH === null || isNaN(Number(numH))) && startTime && endTime) {
+                if ((numH === undefined || numH === null || numH === '' || isNaN(Number(numH)) || Number(numH) === 0) && startTime && endTime) {
                     const calc = calculateRemedialSessionDuration(startTime, endTime, {
                         startTime: r.scheduledStartTime ?? meta.scheduledStartTime ?? meta.scheduled_start_time,
                         endTime: r.scheduledEndTime ?? meta.scheduledEndTime ?? meta.scheduled_end_time,
@@ -9194,7 +9194,7 @@ export const apiService = {
                     });
                     numH = calc.hours;
                     numM = calc.durationMinutes;
-                } else if (numH !== undefined && numH !== null && !isNaN(Number(numH))) {
+                } else if (numH !== undefined && numH !== null && numH !== '' && !isNaN(Number(numH))) {
                     numH = Number(numH);
                 } else {
                     numH = 1;

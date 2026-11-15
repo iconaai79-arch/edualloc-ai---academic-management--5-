@@ -1005,6 +1005,221 @@ const ensureEssentialSchema = async (pool: any) => {
                     UPDATE public.retail_inventory_items SET images = REPLACE(images::text, 'https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/', '/storage/eduai/')::jsonb WHERE images::text LIKE '%https://hualwvffjrkoapauelfx.supabase.co/storage/v1/object/public/eduai/%';
                 END IF;
             END IF;
+
+            -- 11. School Remedial Tables Schema & dual camelCase / snake_case healing
+            -- a) school_remedial_sessions
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions') THEN
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS allocation_id TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "allocationId" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS course_id TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "courseId" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS subject_id TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "subjectId" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS teacher_id TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS teacher_name TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "teacherName" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS subject_name TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "subjectName" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS class_name TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "className" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS date TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "date" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS day_of_week TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "dayOfWeek" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS start_time TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "startTime" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS end_time TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "endTime" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS duration_hours NUMERIC DEFAULT 1;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "durationHours" NUMERIC DEFAULT 1;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS hours NUMERIC DEFAULT 1;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "hours" NUMERIC DEFAULT 1;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 60;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "durationMinutes" INTEGER DEFAULT 60;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS is_weekend BOOLEAN DEFAULT FALSE;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "isWeekend" BOOLEAN DEFAULT FALSE;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS prefect_id TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "prefectId" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS prefect_name TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "prefectName" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'In Progress';
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS payout_id TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "payoutId" TEXT;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ DEFAULT NOW();
+
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'institutionId') THEN
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'durationHours') THEN
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET duration_hours = COALESCE(NULLIF("durationHours"::text, '''')::numeric, 1) WHERE (duration_hours IS NULL OR duration_hours = 0) AND "durationHours" IS NOT NULL';
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET hours = COALESCE(hours, duration_hours, NULLIF("durationHours"::text, '''')::numeric, 1) WHERE hours IS NULL OR hours = 0';
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET "durationHours" = COALESCE(duration_hours, hours, 1) WHERE "durationHours" IS NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'hours') THEN
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET duration_hours = COALESCE(duration_hours, hours, 1) WHERE duration_hours IS NULL OR duration_hours = 0';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'startTime') THEN
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET start_time = "startTime" WHERE (start_time IS NULL OR start_time = '''') AND "startTime" IS NOT NULL';
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET "startTime" = start_time WHERE ("startTime" IS NULL OR "startTime" = '''') AND start_time IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'endTime') THEN
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET end_time = "endTime" WHERE (end_time IS NULL OR end_time = '''') AND "endTime" IS NOT NULL';
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET "endTime" = end_time WHERE ("endTime" IS NULL OR "endTime" = '''') AND end_time IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'teacherId') THEN
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET teacher_id = "teacherId" WHERE (teacher_id IS NULL OR teacher_id = '''') AND "teacherId" IS NOT NULL';
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET "teacherId" = teacher_id WHERE ("teacherId" IS NULL OR "teacherId" = '''') AND teacher_id IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'subjectId') THEN
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET subject_id = "subjectId" WHERE (subject_id IS NULL OR subject_id = '''') AND "subjectId" IS NOT NULL';
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET "subjectId" = subject_id WHERE ("subjectId" IS NULL OR "subjectId" = '''') AND subject_id IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'courseId') THEN
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET course_id = "courseId" WHERE (course_id IS NULL OR course_id = '''') AND "courseId" IS NOT NULL';
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET "courseId" = course_id WHERE ("courseId" IS NULL OR "courseId" = '''') AND course_id IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'date') THEN
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET date = COALESCE(NULLIF(date, ''''), substring(start_time from 1 for 10), substring("startTime" from 1 for 10), substring(created_at::text from 1 for 10)) WHERE date IS NULL OR date = ''''';
+                    EXECUTE 'UPDATE public.school_remedial_sessions SET "date" = date WHERE ("date" IS NULL OR "date" = '''') AND date IS NOT NULL';
+                END IF;
+                UPDATE public.school_remedial_sessions SET created_at = NOW() WHERE created_at IS NULL;
+            END IF;
+
+            -- b) school_remedial_allocations
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'school_remedial_allocations') THEN
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS course_id TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "courseId" TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS class_name TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "className" TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS subject_id TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "subjectId" TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS subject_name TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "subjectName" TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS teacher_id TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS teacher_name TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "teacherName" TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS day_of_week TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "dayOfWeek" TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS start_time TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "startTime" TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS end_time TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "endTime" TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS stream TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "stream" TEXT;
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_allocations' AND column_name = 'institutionId') THEN
+                    EXECUTE 'UPDATE public.school_remedial_allocations SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
+                    EXECUTE 'UPDATE public.school_remedial_allocations SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_allocations' AND column_name = 'courseId') THEN
+                    EXECUTE 'UPDATE public.school_remedial_allocations SET course_id = "courseId" WHERE (course_id IS NULL OR course_id = '''') AND "courseId" IS NOT NULL';
+                    EXECUTE 'UPDATE public.school_remedial_allocations SET "courseId" = course_id WHERE ("courseId" IS NULL OR "courseId" = '''') AND course_id IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_allocations' AND column_name = 'className') THEN
+                    EXECUTE 'UPDATE public.school_remedial_allocations SET class_name = "className" WHERE (class_name IS NULL OR class_name = '''') AND "className" IS NOT NULL';
+                    EXECUTE 'UPDATE public.school_remedial_allocations SET "className" = class_name WHERE ("className" IS NULL OR "className" = '''') AND class_name IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_allocations' AND column_name = 'subjectId') THEN
+                    EXECUTE 'UPDATE public.school_remedial_allocations SET subject_id = "subjectId" WHERE (subject_id IS NULL OR subject_id = '''') AND "subjectId" IS NOT NULL';
+                    EXECUTE 'UPDATE public.school_remedial_allocations SET "subjectId" = subject_id WHERE ("subjectId" IS NULL OR "subjectId" = '''') AND subject_id IS NOT NULL';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_allocations' AND column_name = 'teacherId') THEN
+                    EXECUTE 'UPDATE public.school_remedial_allocations SET teacher_id = "teacherId" WHERE (teacher_id IS NULL OR teacher_id = '''') AND "teacherId" IS NOT NULL';
+                    EXECUTE 'UPDATE public.school_remedial_allocations SET "teacherId" = teacher_id WHERE ("teacherId" IS NULL OR "teacherId" = '''') AND teacher_id IS NOT NULL';
+                END IF;
+            END IF;
+
+            -- c) school_remedial_rate_settings
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'school_remedial_rate_settings') THEN
+                ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS hourly_rate NUMERIC DEFAULT 1000;
+                ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS "hourlyRate" NUMERIC DEFAULT 1000;
+                ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS weekday_hourly_rate NUMERIC DEFAULT 1000;
+                ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS "weekdayHourlyRate" NUMERIC DEFAULT 1000;
+                ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS weekend_hourly_rate NUMERIC DEFAULT 1500;
+                ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS "weekendHourlyRate" NUMERIC DEFAULT 1500;
+                ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_rate_settings' AND column_name = 'institutionId') THEN
+                    EXECUTE 'UPDATE public.school_remedial_rate_settings SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
+                    EXECUTE 'UPDATE public.school_remedial_rate_settings SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_rate_settings' AND column_name = 'hourlyRate') THEN
+                    EXECUTE 'UPDATE public.school_remedial_rate_settings SET hourly_rate = COALESCE(NULLIF("hourlyRate"::text, '''')::numeric, 1000) WHERE (hourly_rate IS NULL OR hourly_rate = 0) AND "hourlyRate" IS NOT NULL';
+                END IF;
+            END IF;
+
+            -- d) school_remedial_payouts
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'school_remedial_payouts') THEN
+                ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS teacher_id TEXT;
+                ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
+                ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS total_hours NUMERIC DEFAULT 0;
+                ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS "totalHours" NUMERIC DEFAULT 0;
+                ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS total_amount NUMERIC DEFAULT 0;
+                ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS "totalAmount" NUMERIC DEFAULT 0;
+                ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_payouts' AND column_name = 'institutionId') THEN
+                    EXECUTE 'UPDATE public.school_remedial_payouts SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
+                    EXECUTE 'UPDATE public.school_remedial_payouts SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_payouts' AND column_name = 'totalHours') THEN
+                    EXECUTE 'UPDATE public.school_remedial_payouts SET total_hours = COALESCE(NULLIF("totalHours"::text, '''')::numeric, 0) WHERE (total_hours IS NULL OR total_hours = 0) AND "totalHours" IS NOT NULL';
+                END IF;
+            END IF;
+
+            -- e) school_remedial_duty_roster
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'school_remedial_duty_roster') THEN
+                ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS teacher_id TEXT;
+                ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
+                ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS duty_date TEXT;
+                ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS "dutyDate" TEXT;
+                ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS hours NUMERIC DEFAULT 4;
+                ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_duty_roster' AND column_name = 'institutionId') THEN
+                    EXECUTE 'UPDATE public.school_remedial_duty_roster SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
+                    EXECUTE 'UPDATE public.school_remedial_duty_roster SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
+                END IF;
+            END IF;
+
+            -- f) school_remedial_subjects
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'school_remedial_subjects') THEN
+                ALTER TABLE public.school_remedial_subjects ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.school_remedial_subjects ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.school_remedial_subjects ADD COLUMN IF NOT EXISTS subject_id TEXT;
+                ALTER TABLE public.school_remedial_subjects ADD COLUMN IF NOT EXISTS "subjectId" TEXT;
+                ALTER TABLE public.school_remedial_subjects ADD COLUMN IF NOT EXISTS subject_name TEXT;
+                ALTER TABLE public.school_remedial_subjects ADD COLUMN IF NOT EXISTS "subjectName" TEXT;
+                ALTER TABLE public.school_remedial_subjects ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.school_remedial_subjects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_subjects' AND column_name = 'institutionId') THEN
+                    EXECUTE 'UPDATE public.school_remedial_subjects SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
+                    EXECUTE 'UPDATE public.school_remedial_subjects SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
+                END IF;
+            END IF;
         END $$;
       `);
       _schemaMigrationDone = true;
@@ -1109,7 +1324,7 @@ const fetchViaDirectPg = async (
     );
     const result = await Promise.race([queryPromise, queryTimeoutPromise]);
     _directPgConsecutiveFailures = 0;
-    if ((!result.rows || result.rows.length === 0) && (table === 'invoices' || table === 'receipts' || table === 'student_enrollments' || table === 'users') && wherePart.includes('institution_id')) {
+    if ((!result.rows || result.rows.length === 0) && (table === 'invoices' || table === 'receipts' || table === 'student_enrollments' || table === 'users' || table === 'school_remedial_sessions' || table === 'school_remedial_allocations' || table === 'school_remedial_rate_settings' || table === 'school_remedial_payouts' || table === 'school_remedial_duty_roster' || table === 'school_remedial_subjects') && wherePart.includes('institution_id')) {
       try {
         await client.query(`
           DO $$
@@ -1117,6 +1332,22 @@ const fetchViaDirectPg = async (
             IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'institutionId') THEN
               EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
               EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
+            END IF;
+            IF '${table}' = 'school_remedial_sessions' THEN
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'durationHours') THEN
+                EXECUTE 'UPDATE public.school_remedial_sessions SET duration_hours = COALESCE(NULLIF("durationHours"::text, '''')::numeric, 1) WHERE (duration_hours IS NULL OR duration_hours = 0) AND "durationHours" IS NOT NULL';
+                EXECUTE 'UPDATE public.school_remedial_sessions SET hours = COALESCE(hours, duration_hours, NULLIF("durationHours"::text, '''')::numeric, 1) WHERE hours IS NULL OR hours = 0';
+                EXECUTE 'UPDATE public.school_remedial_sessions SET "durationHours" = COALESCE(duration_hours, hours, 1) WHERE "durationHours" IS NULL';
+              END IF;
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'startTime') THEN
+                EXECUTE 'UPDATE public.school_remedial_sessions SET start_time = "startTime" WHERE (start_time IS NULL OR start_time = '''') AND "startTime" IS NOT NULL';
+              END IF;
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'endTime') THEN
+                EXECUTE 'UPDATE public.school_remedial_sessions SET end_time = "endTime" WHERE (end_time IS NULL OR end_time = '''') AND "endTime" IS NOT NULL';
+              END IF;
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'date') THEN
+                EXECUTE 'UPDATE public.school_remedial_sessions SET date = COALESCE(NULLIF(date, ''''), substring(start_time from 1 for 10), substring(created_at::text from 1 for 10)) WHERE date IS NULL OR date = ''''';
+              END IF;
             END IF;
             IF '${table}' = 'student_enrollments' THEN
               IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'student_enrollments' AND column_name = 'userId') THEN
@@ -2518,7 +2749,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 } else if (moduleName === 'app_notifications') {
                     q = q.order('timestamp', { ascending: false }).order('id', { ascending: false });
                 } else if (['school_remedial_sessions', 'remedial_sessions'].includes(moduleName)) {
-                    q = q.order('date', { ascending: false }).order('id', { ascending: false });
+                    q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
                 } else if (['school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_rate_settings', 'school_remedial_duty_roster', 'school_remedial_subjects', 'remedial_allocations', 'remedial_payouts', 'remedial_rate_settings', 'remedial_duty_roster', 'remedial_subjects'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
                 } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches', 'payroll_runs', 'his_expenditures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts'].includes(moduleName)) {
@@ -2810,7 +3041,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const prefixedId = effectiveTenantInstId.startsWith('inst_') ? effectiveTenantInstId : `inst_${effectiveTenantInstId}`;
                     const instVariants = Array.from(new Set([effectiveTenantInstId, rawId, prefixedId])).filter(Boolean);
                     const instCol = moduleName === 'institutions' ? 'id' : 'institution_id';
-                    if (instVariants.length === 1) {
+                    const isRemedialModule = [
+                        'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_rate_settings',
+                        'school_remedial_payouts', 'school_remedial_duty_roster', 'school_remedial_subjects',
+                        'remedial_sessions', 'remedial_allocations', 'remedial_payouts',
+                        'remedial_rate_settings', 'remedial_duty_roster', 'remedial_subjects'
+                    ].includes(moduleName);
+
+                    if (isRemedialModule) {
+                        if (instVariants.length === 1) {
+                            sqlConditions.push({ sql: `(institution_id::text = $VAL OR "institutionId"::text = $VAL)`, vals: [instVariants[0], instVariants[0]] });
+                        } else {
+                            sqlConditions.push({
+                                sql: `(institution_id::text IN ($VAL, $VAL) OR "institutionId"::text IN ($VAL, $VAL))`,
+                                vals: [instVariants[0], instVariants[1], instVariants[0], instVariants[1]]
+                            });
+                        }
+                    } else if (instVariants.length === 1) {
                         sqlConditions.push({ sql: `"${instCol}"::text = $VAL`, val: instVariants[0] });
                     } else {
                         sqlConditions.push({ sql: `"${instCol}"::text IN ($VAL, $VAL)`, vals: [instVariants[0], instVariants[1]] });
@@ -2892,7 +3139,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } else if (moduleName === 'app_notifications') {
                 defaultOrderBy = 'timestamp.desc';
             } else if (['school_remedial_sessions', 'remedial_sessions'].includes(moduleName)) {
-                defaultOrderBy = 'date.desc';
+                defaultOrderBy = 'created_at.desc';
             } else if (['school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'school_remedial_subjects', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster', 'remedial_subjects'].includes(moduleName)) {
                 defaultOrderBy = 'id.desc';
             } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches', 'payroll_runs', 'his_expenditures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts'].includes(moduleName)) {
@@ -4863,8 +5110,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const loggedOutE = getField('loggedOutEarly', 'logged_out_early');
                     const isDutyL = getField('isDutyLesson', 'is_duty_lesson');
 
+                    const rawDurationHours = getField('durationHours', 'duration_hours');
+                    const rawHours = getField('hours', 'hours');
+                    const resolvedHours = (rawHours !== undefined && rawHours !== null && rawHours !== '' && !isNaN(Number(rawHours)))
+                        ? Number(rawHours)
+                        : ((rawDurationHours !== undefined && rawDurationHours !== null && rawDurationHours !== '' && !isNaN(Number(rawDurationHours)))
+                            ? Number(rawDurationHours)
+                            : (meta.hours ? Number(meta.hours) : (meta.durationHours ? Number(meta.durationHours) : (durationMins ? Math.round((Number(durationMins) / 60) * 100) / 100 : 1))));
+
+                    const effectiveInst = r.institution_id || r.institutionId || meta.institution_id || meta.institutionId;
+                    const resolvedDate = r.date || r["date"] || meta.date || (r.start_time ? String(r.start_time).substring(0, 10) : (r.startTime ? String(r.startTime).substring(0, 10) : (r.created_at ? String(r.created_at).substring(0, 10) : '')));
+
                     return {
                         ...r,
+                        institutionId: effectiveInst,
+                        institution_id: effectiveInst,
                         teacherId: r.teacherId || r.teacher_id,
                         teacher_id: r.teacher_id || r.teacherId,
                         teacherName: r.teacherName || r.teacher_name || meta.teacherName || meta.teacher_name,
@@ -4879,9 +5139,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         start_time: r.start_time || r.startTime,
                         endTime: r.endTime || r.end_time,
                         end_time: r.end_time || r.endTime,
-                        hours: r.hours !== undefined ? r.hours : (r.duration_hours !== undefined ? r.duration_hours : (meta.hours ?? meta.duration_hours)),
-                        durationHours: r.durationHours !== undefined ? r.durationHours : (r.duration_hours !== undefined ? r.duration_hours : (meta.durationHours ?? meta.duration_hours)),
-                        duration_hours: r.duration_hours !== undefined ? r.duration_hours : (r.durationHours !== undefined ? r.durationHours : (meta.duration_hours ?? meta.hours)),
+                        date: resolvedDate,
+                        hours: resolvedHours,
+                        durationHours: resolvedHours,
+                        duration_hours: resolvedHours,
                         durationMinutes: durationMins !== undefined ? Number(durationMins) : undefined,
                         duration_minutes: durationMins !== undefined ? Number(durationMins) : undefined,
                         scheduledStartTime: schedStart,

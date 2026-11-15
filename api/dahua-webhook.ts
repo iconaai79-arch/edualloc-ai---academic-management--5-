@@ -587,11 +587,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
 
                         // Auto-register Dahua terminal in biometric_devices if serial number present
-                        const devSn = (data.SN || data.SerialNo || data.DeviceID || data.DeviceId || body?.SN || body?.SerialNo || body?.DeviceId || req.query.SN || req.query.sn || '').toString().trim();
-                        const devName = data.DeviceName || body?.DeviceName || 'Dahua Face Terminal';
-                        const devModel = data.DeviceType || body?.DeviceType || 'Dahua Facial Recognition Terminal';
-                        const clientIp = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim();
-
                         if (matchedInstitutionId && devSn) {
                             try {
                                 const { data: existingDev } = await supabase
@@ -726,11 +721,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
 
                         // Auto-register Dahua terminal in biometric_devices
-                        const devSn = (data.SN || data.SerialNo || data.DeviceID || data.DeviceId || body?.SN || body?.SerialNo || body?.DeviceId || req.query.SN || req.query.sn || '').toString().trim();
-                        const devName = data.DeviceName || body?.DeviceName || 'Dahua Face Terminal';
-                        const devModel = data.DeviceType || body?.DeviceType || 'Dahua Facial Recognition Terminal';
-                        const clientIp = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim();
-
                         if (devSn) {
                             try {
                                 const devRes = await pool.query(
