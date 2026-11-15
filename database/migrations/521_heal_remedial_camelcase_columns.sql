@@ -1,6 +1,6 @@
 -- ==============================================================================
 -- Migration 521: Heal Remedial Module Quoted camelCase and Snake_Case Columns
--- Pure Standard SQL (NO PL/pgSQL DO $$ block) for 100% Web Importer Compatibility
+-- Pure Standard SQL (NO duplicate assignments, NO DO $$ block)
 -- ==============================================================================
 
 -- 1. school_remedial_sessions
@@ -26,7 +26,6 @@ ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS payout_id T
 ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "payoutId" TEXT;
 ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS date TEXT;
-ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "date" TEXT;
 ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
@@ -46,8 +45,7 @@ SET
   "startTime" = COALESCE(NULLIF("startTime", ''), start_time),
   end_time = COALESCE(NULLIF(end_time, ''), "endTime"),
   "endTime" = COALESCE(NULLIF("endTime", ''), end_time),
-  date = COALESCE(NULLIF(date, ''), substring(COALESCE(start_time, "startTime") from 1 for 10), substring(created_at::text from 1 for 10)),
-  "date" = COALESCE(NULLIF("date", ''), substring(COALESCE(start_time, "startTime") from 1 for 10), substring(created_at::text from 1 for 10));
+  date = COALESCE(NULLIF(date, ''), substring(COALESCE(start_time, "startTime") from 1 for 10), substring(created_at::text from 1 for 10));
 
 UPDATE public.school_remedial_sessions
 SET duration_hours = COALESCE(
@@ -99,7 +97,6 @@ ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "startTi
 ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS end_time TEXT;
 ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "endTime" TEXT;
 ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS stream TEXT;
-ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS "stream" TEXT;
 
 UPDATE public.school_remedial_allocations
 SET 
@@ -122,9 +119,7 @@ SET
   start_time = COALESCE(NULLIF(start_time, ''), "startTime"),
   "startTime" = COALESCE(NULLIF("startTime", ''), start_time),
   end_time = COALESCE(NULLIF(end_time, ''), "endTime"),
-  "endTime" = COALESCE(NULLIF("endTime", ''), end_time),
-  stream = COALESCE(NULLIF(stream, ''), "stream"),
-  "stream" = COALESCE(NULLIF("stream", ''), stream);
+  "endTime" = COALESCE(NULLIF("endTime", ''), end_time);
 
 
 -- 3. school_remedial_rate_settings
@@ -142,7 +137,11 @@ SET
   institution_id = COALESCE(NULLIF(institution_id, ''), "institutionId"),
   "institutionId" = COALESCE(NULLIF("institutionId", ''), institution_id),
   hourly_rate = COALESCE(hourly_rate, "hourlyRate", 1000),
-  "hourlyRate" = COALESCE("hourlyRate", hourly_rate, 1000);
+  "hourlyRate" = COALESCE("hourlyRate", hourly_rate, 1000),
+  weekday_hourly_rate = COALESCE(weekday_hourly_rate, "weekdayHourlyRate", 1000),
+  "weekdayHourlyRate" = COALESCE("weekdayHourlyRate", weekday_hourly_rate, 1000),
+  weekend_hourly_rate = COALESCE(weekend_hourly_rate, "weekendHourlyRate", 1500),
+  "weekendHourlyRate" = COALESCE("weekendHourlyRate", weekend_hourly_rate, 1500);
 
 
 -- 4. school_remedial_payouts
