@@ -1058,13 +1058,55 @@ const ensureEssentialSchema = async (pool: any) => {
                     EXECUTE 'UPDATE public.school_remedial_sessions SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
                     EXECUTE 'UPDATE public.school_remedial_sessions SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
                 END IF;
-                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'durationHours') THEN
-                    EXECUTE 'UPDATE public.school_remedial_sessions SET duration_hours = COALESCE(NULLIF("durationHours"::text, '''')::numeric, 1) WHERE (duration_hours IS NULL OR duration_hours = 0) AND "durationHours" IS NOT NULL';
-                    EXECUTE 'UPDATE public.school_remedial_sessions SET hours = COALESCE(hours, duration_hours, NULLIF("durationHours"::text, '''')::numeric, 1) WHERE hours IS NULL OR hours = 0';
-                    EXECUTE 'UPDATE public.school_remedial_sessions SET "durationHours" = COALESCE(duration_hours, hours, 1) WHERE "durationHours" IS NULL';
+                -- Synchronize hours and duration_hours safely with type-aware casting
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'duration_hours') THEN
+                    EXECUTE 'UPDATE public.school_remedial_sessions 
+                             SET duration_hours = COALESCE(
+                                 duration_hours,
+                                 NULLIF(regexp_replace(COALESCE("durationHours"::text, ''''), ''[^0-9.]'', '''', ''g''), '''')::numeric,
+                                 NULLIF(regexp_replace(COALESCE(hours::text, ''''), ''[^0-9.]'', '''', ''g''), '''')::numeric,
+                                 1
+                             ) 
+                             WHERE duration_hours IS NULL OR duration_hours = 0';
                 END IF;
+
                 IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'hours') THEN
-                    EXECUTE 'UPDATE public.school_remedial_sessions SET duration_hours = COALESCE(duration_hours, hours, 1) WHERE duration_hours IS NULL OR duration_hours = 0';
+                    IF (SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'hours') IN ('numeric', 'double precision', 'real', 'integer', 'bigint') THEN
+                        EXECUTE 'UPDATE public.school_remedial_sessions 
+                                 SET hours = COALESCE(
+                                     hours, 
+                                     duration_hours, 
+                                     NULLIF(regexp_replace(COALESCE("durationHours"::text, ''''), ''[^0-9.]'', '''', ''g''), '''')::numeric, 
+                                     1
+                                 ) 
+                                 WHERE hours IS NULL OR hours = 0';
+                    ELSE
+                        EXECUTE 'UPDATE public.school_remedial_sessions 
+                                 SET hours = COALESCE(
+                                     NULLIF(hours, ''''), 
+                                     duration_hours::text, 
+                                     NULLIF("durationHours"::text, ''''), 
+                                     ''1''
+                                 ) 
+                                 WHERE hours IS NULL OR hours = '''' OR hours = ''0''';
+                    END IF;
+                END IF;
+
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'durationHours') THEN
+                    IF (SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'durationHours') IN ('numeric', 'double precision', 'real', 'integer', 'bigint') THEN
+                        EXECUTE 'UPDATE public.school_remedial_sessions 
+                                 SET "durationHours" = COALESCE("durationHours", duration_hours, 1) 
+                                 WHERE "durationHours" IS NULL OR "durationHours" = 0';
+                    ELSE
+                        EXECUTE 'UPDATE public.school_remedial_sessions 
+                                 SET "durationHours" = COALESCE(
+                                     NULLIF("durationHours", ''''), 
+                                     duration_hours::text, 
+                                     NULLIF(hours::text, ''''), 
+                                     ''1''
+                                 ) 
+                                 WHERE "durationHours" IS NULL OR "durationHours" = '''' OR "durationHours" = ''0''';
+                    END IF;
                 END IF;
                 IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'startTime') THEN
                     EXECUTE 'UPDATE public.school_remedial_sessions SET start_time = "startTime" WHERE (start_time IS NULL OR start_time = '''') AND "startTime" IS NOT NULL';
@@ -1334,10 +1376,52 @@ const fetchViaDirectPg = async (
               EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
             END IF;
             IF '${table}' = 'school_remedial_sessions' THEN
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'duration_hours') THEN
+                EXECUTE 'UPDATE public.school_remedial_sessions 
+                         SET duration_hours = COALESCE(
+                             duration_hours,
+                             NULLIF(regexp_replace(COALESCE("durationHours"::text, ''''), ''[^0-9.]'', '''', ''g''), '''')::numeric,
+                             NULLIF(regexp_replace(COALESCE(hours::text, ''''), ''[^0-9.]'', '''', ''g''), '''')::numeric,
+                             1
+                         ) 
+                         WHERE duration_hours IS NULL OR duration_hours = 0';
+              END IF;
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'hours') THEN
+                IF (SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'hours') IN ('numeric', 'double precision', 'real', 'integer', 'bigint') THEN
+                  EXECUTE 'UPDATE public.school_remedial_sessions 
+                           SET hours = COALESCE(
+                               hours, 
+                               duration_hours, 
+                               NULLIF(regexp_replace(COALESCE("durationHours"::text, ''''), ''[^0-9.]'', '''', ''g''), '''')::numeric, 
+                               1
+                           ) 
+                           WHERE hours IS NULL OR hours = 0';
+                ELSE
+                  EXECUTE 'UPDATE public.school_remedial_sessions 
+                           SET hours = COALESCE(
+                               NULLIF(hours, ''''), 
+                               duration_hours::text, 
+                               NULLIF("durationHours"::text, ''''), 
+                               ''1''
+                           ) 
+                           WHERE hours IS NULL OR hours = '''' OR hours = ''0''';
+                END IF;
+              END IF;
               IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'durationHours') THEN
-                EXECUTE 'UPDATE public.school_remedial_sessions SET duration_hours = COALESCE(NULLIF("durationHours"::text, '''')::numeric, 1) WHERE (duration_hours IS NULL OR duration_hours = 0) AND "durationHours" IS NOT NULL';
-                EXECUTE 'UPDATE public.school_remedial_sessions SET hours = COALESCE(hours, duration_hours, NULLIF("durationHours"::text, '''')::numeric, 1) WHERE hours IS NULL OR hours = 0';
-                EXECUTE 'UPDATE public.school_remedial_sessions SET "durationHours" = COALESCE(duration_hours, hours, 1) WHERE "durationHours" IS NULL';
+                IF (SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'durationHours') IN ('numeric', 'double precision', 'real', 'integer', 'bigint') THEN
+                  EXECUTE 'UPDATE public.school_remedial_sessions 
+                           SET "durationHours" = COALESCE("durationHours", duration_hours, 1) 
+                           WHERE "durationHours" IS NULL OR "durationHours" = 0';
+                ELSE
+                  EXECUTE 'UPDATE public.school_remedial_sessions 
+                           SET "durationHours" = COALESCE(
+                               NULLIF("durationHours", ''''), 
+                               duration_hours::text, 
+                               NULLIF(hours::text, ''''), 
+                               ''1''
+                           ) 
+                           WHERE "durationHours" IS NULL OR "durationHours" = '''' OR "durationHours" = ''0''';
+                END IF;
               END IF;
               IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'startTime') THEN
                 EXECUTE 'UPDATE public.school_remedial_sessions SET start_time = "startTime" WHERE (start_time IS NULL OR start_time = '''') AND "startTime" IS NOT NULL';
