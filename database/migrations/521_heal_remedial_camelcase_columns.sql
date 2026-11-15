@@ -1,6 +1,6 @@
 -- ==============================================================================
 -- Migration 521: Heal Remedial Module Quoted camelCase and Snake_Case Columns
--- Pure Standard SQL (NO duplicate assignments, NO DO $$ block)
+-- Pure Standard SQL (NO type mismatch, NO duplicate assignments, NO DO $$ block)
 -- ==============================================================================
 
 -- 1. school_remedial_sessions
@@ -126,22 +126,46 @@ SET
 ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS institution_id TEXT;
 ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
 ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS hourly_rate NUMERIC DEFAULT 1000;
-ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS "hourlyRate" NUMERIC DEFAULT 1000;
+ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS "hourlyRate" TEXT;
 ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS weekday_hourly_rate NUMERIC DEFAULT 1000;
-ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS "weekdayHourlyRate" NUMERIC DEFAULT 1000;
+ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS "weekdayHourlyRate" TEXT;
 ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS weekend_hourly_rate NUMERIC DEFAULT 1500;
-ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS "weekendHourlyRate" NUMERIC DEFAULT 1500;
+ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS "weekendHourlyRate" TEXT;
 
 UPDATE public.school_remedial_rate_settings
 SET 
   institution_id = COALESCE(NULLIF(institution_id, ''), "institutionId"),
   "institutionId" = COALESCE(NULLIF("institutionId", ''), institution_id),
-  hourly_rate = COALESCE(hourly_rate, "hourlyRate", 1000),
-  "hourlyRate" = COALESCE("hourlyRate", hourly_rate, 1000),
-  weekday_hourly_rate = COALESCE(weekday_hourly_rate, "weekdayHourlyRate", 1000),
-  "weekdayHourlyRate" = COALESCE("weekdayHourlyRate", weekday_hourly_rate, 1000),
-  weekend_hourly_rate = COALESCE(weekend_hourly_rate, "weekendHourlyRate", 1500),
-  "weekendHourlyRate" = COALESCE("weekendHourlyRate", weekend_hourly_rate, 1500);
+  hourly_rate = COALESCE(
+    hourly_rate,
+    NULLIF(regexp_replace(COALESCE("hourlyRate"::text, ''), '[^0-9.]', '', 'g'), '')::numeric,
+    1000
+  ),
+  "hourlyRate" = COALESCE(
+    NULLIF("hourlyRate"::text, ''),
+    hourly_rate::text,
+    '1000'
+  ),
+  weekday_hourly_rate = COALESCE(
+    weekday_hourly_rate,
+    NULLIF(regexp_replace(COALESCE("weekdayHourlyRate"::text, ''), '[^0-9.]', '', 'g'), '')::numeric,
+    1000
+  ),
+  "weekdayHourlyRate" = COALESCE(
+    NULLIF("weekdayHourlyRate"::text, ''),
+    weekday_hourly_rate::text,
+    '1000'
+  ),
+  weekend_hourly_rate = COALESCE(
+    weekend_hourly_rate,
+    NULLIF(regexp_replace(COALESCE("weekendHourlyRate"::text, ''), '[^0-9.]', '', 'g'), '')::numeric,
+    1500
+  ),
+  "weekendHourlyRate" = COALESCE(
+    NULLIF("weekendHourlyRate"::text, ''),
+    weekend_hourly_rate::text,
+    '1500'
+  );
 
 
 -- 4. school_remedial_payouts
@@ -150,9 +174,9 @@ ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS "institution
 ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS teacher_id TEXT;
 ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS total_hours NUMERIC DEFAULT 0;
-ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS "totalHours" NUMERIC DEFAULT 0;
+ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS "totalHours" TEXT;
 ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS total_amount NUMERIC DEFAULT 0;
-ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS "totalAmount" NUMERIC DEFAULT 0;
+ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS "totalAmount" TEXT;
 
 UPDATE public.school_remedial_payouts
 SET 
@@ -160,10 +184,26 @@ SET
   "institutionId" = COALESCE(NULLIF("institutionId", ''), institution_id),
   teacher_id = COALESCE(NULLIF(teacher_id, ''), "teacherId"),
   "teacherId" = COALESCE(NULLIF("teacherId", ''), teacher_id),
-  total_hours = COALESCE(total_hours, "totalHours", 0),
-  "totalHours" = COALESCE("totalHours", total_hours, 0),
-  total_amount = COALESCE(total_amount, "totalAmount", 0),
-  "totalAmount" = COALESCE("totalAmount", total_amount, 0);
+  total_hours = COALESCE(
+    total_hours,
+    NULLIF(regexp_replace(COALESCE("totalHours"::text, ''), '[^0-9.]', '', 'g'), '')::numeric,
+    0
+  ),
+  "totalHours" = COALESCE(
+    NULLIF("totalHours"::text, ''),
+    total_hours::text,
+    '0'
+  ),
+  total_amount = COALESCE(
+    total_amount,
+    NULLIF(regexp_replace(COALESCE("totalAmount"::text, ''), '[^0-9.]', '', 'g'), '')::numeric,
+    0
+  ),
+  "totalAmount" = COALESCE(
+    NULLIF("totalAmount"::text, ''),
+    total_amount::text,
+    '0'
+  );
 
 
 -- 5. school_remedial_duty_roster
