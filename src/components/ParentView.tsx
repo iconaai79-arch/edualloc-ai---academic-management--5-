@@ -7,10 +7,14 @@ import type {
 } from '../types';
 import { UserIcon } from './icons/UserIcon';
 import { SynergyHub } from './SynergyHub';
-import { Sparkles, Home, Receipt, BadgeCheck, Clock, AlertCircle, Truck, FileText, X, CreditCard, TrendingUp, Wallet, Calendar, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { 
+    Sparkles, Home, Receipt, BadgeCheck, Clock, AlertCircle, Truck, FileText, X, 
+    CreditCard, TrendingUp, Wallet, Calendar, ArrowLeft, CheckCircle2,
+    Bus, MapPin, Phone, Check, Plus, ChevronRight, CheckCircle, XCircle, ArrowRight, Loader2, Navigation, ShieldCheck, RefreshCw, Compass, Info
+} from 'lucide-react';
 import { TransportDisruptionAlert } from './TransportDisruptionAlert';
 import type { TransportDisruption } from './TransportDisruptionAlert';
-import type { TransportFeeInvoice } from './TransportBillingManager';
+import type { TransportFeeInvoice, RouteFeeSetting, TripPreference, BillingCycle } from './TransportBillingManager';
 
 
 interface ParentViewProps {
@@ -437,6 +441,269 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
         loadRemedialInvoices();
     }, [users, user?.studentIds]);
 
+    // ── Transport Subscriptions & Routes ──────────────────────────────────────
+    const [transportRoutes, setTransportRoutes] = useState<RouteFeeSetting[]>([]);
+    const [isLoadingRoutes, setIsLoadingRoutes] = useState<boolean>(false);
+    const [parentSubscriptions, setParentSubscriptions] = useState<any[]>([]);
+    const [isLoadingParentSubs, setIsLoadingParentSubs] = useState<boolean>(false);
+
+    // Modal state for Subscribing to Transport
+    const [isSubscribeModalOpen, setIsSubscribeModalOpen] = useState<boolean>(false);
+    const [subStep, setSubStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+    const [subStudentId, setSubStudentId] = useState<string>('');
+    const [subRouteId, setSubRouteId] = useState<string>('');
+    const [subTripPreference, setSubTripPreference] = useState<TripPreference>('round_trip');
+    const [subBillingCycle, setSubBillingCycle] = useState<BillingCycle>('term');
+    const [subPickupStage, setSubPickupStage] = useState<string>('');
+    const [subNotes, setSubNotes] = useState<string>('');
+    const [subParentPhone, setSubParentPhone] = useState<string>(user?.phoneNumber || '');
+    const [subPayMethod, setSubPayMethod] = useState<'pay_later' | 'mpesa_now'>('pay_later');
+    const [subIsSubmitting, setSubIsSubmitting] = useState<boolean>(false);
+    const [subSuccess, setSubSuccess] = useState<boolean>(false);
+    const [subErrorMessage, setSubErrorMessage] = useState<string>('');
+
+    const loadTransportRoutes = React.useCallback(async () => {
+        const instId = user?.institutionId;
+        if (!instId) return;
+        setIsLoadingRoutes(true);
+        try {
+            let list: RouteFeeSetting[] = await apiService.fetchModuleRecords('transport_route_fee_settings', instId);
+            if (!Array.isArray(list) || list.length === 0) {
+                const rawKey = `eduai_transport_route_fee_settings_${instId}`;
+                const cached = localStorage.getItem(rawKey);
+                if (cached) {
+                    try {
+                        const parsed = JSON.parse(cached);
+                        if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
+                    } catch {}
+                }
+            }
+            if (!Array.isArray(list) || list.length === 0) {
+                list = [
+                    { routeId: 'route_1', routeName: 'Route 1: Nairobi CBD – Westlands – School Gate', termFee: 12000, monthlyFee: 4500, oneWayPercentage: 60 },
+                    { routeId: 'route_2', routeName: 'Route 2: Kilimani – Kileleshwa – Lavington – School Gate', termFee: 14000, monthlyFee: 5000, oneWayPercentage: 60 },
+                    { routeId: 'route_3', routeName: 'Route 3: Ngong Road – Karen – Langata – School Gate', termFee: 15500, monthlyFee: 5500, oneWayPercentage: 60 },
+                    { routeId: 'route_4', routeName: 'Route 4: Thika Road – Kasarani – Roysambu – School Gate', termFee: 13500, monthlyFee: 4800, oneWayPercentage: 60 },
+                    { routeId: 'route_5', routeName: 'Route 5: South B – South C – Nairobi West – School Gate', termFee: 12500, monthlyFee: 4500, oneWayPercentage: 60 }
+                ];
+            }
+            setTransportRoutes(list);
+            if (!subRouteId && list.length > 0) {
+                setSubRouteId(list[0].routeId);
+            }
+        } catch (e) {
+            console.warn('Could not load transport routes:', e);
+        } finally {
+            setIsLoadingRoutes(false);
+        }
+    }, [user?.institutionId, subRouteId]);
+
+    const loadParentSubscriptions = React.useCallback(async () => {
+        const instId = user?.institutionId;
+        if (!instId) return;
+        setIsLoadingParentSubs(true);
+        try {
+            const records = await apiService.fetchModuleRecords<any>('transport_subscription_requests', instId);
+            const childIds = effectiveChildren.map(c => c.id);
+            const childNames = effectiveChildren.map(c => c.name?.toLowerCase().trim());
+            const childAdms = effectiveChildren.map(c => (c.admissionNumber || (c as any).admNumber || '').toLowerCase().trim());
+
+            let mySubs = (records || []).filter((r: any) => {
+                if (!r) return false;
+                if (r.parentId === user?.id) return true;
+                if (r.studentId && childIds.includes(r.studentId)) return true;
+                if (r.studentName && childNames.includes(r.studentName.toLowerCase().trim())) return true;
+                if (r.admissionNumber && childAdms.includes(r.admissionNumber.toLowerCase().trim())) return true;
+                return false;
+            });
+
+            const localKey = `eduai_transport_subscription_requests_${instId}`;
+            const localCached = localStorage.getItem(localKey);
+            if (localCached) {
+                try {
+                    const parsed = JSON.parse(localCached);
+                    if (Array.isArray(parsed)) {
+                        parsed.forEach((pr: any) => {
+                            if (
+                                (pr.parentId === user?.id || childIds.includes(pr.studentId)) &&
+                                !mySubs.some(s => s.id === pr.id)
+                            ) {
+                                mySubs.push(pr);
+                            }
+                        });
+                    }
+                } catch {}
+            }
+
+            if (mySubs.length === 0 && isSimulator && demoChild) {
+                mySubs = [{
+                    id: `sub_sim_${demoChild.id}`,
+                    institutionId: instId,
+                    studentId: demoChild.id,
+                    studentName: demoChild.name,
+                    admissionNumber: demoChild.admissionNumber || 'ADM-001',
+                    parentPhone: user?.phoneNumber || '0712 345 678',
+                    parentId: user?.id,
+                    routeId: 'route_1',
+                    routeName: 'Route 1: Nairobi CBD – Westlands – School Gate',
+                    pickupStage: 'Westlands Square Stage',
+                    notes: 'Morning pickup at 6:45 AM',
+                    tripPreference: 'round_trip',
+                    billingCycle: 'term',
+                    baseAmount: 12000,
+                    finalAmount: 12000,
+                    paymentMethod: 'pay_later',
+                    status: 'pending',
+                    approvalStatus: 'approved',
+                    submittedAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+                    period: 'Term 1 · 2025'
+                }];
+            }
+
+            setParentSubscriptions(mySubs);
+        } catch (e) {
+            console.warn('Could not load parent transport subscriptions:', e);
+        } finally {
+            setIsLoadingParentSubs(false);
+        }
+    }, [user?.institutionId, user?.id, effectiveChildren, isSimulator, demoChild]);
+
+    useEffect(() => {
+        loadTransportRoutes();
+        loadParentSubscriptions();
+    }, [loadTransportRoutes, loadParentSubscriptions]);
+
+    const activeRouteForSub = transportRoutes.find(r => r.routeId === subRouteId) || transportRoutes[0];
+    const subBaseAmount = React.useMemo(() => {
+        if (!activeRouteForSub) return 0;
+        return subBillingCycle === 'term' ? (activeRouteForSub.termFee || 0) : (activeRouteForSub.monthlyFee || 0);
+    }, [activeRouteForSub, subBillingCycle]);
+
+    const subMultiplier = subTripPreference === 'round_trip' 
+        ? 1.0 
+        : subTripPreference === 'none' 
+        ? 0 
+        : ((activeRouteForSub?.oneWayPercentage || 60) / 100);
+    const subFinalAmount = Math.round(subBaseAmount * subMultiplier);
+
+    const handleSubscribeSubmit = async () => {
+        const student = effectiveChildren.find(c => c.id === subStudentId) || effectiveChildren[0];
+        if (!student) {
+            setSubErrorMessage('Please select a student.');
+            return;
+        }
+        if (!activeRouteForSub) {
+            setSubErrorMessage('Please select a transport route.');
+            return;
+        }
+        if (!subParentPhone.trim()) {
+            setSubErrorMessage('Please enter your contact phone number.');
+            return;
+        }
+
+        setSubIsSubmitting(true);
+        setSubErrorMessage('');
+
+        try {
+            const instId = user?.institutionId || 'default';
+            const now = new Date();
+            const monthNum = now.getMonth() + 1;
+            const term = monthNum <= 4 ? 1 : monthNum <= 8 ? 2 : 3;
+            const period = subBillingCycle === 'term' 
+                ? `Term ${term} · ${now.getFullYear()}` 
+                : `${now.toLocaleString('default', { month: 'long' })} ${now.getFullYear()}`;
+
+            const subId = `SUB-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+            const payload: any = {
+                id: subId,
+                institutionId: instId,
+                studentId: student.id,
+                studentName: student.name,
+                admissionNumber: student.admissionNumber || (student as any).admNumber || 'ADM-' + String(student.id).slice(-4),
+                parentPhone: subParentPhone.trim(),
+                parentId: user?.id,
+                routeId: activeRouteForSub.routeId,
+                routeName: activeRouteForSub.routeName,
+                pickupStage: subPickupStage.trim() || 'Designated Home Stage',
+                notes: subNotes.trim(),
+                tripPreference: subTripPreference,
+                billingCycle: subBillingCycle,
+                baseAmount: subBaseAmount,
+                finalAmount: subFinalAmount,
+                paymentMethod: subPayMethod,
+                status: subPayMethod === 'mpesa_now' ? 'paid' : 'pending',
+                approvalStatus: 'pending',
+                submittedAt: now.toISOString(),
+                period: period
+            };
+
+            await apiService.saveModuleRecord('transport_subscription_requests', payload, instId);
+
+            try {
+                const localKey = `eduai_transport_subscription_requests_${instId}`;
+                const existing = JSON.parse(localStorage.getItem(localKey) || '[]');
+                existing.unshift(payload);
+                localStorage.setItem(localKey, JSON.stringify(existing));
+            } catch {}
+
+            // Generate Transport Fee Invoice
+            const invId = `INV-TRP-${Date.now().toString(36).toUpperCase()}`;
+            const newInvoice: TransportFeeInvoice = {
+                id: invId,
+                studentId: student.id,
+                studentName: student.name,
+                admissionNumber: student.admissionNumber || (student as any).admNumber || 'ADM-' + String(student.id).slice(-4),
+                routeId: activeRouteForSub.routeId,
+                routeName: activeRouteForSub.routeName,
+                preference: subTripPreference,
+                billingCycle: subBillingCycle,
+                period: period,
+                baseAmount: subBaseAmount,
+                discountAmount: 0,
+                finalAmount: subFinalAmount,
+                status: subPayMethod === 'mpesa_now' ? 'paid' : 'pending',
+                issuedDate: now.toISOString().split('T')[0],
+                dueDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+                institutionId: instId,
+                parentPhone: subParentPhone.trim()
+            };
+
+            try {
+                await apiService.saveModuleRecord('transport_fee_invoices', newInvoice, instId);
+                const invLocalKey = `eduai_transport_fee_invoices_${instId}`;
+                const existingInvs = JSON.parse(localStorage.getItem(invLocalKey) || '[]');
+                existingInvs.unshift(newInvoice);
+                localStorage.setItem(invLocalKey, JSON.stringify(existingInvs));
+                setTransportInvoices(prev => [newInvoice, ...prev]);
+            } catch {}
+
+            if (subPayMethod === 'mpesa_now') {
+                try {
+                    const receiptData = {
+                        id: `rec_${Date.now()}`,
+                        receiptNumber: `REC-TRP-${Date.now().toString().slice(-6)}`,
+                        invoiceId: invId,
+                        amount: subFinalAmount,
+                        paymentMethod: 'mpesa',
+                        paymentDate: now.toISOString(),
+                        institutionId: instId
+                    };
+                    await apiService.saveModuleRecord('receipts', receiptData);
+                } catch {}
+            }
+
+            props.onLogAction?.(`Parent submitted transport subscription for ${student.name} on ${activeRouteForSub.routeName}`);
+            setParentSubscriptions(prev => [payload, ...prev]);
+            setSubStep(5);
+            setSubSuccess(true);
+        } catch (e: any) {
+            setSubErrorMessage(e?.message || 'Failed to submit transport subscription. Please try again.');
+        } finally {
+            setSubIsSubmitting(false);
+        }
+    };
+
     const handlePayRemedialInstallment = async (invoiceId: string, payAmount: number, method: string) => {
         try {
             const invoice = remedialInvoices.find(i => i.id === invoiceId);
@@ -682,6 +949,21 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                             <h2 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Family Dashboard</h2>
                             <p className="text-slate-500 font-medium">Monitoring academic progress and safety for your children.</p>
                         </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSubStep(1);
+                                setSubSuccess(false);
+                                setSubErrorMessage('');
+                                setSubStudentId(effectiveChildren[0]?.id || '');
+                                setSubParentPhone(user?.phoneNumber || '');
+                                setIsSubscribeModalOpen(true);
+                            }}
+                            className="px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-orange-500/20 active:scale-95 transition-all cursor-pointer whitespace-nowrap self-start md:self-auto"
+                        >
+                            <Bus className="w-4 h-4" />
+                            Subscribe to Transport
+                        </button>
                     </div>
 
             <div className="space-y-8">
@@ -844,11 +1126,26 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
             </>
             ) : activePanel === 'transport' ? (
                 <div className="space-y-8 animate-fade-in">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
                             <h2 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Transport Tracker</h2>
                             <p className="text-slate-500 font-medium">Real-time school bus tracking, route alerts, and billing statements.</p>
                         </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSubStep(1);
+                                setSubSuccess(false);
+                                setSubErrorMessage('');
+                                setSubStudentId(effectiveChildren[0]?.id || '');
+                                setSubParentPhone(user?.phoneNumber || '');
+                                setIsSubscribeModalOpen(true);
+                            }}
+                            className="px-5 py-3 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-orange-500/20 active:scale-95 transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto"
+                        >
+                            <Bus className="w-4 h-4" />
+                            Subscribe to Transport
+                        </button>
                     </div>
 
                     {/* Transport Disruption Alert Banner */}
@@ -871,6 +1168,171 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                             />
                         </div>
                     )}
+
+                    {/* ── Active Transport Subscriptions & Passes Section ────────── */}
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden animate-fade-in-up">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/20">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-orange-50 dark:bg-orange-950/30 rounded-2xl flex items-center justify-center text-orange-600 dark:text-orange-400">
+                                    <Bus className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                        School Transport Subscriptions
+                                    </h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        {parentSubscriptions.length > 0 
+                                            ? `${parentSubscriptions.length} registered commute pass(es) for your children`
+                                            : 'Enroll your child for daily tracked school bus commuting'}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSubStep(1);
+                                    setSubSuccess(false);
+                                    setSubErrorMessage('');
+                                    setSubStudentId(effectiveChildren[0]?.id || '');
+                                    setSubParentPhone(user?.phoneNumber || '');
+                                    setIsSubscribeModalOpen(true);
+                                }}
+                                className="px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md shadow-orange-500/20 flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                                New Subscription
+                            </button>
+                        </div>
+
+                        {parentSubscriptions.length > 0 ? (
+                            <div className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                                {parentSubscriptions.map((sub: any, idx: number) => {
+                                    const isApproved = sub.approvalStatus === 'approved';
+                                    const isRejected = sub.approvalStatus === 'rejected';
+                                    const isPaid = sub.status === 'paid' || sub.paymentMethod === 'mpesa_now';
+                                    const prefLabel = sub.tripPreference === 'round_trip' 
+                                        ? 'Round Trip (Both Morning & Evening)' 
+                                        : sub.tripPreference === 'one_way_pickup' 
+                                        ? 'Morning Pickup Only' 
+                                        : sub.tripPreference === 'one_way_drop' 
+                                        ? 'Evening Drop-off Only' 
+                                        : 'Standard Route';
+
+                                    return (
+                                        <div key={sub.id || idx} className="p-6 hover:bg-slate-50/60 dark:hover:bg-slate-700/20 transition-all flex flex-col md:flex-row md:items-center justify-between gap-5">
+                                            <div className="flex items-start gap-4">
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+                                                    isApproved 
+                                                        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' 
+                                                        : isRejected 
+                                                        ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400' 
+                                                        : 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400'
+                                                }`}>
+                                                    {isApproved ? <CheckCircle2 className="w-6 h-6" /> : isRejected ? <XCircle className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <h4 className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">{sub.studentName}</h4>
+                                                        <span className="text-[10px] font-mono text-slate-400 font-bold bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
+                                                            {sub.admissionNumber}
+                                                        </span>
+                                                        <span className={`px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-full border ${
+                                                            isApproved 
+                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' 
+                                                                : isRejected 
+                                                                ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800' 
+                                                                : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                                                        }`}>
+                                                            {isApproved ? 'Approved & Assigned' : isRejected ? 'Declined' : 'Pending Review'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                                        <MapPin className="w-3.5 h-3.5 text-orange-500" />
+                                                        <span>{sub.routeName}</span>
+                                                    </p>
+                                                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 pt-1">
+                                                        <span className="font-semibold">Plan: <span className="text-slate-700 dark:text-slate-300 font-bold">{prefLabel}</span></span>
+                                                        <span>•</span>
+                                                        <span className="font-semibold">Period: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{sub.period}</span></span>
+                                                        {sub.pickupStage && (
+                                                            <>
+                                                                <span>•</span>
+                                                                <span className="font-semibold">Stage: <span className="text-slate-700 dark:text-slate-300">{sub.pickupStage}</span></span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    {isRejected && sub.rejectionReason && (
+                                                        <p className="text-[11px] text-rose-600 font-medium bg-rose-50 dark:bg-rose-950/30 p-2 rounded-lg border border-rose-100 dark:border-rose-900/50 mt-2">
+                                                            Reason: {sub.rejectionReason}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col sm:items-end justify-between gap-3 self-stretch sm:self-auto border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100 dark:border-slate-700">
+                                                <div className="sm:text-right">
+                                                    <p className="text-base font-black text-slate-900 dark:text-white font-mono">
+                                                        KES {Number(sub.finalAmount || 0).toLocaleString()}
+                                                    </p>
+                                                    <div className="flex items-center sm:justify-end gap-1.5 mt-0.5">
+                                                        <span className={`text-[10px] font-black uppercase tracking-wider ${
+                                                            isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+                                                        }`}>
+                                                            {isPaid ? 'Paid via M-Pesa ✅' : 'Added to Fee Bill 📋'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                {isRejected && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSubStep(1);
+                                                            setSubSuccess(false);
+                                                            setSubErrorMessage('');
+                                                            setSubStudentId(sub.studentId || effectiveChildren[0]?.id || '');
+                                                            setIsSubscribeModalOpen(true);
+                                                        }}
+                                                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+                                                    >
+                                                        Re-Apply
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="p-8 text-center space-y-4">
+                                <div className="w-16 h-16 rounded-3xl bg-orange-50 dark:bg-orange-950/30 text-orange-500 mx-auto flex items-center justify-center">
+                                    <Bus className="w-8 h-8" />
+                                </div>
+                                <div className="max-w-md mx-auto space-y-1">
+                                    <h4 className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-white">
+                                        No School Transport Subscriptions Yet
+                                    </h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Subscribe your child for daily tracked school bus commuting. Safe pickups, live arrival tracking, and verified attendance.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSubStep(1);
+                                        setSubSuccess(false);
+                                        setSubErrorMessage('');
+                                        setSubStudentId(effectiveChildren[0]?.id || '');
+                                        setSubParentPhone(user?.phoneNumber || '');
+                                        setIsSubscribeModalOpen(true);
+                                    }}
+                                    className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-orange-500/25 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-2"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Subscribe Child to Transport
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     {/* Remedial Fee Invoices Status */}
                     {remedialInvoices.length > 0 && (() => {
@@ -1625,6 +2087,483 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                                         </button>
                                     )}
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* ── Transport Subscription Modal ────────────────────────────────────────── */}
+            {isSubscribeModalOpen && (() => {
+                const selectedChild = effectiveChildren.find(c => c.id === subStudentId) || effectiveChildren[0];
+                const tripOptions: { id: TripPreference; title: string; desc: string; icon: string }[] = [
+                    { id: 'round_trip', title: 'Round Trip', desc: 'Morning pickup to school & evening drop-off home', icon: '🔄' },
+                    { id: 'one_way_pickup', title: 'Morning Pickup Only', desc: 'Morning commute to school only', icon: '🌅' },
+                    { id: 'one_way_drop', title: 'Evening Drop-off Only', desc: 'Evening commute from school to home only', icon: '🌇' },
+                ];
+
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-md animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200 flex flex-col">
+                            {/* Modal Header */}
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/60 dark:bg-slate-950/40">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-2xl flex items-center justify-center shadow-md shadow-orange-500/25">
+                                        <Bus className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                            Subscribe to School Transport
+                                        </h3>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Enroll your child for daily tracked school bus commuting
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsSubscribeModalOpen(false)}
+                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white transition-all cursor-pointer"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {/* Step Progress Dots */}
+                            {!subSuccess && (
+                                <div className="px-6 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-950/20 flex items-center justify-between">
+                                    {[
+                                        { step: 1, label: 'Child' },
+                                        { step: 2, label: 'Route' },
+                                        { step: 3, label: 'Schedule' },
+                                        { step: 4, label: 'Payment' }
+                                    ].map((s) => (
+                                        <div key={s.step} className="flex items-center gap-2">
+                                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                                                subStep === s.step 
+                                                    ? 'bg-orange-600 text-white shadow-md ring-4 ring-orange-100 dark:ring-orange-950/60' 
+                                                    : subStep > s.step 
+                                                    ? 'bg-emerald-500 text-white' 
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                            }`}>
+                                                {subStep > s.step ? <Check className="w-3.5 h-3.5" /> : s.step}
+                                            </div>
+                                            <span className={`text-[11px] font-black uppercase tracking-wider hidden sm:inline ${
+                                                subStep === s.step ? 'text-orange-600 dark:text-orange-400' : 'text-slate-400'
+                                            }`}>
+                                                {s.label}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Modal Body */}
+                            <div className="p-6 space-y-6 flex-1">
+                                {subErrorMessage && (
+                                    <div className="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-2xl text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                        <span>{subErrorMessage}</span>
+                                    </div>
+                                )}
+
+                                {/* Step 1: Select Child */}
+                                {subStep === 1 && (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <h4 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                                Step 1: Choose Child to Enroll
+                                            </h4>
+                                            <p className="text-xs text-slate-500">Select the student for this school bus route pass.</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {effectiveChildren.map((child) => {
+                                                const isSelected = subStudentId === child.id || (!subStudentId && child.id === effectiveChildren[0]?.id);
+                                                return (
+                                                    <button
+                                                        key={child.id}
+                                                        type="button"
+                                                        onClick={() => setSubStudentId(child.id)}
+                                                        className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                                                            isSelected 
+                                                                ? 'border-orange-500 bg-orange-50/50 dark:bg-orange-950/20 shadow-md ring-2 ring-orange-200 dark:ring-orange-900/50' 
+                                                                : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 bg-white dark:bg-slate-850'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${
+                                                                isSelected ? 'bg-orange-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                                                            }`}>
+                                                                {child.name?.slice(0, 2).toUpperCase() || 'ST'}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white truncate">
+                                                                    {child.name}
+                                                                </p>
+                                                                <p className="text-[10px] text-slate-400 font-mono">
+                                                                    {child.admissionNumber || (child as any).admNumber || 'Enrolled Student'}
+                                                                </p>
+                                                            </div>
+                                                            {isSelected && <CheckCircle2 className="w-5 h-5 text-orange-500 flex-shrink-0" />}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 2: Route & Pickup Stage */}
+                                {subStep === 2 && (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <h4 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                                Step 2: Select School Bus Route & Stage
+                                            </h4>
+                                            <p className="text-xs text-slate-500">Pick the route closest to your home and specify your landmark.</p>
+                                        </div>
+
+                                        <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                                            {transportRoutes.map((route) => {
+                                                const isSelected = subRouteId === route.routeId;
+                                                return (
+                                                    <button
+                                                        key={route.routeId}
+                                                        type="button"
+                                                        onClick={() => setSubRouteId(route.routeId)}
+                                                        className={`w-full p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                                                            isSelected 
+                                                                ? 'border-orange-500 bg-orange-50/50 dark:bg-orange-950/20 shadow-md ring-2 ring-orange-200 dark:ring-orange-900/50' 
+                                                                : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 bg-white dark:bg-slate-850'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="space-y-1">
+                                                                <p className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                                    <MapPin className={`w-3.5 h-3.5 ${isSelected ? 'text-orange-500' : 'text-slate-400'}`} />
+                                                                    {route.routeName}
+                                                                </p>
+                                                                <p className="text-[11px] text-slate-500">
+                                                                    Term Fee: <strong className="text-slate-800 dark:text-slate-200 font-mono">KES {route.termFee.toLocaleString()}</strong> • Monthly: <strong className="text-slate-800 dark:text-slate-200 font-mono">KES {route.monthlyFee.toLocaleString()}</strong>
+                                                                </p>
+                                                            </div>
+                                                            {isSelected && <CheckCircle2 className="w-5 h-5 text-orange-500 flex-shrink-0" />}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="space-y-2 pt-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                Pickup / Drop-off Stage or Landmark
+                                            </label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. Total Petrol Station Stage, Estate Main Gate 2..."
+                                                value={subPickupStage}
+                                                onChange={(e) => setSubPickupStage(e.target.value)}
+                                                className="w-full px-4 h-11 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-orange-500"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                Special Commute Notes / Instructions (Optional)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. Travels with older sibling, emergency contact..."
+                                                value={subNotes}
+                                                onChange={(e) => setSubNotes(e.target.value)}
+                                                className="w-full px-4 h-11 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:border-orange-500"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 3: Trip Preference & Billing Plan */}
+                                {subStep === 3 && (
+                                    <div className="space-y-5">
+                                        <div>
+                                            <h4 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                                Step 3: Trip Plan & Billing Cycle
+                                            </h4>
+                                            <p className="text-xs text-slate-500">Select commute direction and how frequently you wish to be invoiced.</p>
+                                        </div>
+
+                                        <div className="space-y-2.5">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Trip Direction</label>
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                                {tripOptions.map((opt) => {
+                                                    const isSelected = subTripPreference === opt.id;
+                                                    return (
+                                                        <button
+                                                            key={opt.id}
+                                                            type="button"
+                                                            onClick={() => setSubTripPreference(opt.id)}
+                                                            className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
+                                                                isSelected 
+                                                                    ? 'border-orange-500 bg-orange-50/50 dark:bg-orange-950/20 shadow-md' 
+                                                                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 bg-white dark:bg-slate-850'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center justify-between mb-2">
+                                                                <span className="text-xl">{opt.icon}</span>
+                                                                {isSelected && <Check className="w-4 h-4 text-orange-500" />}
+                                                            </div>
+                                                            <p className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                                                {opt.title}
+                                                            </p>
+                                                            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">
+                                                                {opt.desc}
+                                                            </p>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2 pt-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Billing Interval</label>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSubBillingCycle('term')}
+                                                    className={`p-3 rounded-2xl border-2 font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                                                        subBillingCycle === 'term' 
+                                                            ? 'border-orange-500 bg-orange-600 text-white shadow-md' 
+                                                            : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    Per Term (3 Months)
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSubBillingCycle('monthly')}
+                                                    className={`p-3 rounded-2xl border-2 font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                                                        subBillingCycle === 'monthly' 
+                                                            ? 'border-orange-500 bg-orange-600 text-white shadow-md' 
+                                                            : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    Monthly (30 Days)
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Live Pricing Breakdown Card */}
+                                        <div className="p-4 bg-gradient-to-br from-orange-500/10 via-amber-500/5 to-transparent border border-orange-200 dark:border-orange-900/50 rounded-2xl flex items-center justify-between">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-orange-700 dark:text-orange-400">
+                                                    Calculated Transport Fare
+                                                </p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                    {activeRouteForSub?.routeName.split('–')[0]} • {subTripPreference === 'round_trip' ? 'Round Trip (100%)' : 'One Way (60%)'}
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xl font-black text-slate-900 dark:text-white font-mono">
+                                                    KES {subFinalAmount.toLocaleString()}
+                                                </p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    {subBillingCycle === 'term' ? '/ Term' : '/ Month'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 4: Review & Payment Options */}
+                                {subStep === 4 && (
+                                    <div className="space-y-5">
+                                        <div>
+                                            <h4 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                                Step 4: Review & Confirm Subscription
+                                            </h4>
+                                            <p className="text-xs text-slate-500">Confirm details and choose how you would like to settle the fee.</p>
+                                        </div>
+
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2.5 text-xs">
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider">Student</span>
+                                                <span className="font-bold text-slate-900 dark:text-white">{selectedChild?.name} ({selectedChild?.admissionNumber || 'ADM'})</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider">Route</span>
+                                                <span className="font-bold text-slate-900 dark:text-white text-right max-w-[65%]">{activeRouteForSub?.routeName}</span>
+                                            </div>
+                                            {subPickupStage && (
+                                                <div className="flex justify-between">
+                                                    <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider">Stage</span>
+                                                    <span className="font-bold text-slate-800 dark:text-slate-200">{subPickupStage}</span>
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider">Schedule</span>
+                                                <span className="font-bold text-slate-900 dark:text-white">
+                                                    {subTripPreference === 'round_trip' ? 'Round Trip (Morning & Evening)' : subTripPreference === 'one_way_pickup' ? 'Morning Only' : 'Evening Only'} ({subBillingCycle === 'term' ? 'Per Term' : 'Monthly'})
+                                                </span>
+                                            </div>
+                                            <div className="border-t border-slate-200 dark:border-slate-700 pt-2 flex justify-between items-center text-sm">
+                                                <span className="font-black text-slate-900 dark:text-white uppercase tracking-wider">Total Due</span>
+                                                <span className="font-black text-orange-600 dark:text-orange-400 font-mono text-base">KES {subFinalAmount.toLocaleString()}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                Parent / Guardian Mobile Phone (For SMS & Tracking Updates)
+                                            </label>
+                                            <div className="relative">
+                                                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                                <input
+                                                    type="tel"
+                                                    value={subParentPhone}
+                                                    onChange={(e) => setSubParentPhone(e.target.value)}
+                                                    placeholder="0712 345 678"
+                                                    className="w-full pl-10 pr-4 h-11 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-orange-500"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2.5 pt-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Payment Option</label>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSubPayMethod('pay_later')}
+                                                    className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                                                        subPayMethod === 'pay_later' 
+                                                            ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20 shadow-md ring-2 ring-indigo-200 dark:ring-indigo-900/50' 
+                                                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 bg-white dark:bg-slate-850'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <span className="text-xs font-black uppercase tracking-tight text-indigo-700 dark:text-indigo-400">
+                                                            Add to Fee Bill
+                                                        </span>
+                                                        {subPayMethod === 'pay_later' && <Check className="w-4 h-4 text-indigo-500" />}
+                                                    </div>
+                                                    <p className="text-[11px] text-slate-500">
+                                                        Invoice will be billed to your school fee ledger. Pay later with school fees.
+                                                    </p>
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSubPayMethod('mpesa_now')}
+                                                    className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                                                        subPayMethod === 'mpesa_now' 
+                                                            ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-md ring-2 ring-emerald-200 dark:ring-emerald-900/50' 
+                                                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 bg-white dark:bg-slate-850'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <span className="text-xs font-black uppercase tracking-tight text-emerald-700 dark:text-emerald-400">
+                                                            Pay Now (M-Pesa)
+                                                        </span>
+                                                        {subPayMethod === 'mpesa_now' && <Check className="w-4 h-4 text-emerald-500" />}
+                                                    </div>
+                                                    <p className="text-[11px] text-slate-500">
+                                                        Instant confirmation and active pass issuance right away.
+                                                    </p>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 5: Success Screen */}
+                                {subStep === 5 && subSuccess && (
+                                    <div className="py-6 text-center space-y-4 animate-fade-in">
+                                        <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center">
+                                            <CheckCircle className="w-10 h-10" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <h4 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                                Subscription Confirmed!
+                                            </h4>
+                                            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                                                {selectedChild?.name}'s transport pass has been registered for <strong>{activeRouteForSub?.routeName}</strong>.
+                                            </p>
+                                        </div>
+                                        <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/30 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 text-xs text-emerald-800 dark:text-emerald-300 max-w-sm mx-auto text-left space-y-1.5">
+                                            <p className="font-bold flex items-center gap-1.5">
+                                                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                                                <span>Commute Status: Registered</span>
+                                            </p>
+                                            <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                                                {subPayMethod === 'mpesa_now' 
+                                                    ? 'Payment received via M-Pesa. Receipt recorded.' 
+                                                    : 'Invoice has been added to your student fee statement.'}
+                                            </p>
+                                            <p className="text-[10px] text-slate-500 font-mono">
+                                                Confirmation SMS sent to {subParentPhone}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Modal Footer Controls */}
+                            <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 flex items-center justify-between gap-3">
+                                {subStep === 5 ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsSubscribeModalOpen(false);
+                                            setActivePanel('transport');
+                                        }}
+                                        className="w-full py-3 bg-slate-900 hover:bg-black dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+                                    >
+                                        Done & View Transport Tracker
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button
+                                            type="button"
+                                            disabled={subIsSubmitting}
+                                            onClick={() => {
+                                                if (subStep === 1) setIsSubscribeModalOpen(false);
+                                                else setSubStep((prev) => (prev - 1) as any);
+                                            }}
+                                            className="px-5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+                                        >
+                                            {subStep === 1 ? 'Cancel' : 'Back'}
+                                        </button>
+
+                                        {subStep < 4 ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setSubStep((prev) => (prev + 1) as any)}
+                                                className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-orange-600/20"
+                                            >
+                                                <span>Continue</span>
+                                                <ArrowRight className="w-4 h-4" />
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                disabled={subIsSubmitting}
+                                                onClick={handleSubscribeSubmit}
+                                                className="px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-orange-500/25"
+                                            >
+                                                {subIsSubmitting ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                        <span>Submitting...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Check className="w-4 h-4" />
+                                                        <span>Confirm & Subscribe</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
