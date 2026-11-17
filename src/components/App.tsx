@@ -199,6 +199,7 @@ const CampaignSocialPortal = safeLazy(() => import('./CampaignSocialPortal').the
 const CampaignLoginView = safeLazy(() => import('./CampaignLoginView').then((m: any) => ({ default: m?.CampaignLoginView || m?.default || m })));
 const PublicCarInvoicePayment = safeLazy(() => import('./automotive/PublicCarInvoicePayment').then((m: any) => ({ default: m?.PublicCarInvoicePayment || m?.default || m })));
 const PublicScanToPayView = safeLazy(() => import('./public/PublicScanToPayView').then(m => ({ default: m?.PublicScanToPayView || m?.default || m })));
+const PublicTransportSubscriptionView = safeLazy(() => import('./public/PublicTransportSubscriptionView').then((m: any) => ({ default: m?.PublicTransportSubscriptionView || m?.default || m })));
 const PublicEventRegistration = safeLazy(() => import('./events/PublicEventRegistration').then((m: any) => ({ default: m?.PublicEventRegistration || m?.default || m })));
 const PublicEventConfirmation = safeLazy(() => import('./events/PublicEventConfirmation').then((m: any) => ({ default: m?.PublicEventConfirmation || m?.default || m })));
 const PublicVisitorAuthorization = safeLazy(() => import('./PublicVisitorAuthorization').then((m: any) => ({ default: m?.PublicVisitorAuthorization || m?.default || m })));
@@ -10184,6 +10185,13 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                     setInstitutions(prev => [newInst, ...(prev || [])]);
                                 }}
                             />
+                          ) : (new URLSearchParams(window.location.search).get('view') === 'transport-subscribe') ? (
+                             <Suspense fallback={<SystemPulseLoader message="Loading Transport Enrollment Portal..." />}>
+                                 <PublicTransportSubscriptionView
+                                     companyDetails={companyDetails}
+                                     institutions={institutions}
+                                 />
+                             </Suspense>
                           ) : (new URLSearchParams(window.location.search).get('view') === 'scan-to-pay' || new URLSearchParams(window.location.search).get('view') === 'scantopay' || new URLSearchParams(window.location.search).get('view') === 'pay') ? (
                              <Suspense fallback={<SystemPulseLoader message="Loading Scan to Pay Portal..." />}>
                                  <PublicScanToPayView 

@@ -5,7 +5,7 @@ import {
     TrendingUp, Wallet, Calendar, FileText, X, Filter,
     Banknote, BadgeCheck, RotateCcw, Send, Smartphone,
     Printer, Mail, MessageSquare, Check, ExternalLink,
-    ShieldCheck, Sparkles, Phone, QrCode, UploadCloud
+    ShieldCheck, Sparkles, Phone, QrCode, UploadCloud, Share2
 } from 'lucide-react';
 import { apiService } from '../services/apiService';
 import type { Institution, User as UserType } from '../types';
@@ -1193,6 +1193,24 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
                     >
                         <Banknote className="w-4 h-4" />
                         <span>Opening Balances (B/F)</span>
+                    </button>
+
+                    {/* Share Transport Subscription Link */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const link = `${window.location.origin}/?view=transport-subscribe&inst=${currentInstitution?.id || ''}`;
+                            navigator.clipboard.writeText(link).then(() => {
+                                alert(`✅ Link copied!\n\n${link}\n\nShare this link with parents to let them subscribe to transport.`);
+                            }).catch(() => {
+                                window.prompt('Copy this link and share with parents:', link);
+                            });
+                        }}
+                        className="flex items-center gap-2 px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-sky-600/20 transition-all active:scale-95 cursor-pointer"
+                        title="Copy parent transport subscription link"
+                    >
+                        <Share2 className="w-4 h-4" />
+                        <span>Share Enroll Link</span>
                     </button>
 
                     <button
