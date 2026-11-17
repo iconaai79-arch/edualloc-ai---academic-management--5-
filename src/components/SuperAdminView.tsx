@@ -9183,7 +9183,8 @@ Please change it after login.`;
                                             managingSmsUnitsFor.id,
                                             tenantSmsAdjustment.amount,
                                             newBalance,
-                                            tenantSmsAdjustment.reason || undefined
+                                            tenantSmsAdjustment.reason || undefined,
+                                            managingSmsUnitsFor.name
                                         );
 
                                         // Update the local modal state so it shows the new balance if re-opened
@@ -9197,8 +9198,11 @@ Please change it after login.`;
                                             }).catch(() => {});
                                         }
 
+                                        success(`SMS units updated successfully to ${newBalance.toLocaleString()} units`);
                                         setManagingSmsUnitsFor(null);
                                         setTenantSmsAdjustment({ amount: 0, reason: '' });
+                                    } catch (err: any) {
+                                        toastError(err?.message || 'Failed to update SMS balance on database');
                                     } finally {
                                         setIsSavingTenantConfig(false);
                                     }

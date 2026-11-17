@@ -17,8 +17,16 @@ const getSupabase = (req?: VercelRequest) => {
     (req?.headers?.['x-supabase-key'] as string) ||
     (req?.headers?.['x-supabase-anon-key'] as string);
   if (!url || !key) return null;
+  const authHeader = req?.headers?.authorization;
   return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false }
+    auth: { persistSession: false, autoRefreshToken: false },
+    ...(authHeader ? {
+      global: {
+        headers: {
+          Authorization: authHeader
+        }
+      }
+    } : {})
   });
 };
 
@@ -2364,31 +2372,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // ── Direct SMS Balance Adjustment Action ──
         if (req.method === 'POST' && (reqAction === 'adjustSmsBalance' || reqAction === 'adjust_sms_balance')) {
             const rawInstId = (req.body?.institutionId || req.body?.institution_id || req.body?.id || getStrParam(req.query.id) || getStrParam(req.query.institutionId) || '').toString().trim();
-            if (!rawInstId) {
-                return res.status(400).json({ success: false, error: 'missing_institution_id', message: 'Institution ID is required for SMS balance adjustment.' });
+            const inputName = (req.body?.name || req.body?.institutionName || req.body?.institution_name || '').toString().trim();
+            if (!rawInstId && !inputName) {
+                return res.status(400).json({ success: false, error: 'missing_institution_id', message: 'Institution ID or name is required for SMS balance adjustment.' });
             }
 
-            const cleanId = rawInstId.replace(/^(inst_|br_)/i, '');
-            const instIdWithPrefix = `inst_${cleanId}`;
+            const cleanId = rawInstId ? rawInstId.replace(/^(inst_|br_)/i, '') : '';
+            const instIdWithPrefix = cleanId ? `inst_${cleanId}` : '';
+            const candidateIds: string[] = Array.from(new Set([rawInstId, cleanId, instIdWithPrefix].filter(Boolean)));
             const amount = Number(req.body?.amount ?? req.body?.units ?? 0);
             const explicitNewBalance = req.body?.newBalance !== undefined ? Number(req.body.newBalance) : (req.body?.new_balance !== undefined ? Number(req.body.new_balance) : undefined);
 
             let currentBal = 0;
-            let finalBalance = 0;
+            let finalBalance = (explicitNewBalance !== undefined && !isNaN(explicitNewBalance)) ? Math.max(0, explicitNewBalance) : 0;
             let updateSuccess = false;
-            let matchedInstName = '';
+            let matchedInstName = inputName;
+            let targetResolvedId = rawInstId || '';
 
             // 1. Direct PG primary execution
             try {
                 const pool = await getPgPool();
                 if (pool) {
+                    // Safe idempotent schema patch
+                    await pool.query(`
+                        DO $$
+                        BEGIN
+                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS sms_balance NUMERIC DEFAULT 0;
+                        EXCEPTION WHEN OTHERS THEN NULL;
+                        END $$;
+                    `).catch(() => {});
+
                     const selRes = await pool.query(
-                        `SELECT id, name, COALESCE(sms_balance, ("smsBalance")::numeric, 0) as sms_balance FROM public.institutions WHERE id = $1 OR id = $2 OR id = $3 LIMIT 1`,
-                        [rawInstId, cleanId, instIdWithPrefix]
+                        `SELECT id, name, COALESCE(sms_balance, 0)::numeric AS sms_balance 
+                         FROM public.institutions 
+                         WHERE (id = ANY($1::text[]) OR (institution_id IS NOT NULL AND institution_id = ANY($1::text[])))
+                            OR ($2 <> '' AND LOWER(TRIM(name)) = LOWER(TRIM($2)))
+                         ORDER BY CASE WHEN id = ANY($1::text[]) THEN 1 WHEN institution_id = ANY($1::text[]) THEN 2 ELSE 3 END
+                         LIMIT 1`,
+                        [candidateIds, inputName]
                     );
+
                     if (selRes?.rows?.[0]) {
                         currentBal = Number(selRes.rows[0].sms_balance || 0);
-                        matchedInstName = selRes.rows[0].name || '';
+                        matchedInstName = selRes.rows[0].name || matchedInstName;
+                        targetResolvedId = selRes.rows[0].id || targetResolvedId;
+                        if (!candidateIds.includes(targetResolvedId)) candidateIds.push(targetResolvedId);
                     }
 
                     if (explicitNewBalance !== undefined && !isNaN(explicitNewBalance)) {
@@ -2399,19 +2427,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     const updRes = await pool.query(
                         `UPDATE public.institutions 
-                         SET sms_balance = $1, 
-                             "smsBalance" = $1, 
-                             data = jsonb_set(COALESCE(data, '{}'::jsonb), '{sms_balance}', to_jsonb($1::numeric)),
-                             updated_at = NOW() 
-                         WHERE id = $2 OR id = $3 OR id = $4 
+                         SET sms_balance = $1 
+                         WHERE id = ANY($2::text[]) 
+                            OR (institution_id IS NOT NULL AND institution_id = ANY($2::text[]))
+                            OR ($3 <> '' AND LOWER(TRIM(name)) = LOWER(TRIM($3)))
                          RETURNING id, name, sms_balance`,
-                        [finalBalance, rawInstId, cleanId, instIdWithPrefix]
+                        [finalBalance, candidateIds, inputName]
                     );
 
                     if (updRes?.rows && updRes.rows.length > 0) {
                         updateSuccess = true;
                         finalBalance = Number(updRes.rows[0].sms_balance);
                         matchedInstName = updRes.rows[0].name || matchedInstName;
+                        targetResolvedId = updRes.rows[0].id || targetResolvedId;
+
+                        // Non-critical mirror to camelCase "smsBalance", metadata and updated_at if they exist
+                        pool.query(
+                            `UPDATE public.institutions SET "smsBalance" = $1 WHERE id = ANY($2::text[])`,
+                            [finalBalance, candidateIds]
+                        ).catch(() => {});
+                        pool.query(
+                            `UPDATE public.institutions SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{sms_balance}', to_jsonb($1::numeric)) WHERE id = ANY($2::text[])`,
+                            [finalBalance, candidateIds]
+                        ).catch(() => {});
+                        pool.query(
+                            `UPDATE public.institutions SET updated_at = NOW() WHERE id = ANY($2::text[])`,
+                            [candidateIds]
+                        ).catch(() => {});
                     }
                 }
             } catch (pgErr: any) {
@@ -2421,45 +2463,97 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // 2. Supabase synchronization
             if (supabase) {
                 try {
-                    if (!updateSuccess && (explicitNewBalance === undefined || isNaN(explicitNewBalance))) {
-                        const { data: suInst } = await supabase
-                            .from('institutions')
-                            .select('id, name, sms_balance')
-                            .or(`id.eq.${rawInstId},id.eq.${cleanId},id.eq.${instIdWithPrefix}`)
-                            .limit(1)
-                            .maybeSingle();
-                        if (suInst) {
-                            currentBal = Number(suInst.sms_balance || 0);
-                            finalBalance = Math.max(0, currentBal + amount);
-                            matchedInstName = suInst.name || matchedInstName;
+                    let suTargetId: string | null = targetResolvedId || null;
+
+                    // If not resolved yet or balance not known, search Supabase
+                    if (!suTargetId || (!updateSuccess && (explicitNewBalance === undefined || isNaN(explicitNewBalance)))) {
+                        let suFindQ = supabase.from('institutions').select('id, name, sms_balance');
+                        if (candidateIds.length > 0) {
+                            suFindQ = suFindQ.or(`id.in.(${candidateIds.join(',')}),institution_id.in.(${candidateIds.join(',')})`);
+                        } else if (inputName) {
+                            suFindQ = suFindQ.ilike('name', inputName.trim());
                         }
-                    } else if (explicitNewBalance !== undefined && !isNaN(explicitNewBalance)) {
+                        const { data: suFound } = await suFindQ.limit(1).maybeSingle();
+                        if (suFound) {
+                            suTargetId = suFound.id;
+                            targetResolvedId = suFound.id;
+                            if (!updateSuccess && (explicitNewBalance === undefined || isNaN(explicitNewBalance))) {
+                                currentBal = Number(suFound.sms_balance || 0);
+                                finalBalance = Math.max(0, currentBal + amount);
+                            }
+                            matchedInstName = suFound.name || matchedInstName;
+                        } else if (inputName && candidateIds.length > 0) {
+                            // Fallback lookup by name
+                            const { data: suByName } = await supabase.from('institutions').select('id, name, sms_balance').ilike('name', inputName.trim()).limit(1).maybeSingle();
+                            if (suByName) {
+                                suTargetId = suByName.id;
+                                targetResolvedId = suByName.id;
+                                if (!updateSuccess && (explicitNewBalance === undefined || isNaN(explicitNewBalance))) {
+                                    currentBal = Number(suByName.sms_balance || 0);
+                                    finalBalance = Math.max(0, currentBal + amount);
+                                }
+                                matchedInstName = suByName.name || matchedInstName;
+                            }
+                        }
+                    }
+
+                    if (explicitNewBalance !== undefined && !isNaN(explicitNewBalance)) {
                         finalBalance = Math.max(0, explicitNewBalance);
                     }
 
-                    const { error: suErr } = await supabase
-                        .from('institutions')
-                        .update({ sms_balance: finalBalance, smsBalance: finalBalance })
-                        .or(`id.eq.${rawInstId},id.eq.${cleanId},id.eq.${instIdWithPrefix}`);
-
-                    if (suErr) {
-                        await supabase
-                            .from('institutions')
-                            .update({ sms_balance: finalBalance })
-                            .or(`id.eq.${rawInstId},id.eq.${cleanId},id.eq.${instIdWithPrefix}`);
+                    // Perform targeted update in Supabase
+                    let suUpQ = supabase.from('institutions').update({ sms_balance: finalBalance });
+                    if (suTargetId) {
+                        suUpQ = suUpQ.eq('id', suTargetId);
+                    } else if (candidateIds.length > 0) {
+                        suUpQ = suUpQ.in('id', candidateIds);
+                    } else if (inputName) {
+                        suUpQ = suUpQ.ilike('name', inputName.trim());
                     }
-                    updateSuccess = true;
+
+                    const { data: suUpData, error: suErr } = await suUpQ.select('id, name, sms_balance');
+                    if (!suErr && suUpData && suUpData.length > 0) {
+                        updateSuccess = true;
+                        finalBalance = Number(suUpData[0].sms_balance ?? finalBalance);
+                        matchedInstName = suUpData[0].name || matchedInstName;
+                    } else if (suErr) {
+                        console.warn('[api/records:adjustSmsBalance] Supabase update error:', suErr.message);
+                    }
                 } catch (suErr: any) {
-                    console.warn('[api/records:adjustSmsBalance] Supabase update error:', suErr?.message || suErr);
+                    console.warn('[api/records:adjustSmsBalance] Supabase update exception:', suErr?.message || suErr);
                 }
             }
 
             // Clear in-memory cache immediately so subsequent GET returns fresh balance
             _serverModuleMemoryCache.delete('institutions');
 
+            if (!updateSuccess && !process.env.DATABASE_URL && !process.env.VITE_DATABASE_URL && !process.env.SUPABASE_URL && !process.env.VITE_SUPABASE_URL) {
+                // If offline or purely local without database configuration, allow optimistic response
+                return res.status(200).json({
+                    success: true,
+                    institutionId: targetResolvedId || rawInstId,
+                    name: matchedInstName,
+                    previousBalance: currentBal,
+                    amount,
+                    newBalance: finalBalance,
+                    offlineFallback: true
+                });
+            }
+
+            if (!updateSuccess) {
+                console.error(`[api/records:adjustSmsBalance] Failed to update SMS balance on any database engine for institution '${rawInstId || inputName}'`);
+                return res.status(500).json({
+                    success: false,
+                    error: 'database_update_failed',
+                    message: `Could not update SMS balance in database for institution '${rawInstId || inputName}'. Please verify database connectivity or row existence.`,
+                    institutionId: rawInstId,
+                    newBalance: finalBalance
+                });
+            }
+
             return res.status(200).json({
                 success: true,
-                institutionId: rawInstId,
+                institutionId: targetResolvedId || rawInstId,
                 name: matchedInstName,
                 previousBalance: currentBal,
                 amount,
@@ -5755,6 +5849,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     classRankingConfigs: 'class_ranking_configs',
                     othersExamSettings: 'others_exam_settings',
                     isOtpEnabled: 'is_otp_enabled',
+                    smsBalance: 'sms_balance',
                     customSmsPrice: 'custom_sms_price',
                     businessSubType: 'business_sub_type',
                         logoUrl: 'logo_url',
@@ -8361,6 +8456,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (c.custom_sms_price === undefined) c.custom_sms_price = c.customSmsPrice;
                         delete c.customSmsPrice;
                     }
+                    if (c.smsBalance !== undefined) {
+                        if (c.sms_balance === undefined) c.sms_balance = c.smsBalance;
+                        delete c.smsBalance;
+                    }
                     if (c.businessSubType !== undefined) {
                         if (c.business_sub_type === undefined) c.business_sub_type = c.businessSubType;
                         delete c.businessSubType;
@@ -9507,6 +9606,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 classRankingConfigs: 'class_ranking_configs',
                                 othersExamSettings: 'others_exam_settings',
                                 isOtpEnabled: 'is_otp_enabled',
+                                smsBalance: 'sms_balance',
                                 customSmsPrice: 'custom_sms_price',
                                 businessSubType: 'business_sub_type',
                         logoUrl: 'logo_url',
@@ -11752,6 +11852,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         classRankingConfigs: 'class_ranking_configs',
                         othersExamSettings: 'others_exam_settings',
                         isOtpEnabled: 'is_otp_enabled',
+                        smsBalance: 'sms_balance',
                         customSmsPrice: 'custom_sms_price',
                         businessSubType: 'business_sub_type',
                         logoUrl: 'logo_url',
@@ -12258,6 +12359,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 classRankingConfigs: 'class_ranking_configs',
                                 othersExamSettings: 'others_exam_settings',
                                 isOtpEnabled: 'is_otp_enabled',
+                                smsBalance: 'sms_balance',
                                 customSmsPrice: 'custom_sms_price',
                                 businessSubType: 'business_sub_type',
                         logoUrl: 'logo_url',

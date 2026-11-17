@@ -4555,7 +4555,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 return exists ? prev.map(i => i.id === id ? patchedInst as any : i) : [...prev, patchedInst as any];
             });
             // Persist via dedicated endpoint (non-blocking)
-            apiService.adjustInstitutionSmsBalance(id, 0, cleanBal).catch(() => {});
+            apiService.adjustInstitutionSmsBalance(id, 0, cleanBal, undefined, inst?.name).catch(() => {});
             return;
         }
 

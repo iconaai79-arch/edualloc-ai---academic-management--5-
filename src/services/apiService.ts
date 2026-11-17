@@ -7057,10 +7057,14 @@ export const apiService = {
         institutionId: string,
         amount: number,
         newBalance?: number,
-        reason?: string
+        reason?: string,
+        institutionName?: string
     ): Promise<{ success: boolean; newBalance: number }> {
         const token = await apiService.getAuthToken();
         let finalBalance = 0;
+        let remoteSuccess = false;
+        let remoteErrorMsg = '';
+
         try {
             const resp = await fetch(
                 `${typeof window !== 'undefined' ? window.location.origin : ''}/api/records?module=institutions&action=adjustSmsBalance`,
@@ -7073,6 +7077,7 @@ export const apiService = {
                     body: JSON.stringify({
                         action: 'adjustSmsBalance',
                         institutionId,
+                        name: institutionName,
                         amount,
                         ...(newBalance !== undefined ? { newBalance } : {}),
                         ...(reason ? { reason } : {})
@@ -7080,20 +7085,25 @@ export const apiService = {
                 }
             );
             const data = await resp.json().catch(() => ({}));
-            if (data?.success) {
+            if (resp.ok && data?.success) {
                 finalBalance = Number(data.newBalance ?? newBalance ?? 0);
+                remoteSuccess = true;
             } else {
-                throw new Error(data?.error || data?.message || 'adjustSmsBalance API failed');
+                remoteErrorMsg = data?.message || data?.error || `adjustSmsBalance API returned HTTP ${resp.status}`;
+                throw new Error(remoteErrorMsg);
             }
         } catch (err: any) {
             console.warn('[apiService] adjustInstitutionSmsBalance remote error:', err?.message);
-            // Fall back: compute optimistically
+            // Fall back: compute optimistically for client persistence
             if (newBalance !== undefined) {
                 finalBalance = Math.max(0, newBalance);
             } else {
                 const cached: any[] = ls.get('institutions') || [];
-                const cachedInst = cached.find((i: any) => i.id === institutionId);
+                const cachedInst = cached.find((i: any) => i.id === institutionId || (institutionName && i.name?.toLowerCase() === institutionName.toLowerCase()));
                 finalBalance = Math.max(0, (Number(cachedInst?.smsBalance ?? cachedInst?.sms_balance ?? 0)) + amount);
+            }
+            if (!remoteSuccess) {
+                remoteErrorMsg = err?.message || 'Failed to update SMS balance in database';
             }
         }
 
@@ -7132,6 +7142,10 @@ export const apiService = {
             window.dispatchEvent(new CustomEvent('eduai_sms_balance_updated', {
                 detail: { institutionId, newBalance: finalBalance, units: amount }
             }));
+        }
+
+        if (!remoteSuccess && remoteErrorMsg) {
+            throw new Error(remoteErrorMsg);
         }
 
         return { success: true, newBalance: finalBalance };
