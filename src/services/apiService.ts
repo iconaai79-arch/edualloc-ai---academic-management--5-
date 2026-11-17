@@ -6444,16 +6444,43 @@ export const apiService = {
         await apiService.saveModuleRecord('app_notifications', notification);
     },
     async markNotificationAsRead(id: string): Promise<void> {
-        const existing = ls.get('app_notifications').find((n: any) => n && n.id === id);
-        await apiService.saveModuleRecord('app_notifications', {
-            id,
-            message: existing?.message || '',
-            type: existing?.type || 'info',
-            userId: existing?.userId || existing?.user_id,
-            user_id: existing?.userId || existing?.user_id,
-            isRead: true,
-            is_read: true
-        } as any);
+        if (!id) return;
+
+        // 1. Instantly update in-memory cache and local storage
+        try {
+            const list = (ls.get('app_notifications') || []) as any[];
+            const updated = list.map((n: any) => n && n.id === id ? { ...n, isRead: true, is_read: true } : n);
+            ls.set('app_notifications', updated);
+        } catch (_) {}
+
+        // 2. Direct Supabase update if available
+        if (_supabase) {
+            try {
+                await _supabase
+                    .from('app_notifications')
+                    .update({ is_read: true, isRead: true })
+                    .eq('id', id);
+            } catch (err) {
+                console.warn('[markNotificationAsRead] Supabase update warning:', err);
+            }
+        }
+
+        // 3. Fallback sync via saveModuleRecord
+        try {
+            const list = (ls.get('app_notifications') || []) as any[];
+            const existing = list.find((n: any) => n && n.id === id);
+            await apiService.saveModuleRecord('app_notifications', {
+                id,
+                message: existing?.message || '',
+                type: existing?.type || 'info',
+                userId: existing?.userId || existing?.user_id,
+                user_id: existing?.userId || existing?.user_id,
+                isRead: true,
+                is_read: true
+            } as any);
+        } catch (err) {
+            console.warn('[markNotificationAsRead] saveModuleRecord warning:', err);
+        }
     },
     async markVisitorNotificationsAsExited(visitorId: string, visitorName?: string, exitTime?: string, hostId?: string): Promise<void> {
         const timeStr = exitTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -6634,22 +6661,43 @@ export const apiService = {
         }
     },
 
-    async markAllNotificationsAsRead(userId: string): Promise<void> {
-        if (!_supabase) {
-            const records = ls.get('app_notifications');
-            const updated = records.map((n: any) => n.user_id === userId ? { ...n, is_read: true } : n);
+    async markAllNotificationsAsRead(userId?: string): Promise<void> {
+        // 1. Immediately update local storage cache for immediate reactivity
+        try {
+            const records = (ls.get('app_notifications') || []) as any[];
+            const updated = records.map((n: any) => {
+                if (!n) return n;
+                if (userId) {
+                    const nUser = String(n.userId || n.user_id || '').trim().toLowerCase();
+                    const targetUser = String(userId).trim().toLowerCase();
+                    if (nUser && nUser !== targetUser) return n;
+                }
+                return { ...n, isRead: true, is_read: true };
+            });
             ls.set('app_notifications', updated);
-            return;
+        } catch (_) {}
+
+        // 2. Direct Supabase bulk update if available
+        if (_supabase) {
+            try {
+                let query = _supabase.from('app_notifications').update({ is_read: true, isRead: true });
+                if (userId) {
+                    query = query.or(`userId.eq.${userId},user_id.eq.${userId}`);
+                }
+                await query;
+                return;
+            } catch (err) {
+                console.warn('[markAllNotificationsAsRead] Supabase direct update warning:', err);
+            }
         }
         
-        // This is tricky without a bulk update in api proxy. 
-        // For now, let's use a simple loop or just update them one by one.
-        // Better: add a bulk update to the api proxy if needed, but for now:
-        const notifications = await apiService.fetchNotifications(userId);
-        for (const n of notifications) {
-            if (!n.isRead) {
-                await apiService.markNotificationAsRead(n.id);
-            }
+        // 3. Fallback: update in parallel
+        try {
+            const notifications = await apiService.fetchNotifications(userId || '');
+            const unread = (notifications || []).filter(n => !n.isRead);
+            await Promise.allSettled(unread.map(n => apiService.markNotificationAsRead(n.id)));
+        } catch (err) {
+            console.warn('[markAllNotificationsAsRead] Fallback error:', err);
         }
     },
     async activateModuleTrial(moduleId: string, institutionId: string): Promise<void> {

@@ -193,7 +193,11 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
         setIsOpen(!isOpen);
     };
     
-    const handleMarkAllRead = () => {
+    const handleMarkAllRead = (e?: React.MouseEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
         onMarkAsRead(); // Calls without ID implies 'all'
     };
 
@@ -204,6 +208,15 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
         }
         if (!n.isRead) {
             onMarkAsRead(n.id);
+        }
+        if (n.link) {
+            try {
+                if (n.link.startsWith('http://') || n.link.startsWith('https://')) {
+                    window.open(n.link, '_blank');
+                } else {
+                    window.location.hash = n.link;
+                }
+            } catch (_) {}
         }
     };
 
@@ -241,8 +254,9 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                         <span className="text-sm font-semibold text-slate-900 dark:text-white">Notifications</span>
                         {unreadCount > 0 && (
                             <button 
+                                type="button"
                                 onClick={handleMarkAllRead}
-                                className="text-xs font-medium text-[var(--color-primary)] hover:underline"
+                                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline px-2 py-1 rounded transition-colors cursor-pointer"
                             >
                                 Mark all as read
                             </button>
@@ -266,10 +280,11 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                                     return (
                                         <li 
                                             key={notification.id} 
-                                            className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${
+                                            onClick={() => handleItemAction(notification)}
+                                            className={`p-4 transition-colors cursor-pointer select-none ${
                                                 !notification.isRead 
-                                                    ? (isVisitorNotif ? 'bg-amber-50/70 dark:bg-amber-950/30 border-l-4 border-amber-500' : 'bg-blue-50/50 dark:bg-blue-900/20 border-l-4 border-blue-500') 
-                                                    : (isVisitorNotif && isVisitorExited ? 'bg-slate-50/50 dark:bg-slate-800/40 border-l-4 border-emerald-500/70' : '')
+                                                    ? (isVisitorNotif ? 'bg-amber-50/70 dark:bg-amber-950/30 border-l-4 border-amber-500 hover:bg-amber-100/70 dark:hover:bg-amber-900/40' : 'bg-blue-50/50 dark:bg-blue-900/20 border-l-4 border-blue-500 hover:bg-blue-100/60 dark:hover:bg-blue-900/40') 
+                                                    : (isVisitorNotif && isVisitorExited ? 'bg-slate-50/50 dark:bg-slate-800/40 border-l-4 border-emerald-500/70 hover:bg-slate-100 dark:hover:bg-slate-700/50' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50')
                                             }`}
                                         >
                                             <div className="flex justify-between items-start gap-3">
@@ -319,8 +334,12 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                                                 </div>
                                                 {!notification.isRead ? (
                                                     <button 
-                                                        onClick={() => handleItemAction(notification)}
-                                                        className={`flex-shrink-0 p-1.5 rounded-xl transition-all ${
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleItemAction(notification);
+                                                        }}
+                                                        className={`flex-shrink-0 p-1.5 rounded-xl transition-all cursor-pointer ${
                                                             isVisitorNotif 
                                                                 ? 'text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-sm' 
                                                                 : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'

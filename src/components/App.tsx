@@ -6670,18 +6670,38 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         }
     }, [visitors, buildingVisitorLogs, handleLogAction, success, loadData, currentUser?.id]);
 
-    const handleMarkNotificationAsRead = useCallback(async (id: string) => {
+    const handleMarkNotificationAsRead = useCallback(async (id?: string) => {
+        if (!id || id === 'all') {
+            // 1. Optimistic update: mark all as read instantly in UI
+            setNotifications(prev => prev.map(n => ({ ...n, isRead: true, is_read: true })));
+
+            // 2. Persist in background
+            try {
+                if (currentUser?.id) {
+                    await apiService.markAllNotificationsAsRead(currentUser.id);
+                } else {
+                    await apiService.markAllNotificationsAsRead();
+                }
+            } catch (err) {
+                console.warn("Failed to persist mark all notifications read:", err);
+            }
+            return;
+        }
+
+        // 1. Single notification: Optimistic update instantly
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true, is_read: true } : n));
+
+        // 2. Acknowledge visitor if applicable & persist
         try {
             const notif = notifications.find(n => n.id === id);
             if (notif && (notif.type === 'guest_arrival' || notif.type === 'visitor')) {
                 handleAcknowledgeVisitorMet(notif);
             }
             await apiService.markNotificationAsRead(id);
-            setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
         } catch (error) {
-            console.error("Failed to mark notification as read:", error);
+            console.warn("Failed to mark notification as read on server:", error);
         }
-    }, [notifications, handleAcknowledgeVisitorMet]);
+    }, [notifications, handleAcknowledgeVisitorMet, currentUser?.id]);
 
     const handleAddCounty = useCallback(async (data: Omit<County, 'id' | 'createdAt'>) => {
         try {
@@ -8967,7 +8987,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             logoUrl={activeBranding.logoUrl}
                             systemLogoUrl={companyDetails.logoUrl}
                             notifications={notifications}
-                            onMarkAsRead={(id) => { if (id) handleMarkNotificationAsRead(id); }}
+                            onMarkAsRead={(id) => handleMarkNotificationAsRead(id)}
                             onAcknowledgeVisitorMet={handleAcknowledgeVisitorMet}
                             currentInstitution={activeInstitution}
                             primaryColor={activeBranding.primaryColor}

@@ -203,16 +203,20 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
 
     const handleMarkAsRead = async (id?: string) => {
         if (!currentUser) return;
-        try {
-            if (id) {
+        if (id) {
+            setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true, is_read: true } : n));
+            try {
                 await apiService.markNotificationAsRead(id);
-                setNotifications(notifications.map(n => n.id === id ? { ...n, isRead: true } : n));
-            } else {
-                await apiService.markAllNotificationsAsRead(currentUser.id);
-                setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+            } catch (err) {
+                console.warn("Failed to mark notification as read on server:", err);
             }
-        } catch (err) {
-            console.error("Failed to mark notification as read:", err);
+        } else {
+            setNotifications(prev => prev.map(n => ({ ...n, isRead: true, is_read: true })));
+            try {
+                await apiService.markAllNotificationsAsRead(currentUser.id);
+            } catch (err) {
+                console.warn("Failed to mark all notifications as read on server:", err);
+            }
         }
     };
 
