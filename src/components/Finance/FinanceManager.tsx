@@ -2232,6 +2232,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [cbStartDate, setCbStartDate] = useState('');
     const [cbEndDate, setCbEndDate] = useState('');
     const [cbViewType, setCbViewType] = useState<'unified' | 'receipts' | 'payments'>('unified');
+    const [cbModesDisplay, setCbModesDisplay] = useState<'columns' | 'stacked'>('columns');
     const [expandedCbDates, setExpandedCbDates] = useState<string[]>([]);
     const [feeRegClass, setFeeRegClass] = useState<string>('');
     const [feeRegStream, setFeeRegStream] = useState<string>('All');
@@ -24262,17 +24263,41 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 const minRcpt = rcptNums.length > 0 ? rcptNums.reduce((min, cur) => cur < min ? cur : min) : '—';
                                                 const maxRcpt = rcptNums.length > 0 ? rcptNums.reduce((max, cur) => cur > max ? cur : max) : '—';
 
-                                                // Payment methods breakdown
-                                                const methods: Record<string, number> = {};
+                                                // Payment methods breakdown (Standardized: Bank Transfer | M-Pesa | Cheque | Cash)
+                                                const methods: Record<string, number> = {
+                                                    'Bank Transfer': 0,
+                                                    'M-Pesa': 0,
+                                                    'Cheque': 0,
+                                                    'Cash': 0
+                                                };
+                                                const customMethods: Record<string, number> = {};
+
                                                 day.receiptsList.forEach(r => {
-                                                    const m = r.method || 'Cash';
-                                                    methods[m] = (methods[m] || 0) + r.debit;
+                                                    const raw = String(r.method || r.paymentMethod || 'Cash').trim();
+                                                    if (/bank|transfer|deposit|eft|rtgs/i.test(raw)) {
+                                                        methods['Bank Transfer'] += (r.debit || 0);
+                                                    } else if (/mpesa|m-pesa|paybill|till/i.test(raw)) {
+                                                        methods['M-Pesa'] += (r.debit || 0);
+                                                    } else if (/cheque|chq|check/i.test(raw)) {
+                                                        methods['Cheque'] += (r.debit || 0);
+                                                    } else if (/cash/i.test(raw)) {
+                                                        methods['Cash'] += (r.debit || 0);
+                                                    } else {
+                                                        customMethods[raw] = (customMethods[raw] || 0) + (r.debit || 0);
+                                                    }
                                                 });
-                                                const methodsBreakdown = Object.entries(methods).map(([m, val]) => ({
-                                                    method: m,
-                                                    amount: val
-                                                }));
-                                                const methodSummary = methodsBreakdown
+
+                                                const methodsBreakdown = [
+                                                    { method: 'Bank Transfer', amount: methods['Bank Transfer'] },
+                                                    { method: 'M-Pesa', amount: methods['M-Pesa'] },
+                                                    { method: 'Cheque', amount: methods['Cheque'] },
+                                                    { method: 'Cash', amount: methods['Cash'] },
+                                                    ...Object.entries(customMethods).map(([m, val]) => ({ method: m, amount: val }))
+                                                ];
+
+                                                const activeMethodsBreakdown = methodsBreakdown.filter(mb => mb.amount > 0);
+
+                                                const methodSummary = activeMethodsBreakdown
                                                     .map(mb => `${mb.method}: KSh ${mb.amount.toLocaleString()}`)
                                                     .join(' · ');
 
@@ -24282,7 +24307,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     cf,
                                                     minRcpt,
                                                     maxRcpt,
+                                                    methods,
                                                     methodsBreakdown,
+                                                    activeMethodsBreakdown,
                                                     methodSummary
                                                 };
                                             }).reverse();
@@ -24326,8 +24353,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 type="button"
                                                                 onClick={() => {
                                                                     if (cbViewType === 'unified') {
-                                                                        const headers = ['Date', 'Balance B/F', 'Receipt Range', 'Payment Modes', 'Inflow (Dr)', 'Outflow (Cr)', 'Balance C/F'];
-                                                                        const rows = activeCbList.map(d => [
+                                                                        const headers = cbModesDisplay === 'columns'
+                                                                            ? ['Date', 'Balance B/F', 'Receipt Range', 'Bank Transfer', 'M-Pesa', 'Cheque', 'Cash', 'Inflow (Dr)', 'Outflow (Cr)', 'Balance C/F']
+                                                                            : ['Date', 'Balance B/F', 'Receipt Range', 'Payment Modes', 'Inflow (Dr)', 'Outflow (Cr)', 'Balance C/F'];
+                                                                        const rows = activeCbList.map(d => cbModesDisplay === 'columns' ? [
+                                                                            d.date,
+                                                                            d.bf,
+                                                                            d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`,
+                                                                            d.methods['Bank Transfer'] || 0,
+                                                                            d.methods['M-Pesa'] || 0,
+                                                                            d.methods['Cheque'] || 0,
+                                                                            d.methods['Cash'] || 0,
+                                                                            d.debit,
+                                                                            d.credit,
+                                                                            d.cf
+                                                                        ] : [
                                                                             d.date,
                                                                             d.bf,
                                                                             d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`,
@@ -24338,8 +24378,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         ]);
                                                                         exportCSV(`cash_book_unified_${cbPeriod}`, headers, rows);
                                                                     } else if (cbViewType === 'receipts') {
-                                                                        const headers = ['Date', 'Balance B/F', 'Receipt Range', 'Payment Modes Summary', 'Total Inflow (Dr)', 'Balance C/F'];
-                                                                        const rows = activeCbList.map(d => [
+                                                                        const headers = cbModesDisplay === 'columns'
+                                                                            ? ['Date', 'Balance B/F', 'Receipt Range', 'Bank Transfer', 'M-Pesa', 'Cheque', 'Cash', 'Total Inflow (Dr)', 'Balance C/F']
+                                                                            : ['Date', 'Balance B/F', 'Receipt Range', 'Payment Modes Summary', 'Total Inflow (Dr)', 'Balance C/F'];
+                                                                        const rows = activeCbList.map(d => cbModesDisplay === 'columns' ? [
+                                                                            d.date,
+                                                                            d.bf,
+                                                                            d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`,
+                                                                            d.methods['Bank Transfer'] || 0,
+                                                                            d.methods['M-Pesa'] || 0,
+                                                                            d.methods['Cheque'] || 0,
+                                                                            d.methods['Cash'] || 0,
+                                                                            d.debit,
+                                                                            d.cf
+                                                                        ] : [
                                                                             d.date,
                                                                             d.bf,
                                                                             d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`,
@@ -24381,6 +24433,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             name: d.date,
                                                                             receiptRange: d.debit > 0 ? (d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`) : '—',
                                                                             paymentModes: d.methodSummary || '—',
+                                                                            bankTransfer: d.methods?.['Bank Transfer'] || 0,
+                                                                            mpesa: d.methods?.['M-Pesa'] || 0,
+                                                                            cheque: d.methods?.['Cheque'] || 0,
+                                                                            cash: d.methods?.['Cash'] || 0,
                                                                             adm: d.debit > 0 ? (d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`) : '—',
                                                                             cls: `B/F: KSh ${Number(d.bf || 0).toLocaleString()}`,
                                                                             bf: d.bf,
@@ -24411,6 +24467,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             name: d.date,
                                                                             receiptRange: d.debit > 0 ? (d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`) : '—',
                                                                             paymentModes: d.methodSummary || '—',
+                                                                            bankTransfer: d.methods?.['Bank Transfer'] || 0,
+                                                                            mpesa: d.methods?.['M-Pesa'] || 0,
+                                                                            cheque: d.methods?.['Cheque'] || 0,
+                                                                            cash: d.methods?.['Cash'] || 0,
                                                                             adm: d.debit > 0 ? (d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`) : '—',
                                                                             cls: `B/F: KSh ${Number(d.bf || 0).toLocaleString()}`,
                                                                             bf: d.bf,
@@ -24450,8 +24510,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 </select>
                                                             </div>
 
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Payment Modes Layout</label>
+                                                                <select value={cbModesDisplay} onChange={e => setCbModesDisplay(e.target.value as any)} className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white cursor-pointer">
+                                                                    <option value="columns">Vertical Columns (Bank | M-Pesa | Cheque | Cash)</option>
+                                                                    <option value="stacked">Single Column (Stacked Modes)</option>
+                                                                </select>
+                                                            </div>
+
                                                             {/* Search Input */}
-                                                            <div className="space-y-1.5 sm:col-span-2">
+                                                            <div className="space-y-1.5">
                                                                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Search Cash Book</label>
                                                                 <div className="flex gap-2">
                                                                     <input
@@ -24534,7 +24602,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         {TH('Date')}
                                                                         {TH('Balance B/F')}
                                                                         {TH('Receipts Range')}
-                                                                        {TH('Payment Modes')}
+                                                                        {cbModesDisplay === 'columns' ? (
+                                                                            <>
+                                                                                {TH('Bank Transfer')}
+                                                                                {TH('M-Pesa')}
+                                                                                {TH('Cheque')}
+                                                                                {TH('Cash')}
+                                                                            </>
+                                                                        ) : (
+                                                                            TH('Payment Modes')
+                                                                        )}
                                                                         {TH('Inflow (Dr)')}
                                                                         {TH('Outflow (Cr)')}
                                                                         {TH('Balance C/F')}
@@ -24557,25 +24634,42 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                     <TD cls="text-xs font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                                                                                         {day.debit > 0 ? (day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`) : '—'}
                                                                                     </TD>
-                                                                                    <TD cls="text-[11px] text-slate-600 dark:text-slate-400">
-                                                                                        {day.debit > 0 && day.methodsBreakdown && day.methodsBreakdown.length > 0 ? (
-                                                                                            <div className="flex flex-col gap-1 py-0.5">
-                                                                                                {day.methodsBreakdown.map((mb: any, mIdx: number) => (
-                                                                                                    <div key={mIdx} className="flex items-center gap-1.5 whitespace-nowrap">
-                                                                                                        <span className="font-semibold text-slate-600 dark:text-slate-400">{mb.method}:</span>
-                                                                                                        <span className="font-bold text-slate-900 dark:text-white">KSh {mb.amount.toLocaleString()}</span>
-                                                                                                    </div>
-                                                                                                ))}
-                                                                                            </div>
-                                                                                        ) : '—'}
-                                                                                    </TD>
+                                                                                    {cbModesDisplay === 'columns' ? (
+                                                                                        <>
+                                                                                            <TD cls="font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                                                                                {day.methods?.['Bank Transfer'] > 0 ? `KSh ${day.methods['Bank Transfer'].toLocaleString()}` : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                                                                                            </TD>
+                                                                                            <TD cls="font-semibold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                                                                                                {day.methods?.['M-Pesa'] > 0 ? `KSh ${day.methods['M-Pesa'].toLocaleString()}` : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                                                                                            </TD>
+                                                                                            <TD cls="font-semibold text-blue-700 dark:text-blue-400 whitespace-nowrap">
+                                                                                                {day.methods?.['Cheque'] > 0 ? `KSh ${day.methods['Cheque'].toLocaleString()}` : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                                                                                            </TD>
+                                                                                            <TD cls="font-semibold text-amber-700 dark:text-amber-400 whitespace-nowrap">
+                                                                                                {day.methods?.['Cash'] > 0 ? `KSh ${day.methods['Cash'].toLocaleString()}` : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                                                                                            </TD>
+                                                                                        </>
+                                                                                    ) : (
+                                                                                        <TD cls="text-[11px] text-slate-600 dark:text-slate-400">
+                                                                                            {day.debit > 0 && day.activeMethodsBreakdown && day.activeMethodsBreakdown.length > 0 ? (
+                                                                                                <div className="flex flex-col gap-1 py-0.5">
+                                                                                                    {day.activeMethodsBreakdown.map((mb: any, mIdx: number) => (
+                                                                                                        <div key={mIdx} className="flex items-center gap-1.5 whitespace-nowrap">
+                                                                                                            <span className="font-semibold text-slate-600 dark:text-slate-400">{mb.method}:</span>
+                                                                                                            <span className="font-bold text-slate-900 dark:text-white">KSh {mb.amount.toLocaleString()}</span>
+                                                                                                        </div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            ) : '—'}
+                                                                                        </TD>
+                                                                                    )}
                                                                                     <TD cls="font-black text-emerald-600 whitespace-nowrap">{day.debit > 0 ? `KSh ${day.debit.toLocaleString()}` : '—'}</TD>
                                                                                     <TD cls="font-black text-rose-600 whitespace-nowrap">{day.credit > 0 ? `KSh ${day.credit.toLocaleString()}` : '—'}</TD>
                                                                                     <TD cls="font-black text-slate-900 dark:text-white whitespace-nowrap">KSh {day.cf.toLocaleString()}</TD>
                                                                                 </tr>
                                                                                 {isExpanded && (
                                                                                     <tr className="print:hidden bg-slate-50/50 dark:bg-slate-950/20">
-                                                                                        <td colSpan={7} className="p-4 border-b border-slate-100 dark:border-slate-800">
+                                                                                        <td colSpan={cbModesDisplay === 'columns' ? 10 : 7} className="p-4 border-b border-slate-100 dark:border-slate-800">
                                                                                             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 space-y-4 shadow-sm text-left">
                                                                                                 {day.debit > 0 && (
                                                                                                     <div>
@@ -24612,7 +24706,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     })}
                                                                     {paginatedCbList.length === 0 && (
                                                                         <tr>
-                                                                            <td colSpan={7} className="py-8 text-center text-slate-400 font-medium">No transactions recorded for this period.</td>
+                                                                            <td colSpan={cbModesDisplay === 'columns' ? 10 : 7} className="py-8 text-center text-slate-400 font-medium">No transactions recorded for this period.</td>
                                                                         </tr>
                                                                     )}
                                                                 </tbody>
@@ -24629,7 +24723,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         {TH('Date')}
                                                                         {TH('Balance B/F')}
                                                                         {TH('Receipts Range')}
-                                                                        {TH('Payment Modes')}
+                                                                        {cbModesDisplay === 'columns' ? (
+                                                                            <>
+                                                                                {TH('Bank Transfer')}
+                                                                                {TH('M-Pesa')}
+                                                                                {TH('Cheque')}
+                                                                                {TH('Cash')}
+                                                                            </>
+                                                                        ) : (
+                                                                            TH('Payment Modes')
+                                                                        )}
                                                                         {TH('Total Inflow (Dr)')}
                                                                         {TH('Balance C/F')}
                                                                     </tr>
@@ -24651,24 +24754,41 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                     <TD cls="font-bold text-indigo-600 whitespace-nowrap">
                                                                                         {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}
                                                                                     </TD>
-                                                                                    <TD cls="text-[11px] text-slate-600 dark:text-slate-400">
-                                                                                        {day.methodsBreakdown && day.methodsBreakdown.length > 0 ? (
-                                                                                            <div className="flex flex-col gap-1 py-0.5">
-                                                                                                {day.methodsBreakdown.map((mb: any, mIdx: number) => (
-                                                                                                    <div key={mIdx} className="flex items-center gap-1.5 whitespace-nowrap">
-                                                                                                        <span className="font-semibold text-slate-600 dark:text-slate-400">{mb.method}:</span>
-                                                                                                        <span className="font-bold text-slate-900 dark:text-white">KSh {mb.amount.toLocaleString()}</span>
-                                                                                                    </div>
-                                                                                                ))}
-                                                                                            </div>
-                                                                                        ) : '—'}
-                                                                                    </TD>
+                                                                                    {cbModesDisplay === 'columns' ? (
+                                                                                        <>
+                                                                                            <TD cls="font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                                                                                {day.methods?.['Bank Transfer'] > 0 ? `KSh ${day.methods['Bank Transfer'].toLocaleString()}` : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                                                                                            </TD>
+                                                                                            <TD cls="font-semibold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                                                                                                {day.methods?.['M-Pesa'] > 0 ? `KSh ${day.methods['M-Pesa'].toLocaleString()}` : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                                                                                            </TD>
+                                                                                            <TD cls="font-semibold text-blue-700 dark:text-blue-400 whitespace-nowrap">
+                                                                                                {day.methods?.['Cheque'] > 0 ? `KSh ${day.methods['Cheque'].toLocaleString()}` : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                                                                                            </TD>
+                                                                                            <TD cls="font-semibold text-amber-700 dark:text-amber-400 whitespace-nowrap">
+                                                                                                {day.methods?.['Cash'] > 0 ? `KSh ${day.methods['Cash'].toLocaleString()}` : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                                                                                            </TD>
+                                                                                        </>
+                                                                                    ) : (
+                                                                                        <TD cls="text-[11px] text-slate-600 dark:text-slate-400">
+                                                                                            {day.activeMethodsBreakdown && day.activeMethodsBreakdown.length > 0 ? (
+                                                                                                <div className="flex flex-col gap-1 py-0.5">
+                                                                                                    {day.activeMethodsBreakdown.map((mb: any, mIdx: number) => (
+                                                                                                        <div key={mIdx} className="flex items-center gap-1.5 whitespace-nowrap">
+                                                                                                            <span className="font-semibold text-slate-600 dark:text-slate-400">{mb.method}:</span>
+                                                                                                            <span className="font-bold text-slate-900 dark:text-white">KSh {mb.amount.toLocaleString()}</span>
+                                                                                                        </div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            ) : '—'}
+                                                                                        </TD>
+                                                                                    )}
                                                                                     <TD cls="font-black text-emerald-600 whitespace-nowrap">KSh {day.debit.toLocaleString()}</TD>
                                                                                     <TD cls="font-black text-slate-900 dark:text-white whitespace-nowrap">KSh {day.cf.toLocaleString()}</TD>
                                                                                 </tr>
                                                                                 {isExpanded && (
                                                                                     <tr className="print:hidden bg-slate-50/50 dark:bg-slate-950/20">
-                                                                                        <td colSpan={6} className="p-4 border-b border-slate-100 dark:border-slate-800">
+                                                                                        <td colSpan={cbModesDisplay === 'columns' ? 9 : 6} className="p-4 border-b border-slate-100 dark:border-slate-800">
                                                                                             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 space-y-4 shadow-sm text-left">
                                                                                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itemized Inflows (Receipts)</p>
                                                                                                 <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
@@ -24688,7 +24808,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     })}
                                                                     {paginatedCbList.length === 0 && (
                                                                         <tr>
-                                                                            <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">No receipts recorded for this period.</td>
+                                                                            <td colSpan={cbModesDisplay === 'columns' ? 9 : 6} className="py-8 text-center text-slate-400 font-medium">No receipts recorded for this period.</td>
                                                                         </tr>
                                                                     )}
                                                                 </tbody>
@@ -27029,9 +27149,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     }
 
                     const pagesResult: { pageNumber: number; items: any[]; isFirst: boolean; isLast: boolean }[] = [];
-                    const PAGE_1_LIMIT = 24;
-                    const SUBSEQUENT_PAGE_LIMIT = 30;
-                    const LAST_PAGE_WITH_TOTALS_LIMIT = 20;
+                    const PAGE_1_LIMIT = pdfPreviewModal.isCashBook ? 15 : 24;
+                    const SUBSEQUENT_PAGE_LIMIT = pdfPreviewModal.isCashBook ? 18 : 30;
+                    const LAST_PAGE_WITH_TOTALS_LIMIT = pdfPreviewModal.isCashBook ? 12 : 20;
 
                     let idx = 0;
                     // Page 1
@@ -27084,6 +27204,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 animate-fade-in print-container-modal">
                         <style>{`
                             @media print {
+                                @page {
+                                    size: ${pdfPreviewModal.isCashBook ? 'A4 landscape' : 'A4 portrait'};
+                                    margin: 8mm;
+                                }
                                 html, body {
                                     height: auto !important;
                                     min-height: 100% !important;
@@ -27145,7 +27269,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     justify-content: space-between !important;
                                     width: 100% !important;
                                     max-width: 100% !important;
-                                    min-height: 275mm !important;
+                                    min-height: ${pdfPreviewModal.isCashBook ? '190mm' : '275mm'} !important;
                                     height: auto !important;
                                     margin: 0 !important;
                                     padding: 8mm 12mm !important;
@@ -27183,7 +27307,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 }
                             }
                         `}</style>
-                        <div className="bg-slate-900 border border-slate-700 rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden max-h-[92vh] flex flex-col print-modal-inner">
+                        <div className={`bg-slate-900 border border-slate-700 rounded-[2.5rem] shadow-2xl w-full ${pdfPreviewModal.isCashBook ? 'max-w-6xl' : 'max-w-4xl'} overflow-hidden max-h-[92vh] flex flex-col print-modal-inner`}>
                             {/* Modal Navigation Header */}
                             <div className="bg-slate-950 p-5 sm:p-6 border-b border-slate-800 flex justify-between items-center no-print">
                                 <div className="flex items-center gap-3">
@@ -27214,7 +27338,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <div
                                         key={pIdx}
                                         id={page.isFirst ? "printable-pdf-document" : undefined}
-                                        className="pdf-page-sheet mx-auto bg-white text-slate-900 p-6 sm:p-8 md:p-10 rounded-2xl shadow-2xl max-w-3xl font-sans relative border border-slate-200 flex flex-col justify-between min-h-[950px] transition-all overflow-hidden"
+                                        className={`pdf-page-sheet mx-auto bg-white text-slate-900 p-6 sm:p-8 md:p-10 rounded-2xl shadow-2xl ${pdfPreviewModal.isCashBook ? 'max-w-5xl' : 'max-w-3xl'} font-sans relative border border-slate-200 flex flex-col justify-between ${pdfPreviewModal.isCashBook ? 'min-h-[640px]' : 'min-h-[950px]'} transition-all overflow-hidden`}
                                     >
                                         {/* Watermark */}
                                         <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none select-none no-print">
@@ -27294,9 +27418,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <tr className="border-b-2 border-slate-900 text-[10px] font-black uppercase tracking-wider text-slate-700 bg-slate-50">
                                                                         <th className="py-2 px-2">#</th>
                                                                         <th className="py-2 px-2">Date</th>
-                                                                        <th className="py-2 px-2">Receipts Range</th>
-                                                                        <th className="py-2 px-2">Payment Modes</th>
                                                                         <th className="py-2 px-2 text-right">Balance B/F</th>
+                                                                        <th className="py-2 px-2">Receipts Range</th>
+                                                                        <th className="py-2 px-2 text-right">Bank Transfer</th>
+                                                                        <th className="py-2 px-2 text-right">M-Pesa</th>
+                                                                        <th className="py-2 px-2 text-right">Cheque</th>
+                                                                        <th className="py-2 px-2 text-right">Cash</th>
                                                                         <th className="py-2 px-2 text-right">Inflow (Dr)</th>
                                                                         <th className="py-2 px-2 text-right">Outflow (Cr)</th>
                                                                         <th className="py-2 px-2 text-right">Balance C/F</th>
@@ -27310,9 +27437,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50/60">
                                                                                 <td className="py-1.5 px-2 font-mono text-slate-400">{displayIdx}</td>
                                                                                 <td className="py-1.5 px-2 font-bold text-slate-900 whitespace-nowrap">{it.name}</td>
-                                                                                <td className="py-1.5 px-2 font-bold text-indigo-700 whitespace-nowrap">{it.receiptRange || it.adm || '—'}</td>
-                                                                                <td className="py-1.5 px-2 text-[10px] text-slate-600">{it.paymentModes || '—'}</td>
                                                                                 <td className="py-1.5 px-2 text-right font-medium text-slate-700 whitespace-nowrap">KSh {Number(it.bf || 0).toLocaleString()}</td>
+                                                                                <td className="py-1.5 px-2 font-bold text-indigo-700 whitespace-nowrap">{it.receiptRange || it.adm || '—'}</td>
+                                                                                <td className="py-1.5 px-2 text-right font-semibold text-slate-800 whitespace-nowrap">{Number(it.bankTransfer || 0) > 0 ? `KSh ${Number(it.bankTransfer).toLocaleString()}` : <span className="text-slate-300">—</span>}</td>
+                                                                                <td className="py-1.5 px-2 text-right font-semibold text-emerald-700 whitespace-nowrap">{Number(it.mpesa || 0) > 0 ? `KSh ${Number(it.mpesa).toLocaleString()}` : <span className="text-slate-300">—</span>}</td>
+                                                                                <td className="py-1.5 px-2 text-right font-semibold text-blue-700 whitespace-nowrap">{Number(it.cheque || 0) > 0 ? `KSh ${Number(it.cheque).toLocaleString()}` : <span className="text-slate-300">—</span>}</td>
+                                                                                <td className="py-1.5 px-2 text-right font-semibold text-amber-700 whitespace-nowrap">{Number(it.cash || 0) > 0 ? `KSh ${Number(it.cash).toLocaleString()}` : <span className="text-slate-300">—</span>}</td>
                                                                                 <td className="py-1.5 px-2 text-right font-bold text-emerald-700 whitespace-nowrap">{Number(it.inv || 0) > 0 ? `KSh ${Number(it.inv).toLocaleString()}` : '—'}</td>
                                                                                 <td className="py-1.5 px-2 text-right font-bold text-rose-700 whitespace-nowrap">{Number(it.pd || 0) > 0 ? `KSh ${Number(it.pd).toLocaleString()}` : '—'}</td>
                                                                                 <td className="py-1.5 px-2 text-right font-bold text-slate-900 whitespace-nowrap">KSh {Number(it.bal || 0).toLocaleString()}</td>
@@ -27503,13 +27633,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                                 if (pdfPreviewModal.items && pdfPreviewModal.items.length > 0) {
                                                     if (pdfPreviewModal.isCashBook) {
-                                                        const head = [['#', 'Date', 'Receipts Range', 'Payment Modes', 'Balance B/F (KSh)', 'Inflow (Dr) (KSh)', 'Outflow (Cr) (KSh)', 'Balance C/F (KSh)']];
+                                                        const head = [['#', 'Date', 'Balance B/F (KSh)', 'Receipts Range', 'Bank Transfer (KSh)', 'M-Pesa (KSh)', 'Cheque (KSh)', 'Cash (KSh)', 'Inflow (Dr) (KSh)', 'Outflow (Cr) (KSh)', 'Balance C/F (KSh)']];
                                                         const body = pdfPreviewModal.items.map((it: any, idx: number) => [
                                                             idx + 1,
                                                             it.name,
-                                                            it.receiptRange || it.adm || '—',
-                                                            it.paymentModes || '—',
                                                             Number(it.bf || 0).toLocaleString(),
+                                                            it.receiptRange || it.adm || '—',
+                                                            Number(it.bankTransfer || 0) > 0 ? Number(it.bankTransfer).toLocaleString() : '—',
+                                                            Number(it.mpesa || 0) > 0 ? Number(it.mpesa).toLocaleString() : '—',
+                                                            Number(it.cheque || 0) > 0 ? Number(it.cheque).toLocaleString() : '—',
+                                                            Number(it.cash || 0) > 0 ? Number(it.cash).toLocaleString() : '—',
                                                             Number(it.inv || 0) > 0 ? Number(it.inv).toLocaleString() : '—',
                                                             Number(it.pd || 0) > 0 ? Number(it.pd).toLocaleString() : '—',
                                                             Number(it.bal || 0).toLocaleString()
@@ -27523,13 +27656,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
                                                             columnStyles: {
                                                                 0: { cellWidth: 8, halign: 'center' },
-                                                                1: { cellWidth: 22 },
-                                                                2: { cellWidth: 32 },
-                                                                3: { cellWidth: 60 },
-                                                                4: { halign: 'right' },
-                                                                5: { halign: 'right', textColor: [16, 185, 129] },
-                                                                6: { halign: 'right', textColor: [225, 29, 72] },
-                                                                7: { halign: 'right', fontStyle: 'bold' }
+                                                                1: { cellWidth: 20 },
+                                                                2: { cellWidth: 24, halign: 'right' },
+                                                                3: { cellWidth: 26 },
+                                                                4: { cellWidth: 24, halign: 'right' },
+                                                                5: { cellWidth: 24, halign: 'right', textColor: [16, 185, 129] },
+                                                                6: { cellWidth: 22, halign: 'right' },
+                                                                7: { cellWidth: 22, halign: 'right' },
+                                                                8: { cellWidth: 24, halign: 'right', textColor: [16, 185, 129], fontStyle: 'bold' },
+                                                                9: { cellWidth: 24, halign: 'right', textColor: [225, 29, 72] },
+                                                                10: { cellWidth: 26, halign: 'right', fontStyle: 'bold' }
                                                             },
                                                             didDrawPage: (data: any) => {
                                                                 const pageSize = doc.internal.pageSize;
