@@ -23662,7 +23662,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     collectionsByDate[dateStr] = { date: dateStr, minRcpt: '', maxRcpt: '', voteMap: {}, total: 0, receiptCount: 0 };
                                                 }
                                                 const day = collectionsByDate[dateStr];
-                                                const rNum = rcpt.receiptNumber || rcpt.id?.slice(-8);
+                                                const rawR = rcpt.receiptNumber || rcpt.id?.slice(-8) || '';
+                                                const rNum = String(rawR).replace(/^(?:rec|rcpt|receipt)[-_\s:]*/i, '').trim() || rawR;
 
                                                 if (!day.minRcpt || rNum < day.minRcpt) day.minRcpt = rNum;
                                                 if (!day.maxRcpt || rNum > day.maxRcpt) day.maxRcpt = rNum;
@@ -24258,10 +24259,30 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 dailyRunning += day.debit - day.credit;
                                                 const cf = dailyRunning;
 
-                                                // Receipt numbers min/max range
-                                                const rcptNums = day.receiptsList.map(r => r.ref).filter(Boolean);
-                                                const minRcpt = rcptNums.length > 0 ? rcptNums.reduce((min, cur) => cur < min ? cur : min) : '—';
-                                                const maxRcpt = rcptNums.length > 0 ? rcptNums.reduce((max, cur) => cur > max ? cur : max) : '—';
+                                                // Receipt numbers min/max range (clean numbers only without "REC", e.g. 1423 - 1430)
+                                                const cleanRcptNum = (val: string): string => {
+                                                    if (!val || val === '—') return '';
+                                                    return String(val).replace(/^(?:rec|rcpt|receipt)[-_\s:]*/i, '').trim();
+                                                };
+
+                                                const rcptNums = day.receiptsList
+                                                    .map(r => cleanRcptNum(r.ref || r.receiptNumber || ''))
+                                                    .filter(Boolean);
+
+                                                const sortedRcptList = [...rcptNums].sort((a, b) => {
+                                                    const numA = parseInt(a, 10);
+                                                    const numB = parseInt(b, 10);
+                                                    if (!isNaN(numA) && !isNaN(numB)) {
+                                                        return numA - numB;
+                                                    }
+                                                    return a.localeCompare(b, undefined, { numeric: true });
+                                                });
+
+                                                const minRcpt = sortedRcptList.length > 0 ? sortedRcptList[0] : '—';
+                                                const maxRcpt = sortedRcptList.length > 0 ? sortedRcptList[sortedRcptList.length - 1] : '—';
+                                                const receiptRange = day.debit > 0 && minRcpt !== '—'
+                                                    ? (minRcpt === maxRcpt ? minRcpt : `${minRcpt} - ${maxRcpt}`)
+                                                    : '—';
 
                                                 // Payment methods breakdown (Standardized: Bank Transfer | M-Pesa | Cheque | Cash)
                                                 const methods: Record<string, number> = {
@@ -24307,6 +24328,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     cf,
                                                     minRcpt,
                                                     maxRcpt,
+                                                    receiptRange,
                                                     methods,
                                                     methodsBreakdown,
                                                     activeMethodsBreakdown,
@@ -24317,6 +24339,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 if (!cbSearch.trim()) return true;
                                                 const q = cbSearch.toLowerCase().trim();
                                                 if (day.date.toLowerCase().includes(q)) return true;
+                                                if (day.receiptRange && day.receiptRange.toLowerCase().includes(q)) return true;
                                                 if (day.minRcpt.toLowerCase().includes(q) || day.maxRcpt.toLowerCase().includes(q)) return true;
                                                 if (day.methodSummary && day.methodSummary.toLowerCase().includes(q)) return true;
                                                 if (day.receiptsList.some((r: any) => (r.particulars && r.particulars.toLowerCase().includes(q)) || (r.ref && r.ref.toLowerCase().includes(q)) || (r.method && r.method.toLowerCase().includes(q)))) return true;
@@ -24359,7 +24382,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         const rows = activeCbList.map(d => cbModesDisplay === 'columns' ? [
                                                                             d.date,
                                                                             d.bf,
-                                                                            d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`,
+                                                                            d.receiptRange || '—',
                                                                             d.methods['Bank Transfer'] || 0,
                                                                             d.methods['M-Pesa'] || 0,
                                                                             d.methods['Cheque'] || 0,
@@ -24370,7 +24393,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         ] : [
                                                                             d.date,
                                                                             d.bf,
-                                                                            d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`,
+                                                                            d.receiptRange || '—',
                                                                             d.methodSummary || '—',
                                                                             d.debit,
                                                                             d.credit,
@@ -24384,7 +24407,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         const rows = activeCbList.map(d => cbModesDisplay === 'columns' ? [
                                                                             d.date,
                                                                             d.bf,
-                                                                            d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`,
+                                                                            d.receiptRange || '—',
                                                                             d.methods['Bank Transfer'] || 0,
                                                                             d.methods['M-Pesa'] || 0,
                                                                             d.methods['Cheque'] || 0,
@@ -24394,7 +24417,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         ] : [
                                                                             d.date,
                                                                             d.bf,
-                                                                            d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`,
+                                                                            d.receiptRange || '—',
                                                                             d.methodSummary || '—',
                                                                             d.debit,
                                                                             d.cf
@@ -24431,13 +24454,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         isCashBook: true,
                                                                         items: activeCbList.map((d: any) => ({
                                                                             name: d.date,
-                                                                            receiptRange: d.debit > 0 ? (d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`) : '—',
+                                                                            receiptRange: d.receiptRange || '—',
                                                                             paymentModes: d.methodSummary || '—',
                                                                             bankTransfer: d.methods?.['Bank Transfer'] || 0,
                                                                             mpesa: d.methods?.['M-Pesa'] || 0,
                                                                             cheque: d.methods?.['Cheque'] || 0,
                                                                             cash: d.methods?.['Cash'] || 0,
-                                                                            adm: d.debit > 0 ? (d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`) : '—',
+                                                                            adm: d.receiptRange || '—',
                                                                             cls: `B/F: KSh ${Number(d.bf || 0).toLocaleString()}`,
                                                                             bf: d.bf,
                                                                             inv: d.debit,
@@ -24465,13 +24488,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         isCashBook: true,
                                                                         items: activeCbList.map((d: any) => ({
                                                                             name: d.date,
-                                                                            receiptRange: d.debit > 0 ? (d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`) : '—',
+                                                                            receiptRange: d.receiptRange || '—',
                                                                             paymentModes: d.methodSummary || '—',
                                                                             bankTransfer: d.methods?.['Bank Transfer'] || 0,
                                                                             mpesa: d.methods?.['M-Pesa'] || 0,
                                                                             cheque: d.methods?.['Cheque'] || 0,
                                                                             cash: d.methods?.['Cash'] || 0,
-                                                                            adm: d.debit > 0 ? (d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`) : '—',
+                                                                            adm: d.receiptRange || '—',
                                                                             cls: `B/F: KSh ${Number(d.bf || 0).toLocaleString()}`,
                                                                             bf: d.bf,
                                                                             inv: d.debit,
@@ -24632,7 +24655,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                     </TD>
                                                                                     <TD cls="text-slate-500 font-bold whitespace-nowrap">KSh {day.bf.toLocaleString()}</TD>
                                                                                     <TD cls="text-xs font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
-                                                                                        {day.debit > 0 ? (day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`) : '—'}
+                                                                                        <span className="whitespace-nowrap">{day.receiptRange || '—'}</span>
                                                                                     </TD>
                                                                                     {cbModesDisplay === 'columns' ? (
                                                                                         <>
@@ -24751,8 +24774,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                         {day.date}
                                                                                     </TD>
                                                                                     <TD cls="text-slate-500 font-bold whitespace-nowrap">KSh {day.bf.toLocaleString()}</TD>
-                                                                                    <TD cls="font-bold text-indigo-600 whitespace-nowrap">
-                                                                                        {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}
+                                                                                    <TD cls="text-xs font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                                                                                        <span className="whitespace-nowrap">{day.receiptRange || '—'}</span>
                                                                                     </TD>
                                                                                     {cbModesDisplay === 'columns' ? (
                                                                                         <>
@@ -27433,12 +27456,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     {page.items.map((it: any, idx: number) => {
                                                                         const globalIdx = rawItems.indexOf(it);
                                                                         const displayIdx = globalIdx >= 0 ? globalIdx + 1 : idx + 1;
+                                                                        const displayRange = String(it.receiptRange || it.adm || '—')
+                                                                            .replace(/^(?:rec|rcpt|receipt)[-_\s:]*/gi, '')
+                                                                            .trim() || '—';
                                                                         return (
                                                                             <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50/60">
                                                                                 <td className="py-1.5 px-2 font-mono text-slate-400">{displayIdx}</td>
                                                                                 <td className="py-1.5 px-2 font-bold text-slate-900 whitespace-nowrap">{it.name}</td>
                                                                                 <td className="py-1.5 px-2 text-right font-medium text-slate-700 whitespace-nowrap">KSh {Number(it.bf || 0).toLocaleString()}</td>
-                                                                                <td className="py-1.5 px-2 font-bold text-indigo-700 whitespace-nowrap">{it.receiptRange || it.adm || '—'}</td>
+                                                                                <td className="py-1.5 px-2 font-bold text-indigo-700 whitespace-nowrap">{displayRange}</td>
                                                                                 <td className="py-1.5 px-2 text-right font-semibold text-slate-800 whitespace-nowrap">{Number(it.bankTransfer || 0) > 0 ? `KSh ${Number(it.bankTransfer).toLocaleString()}` : <span className="text-slate-300">—</span>}</td>
                                                                                 <td className="py-1.5 px-2 text-right font-semibold text-emerald-700 whitespace-nowrap">{Number(it.mpesa || 0) > 0 ? `KSh ${Number(it.mpesa).toLocaleString()}` : <span className="text-slate-300">—</span>}</td>
                                                                                 <td className="py-1.5 px-2 text-right font-semibold text-blue-700 whitespace-nowrap">{Number(it.cheque || 0) > 0 ? `KSh ${Number(it.cheque).toLocaleString()}` : <span className="text-slate-300">—</span>}</td>
@@ -27634,19 +27660,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 if (pdfPreviewModal.items && pdfPreviewModal.items.length > 0) {
                                                     if (pdfPreviewModal.isCashBook) {
                                                         const head = [['#', 'Date', 'Balance B/F (KSh)', 'Receipts Range', 'Bank Transfer (KSh)', 'M-Pesa (KSh)', 'Cheque (KSh)', 'Cash (KSh)', 'Inflow (Dr) (KSh)', 'Outflow (Cr) (KSh)', 'Balance C/F (KSh)']];
-                                                        const body = pdfPreviewModal.items.map((it: any, idx: number) => [
-                                                            idx + 1,
-                                                            it.name,
-                                                            Number(it.bf || 0).toLocaleString(),
-                                                            it.receiptRange || it.adm || '—',
-                                                            Number(it.bankTransfer || 0) > 0 ? Number(it.bankTransfer).toLocaleString() : '—',
-                                                            Number(it.mpesa || 0) > 0 ? Number(it.mpesa).toLocaleString() : '—',
-                                                            Number(it.cheque || 0) > 0 ? Number(it.cheque).toLocaleString() : '—',
-                                                            Number(it.cash || 0) > 0 ? Number(it.cash).toLocaleString() : '—',
-                                                            Number(it.inv || 0) > 0 ? Number(it.inv).toLocaleString() : '—',
-                                                            Number(it.pd || 0) > 0 ? Number(it.pd).toLocaleString() : '—',
-                                                            Number(it.bal || 0).toLocaleString()
-                                                        ]);
+                                                        const body = pdfPreviewModal.items.map((it: any, idx: number) => {
+                                                            const cleanRange = String(it.receiptRange || it.adm || '—')
+                                                                .replace(/^(?:rec|rcpt|receipt)[-_\s:]*/gi, '')
+                                                                .trim() || '—';
+                                                            return [
+                                                                idx + 1,
+                                                                it.name,
+                                                                Number(it.bf || 0).toLocaleString(),
+                                                                cleanRange,
+                                                                Number(it.bankTransfer || 0) > 0 ? Number(it.bankTransfer).toLocaleString() : '—',
+                                                                Number(it.mpesa || 0) > 0 ? Number(it.mpesa).toLocaleString() : '—',
+                                                                Number(it.cheque || 0) > 0 ? Number(it.cheque).toLocaleString() : '—',
+                                                                Number(it.cash || 0) > 0 ? Number(it.cash).toLocaleString() : '—',
+                                                                Number(it.inv || 0) > 0 ? Number(it.inv).toLocaleString() : '—',
+                                                                Number(it.pd || 0) > 0 ? Number(it.pd).toLocaleString() : '—',
+                                                                Number(it.bal || 0).toLocaleString()
+                                                            ];
+                                                        });
                                                         autoTable(doc, {
                                                             head,
                                                             body,
