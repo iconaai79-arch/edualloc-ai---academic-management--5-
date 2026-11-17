@@ -318,7 +318,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [voteheadDistRowsPerPage, setVoteheadDistRowsPerPage] = useState<number | 'All'>(25);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('classic');
-    const [pdfPreviewModal, setPdfPreviewModal] = useState<{ title: string; subtitle: string; studentName: string; admNo: string; className: string; invoiced: number; paid: number; balance: number; items?: any[] } | null>(null);
+    const [pdfPreviewModal, setPdfPreviewModal] = useState<{ title: string; subtitle: string; studentName: string; admNo: string; className: string; invoiced: number; paid: number; balance: number; items?: any[]; isCashBook?: boolean } | null>(null);
     const [enrollments, setEnrollments] = useState<any[]>(() => {
         try {
             const instId = props.institution?.id;
@@ -24268,8 +24268,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     const m = r.method || 'Cash';
                                                     methods[m] = (methods[m] || 0) + r.debit;
                                                 });
-                                                const methodSummary = Object.entries(methods)
-                                                    .map(([m, val]) => `${m}: KSh ${val.toLocaleString()}`)
+                                                const methodsBreakdown = Object.entries(methods).map(([m, val]) => ({
+                                                    method: m,
+                                                    amount: val
+                                                }));
+                                                const methodSummary = methodsBreakdown
+                                                    .map(mb => `${mb.method}: KSh ${mb.amount.toLocaleString()}`)
                                                     .join(' · ');
 
                                                 return {
@@ -24278,6 +24282,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     cf,
                                                     minRcpt,
                                                     maxRcpt,
+                                                    methodsBreakdown,
                                                     methodSummary
                                                 };
                                             }).reverse();
@@ -24360,20 +24365,55 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 📥 Export CSV
                                                             </button>
                                                             <button
+                                                                type="button"
                                                                 onClick={() => {
                                                                     setPdfPreviewModal({
                                                                         title: `CASH BOOK REPORT (${cbPeriod.toUpperCase()})`,
                                                                         subtitle: `${props.institution.name} — Total Inflow: KSh ${cbTotalDebit.toLocaleString()} | Total Outflow: KSh ${cbTotalCredit.toLocaleString()} | Net Balance: KSh ${cbNetBalance.toLocaleString()}`,
                                                                         studentName: `General Cash Ledger (${activeCbList.length} Entries)`,
-                                                                        admNo: `PERIOD: ${cbPeriod}`,
-                                                                        className: `View: ${cbViewType.toUpperCase()}`,
+                                                                        admNo: `PERIOD: ${cbPeriod.toUpperCase()}`,
+                                                                        className: `VIEW: ${cbViewType.toUpperCase()}`,
                                                                         invoiced: cbTotalDebit,
                                                                         paid: cbTotalCredit,
                                                                         balance: cbNetBalance,
+                                                                        isCashBook: true,
                                                                         items: activeCbList.map((d: any) => ({
-                                                                            name: `Date: ${d.date}`,
-                                                                            adm: `${d.receiptsList?.length || 0} Inflows / ${d.expensesList?.length || 0} Outflows`,
-                                                                            cls: `B/F: ${d.bf.toLocaleString()}`,
+                                                                            name: d.date,
+                                                                            receiptRange: d.debit > 0 ? (d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`) : '—',
+                                                                            paymentModes: d.methodSummary || '—',
+                                                                            adm: d.debit > 0 ? (d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`) : '—',
+                                                                            cls: `B/F: KSh ${Number(d.bf || 0).toLocaleString()}`,
+                                                                            bf: d.bf,
+                                                                            inv: d.debit,
+                                                                            pd: d.credit,
+                                                                            bal: d.cf
+                                                                        }))
+                                                                    });
+                                                                }}
+                                                                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                            >
+                                                                👁️ On-Screen PDF Preview
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setPdfPreviewModal({
+                                                                        title: `CASH BOOK REPORT (${cbPeriod.toUpperCase()})`,
+                                                                        subtitle: `${props.institution.name} — Total Inflow: KSh ${cbTotalDebit.toLocaleString()} | Total Outflow: KSh ${cbTotalCredit.toLocaleString()} | Net Balance: KSh ${cbNetBalance.toLocaleString()}`,
+                                                                        studentName: `General Cash Ledger (${activeCbList.length} Entries)`,
+                                                                        admNo: `PERIOD: ${cbPeriod.toUpperCase()}`,
+                                                                        className: `VIEW: ${cbViewType.toUpperCase()}`,
+                                                                        invoiced: cbTotalDebit,
+                                                                        paid: cbTotalCredit,
+                                                                        balance: cbNetBalance,
+                                                                        isCashBook: true,
+                                                                        items: activeCbList.map((d: any) => ({
+                                                                            name: d.date,
+                                                                            receiptRange: d.debit > 0 ? (d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`) : '—',
+                                                                            paymentModes: d.methodSummary || '—',
+                                                                            adm: d.debit > 0 ? (d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`) : '—',
+                                                                            cls: `B/F: KSh ${Number(d.bf || 0).toLocaleString()}`,
+                                                                            bf: d.bf,
                                                                             inv: d.debit,
                                                                             pd: d.credit,
                                                                             bal: d.cf
@@ -24493,7 +24533,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <tr>
                                                                         {TH('Date')}
                                                                         {TH('Balance B/F')}
-                                                                        {TH('Receipts Range & Modes')}
+                                                                        {TH('Receipts Range')}
+                                                                        {TH('Payment Modes')}
                                                                         {TH('Inflow (Dr)')}
                                                                         {TH('Outflow (Cr)')}
                                                                         {TH('Balance C/F')}
@@ -24508,26 +24549,33 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                     onClick={() => setExpandedCbDates(prev => prev.includes(day.date) ? prev.filter(d => d !== day.date) : [...prev, day.date])}
                                                                                     className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
                                                                                 >
-                                                                                    <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                                                    <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 whitespace-nowrap">
                                                                                         <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
                                                                                         {day.date}
                                                                                     </TD>
-                                                                                    <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
-                                                                                    <TD cls="text-[10px] text-slate-600 dark:text-slate-400">
-                                                                                        {day.debit > 0 ? (
-                                                                                            <div>
-                                                                                                <span className="font-bold text-indigo-600">Range: {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}</span>
-                                                                                                <p className="text-[9px] text-slate-400 mt-0.5">{day.methodSummary}</p>
+                                                                                    <TD cls="text-slate-500 font-bold whitespace-nowrap">KSh {day.bf.toLocaleString()}</TD>
+                                                                                    <TD cls="text-xs font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                                                                                        {day.debit > 0 ? (day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`) : '—'}
+                                                                                    </TD>
+                                                                                    <TD cls="text-[11px] text-slate-600 dark:text-slate-400">
+                                                                                        {day.debit > 0 && day.methodsBreakdown && day.methodsBreakdown.length > 0 ? (
+                                                                                            <div className="flex flex-col gap-1 py-0.5">
+                                                                                                {day.methodsBreakdown.map((mb: any, mIdx: number) => (
+                                                                                                    <div key={mIdx} className="flex items-center gap-1.5 whitespace-nowrap">
+                                                                                                        <span className="font-semibold text-slate-600 dark:text-slate-400">{mb.method}:</span>
+                                                                                                        <span className="font-bold text-slate-900 dark:text-white">KSh {mb.amount.toLocaleString()}</span>
+                                                                                                    </div>
+                                                                                                ))}
                                                                                             </div>
                                                                                         ) : '—'}
                                                                                     </TD>
-                                                                                    <TD cls="font-black text-emerald-600">{day.debit > 0 ? `KSh ${day.debit.toLocaleString()}` : '—'}</TD>
-                                                                                    <TD cls="font-black text-rose-600">{day.credit > 0 ? `KSh ${day.credit.toLocaleString()}` : '—'}</TD>
-                                                                                    <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
+                                                                                    <TD cls="font-black text-emerald-600 whitespace-nowrap">{day.debit > 0 ? `KSh ${day.debit.toLocaleString()}` : '—'}</TD>
+                                                                                    <TD cls="font-black text-rose-600 whitespace-nowrap">{day.credit > 0 ? `KSh ${day.credit.toLocaleString()}` : '—'}</TD>
+                                                                                    <TD cls="font-black text-slate-900 dark:text-white whitespace-nowrap">KSh {day.cf.toLocaleString()}</TD>
                                                                                 </tr>
                                                                                 {isExpanded && (
                                                                                     <tr className="print:hidden bg-slate-50/50 dark:bg-slate-950/20">
-                                                                                        <td colSpan={6} className="p-4 border-b border-slate-100 dark:border-slate-800">
+                                                                                        <td colSpan={7} className="p-4 border-b border-slate-100 dark:border-slate-800">
                                                                                             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 space-y-4 shadow-sm text-left">
                                                                                                 {day.debit > 0 && (
                                                                                                     <div>
@@ -24564,7 +24612,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     })}
                                                                     {paginatedCbList.length === 0 && (
                                                                         <tr>
-                                                                            <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">No transactions recorded for this period.</td>
+                                                                            <td colSpan={7} className="py-8 text-center text-slate-400 font-medium">No transactions recorded for this period.</td>
                                                                         </tr>
                                                                     )}
                                                                 </tbody>
@@ -24581,7 +24629,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         {TH('Date')}
                                                                         {TH('Balance B/F')}
                                                                         {TH('Receipts Range')}
-                                                                        {TH('Payment Modes Summary')}
+                                                                        {TH('Payment Modes')}
                                                                         {TH('Total Inflow (Dr)')}
                                                                         {TH('Balance C/F')}
                                                                     </tr>
@@ -24595,17 +24643,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                     onClick={() => setExpandedCbDates(prev => prev.includes(day.date) ? prev.filter(d => d !== day.date) : [...prev, day.date])}
                                                                                     className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
                                                                                 >
-                                                                                    <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                                                    <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 whitespace-nowrap">
                                                                                         <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
                                                                                         {day.date}
                                                                                     </TD>
-                                                                                    <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
-                                                                                    <TD cls="font-bold text-indigo-600">
+                                                                                    <TD cls="text-slate-500 font-bold whitespace-nowrap">KSh {day.bf.toLocaleString()}</TD>
+                                                                                    <TD cls="font-bold text-indigo-600 whitespace-nowrap">
                                                                                         {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}
                                                                                     </TD>
-                                                                                    <TD cls="text-[10px] text-slate-500">{day.methodSummary || '—'}</TD>
-                                                                                    <TD cls="font-black text-emerald-600">KSh {day.debit.toLocaleString()}</TD>
-                                                                                    <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
+                                                                                    <TD cls="text-[11px] text-slate-600 dark:text-slate-400">
+                                                                                        {day.methodsBreakdown && day.methodsBreakdown.length > 0 ? (
+                                                                                            <div className="flex flex-col gap-1 py-0.5">
+                                                                                                {day.methodsBreakdown.map((mb: any, mIdx: number) => (
+                                                                                                    <div key={mIdx} className="flex items-center gap-1.5 whitespace-nowrap">
+                                                                                                        <span className="font-semibold text-slate-600 dark:text-slate-400">{mb.method}:</span>
+                                                                                                        <span className="font-bold text-slate-900 dark:text-white">KSh {mb.amount.toLocaleString()}</span>
+                                                                                                    </div>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        ) : '—'}
+                                                                                    </TD>
+                                                                                    <TD cls="font-black text-emerald-600 whitespace-nowrap">KSh {day.debit.toLocaleString()}</TD>
+                                                                                    <TD cls="font-black text-slate-900 dark:text-white whitespace-nowrap">KSh {day.cf.toLocaleString()}</TD>
                                                                                 </tr>
                                                                                 {isExpanded && (
                                                                                     <tr className="print:hidden bg-slate-50/50 dark:bg-slate-950/20">
@@ -27194,15 +27253,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     {/* Metadata Header Card */}
                                                     <div className="grid grid-cols-2 gap-3 mb-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
                                                         <div>
-                                                            <p className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Report / Account</p>
+                                                            <p className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">{pdfPreviewModal.isCashBook ? 'Account / Journal' : 'Report / Account'}</p>
                                                             <p className="font-black text-slate-900 text-sm">{pdfPreviewModal.studentName}</p>
                                                         </div>
                                                         <div>
-                                                            <p className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Reference / Scope</p>
+                                                            <p className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">{pdfPreviewModal.isCashBook ? 'Reporting Period' : 'Reference / Scope'}</p>
                                                             <p className="font-mono font-bold text-slate-800 text-sm">{pdfPreviewModal.admNo}</p>
                                                         </div>
                                                         <div>
-                                                            <p className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Class / Grouping</p>
+                                                            <p className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">{pdfPreviewModal.isCashBook ? 'Ledger View' : 'Class / Grouping'}</p>
                                                             <p className="font-bold text-slate-800">{pdfPreviewModal.className}</p>
                                                         </div>
                                                         <div>
@@ -27227,6 +27286,45 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                             {/* Items Table for this page */}
                                             {page.items && page.items.length > 0 && (() => {
+                                                if (pdfPreviewModal.isCashBook) {
+                                                    return (
+                                                        <div className="mb-4 overflow-x-auto">
+                                                            <table className="w-full text-left text-xs border-collapse">
+                                                                <thead>
+                                                                    <tr className="border-b-2 border-slate-900 text-[10px] font-black uppercase tracking-wider text-slate-700 bg-slate-50">
+                                                                        <th className="py-2 px-2">#</th>
+                                                                        <th className="py-2 px-2">Date</th>
+                                                                        <th className="py-2 px-2">Receipts Range</th>
+                                                                        <th className="py-2 px-2">Payment Modes</th>
+                                                                        <th className="py-2 px-2 text-right">Balance B/F</th>
+                                                                        <th className="py-2 px-2 text-right">Inflow (Dr)</th>
+                                                                        <th className="py-2 px-2 text-right">Outflow (Cr)</th>
+                                                                        <th className="py-2 px-2 text-right">Balance C/F</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-slate-200 text-[11px]">
+                                                                    {page.items.map((it: any, idx: number) => {
+                                                                        const globalIdx = rawItems.indexOf(it);
+                                                                        const displayIdx = globalIdx >= 0 ? globalIdx + 1 : idx + 1;
+                                                                        return (
+                                                                            <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50/60">
+                                                                                <td className="py-1.5 px-2 font-mono text-slate-400">{displayIdx}</td>
+                                                                                <td className="py-1.5 px-2 font-bold text-slate-900 whitespace-nowrap">{it.name}</td>
+                                                                                <td className="py-1.5 px-2 font-bold text-indigo-700 whitespace-nowrap">{it.receiptRange || it.adm || '—'}</td>
+                                                                                <td className="py-1.5 px-2 text-[10px] text-slate-600">{it.paymentModes || '—'}</td>
+                                                                                <td className="py-1.5 px-2 text-right font-medium text-slate-700 whitespace-nowrap">KSh {Number(it.bf || 0).toLocaleString()}</td>
+                                                                                <td className="py-1.5 px-2 text-right font-bold text-emerald-700 whitespace-nowrap">{Number(it.inv || 0) > 0 ? `KSh ${Number(it.inv).toLocaleString()}` : '—'}</td>
+                                                                                <td className="py-1.5 px-2 text-right font-bold text-rose-700 whitespace-nowrap">{Number(it.pd || 0) > 0 ? `KSh ${Number(it.pd).toLocaleString()}` : '—'}</td>
+                                                                                <td className="py-1.5 px-2 text-right font-bold text-slate-900 whitespace-nowrap">KSh {Number(it.bal || 0).toLocaleString()}</td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    );
+                                                }
+
                                                 const hasArrearsCol = page.items.some((it: any) => it.arrears !== undefined);
                                                 return (
                                                     <div className="mb-4 overflow-x-auto">
@@ -27281,20 +27379,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             {page.isLast && (
                                                 <div className="space-y-4 mt-3">
                                                     {/* Summary Totals Box */}
-                                                    <div className="p-3.5 bg-slate-900 text-white rounded-xl space-y-2 text-xs shadow-md">
-                                                        <div className="flex justify-between">
-                                                            <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px]">Total Billed / Invoiced</span>
-                                                            <span className="font-mono font-bold">KSh {Number(pdfPreviewModal.invoiced || 0).toLocaleString()}</span>
+                                                    {pdfPreviewModal.isCashBook ? (
+                                                        <div className="p-3.5 bg-slate-900 text-white rounded-xl space-y-2 text-xs shadow-md">
+                                                            <div className="flex justify-between">
+                                                                <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px]">Total Cash Inflow (Debit)</span>
+                                                                <span className="font-mono font-bold text-emerald-400">KSh {Number(pdfPreviewModal.invoiced || 0).toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="flex justify-between">
+                                                                <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px]">Total Cash Outflow (Credit)</span>
+                                                                <span className="font-mono font-bold text-rose-400">KSh {Number(pdfPreviewModal.paid || 0).toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="flex justify-between border-t border-slate-800 pt-2 mt-2 text-sm">
+                                                                <span className="font-black uppercase tracking-wider text-indigo-300">Net Period Balance</span>
+                                                                <span className="font-mono font-black text-indigo-400 text-base">KSh {Number(pdfPreviewModal.balance || 0).toLocaleString()}</span>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex justify-between">
-                                                            <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px]">Total Amount Paid</span>
-                                                            <span className="font-mono font-bold text-emerald-400">KSh {Number(pdfPreviewModal.paid || 0).toLocaleString()}</span>
+                                                    ) : (
+                                                        <div className="p-3.5 bg-slate-900 text-white rounded-xl space-y-2 text-xs shadow-md">
+                                                            <div className="flex justify-between">
+                                                                <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px]">Total Billed / Invoiced</span>
+                                                                <span className="font-mono font-bold">KSh {Number(pdfPreviewModal.invoiced || 0).toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="flex justify-between">
+                                                                <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px]">Total Amount Paid</span>
+                                                                <span className="font-mono font-bold text-emerald-400">KSh {Number(pdfPreviewModal.paid || 0).toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="flex justify-between border-t border-slate-800 pt-2 mt-2 text-sm">
+                                                                <span className="font-black uppercase tracking-wider text-rose-300">Total Outstanding Balance Due</span>
+                                                                <span className="font-mono font-black text-rose-400 text-base">KSh {Number(pdfPreviewModal.balance || 0).toLocaleString()}</span>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex justify-between border-t border-slate-800 pt-2 mt-2 text-sm">
-                                                            <span className="font-black uppercase tracking-wider text-rose-300">Total Outstanding Balance Due</span>
-                                                            <span className="font-mono font-black text-rose-400 text-base">KSh {Number(pdfPreviewModal.balance || 0).toLocaleString()}</span>
-                                                        </div>
-                                                    </div>
+                                                    )}
 
                                                     {/* Digital Signature & Footer */}
                                                     <div className="pt-3 border-t border-slate-200 flex justify-between items-end text-xs">
@@ -27333,7 +27448,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
                                     <span>📄 {totalPagesCount} {totalPagesCount === 1 ? 'Page Sheet' : 'Page Sheets'}</span>
                                     <span>•</span>
-                                    <span>{rawItems.length} Student Records</span>
+                                    <span>{rawItems.length} {pdfPreviewModal.isCashBook ? 'Journal Entries' : 'Student Records'}</span>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <button
@@ -27344,7 +27459,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 const autoTable = (autoTableModule as any).default || autoTableModule;
 
                                                 const doc = new jsPDF({
-                                                    orientation: 'portrait',
+                                                    orientation: pdfPreviewModal.isCashBook ? 'landscape' : 'portrait',
                                                     unit: 'mm',
                                                     format: 'a4'
                                                 });
@@ -27357,99 +27472,151 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 doc.setFontSize(10);
                                                 doc.setFont('helvetica', 'bold');
                                                 doc.setTextColor(79, 70, 229);
-                                                doc.text(pdfPreviewModal.title || 'OFFICIAL FEE BALANCE STATEMENT', 14, 23);
+                                                doc.text(pdfPreviewModal.title || 'OFFICIAL REPORT', 14, 23);
 
                                                 doc.setFontSize(8);
                                                 doc.setFont('helvetica', 'normal');
                                                 doc.setTextColor(100, 116, 139);
                                                 doc.text(`${pdfPreviewModal.subtitle || ''} | Generated: ${new Date().toLocaleDateString('en-KE')}`, 14, 28);
 
+                                                const pageWidth = doc.internal.pageSize.getWidth();
                                                 doc.setDrawColor(226, 232, 240);
                                                 doc.setFillColor(248, 250, 252);
-                                                doc.roundedRect(14, 31, 182, 16, 2, 2, 'FD');
+                                                doc.roundedRect(14, 31, pageWidth - 28, 16, 2, 2, 'FD');
 
                                                 doc.setFontSize(8);
                                                 doc.setFont('helvetica', 'bold');
                                                 doc.setTextColor(71, 85, 105);
-                                                doc.text(`Account / Student: ${pdfPreviewModal.studentName}`, 18, 37);
-                                                doc.text(`Adm / Ref: ${pdfPreviewModal.admNo}`, 18, 43);
-                                                doc.text(`Class: ${pdfPreviewModal.className}`, 110, 37);
-                                                doc.text(`Status: Verified Ledger Record`, 110, 43);
+                                                if (pdfPreviewModal.isCashBook) {
+                                                    doc.text(`Account / Journal: Cash Book General Ledger`, 18, 37);
+                                                    doc.text(`Period: ${pdfPreviewModal.admNo}`, 18, 43);
+                                                    doc.text(`Ledger View: ${pdfPreviewModal.className}`, 130, 37);
+                                                    doc.text(`Status: Verified Financial Journal`, 130, 43);
+                                                } else {
+                                                    doc.text(`Account / Student: ${pdfPreviewModal.studentName}`, 18, 37);
+                                                    doc.text(`Adm / Ref: ${pdfPreviewModal.admNo}`, 18, 43);
+                                                    doc.text(`Class: ${pdfPreviewModal.className}`, 110, 37);
+                                                    doc.text(`Status: Verified Ledger Record`, 110, 43);
+                                                }
 
                                                 let currentY = 52;
 
                                                 if (pdfPreviewModal.items && pdfPreviewModal.items.length > 0) {
-                                                    const hasArrearsCol = pdfPreviewModal.items.some((it: any) => it.arrears !== undefined);
-                                                    const head = hasArrearsCol
-                                                        ? [['#', 'Student Name', 'Adm No', 'Class', 'Arrears / Prepay (KSh)', 'Invoiced (KSh)', 'Paid (KSh)', 'Balance (KSh)']]
-                                                        : [['#', 'Student Name', 'Adm No', 'Class', 'Invoiced (KSh)', 'Paid (KSh)', 'Balance (KSh)']];
-                                                    
-                                                    const body = pdfPreviewModal.items.map((it: any, idx: number) => {
-                                                        if (hasArrearsCol) {
-                                                            const arrVal = Number(it.arrears || 0);
-                                                            const arrStr = arrVal > 0 ? Number(arrVal).toLocaleString() : arrVal < 0 ? `-${Math.abs(arrVal).toLocaleString()}` : '—';
+                                                    if (pdfPreviewModal.isCashBook) {
+                                                        const head = [['#', 'Date', 'Receipts Range', 'Payment Modes', 'Balance B/F (KSh)', 'Inflow (Dr) (KSh)', 'Outflow (Cr) (KSh)', 'Balance C/F (KSh)']];
+                                                        const body = pdfPreviewModal.items.map((it: any, idx: number) => [
+                                                            idx + 1,
+                                                            it.name,
+                                                            it.receiptRange || it.adm || '—',
+                                                            it.paymentModes || '—',
+                                                            Number(it.bf || 0).toLocaleString(),
+                                                            Number(it.inv || 0) > 0 ? Number(it.inv).toLocaleString() : '—',
+                                                            Number(it.pd || 0) > 0 ? Number(it.pd).toLocaleString() : '—',
+                                                            Number(it.bal || 0).toLocaleString()
+                                                        ]);
+                                                        autoTable(doc, {
+                                                            head,
+                                                            body,
+                                                            startY: 50,
+                                                            theme: 'grid',
+                                                            styles: { fontSize: 7, cellPadding: 2 },
+                                                            headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+                                                            columnStyles: {
+                                                                0: { cellWidth: 8, halign: 'center' },
+                                                                1: { cellWidth: 22 },
+                                                                2: { cellWidth: 32 },
+                                                                3: { cellWidth: 60 },
+                                                                4: { halign: 'right' },
+                                                                5: { halign: 'right', textColor: [16, 185, 129] },
+                                                                6: { halign: 'right', textColor: [225, 29, 72] },
+                                                                7: { halign: 'right', fontStyle: 'bold' }
+                                                            },
+                                                            didDrawPage: (data: any) => {
+                                                                const pageSize = doc.internal.pageSize;
+                                                                const pageHeight = pageSize.height || pageSize.getHeight();
+                                                                const pWidth = pageSize.width || pageSize.getWidth();
+                                                                doc.setFontSize(8);
+                                                                doc.setFont('helvetica', 'normal');
+                                                                doc.setTextColor(148, 163, 184);
+                                                                doc.setDrawColor(226, 232, 240);
+                                                                doc.line(14, pageHeight - 10, pWidth - 14, pageHeight - 10);
+                                                                doc.text(`${props.institution.name || 'EduAI'} • Cash Book General Ledger`, 14, pageHeight - 5);
+                                                                doc.text(`Page ${data.pageNumber}`, pWidth - 14, pageHeight - 5, { align: 'right' });
+                                                            }
+                                                        });
+                                                    } else {
+                                                        const hasArrearsCol = pdfPreviewModal.items.some((it: any) => it.arrears !== undefined);
+                                                        const head = hasArrearsCol
+                                                            ? [['#', 'Student Name', 'Adm No', 'Class', 'Arrears / Prepay (KSh)', 'Invoiced (KSh)', 'Paid (KSh)', 'Balance (KSh)']]
+                                                            : [['#', 'Student Name', 'Adm No', 'Class', 'Invoiced (KSh)', 'Paid (KSh)', 'Balance (KSh)']];
+                                                        
+                                                        const body = pdfPreviewModal.items.map((it: any, idx: number) => {
+                                                            if (hasArrearsCol) {
+                                                                const arrVal = Number(it.arrears || 0);
+                                                                const arrStr = arrVal > 0 ? Number(arrVal).toLocaleString() : arrVal < 0 ? `-${Math.abs(arrVal).toLocaleString()}` : '—';
+                                                                return [
+                                                                    idx + 1,
+                                                                    it.name,
+                                                                    it.adm,
+                                                                    it.cls,
+                                                                    arrStr,
+                                                                    Number(it.inv || 0).toLocaleString(),
+                                                                    Number(it.pd || 0).toLocaleString(),
+                                                                    Number(it.bal || 0).toLocaleString()
+                                                                ];
+                                                            }
                                                             return [
                                                                 idx + 1,
                                                                 it.name,
                                                                 it.adm,
                                                                 it.cls,
-                                                                arrStr,
                                                                 Number(it.inv || 0).toLocaleString(),
                                                                 Number(it.pd || 0).toLocaleString(),
                                                                 Number(it.bal || 0).toLocaleString()
                                                             ];
-                                                        }
-                                                        return [
-                                                            idx + 1,
-                                                            it.name,
-                                                            it.adm,
-                                                            it.cls,
-                                                            Number(it.inv || 0).toLocaleString(),
-                                                            Number(it.pd || 0).toLocaleString(),
-                                                            Number(it.bal || 0).toLocaleString()
-                                                        ];
-                                                    });
+                                                        });
 
-                                                    autoTable(doc, {
-                                                        head,
-                                                        body,
-                                                        startY: 50,
-                                                        theme: 'grid',
-                                                        styles: { fontSize: 7.5, cellPadding: 2 },
-                                                        headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
-                                                        columnStyles: hasArrearsCol ? {
-                                                            0: { halign: 'center', cellWidth: 8 },
-                                                            1: { halign: 'left', fontStyle: 'bold' },
-                                                            2: { halign: 'left' },
-                                                            3: { halign: 'left' },
-                                                            4: { halign: 'right', fontStyle: 'bold', textColor: [217, 119, 6] },
-                                                            5: { halign: 'right' },
-                                                            6: { halign: 'right', textColor: [16, 185, 129] },
-                                                            7: { halign: 'right', fontStyle: 'bold', textColor: [225, 29, 72] }
-                                                        } : {
-                                                            0: { halign: 'center', cellWidth: 10 },
-                                                            1: { halign: 'left', fontStyle: 'bold' },
-                                                            2: { halign: 'left' },
-                                                            3: { halign: 'left' },
-                                                            4: { halign: 'right' },
-                                                            5: { halign: 'right', textColor: [16, 185, 129] },
-                                                            6: { halign: 'right', fontStyle: 'bold', textColor: [225, 29, 72] }
-                                                        },
-                                                        didDrawPage: (data: any) => {
-                                                            const pageSize = doc.internal.pageSize;
-                                                            const pageHeight = pageSize.height || pageSize.getHeight();
-                                                            const pageWidth = pageSize.width || pageSize.getWidth();
-                                                            
-                                                            // Bottom footer on every page
-                                                            doc.setFontSize(8);
-                                                            doc.setFont('helvetica', 'normal');
-                                                            doc.setTextColor(148, 163, 184);
-                                                            doc.setDrawColor(226, 232, 240);
-                                                            doc.line(14, pageHeight - 10, pageWidth - 14, pageHeight - 10);
-                                                            doc.text(`${props.institution.name || 'EduAI'} • Official Fee Balance Statement`, 14, pageHeight - 5);
-                                                            doc.text(`Page ${data.pageNumber}`, pageWidth - 14, pageHeight - 5, { align: 'right' });
-                                                        }
-                                                    });
+                                                        autoTable(doc, {
+                                                            head,
+                                                            body,
+                                                            startY: 50,
+                                                            theme: 'grid',
+                                                            styles: { fontSize: 7.5, cellPadding: 2 },
+                                                            headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+                                                            columnStyles: hasArrearsCol ? {
+                                                                0: { halign: 'center', cellWidth: 8 },
+                                                                1: { halign: 'left', fontStyle: 'bold' },
+                                                                2: { halign: 'left' },
+                                                                3: { halign: 'left' },
+                                                                4: { halign: 'right', fontStyle: 'bold', textColor: [217, 119, 6] },
+                                                                5: { halign: 'right' },
+                                                                6: { halign: 'right', textColor: [16, 185, 129] },
+                                                                7: { halign: 'right', fontStyle: 'bold', textColor: [225, 29, 72] }
+                                                            } : {
+                                                                0: { halign: 'center', cellWidth: 10 },
+                                                                1: { halign: 'left', fontStyle: 'bold' },
+                                                                2: { halign: 'left' },
+                                                                3: { halign: 'left' },
+                                                                4: { halign: 'right' },
+                                                                5: { halign: 'right', textColor: [16, 185, 129] },
+                                                                6: { halign: 'right', fontStyle: 'bold', textColor: [225, 29, 72] }
+                                                            },
+                                                            didDrawPage: (data: any) => {
+                                                                const pageSize = doc.internal.pageSize;
+                                                                const pageHeight = pageSize.height || pageSize.getHeight();
+                                                                const pWidth = pageSize.width || pageSize.getWidth();
+                                                                
+                                                                // Bottom footer on every page
+                                                                doc.setFontSize(8);
+                                                                doc.setFont('helvetica', 'normal');
+                                                                doc.setTextColor(148, 163, 184);
+                                                                doc.setDrawColor(226, 232, 240);
+                                                                doc.line(14, pageHeight - 10, pWidth - 14, pageHeight - 10);
+                                                                doc.text(`${props.institution.name || 'EduAI'} • Official Fee Balance Statement`, 14, pageHeight - 5);
+                                                                doc.text(`Page ${data.pageNumber}`, pWidth - 14, pageHeight - 5, { align: 'right' });
+                                                            }
+                                                        });
+                                                    }
 
                                                     currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : 120;
                                                 }
@@ -27461,18 +27628,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                                 doc.setDrawColor(15, 23, 42);
                                                 doc.setFillColor(15, 23, 42);
-                                                doc.roundedRect(14, currentY, 182, 22, 2, 2, 'FD');
+                                                doc.roundedRect(14, currentY, pageWidth - 28, 22, 2, 2, 'FD');
 
                                                 doc.setFontSize(9);
                                                 doc.setFont('helvetica', 'normal');
                                                 doc.setTextColor(203, 213, 225);
-                                                doc.text(`Total Invoiced: KSh ${Number(pdfPreviewModal.invoiced || 0).toLocaleString()}`, 20, currentY + 8);
-                                                doc.text(`Total Paid: KSh ${Number(pdfPreviewModal.paid || 0).toLocaleString()}`, 20, currentY + 16);
-
-                                                doc.setFontSize(11);
-                                                doc.setFont('helvetica', 'bold');
-                                                doc.setTextColor(253, 164, 175);
-                                                doc.text(`Total Balance Due: KSh ${Number(pdfPreviewModal.balance || 0).toLocaleString()}`, 105, currentY + 13);
+                                                if (pdfPreviewModal.isCashBook) {
+                                                    doc.text(`Total Inflows (Dr): KSh ${Number(pdfPreviewModal.invoiced || 0).toLocaleString()}`, 20, currentY + 8);
+                                                    doc.text(`Total Outflows (Cr): KSh ${Number(pdfPreviewModal.paid || 0).toLocaleString()}`, 20, currentY + 16);
+                                                    doc.setFontSize(11);
+                                                    doc.setFont('helvetica', 'bold');
+                                                    doc.setTextColor(165, 180, 252);
+                                                    doc.text(`Net Period Balance: KSh ${Number(pdfPreviewModal.balance || 0).toLocaleString()}`, 130, currentY + 13);
+                                                } else {
+                                                    doc.text(`Total Invoiced: KSh ${Number(pdfPreviewModal.invoiced || 0).toLocaleString()}`, 20, currentY + 8);
+                                                    doc.text(`Total Paid: KSh ${Number(pdfPreviewModal.paid || 0).toLocaleString()}`, 20, currentY + 16);
+                                                    doc.setFontSize(11);
+                                                    doc.setFont('helvetica', 'bold');
+                                                    doc.setTextColor(253, 164, 175);
+                                                    doc.text(`Total Balance Due: KSh ${Number(pdfPreviewModal.balance || 0).toLocaleString()}`, 105, currentY + 13);
+                                                }
 
                                                 const safeFilename = `${(pdfPreviewModal.title || 'fee_balance_report').toLowerCase().replace(/[^a-z0-9]+/g, '_')}.pdf`;
                                                 doc.save(safeFilename);
