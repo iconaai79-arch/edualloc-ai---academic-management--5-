@@ -21523,16 +21523,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const reportSubTabs = [
                         { id: 'collection', label: 'Fee Collection', icon: '📥' },
                         { id: 'outstanding', label: 'Outstanding Balances', icon: '⚠️' },
+                        { id: 'ledger', label: 'Receipts Ledger', icon: '🧾' },
+                        { id: 'expenses', label: 'Expense Summary', icon: '💸' },
+                        { id: 'student_statement', label: 'Student Statement', icon: '🎓' },
+                        { id: 'payroll_summary', label: 'Payroll Summary', icon: '👥' },
+                        { id: 'annual', label: 'Annual Financial Overview', icon: '📊' },
                         { id: 'household_balances', label: 'Household Fee Balances', icon: '🏡' },
                         { id: 'promissory_commitments', label: 'Promissory Commitments', icon: '📊' },
                         { id: 'revenue_warroom', label: 'Revenue Realization', icon: '🎯' },
                         { id: 'exam_permits', label: 'Digital Exam Permits', icon: '🎓' },
                         { id: 'annual_wizard', label: 'FY2025-26 Annual Template', icon: '📑' },
-                        { id: 'ledger', label: 'Receipts Ledger', icon: '🧾' },
-                        { id: 'expenses', label: 'Expense Summary', icon: '💸' },
-                        { id: 'payroll_summary', label: 'Payroll Summary', icon: '👥' },
-                        { id: 'annual', label: 'Annual Financial Overview', icon: '📊' },
-                        { id: 'student_statement', label: 'Student Statement', icon: '🎓' },
                         { id: 'activity_logs', label: 'Activity Logs', icon: '📋' },
                     ];
 
