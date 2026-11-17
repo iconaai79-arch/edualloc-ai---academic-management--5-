@@ -64,6 +64,13 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
     const [fetchedBankAccounts, setFetchedBankAccounts] = useState<any[]>([]);
     const searchInputRef = useRef<HTMLInputElement>(null);
 
+    // ── KCB STK Push state ────────────────────────────────────────────────────
+    const [kcbStkPhone, setKcbStkPhone] = useState('');
+    const [kcbStkStatus, setKcbStkStatus] = useState<'idle' | 'sending' | 'polling' | 'paid' | 'failed'>('idle');
+    const [kcbStkMessage, setKcbStkMessage] = useState('');
+    const [kcbStkRequestId, setKcbStkRequestId] = useState('');
+    const [kcbStkCountdown, setKcbStkCountdown] = useState(90);
+
     // Reset fields on modal open/close & autofocus search input immediately
     useEffect(() => {
         if (!isOpen) {
@@ -76,6 +83,11 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
             setUseCustomReceiptNumber(false);
             setCustomReceiptNumber('');
             setManualPayDate(new Date().toISOString().split('T')[0]);
+            setKcbStkPhone('');
+            setKcbStkStatus('idle');
+            setKcbStkMessage('');
+            setKcbStkRequestId('');
+            setKcbStkCountdown(90);
         } else {
             // Immediate frame focus with no artificial delay
             const rafId = requestAnimationFrame(() => {
@@ -574,6 +586,76 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
         return allocations;
     }, [manualPayStudentId, manualPayInvoiceId, parsedPayAmount, studentPendingInvoices]);
 
+    // ── KCB STK: countdown timer ──────────────────────────────────────────────
+    useEffect(() => {
+        if (kcbStkStatus !== 'sending' && kcbStkStatus !== 'polling') return;
+        if (kcbStkCountdown <= 0) {
+            setKcbStkStatus('failed');
+            setKcbStkMessage('Payment timed out. Please try again.');
+            return;
+        }
+        const t = setTimeout(() => setKcbStkCountdown(c => c - 1), 1000);
+        return () => clearTimeout(t);
+    }, [kcbStkStatus, kcbStkCountdown]);
+
+    // ── KCB STK Push trigger ──────────────────────────────────────────────────
+    const handleKcbStkPush = async () => {
+        const phone = kcbStkPhone.trim();
+        const amountNum = parseFloat(String(manualPayAmount).replace(/[^0-9.]/g, '')) || 0;
+        if (!phone) { setKcbStkMessage('Please enter the parent\'s KCB/M-Pesa phone number.'); return; }
+        if (amountNum <= 0) { setKcbStkMessage('Please enter a valid payment amount first.'); return; }
+        if (!manualPayStudentId) { setKcbStkMessage('Please select a student first.'); return; }
+
+        setKcbStkStatus('sending');
+        setKcbStkMessage('Sending KCB STK Push to phone...');
+        setKcbStkCountdown(90);
+
+        const student = students.find(s => s.id === manualPayStudentId);
+        const ref = `FEE-${((student as any)?.admissionNumber || (student as any)?.admission_number || manualPayStudentId.slice(-6)).toUpperCase()}`;
+        const desc = `School Fee – ${student?.name || 'Student'}`;
+
+        try {
+            const result = await apiService.triggerMpesaStkPush({
+                amount: Math.max(1, Math.round(amountNum)),
+                phoneNumber: phone,
+                reference: ref,
+                description: desc,
+                institutionId: institution.id
+            });
+
+            const checkoutId = result?.CheckoutRequestID || result?.checkoutRequestId;
+            if (result?.success && checkoutId) {
+                setKcbStkRequestId(checkoutId);
+                setKcbStkStatus('polling');
+                setKcbStkMessage('STK Push sent! Ask parent to enter KCB/M-Pesa PIN on their phone...');
+                // Start polling for status
+                let attempts = 0;
+                const maxAttempts = 20;
+                const poll = setInterval(async () => {
+                    attempts++;
+                    try {
+                        const status = await apiService.checkMpesaPaymentStatus(checkoutId);
+                        if (status?.ResultCode === '0' || status?.status === 'completed') {
+                            clearInterval(poll);
+                            setKcbStkStatus('paid');
+                            setKcbStkMessage('✅ Payment confirmed! Click "Post Receipt" to complete.');
+                            setManualPayReference(checkoutId);
+                        } else if ((status?.ResultCode && status.ResultCode !== '0') || attempts >= maxAttempts) {
+                            clearInterval(poll);
+                            setKcbStkStatus('failed');
+                            setKcbStkMessage(status?.ResultDesc || (attempts >= maxAttempts ? 'Timed out waiting for payment confirmation.' : 'Payment failed or cancelled.'));
+                        }
+                    } catch { /* keep polling silently */ }
+                }, 4000);
+            } else {
+                throw new Error(result?.message || result?.CustomerMessage || 'KCB STK Push failed — no checkout ID returned.');
+            }
+        } catch (e: any) {
+            setKcbStkStatus('failed');
+            setKcbStkMessage(e?.message || 'Failed to initiate KCB STK Push. Check the phone number and try again.');
+        }
+    };
+
     const handlePostManualPayment = async () => {
         if (isSavingManualPay) return;
         const amountNum = parseFloat(String(manualPayAmount).replace(/[^0-9.]/g, '')) || 0;
@@ -844,6 +926,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
                                 <option value="Cash">Cash (Manual)</option>
                                 <option value="Bank Transfer">Bank Feed / Transfer</option>
                                 <option value="M-Pesa">M-Pesa</option>
+                                <option value="KCB STK Push">KCB STK Push (Mobile)</option>
                                 <option value="Cheque">Cheque</option>
                                 <option value="Bursary">Bursary</option>
                             </select>
@@ -877,6 +960,102 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
                             />
                         </div>
                     </div>
+
+                    {/* ── KCB STK Push Panel ─────────────────────────────── */}
+                    {manualPayMethod === 'KCB STK Push' && (
+                        <div className="rounded-2xl border-2 border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800 p-5 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                            {/* Header */}
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-xl bg-green-600 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-white text-xs font-black">KCB</span>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-black text-green-800 dark:text-green-200 uppercase tracking-wide">KCB STK Push</p>
+                                    <p className="text-[10px] text-green-600 dark:text-green-400">Push payment prompt to parent's phone via KCB Buni / M-Pesa Gateway</p>
+                                </div>
+                            </div>
+
+                            {/* Phone input */}
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-green-700 dark:text-green-300 uppercase tracking-widest ml-1">
+                                    Parent / Payer Phone Number *
+                                </label>
+                                <input
+                                    type="tel"
+                                    value={kcbStkPhone}
+                                    onChange={e => {
+                                        setKcbStkPhone(e.target.value);
+                                        if (kcbStkStatus !== 'idle') { setKcbStkStatus('idle'); setKcbStkMessage(''); }
+                                    }}
+                                    placeholder="e.g. 0712345678"
+                                    className="w-full px-5 py-3.5 bg-white dark:bg-slate-900 border border-green-300 dark:border-green-700 rounded-2xl outline-none focus:ring-2 focus:ring-green-500 font-bold text-slate-900 dark:text-white text-xs"
+                                />
+                                <p className="text-[10px] text-green-600 dark:text-green-400 ml-1">
+                                    The STK Push prompt will appear on this number. Parent enters their PIN to confirm.
+                                </p>
+                            </div>
+
+                            {/* Status feedback */}
+                            {kcbStkMessage && (
+                                <div className={`flex items-start gap-3 rounded-xl p-3 text-sm font-semibold
+                                    ${kcbStkStatus === 'paid' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 border border-emerald-300'
+                                    : kcbStkStatus === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border border-red-300'
+                                    : 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-300'}`}>
+                                    {(kcbStkStatus === 'sending' || kcbStkStatus === 'polling') && (
+                                        <svg className="w-4 h-4 animate-spin flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                        </svg>
+                                    )}
+                                    <span className="flex-1">{kcbStkMessage}</span>
+                                    {(kcbStkStatus === 'sending' || kcbStkStatus === 'polling') && (
+                                        <span className="text-[10px] font-black opacity-70 flex-shrink-0 tabular-nums">
+                                            {kcbStkCountdown}s
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Action buttons */}
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={handleKcbStkPush}
+                                    disabled={kcbStkStatus === 'sending' || kcbStkStatus === 'polling' || kcbStkStatus === 'paid'}
+                                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-300 dark:disabled:bg-green-900 text-white font-black rounded-2xl text-xs uppercase tracking-widest transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed"
+                                >
+                                    {(kcbStkStatus === 'sending' || kcbStkStatus === 'polling') ? (
+                                        <>
+                                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                            </svg>
+                                            {kcbStkStatus === 'sending' ? 'Sending...' : 'Waiting for PIN...'}
+                                        </>
+                                    ) : kcbStkStatus === 'paid' ? (
+                                        <>✅ Payment Confirmed</>
+                                    ) : (
+                                        <>📲 Send KCB STK Push</>
+                                    )}
+                                </button>
+                                {(kcbStkStatus === 'failed' || kcbStkStatus === 'polling') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setKcbStkStatus('idle'); setKcbStkMessage(''); setKcbStkCountdown(90); }}
+                                        className="px-4 py-3 border-2 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 font-bold rounded-2xl text-xs hover:bg-green-100 dark:hover:bg-green-900/30 transition-all cursor-pointer"
+                                    >
+                                        Reset
+                                    </button>
+                                )}
+                            </div>
+
+                            {kcbStkStatus === 'paid' && (
+                                <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold text-center">
+                                    ✅ Payment received. Click <strong>"Post Receipt"</strong> below to finalise and generate the receipt.
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     {/* Destination Bank Account */}
                     <div className="space-y-1">
@@ -1014,10 +1193,21 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
                     )}
 
                     {/* Submit Button */}
+                    {/* When KCB STK is selected: show disabled hint until payment confirmed */}
+                    {manualPayMethod === 'KCB STK Push' && kcbStkStatus !== 'paid' && (
+                        <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest text-center">
+                            ⚠️ Send and confirm KCB STK Push above before posting receipt
+                        </p>
+                    )}
                     <button
                         type="button"
                         onClick={handlePostManualPayment}
-                        disabled={isSavingManualPay || !manualPayStudentId || !isAmountValid}
+                        disabled={
+                            isSavingManualPay ||
+                            !manualPayStudentId ||
+                            !isAmountValid ||
+                            (manualPayMethod === 'KCB STK Push' && kcbStkStatus !== 'paid')
+                        }
                         className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all text-center disabled:opacity-50 mt-4 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
                     >
                         {isSavingManualPay ? (
