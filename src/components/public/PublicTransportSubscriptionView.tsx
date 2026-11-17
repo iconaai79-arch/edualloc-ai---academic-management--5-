@@ -13,7 +13,8 @@ import type {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface SubscriptionRequest {
+export interface SubscriptionRequest {
+    id?: string;
     institutionId: string;
     studentName: string;
     admissionNumber: string;
@@ -26,6 +27,10 @@ interface SubscriptionRequest {
     finalAmount: number;
     paymentMethod: 'mpesa_now' | 'pay_later';
     status: BillStatus;
+    approvalStatus?: 'pending' | 'approved' | 'rejected';
+    rejectionReason?: string;
+    approvedAt?: string;
+    approvedBy?: string;
     submittedAt: string;
     period: string;
 }
@@ -191,7 +196,9 @@ export const PublicTransportSubscriptionView: React.FC<PublicTransportSubscripti
 
     const saveSubscription = useCallback(async (method: 'mpesa_now' | 'pay_later', invoiceStatus: BillStatus) => {
         const period = getCurrentPeriod(billingCycle);
+        const subId = `SUB-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
         const payload: SubscriptionRequest = {
+            id: subId,
             institutionId: instId,
             studentName: studentName.trim(),
             admissionNumber: admissionNo.trim(),
@@ -204,6 +211,7 @@ export const PublicTransportSubscriptionView: React.FC<PublicTransportSubscripti
             finalAmount,
             paymentMethod: method,
             status: invoiceStatus,
+            approvalStatus: 'pending',
             submittedAt: new Date().toISOString(),
             period,
         };

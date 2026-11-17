@@ -9475,6 +9475,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                 vehicles={dbVehicles}
                                 routes={busRoutes}
                                 users={users}
+                                currentUser={currentUser}
                                 institutionId={currentInstitution?.id}
                             />
                         )}
@@ -9491,6 +9492,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                 onUpdateDefaultOneWayPercentage={setDefaultOneWayPercentage}
                                 currentInstitution={currentInstitution}
                                 users={users}
+                                currentUser={currentUser}
                                 onSaveOpeningBalance={handleSaveOpeningBalance}
                                 onImportOpeningBalances={handleImportOpeningBalances}
                                 onDeleteOpeningBalance={handleDeleteOpeningBalance}

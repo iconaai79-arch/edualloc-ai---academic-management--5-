@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     Receipt, CheckCircle2, Clock, AlertCircle, Download,
     Plus, ChevronDown, ChevronUp, Bus, User, CreditCard,
@@ -11,6 +11,7 @@ import { apiService } from '../services/apiService';
 import type { Institution, User as UserType } from '../types';
 import { KenyanOfficialStamp } from './common/KenyanOfficialStamp';
 import { TransportOpeningBalancesModal } from './TransportOpeningBalancesModal';
+import { TransportSubscriptionsAdminTab } from './TransportSubscriptionsAdminTab';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ interface TransportBillingProps {
     onUpdateDefaultOneWayPercentage?: (pct: number) => void;
     currentInstitution?: Institution | null;
     users?: UserType[];
+    currentUser?: any;
     onSendSms?: (recipient: string | string[], message: string, config?: any, units?: number, institutionId?: string) => Promise<any>;
     onSaveOpeningBalance?: (invoice: TransportFeeInvoice) => void;
     onImportOpeningBalances?: (invoices: TransportFeeInvoice[]) => void;
@@ -1062,17 +1064,38 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
     onUpdateDefaultOneWayPercentage,
     currentInstitution,
     users = [],
+    currentUser,
     onSendSms,
     onSaveOpeningBalance,
     onImportOpeningBalances,
     onDeleteOpeningBalance
 }) => {
-    const [activeSection, setActiveSection] = useState<'overview' | 'fees' | 'invoices' | 'opening_balances'>('overview');
+    const [activeSection, setActiveSection] = useState<'overview' | 'fees' | 'invoices' | 'opening_balances' | 'subscriptions'>('overview');
     const [billingCycle, setBillingCycle] = useState<BillingCycle>('term');
     const [period, setPeriod] = useState('Term 2 · 2026');
     const [notifyViaSms, setNotifyViaSms] = useState(true);
     const [generating, setGenerating] = useState(false);
     const [isOpeningBalancesModalOpen, setIsOpeningBalancesModalOpen] = useState(false);
+
+    const [subCount, setSubCount] = useState<number>(0);
+    const [pendingSubCount, setPendingSubCount] = useState<number>(0);
+
+    const refreshSubCounts = () => {
+        if (!currentInstitution?.id) return;
+        apiService.fetchModuleRecords('transport_subscription_requests', currentInstitution.id)
+            .then((records: any[]) => {
+                if (Array.isArray(records)) {
+                    setSubCount(records.length);
+                    const pending = records.filter(r => (r.approvalStatus || 'pending') === 'pending').length;
+                    setPendingSubCount(pending);
+                }
+            })
+            .catch(() => {});
+    };
+
+    useEffect(() => {
+        refreshSubCounts();
+    }, [currentInstitution?.id]);
 
     const totalExpected = useMemo(() => invoices.filter(i => i.status !== 'waived').reduce((s, i) => s + (i.finalAmount || i.amount || 0), 0), [invoices]);
     const totalCollected = useMemo(() => invoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.paidAmount || i.finalAmount || i.amount || 0), 0), [invoices]);
@@ -1268,6 +1291,12 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
             <div className="flex gap-3 flex-wrap">
                 {([
                     { id: 'overview', label: 'Billing Overview', icon: TrendingUp },
+                    { 
+                        id: 'subscriptions', 
+                        label: `Subscriptions (${subCount})${pendingSubCount > 0 ? ` · ${pendingSubCount} new` : ''}`, 
+                        icon: Bus,
+                        isHot: pendingSubCount > 0
+                    },
                     { id: 'fees',     label: 'Route Tariffs', icon: Banknote },
                     { id: 'invoices', label: `Invoices (${invoices.length})`, icon: FileText },
                     { id: 'opening_balances', label: `Opening Balances (${openingBalanceInvoices.length})`, icon: Wallet },
@@ -1275,14 +1304,17 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
                     <button
                         key={s.id}
                         onClick={() => setActiveSection(s.id)}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer ${
+                        className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer relative ${
                             activeSection === s.id
                                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none'
                                 : 'bg-white dark:bg-slate-800 text-slate-500 border border-slate-100 dark:border-slate-700 hover:border-indigo-200'
                         }`}
                     >
                         <s.icon className="w-4 h-4" />
-                        {s.label}
+                        <span>{s.label}</span>
+                        {(s as any).isHot && activeSection !== s.id && (
+                            <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping absolute top-2 right-2" />
+                        )}
                     </button>
                 ))}
             </div>
@@ -1352,6 +1384,17 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
                         </p>
                     </div>
                 </div>
+            )}
+
+            {/* Subscriptions Section */}
+            {activeSection === 'subscriptions' && currentInstitution && (
+                <TransportSubscriptionsAdminTab
+                    institution={currentInstitution}
+                    routes={routeSettings}
+                    users={users}
+                    currentUser={currentUser}
+                    onRefreshParent={refreshSubCounts}
+                />
             )}
 
             {/* Fees Section */}
