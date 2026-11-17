@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import { Header } from './Header';
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
@@ -327,7 +327,7 @@ export const App: React.FC = () => {
     useEffect(() => {
         let lastFiredAt = 0;
         const onSessionExpired = () => {
-            // Debounce — avoid multiple toasts in quick succession
+            // Debounce â€” avoid multiple toasts in quick succession
             const now = Date.now();
             if (now - lastFiredAt < 10000) return;
             lastFiredAt = now;
@@ -1652,7 +1652,7 @@ export const App: React.FC = () => {
             if (!apiService.isConfigured()) initSupabaseClient();
             setIsBootstrapped(true);
 
-            // ── PHASE 1: Health check + identity (blocks UI or uses offline cache) ──────────────────
+            // â”€â”€ PHASE 1: Health check + identity (blocks UI or uses offline cache) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             let isOffline = !navigator.onLine;
             let insts: any[] = [];
             let cnts: any[] = [];
@@ -2082,7 +2082,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             const isCommunity = isSuper || instTypeLower === 'community';
             const isCounty = isSuper || (currentUser?.role || '').startsWith('county_');
 
-            // ── Module Onboarding: show wizard for edu admins with no active modules ──
+            // â”€â”€ Module Onboarding: show wizard for edu admins with no active modules â”€â”€
             const EDU_TYPES = ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic', 'school', 'academy', 'high school', 'kindergarten', 'nursery', 'pre-primary', 'vocational'];
             const isResellerImpersonating = !!(currentUser as any)?.impersonatedByReseller || !!originalResellerSession || !!localStorage.getItem('eduai_reseller_session') || sessionStorage.getItem('eduai_impersonated_by_reseller') === 'true';
             const isSuperAdminImpersonating = !!currentUser?.isImpersonated || !!originalSuperAdminSession || !!originalResellerSession || !!localStorage.getItem('eduai_super_admin_session') || !!localStorage.getItem('eduai_reseller_session') || isResellerImpersonating;
@@ -2125,7 +2125,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 ]);
             }
 
-            // ── Commit Phase 1 data → unlock UI immediately ──────────────────
+            // â”€â”€ Commit Phase 1 data â†’ unlock UI immediately â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (insts && insts.length > 0) {
                 setInstitutions(prev => {
                     const deletedTombstone = new Set<string>(
@@ -2200,7 +2200,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     }
                 } else if (!finalUsers.some((u: User) => u.id === currentUser.id) && !currentUser.id.startsWith('temp_admin_')) {
                     apiService.saveUser(currentUser).catch(err => {
-                        // Silently ignore registry conflicts — user already exists in DB but wasn't returned by the query
+                        // Silently ignore registry conflicts â€” user already exists in DB but wasn't returned by the query
                         const msg = err?.message || String(err);
                         if (msg.includes('Registry Conflict') || msg.includes('23505') || msg.includes('already registered')) {
                             console.info('[auto-persist] User already exists in registry, skipping duplicate write.');
@@ -2245,11 +2245,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 }
             }
 
-            // ── UNLOCK UI: dismiss splash now, core data is ready ─────────────
+            // â”€â”€ UNLOCK UI: dismiss splash now, core data is ready â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (!silent) setLoadStatus("");
             setAppInitializing(false);
 
-            // ── PHASE 2: Resolve core module data (already in-flight or offline cache) ─────────
+            // â”€â”€ PHASE 2: Resolve core module data (already in-flight or offline cache) â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (currentUser) {
                 if (isOffline) {
                     d = await localDb.getAll('departments').catch(() => []);
@@ -2364,7 +2364,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             setActivityLog(logs || []);
             setNotifications(notifs || []);
 
-            // ── Auto-Migration: Seed modules for existing active institutions ──
+            // â”€â”€ Auto-Migration: Seed modules for existing active institutions â”€â”€
             if (currentUser && activeInst) {
                 const isDs = isDSInstitution(activeInst) || instType.toLowerCase() === 'driving school' || instType.toLowerCase() === 'driving_school';
                 if (isDs) {
@@ -2426,7 +2426,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 }
             }
 
-            // ── PHASE 3: Context-Specific Extended Data ──────────────────────
+            // â”€â”€ PHASE 3: Context-Specific Extended Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (currentUser) {
                 const isSystemOrGlobal = (id?: string) => !id || id === 'SYSTEM' || id === 'GLOBAL' || id === 'ALL' || id === 'all';
                 const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
@@ -2467,7 +2467,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 let csList: any[] = [], csTest: any[] = [], csAppr: any[] = [], csBank: any[] = [];
                 const cntId = (currentUser?.role || '').startsWith('county_') ? currentUser.countyId : undefined;
 
-                // ── BATCH 1: Financial & Basic Modules ─────────────────────────
+                // â”€â”€ BATCH 1: Financial & Basic Modules â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 const results = await Promise.all([
                     // Fin Batch
                     Promise.all([
@@ -2798,7 +2798,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             const mClassId = matched.classId || (matched as any).class_id || (matched as any).courseLevelId || meta.classId || meta.courseLevelId;
 
                             const curAdm = u.admissionNumber || (u as any).admission_number;
-                            const needsAdm = (!curAdm || curAdm === '—' || curAdm === '-') && mAdm;
+                            const needsAdm = (!curAdm || curAdm === 'â€”' || curAdm === '-') && mAdm;
                             const needsClass = (!u.studentClass && !(u as any).gradeLevel) && gLvl;
                             const needsStream = !u.stream && strm;
                             const needsCourse = !u.courseId && mCourseId;
@@ -3684,12 +3684,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 entryTime: nowIso
             }
         };
-        // Optimistic update – show immediately without waiting for DB
+        // Optimistic update â€“ show immediately without waiting for DB
         setVisitors(prev => [newVisitor, ...prev]);
         // DB save in background
         apiService.saveModuleRecord('visitors', newVisitor).catch(console.error);
 
-        // ── Trigger In-App Notification Bell for Assigned Host ──
+        // â”€â”€ Trigger In-App Notification Bell for Assigned Host â”€â”€
         let targetHostId = newVisitor.hostId;
         if (!targetHostId && newVisitor.hostName) {
             const searchName = String(newVisitor.hostName).trim().toLowerCase();
@@ -4541,7 +4541,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             } catch (_) {}
         }
 
-        // ── SMS balance update: use the targeted adjustSmsBalance path instead
+        // â”€â”€ SMS balance update: use the targeted adjustSmsBalance path instead
         //    of the heavy saveInstitution (which sends 100+ fields and may be
         //    rejected by PostgREST / Direct PG column validation)
         const isSmsOnlyUpdate = (data.smsBalance !== undefined || data.sms_balance !== undefined) &&
@@ -4925,7 +4925,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         };
     }, [currentUser?.id, notificationLimit]);
 
-    // ── Scheduled Visitor Auto-Finalize ──────────────────────────────────────
+    // â”€â”€ Scheduled Visitor Auto-Finalize â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Runs every 60 seconds. If enabled + past the configured cutoff time (and
     // not yet fired today), sweeps all active visitors and marks them checked-out.
     const autoFinalizeLastFiredDateRef = React.useRef<string>('');
@@ -5039,7 +5039,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 }));
 
                 await handleLogAction(`Scheduled auto-finalize: ${count} visitor(s) checked out at ${cutoffTime} cutoff.`);
-                info(`🕐 ${count} visitor(s) auto-finalized at ${cutoffTime} cutoff. Host notifications marked as completed.`);
+                info(`ðŸ• ${count} visitor(s) auto-finalized at ${cutoffTime} cutoff. Host notifications marked as completed.`);
             }
         };
 
@@ -6685,7 +6685,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
     const handleAddCounty = useCallback(async (data: Omit<County, 'id' | 'createdAt'>) => {
         try {
-            console.log('🏛️ Adding county with data:', data);
+            console.log('ðŸ›ï¸ Adding county with data:', data);
 
             const newCounty: County = {
                 ...data,
@@ -6693,15 +6693,15 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 createdAt: new Date().toISOString()
             };
 
-            console.log('🏛️ County object to save:', newCounty);
+            console.log('ðŸ›ï¸ County object to save:', newCounty);
 
             const result = await apiService.saveModuleRecord('counties', newCounty);
-            console.log('✅ County saved successfully:', result);
+            console.log('âœ… County saved successfully:', result);
 
             await loadData();
             success('County added successfully!');
         } catch (error: any) {
-            console.error('❌ Failed to add county:', error);
+            console.error('âŒ Failed to add county:', error);
             console.error('Error details:', {
                 message: error.message,
                 code: error.code,
@@ -8427,7 +8427,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         }
     }), [currentUser, activeInstitution, handleLogAction, companyDetails]);
 
-    // ── EARLY ESCAPE: Public SpeechBuddy AI standalone portal — skip auth & institution boot entirely ──
+    // â”€â”€ EARLY ESCAPE: Public SpeechBuddy AI standalone portal â€” skip auth & institution boot entirely â”€â”€
     if (window.location.search.includes('view=speechbuddy') || window.location.search.includes('view=speech-buddy') || window.location.pathname.startsWith('/speechbuddy')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8436,7 +8436,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Kids Coding & Robotics Learning Hub ──
+    // â”€â”€ EARLY ESCAPE: Kids Coding & Robotics Learning Hub â”€â”€
     if (window.location.search.includes('view=robotics') || window.location.search.includes('view=kids-coding') || window.location.search.includes('view=stem-robotics') || window.location.pathname.startsWith('/robotics')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8445,7 +8445,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: IELTS Exam Preparation & Institutional Suite ──
+    // â”€â”€ EARLY ESCAPE: IELTS Exam Preparation & Institutional Suite â”€â”€
     if (window.location.search.includes('view=ielts') || window.location.search.includes('view=ielts-prep') || window.location.pathname.startsWith('/ielts')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8454,7 +8454,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Speech & Art Therapy Clinical Report ──
+    // â”€â”€ EARLY ESCAPE: Speech & Art Therapy Clinical Report â”€â”€
     if (window.location.search.includes('view=speech-report') || window.location.pathname.startsWith('/speech-report')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8463,7 +8463,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: AI Exam & Worksheet Generator ──
+    // â”€â”€ EARLY ESCAPE: AI Exam & Worksheet Generator â”€â”€
     if (window.location.search.includes('view=exam-generator') || window.location.pathname.startsWith('/exam-generator')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8472,7 +8472,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: NTSA Driving Simulator ──
+    // â”€â”€ EARLY ESCAPE: NTSA Driving Simulator â”€â”€
     if (window.location.search.includes('view=ntsa-driving') || window.location.pathname.startsWith('/ntsa-driving')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8481,7 +8481,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Beauty College Logbook ──
+    // â”€â”€ EARLY ESCAPE: Beauty College Logbook â”€â”€
     if (window.location.search.includes('view=beauty-logbook') || window.location.pathname.startsWith('/beauty-logbook')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-pink-600 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8490,7 +8490,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: School Bus GPS Tracker ──
+    // â”€â”€ EARLY ESCAPE: School Bus GPS Tracker â”€â”€
     if (window.location.search.includes('view=bus-tracker') || window.location.pathname.startsWith('/bus-tracker')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8499,7 +8499,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Fee Promissory Note Tracker ──
+    // â”€â”€ EARLY ESCAPE: Fee Promissory Note Tracker â”€â”€
     if (window.location.search.includes('view=fee-promissory') || window.location.pathname.startsWith('/fee-promissory')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8508,7 +8508,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Campaign Manifesto Promise Tracker & Public Citizen Portal ──
+    // â”€â”€ EARLY ESCAPE: Campaign Manifesto Promise Tracker & Public Citizen Portal â”€â”€
     if (window.location.search.includes('view=campaign-promises') || window.location.search.includes('view=public-promise-tracker') || window.location.pathname.startsWith('/campaign-promises')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8517,7 +8517,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Boarding School Household Fee Balances Analytics ──
+    // â”€â”€ EARLY ESCAPE: Boarding School Household Fee Balances Analytics â”€â”€
     if (window.location.search.includes('view=boarding-balances') || window.location.search.includes('view=boarding-household-balances') || window.location.pathname.startsWith('/boarding-balances')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8530,7 +8530,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Private Security & Guarding Operations Suite ──
+    // â”€â”€ EARLY ESCAPE: Private Security & Guarding Operations Suite â”€â”€
     if (window.location.search.includes('view=private-security') || window.location.search.includes('view=security-company') || window.location.pathname.startsWith('/private-security')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-rose-600 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8543,7 +8543,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Perpetual Free SMS Broadcaster Portal (Unblocked for Expired Tenants) ──
+    // â”€â”€ EARLY ESCAPE: Perpetual Free SMS Broadcaster Portal (Unblocked for Expired Tenants) â”€â”€
     if (window.location.search.includes('view=sms-broadcaster') || window.location.search.includes('view=sms') || window.location.pathname.startsWith('/sms')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8564,7 +8564,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: HIS Doctor & Medical Staff First-Login Attendance System ──
+    // â”€â”€ EARLY ESCAPE: HIS Doctor & Medical Staff First-Login Attendance System â”€â”€
     if (window.location.search.includes('view=doctor-attendance') || window.location.search.includes('view=his-attendance') || window.location.pathname.startsWith('/doctor-attendance')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8573,7 +8573,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: HIS AI Clinical Triage & OPD Queue Master ──
+    // â”€â”€ EARLY ESCAPE: HIS AI Clinical Triage & OPD Queue Master â”€â”€
     if (window.location.search.includes('view=his-triage') || window.location.search.includes('view=opd-queue') || window.location.pathname.startsWith('/his-triage')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-rose-500 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8582,7 +8582,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Student QR / NFC Smart Gate Pass & Parent SMS Alert ──
+    // â”€â”€ EARLY ESCAPE: Student QR / NFC Smart Gate Pass & Parent SMS Alert â”€â”€
     if (window.location.search.includes('view=gate-pass') || window.location.search.includes('view=smart-gate') || window.location.pathname.startsWith('/gate-pass')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8591,7 +8591,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Farmer Milk Quality & Agrovet Credit Engine ──
+    // â”€â”€ EARLY ESCAPE: Farmer Milk Quality & Agrovet Credit Engine â”€â”€
     if (window.location.search.includes('view=milk-credit') || window.location.search.includes('view=farmer-credit') || window.location.pathname.startsWith('/milk-credit')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8600,7 +8600,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Fleet Maintenance & Vehicle Mileage Service Tracker ──
+    // â”€â”€ EARLY ESCAPE: Fleet Maintenance & Vehicle Mileage Service Tracker â”€â”€
     if (window.location.search.includes('view=fleet-tracker') || window.location.pathname.startsWith('/fleet-tracker')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8609,7 +8609,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Citizen Grievance & Ward Petition Ticketing Desk ──
+    // â”€â”€ EARLY ESCAPE: Citizen Grievance & Ward Petition Ticketing Desk â”€â”€
     if (window.location.search.includes('view=citizen-grievance') || window.location.search.includes('view=petitions') || window.location.pathname.startsWith('/citizen-grievance')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -8618,7 +8618,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Public visitor authorization URL ──
+    // â”€â”€ EARLY ESCAPE: Public visitor authorization URL â”€â”€
     if (window.location.search.includes('view=visitor-auth')) {
         const params = new URLSearchParams(window.location.search);
         const visitorId = params.get('id') || '';
@@ -8629,7 +8629,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Public join-campaign URL — skip auth & boot entirely ──
+    // â”€â”€ EARLY ESCAPE: Public join-campaign URL â€” skip auth & boot entirely â”€â”€
     if (window.location.search.includes('view=join-campaign')) {
         const joinCampaignId = new URLSearchParams(window.location.search).get('id') || '';
         return (
@@ -8639,7 +8639,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Public driving school leads self-onboarding URL ──
+    // â”€â”€ EARLY ESCAPE: Public driving school leads self-onboarding URL â”€â”€
     if (window.location.search.includes('view=ds-interest')) {
         const params = new URLSearchParams(window.location.search);
         const instId = params.get('instId') || '';
@@ -8651,7 +8651,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
     }
 
-    // ── EARLY ESCAPE: Public event registration/confirm URL — skip auth & boot entirely ──
+    // â”€â”€ EARLY ESCAPE: Public event registration/confirm URL â€” skip auth & boot entirely â”€â”€
     const isPublicEventUrl = (() => {
         try {
             const search = window.location.search;
@@ -8693,7 +8693,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     );
     if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
     
-    // ── EARLY ESCAPE: Public/Unauthenticated Kiosk View ──
+    // â”€â”€ EARLY ESCAPE: Public/Unauthenticated Kiosk View â”€â”€
     const searchParams = new URLSearchParams(window.location.search);
     const isSecurityKioskView = searchParams.get('kiosk') === 'security' || searchParams.get('view') === 'security_kiosk';
     if (!currentUser && isSecurityKioskView) {
@@ -10173,6 +10173,13 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                      setShowCommunityHub(false);
                                  }}
                              />
+                          ) : (new URLSearchParams(window.location.search).get('view') === 'transport-subscribe') ? (
+                              <Suspense fallback={<SystemPulseLoader message="Loading Transport Enrollment Portal..." />}>
+                                  <PublicTransportSubscriptionView
+                                      companyDetails={companyDetails}
+                                      institutions={institutions}
+                                  />
+                              </Suspense>
                          ) : showTransportHub ? (
                             <TransportHubView 
                                                 institutions={institutions}
@@ -10185,13 +10192,6 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                     setInstitutions(prev => [newInst, ...(prev || [])]);
                                 }}
                             />
-                          ) : (new URLSearchParams(window.location.search).get('view') === 'transport-subscribe') ? (
-                             <Suspense fallback={<SystemPulseLoader message="Loading Transport Enrollment Portal..." />}>
-                                 <PublicTransportSubscriptionView
-                                     companyDetails={companyDetails}
-                                     institutions={institutions}
-                                 />
-                             </Suspense>
                           ) : (new URLSearchParams(window.location.search).get('view') === 'scan-to-pay' || new URLSearchParams(window.location.search).get('view') === 'scantopay' || new URLSearchParams(window.location.search).get('view') === 'pay') ? (
                              <Suspense fallback={<SystemPulseLoader message="Loading Scan to Pay Portal..." />}>
                                  <PublicScanToPayView 
@@ -11141,4 +11141,5 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         </AppErrorBoundary>
     );
 };
+
 
