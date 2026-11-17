@@ -17941,11 +17941,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             <BuySMSModal
                                 isOpen={isBuySmsOpen}
                                 onClose={() => setIsBuySmsOpen(false)}
-                                onPurchaseComplete={(purchasedUnits) => {
-                                    setSmsBalance(prev => prev + purchasedUnits);
-                                    if (currentInstitution) currentInstitution.smsBalance = (currentInstitution.smsBalance || 0) + purchasedUnits;
+                                onPurchaseComplete={(purchasedUnits, newBalance) => {
+                                    setSmsBalance(prev => newBalance !== undefined ? newBalance : prev + purchasedUnits);
+                                    if (institutionId) {
+                                        window.dispatchEvent(new CustomEvent('eduai_sms_balance_updated', {
+                                            detail: { institutionId, units: purchasedUnits, newBalance }
+                                        }));
+                                    }
                                     setIsBuySmsOpen(false);
-                                    alert(`Successfully credited ${purchasedUnits} SMS units to institutional wallet.`);
                                 }}
                                 mpesaConfig={currentInstitution?.mpesaConfig}
                                 institutionId={institutionId || ''}

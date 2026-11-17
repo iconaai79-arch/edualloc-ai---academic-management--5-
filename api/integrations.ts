@@ -3183,7 +3183,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             id: 1,
                             data: updatedGlobal,
                             updated_at: new Date().toISOString()
-                        }).catch(() => {});
+                        });
                     }
                 } catch (_) {}
             }
@@ -3877,48 +3877,107 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     console.log(`[Reconcile - SMS] Balance Increment: ${units} units for ${resolvedInstId || 'SYSTEM'}...`);
                     let incremented = false;
                     // 1. Primary: Direct PostgreSQL (Talksasa Database)
-                    if (pool && resolvedInstId && resolvedInstId !== 'SYSTEM') {
+                    const cleanInstId = resolvedInstId ? String(resolvedInstId).replace(/^inst_/i, '') : '';
+                    const instIdWithPrefix = cleanInstId ? `inst_${cleanInstId}` : '';
+
+                    if (pool && resolvedInstId && resolvedInstId !== 'SYSTEM' && resolvedInstId !== 'GLOBAL') {
                         try {
                             const pgInc = await pool.query(
-                                `UPDATE public.institutions SET sms_balance = COALESCE(sms_balance, 0) + $1 WHERE id = $2 RETURNING sms_balance`,
-                                [units, resolvedInstId]
+                                `UPDATE public.institutions 
+                                 SET sms_balance = COALESCE(sms_balance, 0) + $1 
+                                 WHERE id = $2 OR id = $3 OR id = $4 
+                                 RETURNING sms_balance`,
+                                [units, resolvedInstId, cleanInstId, instIdWithPrefix]
                             );
                             if (pgInc?.rows?.[0]) {
                                 incremented = true;
                                 (txn as any).newBalance = Number(pgInc.rows[0].sms_balance);
                                 console.log(`[Reconcile - SMS] SUCCESS via Direct PG for ${resolvedInstId}. New balance: ${(txn as any).newBalance}`);
+                                await pool.query(
+                                    `UPDATE public.institutions 
+                                     SET "smsBalance" = sms_balance,
+                                         data = jsonb_set(COALESCE(data, '{}'::jsonb), '{sms_balance}', to_jsonb(COALESCE(sms_balance, 0))) 
+                                     WHERE id = $1 OR id = $2 OR id = $3`,
+                                    [resolvedInstId, cleanInstId, instIdWithPrefix]
+                                ).catch(() => {});
                             }
                         } catch (pgErr: any) {
                             console.error(`[Reconcile - SMS] Direct PG update error:`, pgErr.message);
                         }
+                    } else if (pool && (!resolvedInstId || resolvedInstId === 'SYSTEM' || resolvedInstId === 'GLOBAL')) {
+                        try {
+                            const sysRes = await pool.query(
+                                `UPDATE public.system_settings 
+                                 SET data = jsonb_set(
+                                     COALESCE(data, '{}'::jsonb), 
+                                     '{smsBalance}', 
+                                     (COALESCE((data->>'smsBalance')::numeric, (data->>'sms_balance')::numeric, 0) + $1)::text::jsonb, 
+                                     true
+                                 ),
+                                 updated_at = NOW()
+                                 WHERE id::text IN ('1', 'global', 'system')
+                                 RETURNING data`,
+                                [units]
+                            );
+                            if (sysRes?.rows?.[0]?.data) {
+                                incremented = true;
+                                const updatedData = sysRes.rows[0].data;
+                                const newBal = Number(updatedData.smsBalance || updatedData.sms_balance || 0);
+                                (txn as any).newBalance = newBal;
+                                console.log(`[Reconcile - SMS] SUCCESS via Direct PG for SYSTEM settings. New balance: ${newBal}`);
+                            }
+                        } catch (sysErr: any) {
+                            console.error(`[Reconcile - SMS] Direct PG system_settings SMS update error:`, sysErr.message);
+                        }
                     }
 
-                    // 2. Secondary / Fallback: Supabase
-                    if (supabase) {
+                    // 2. Secondary / Fallback: Supabase (Keep synchronized with Direct PG)
+                    if (supabase && resolvedInstId && resolvedInstId !== 'SYSTEM' && resolvedInstId !== 'GLOBAL') {
                         try {
-                            const { error: rpcError } = await supabase.rpc('increment_sms_balance', { 
-                                inst_id: resolvedInstId || 'SYSTEM', 
-                                amount: units 
-                            });
-                            if (!rpcError) {
-                                incremented = true;
-                                console.log(`[Reconcile - SMS] SUCCESS via Supabase RPC for ${resolvedInstId || 'SYSTEM'}`);
-                                if (!(txn as any).newBalance && resolvedInstId && resolvedInstId !== 'SYSTEM') {
-                                    const { data: updatedInst } = await supabase.from('institutions').select('sms_balance').eq('id', resolvedInstId).maybeSingle();
-                                    if (updatedInst) (txn as any).newBalance = updatedInst.sms_balance;
-                                }
-                            } else if (!incremented && resolvedInstId && resolvedInstId !== 'SYSTEM') {
-                                console.warn(`[Reconcile - SMS] Supabase RPC error, falling back to direct update:`, rpcError.message);
-                                const currentBal = Number(inst?.sms_balance || 0);
-                                const nextBal = currentBal + units;
-                                const { error: updErr } = await supabase.from('institutions').update({ sms_balance: nextBal }).eq('id', resolvedInstId);
-                                if (!updErr) {
+                            let suSuccess = false;
+                            try {
+                                const { error: rpcError } = await supabase.rpc('increment_sms_balance', { 
+                                    inst_id: resolvedInstId, 
+                                    amount: units 
+                                });
+                                if (!rpcError) {
+                                    suSuccess = true;
                                     incremented = true;
-                                    (txn as any).newBalance = nextBal;
+                                    console.log(`[Reconcile - SMS] SUCCESS via Supabase RPC for ${resolvedInstId}`);
                                 }
+                            } catch (_) {}
+
+                            const targetBal = (txn as any).newBalance !== undefined 
+                                ? (txn as any).newBalance 
+                                : ((Number(inst?.sms_balance) || 0) + units);
+
+                            if (!suSuccess || (txn as any).newBalance !== undefined) {
+                                await supabase
+                                    .from('institutions')
+                                    .update({ sms_balance: targetBal })
+                                    .or(`id.eq.${resolvedInstId},id.eq.${cleanInstId},id.eq.${instIdWithPrefix}`);
+                                incremented = true;
+                            }
+                            if (!(txn as any).newBalance) {
+                                (txn as any).newBalance = targetBal;
                             }
                         } catch (e: any) {
                             console.warn('[Reconcile - SMS] Supabase increment exception:', e.message);
+                        }
+                    } else if (supabase && !incremented && (!resolvedInstId || resolvedInstId === 'SYSTEM' || resolvedInstId === 'GLOBAL')) {
+                        try {
+                            const { data: curSys } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
+                            if (curSys?.data) {
+                                const curBal = Number(curSys.data.smsBalance || curSys.data.sms_balance || 0);
+                                const nextBal = curBal + units;
+                                const updatedData = { ...curSys.data, smsBalance: nextBal, sms_balance: nextBal };
+                                await supabase.from('system_settings').update({ data: updatedData, updated_at: new Date().toISOString() }).eq('id', 1);
+                                incremented = true;
+                                (txn as any).newBalance = nextBal;
+                                console.log(`[Reconcile - SMS] SUCCESS via Supabase for SYSTEM settings. New balance: ${nextBal}`);
+                            }
+                        } catch (e: any) {
+                            console.warn('[Reconcile - SMS] Supabase system_settings increment exception:', e.message);
                         }
                     }
                 } else {
@@ -4543,7 +4602,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             // 6. Mark Transaction as Reconciled (Final Step)
-            const finalMeta = { ...meta, reconciled: true, reconciled_at: new Date().toISOString() };
+            const finalMeta = { 
+                ...meta, 
+                reconciled: true, 
+                reconciled_at: new Date().toISOString(),
+                ...((txn as any).newBalance !== undefined ? { newBalance: (txn as any).newBalance } : {})
+            };
             if (supabase && txnPrimaryId) {
                 try {
                     await supabase.from(table).update({ metadata: finalMeta, status: 'completed' }).eq('id', txnPrimaryId);
@@ -4832,7 +4896,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             MpesaReceiptNumber: updatedTxn.transaction_id,
                             source: 'database',
                             metadata: updatedTxn.metadata,
-                            transactionId: updatedTxn.transaction_id
+                            transactionId: updatedTxn.transaction_id,
+                            newBalance: updatedTxn.metadata?.newBalance ?? undefined
                         });
                     }
                 }
@@ -4844,7 +4909,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     MpesaReceiptNumber: transaction.transaction_id,
                     source: 'database',
                     metadata: transaction.metadata,
-                    transactionId: transaction.transaction_id
+                    transactionId: transaction.transaction_id,
+                    newBalance: transaction.metadata?.newBalance ?? undefined
                 });
             }
 
@@ -6201,7 +6267,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     id: 1,
                                     data: updatedGlobal,
                                     updated_at: new Date().toISOString()
-                                }).catch(() => {});
+                                });
                             }
                         } catch (_) {}
                     }

@@ -9172,12 +9172,33 @@ Please change it after login.`;
                             <button
                                 disabled={isSavingTenantConfig || tenantSmsAdjustment.amount === 0}
                                 onClick={async () => {
-                                    if (!managingSmsUnitsFor || !props.onUpdateInstitution) return;
+                                    if (!managingSmsUnitsFor) return;
                                     setIsSavingTenantConfig(true);
                                     try {
-                                        const newBalance = Math.max(0, (managingSmsUnitsFor.smsBalance ?? 0) + tenantSmsAdjustment.amount);
-                                        await props.onUpdateInstitution(managingSmsUnitsFor.id, { smsBalance: newBalance });
+                                        const currentBal = managingSmsUnitsFor.smsBalance ?? (managingSmsUnitsFor as any).sms_balance ?? 0;
+                                        const newBalance = Math.max(0, currentBal + tenantSmsAdjustment.amount);
+
+                                        // Use the dedicated, targeted endpoint that only updates sms_balance
+                                        await apiService.adjustInstitutionSmsBalance(
+                                            managingSmsUnitsFor.id,
+                                            tenantSmsAdjustment.amount,
+                                            newBalance,
+                                            tenantSmsAdjustment.reason || undefined
+                                        );
+
+                                        // Update the local modal state so it shows the new balance if re-opened
+                                        setManagingSmsUnitsFor(prev => prev ? { ...prev, smsBalance: newBalance } : prev);
+
+                                        // Propagate up to App.tsx for in-memory state refresh (non-blocking)
+                                        if (props.onUpdateInstitution) {
+                                            props.onUpdateInstitution(managingSmsUnitsFor.id, {
+                                                smsBalance: newBalance,
+                                                sms_balance: newBalance
+                                            }).catch(() => {});
+                                        }
+
                                         setManagingSmsUnitsFor(null);
+                                        setTenantSmsAdjustment({ amount: 0, reason: '' });
                                     } finally {
                                         setIsSavingTenantConfig(false);
                                     }

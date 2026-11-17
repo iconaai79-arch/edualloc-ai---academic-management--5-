@@ -4539,6 +4539,32 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 if (fetched && fetched[0]) inst = fetched[0];
             } catch (_) {}
         }
+
+        // ── SMS balance update: use the targeted adjustSmsBalance path instead
+        //    of the heavy saveInstitution (which sends 100+ fields and may be
+        //    rejected by PostgREST / Direct PG column validation)
+        const isSmsOnlyUpdate = (data.smsBalance !== undefined || data.sms_balance !== undefined) &&
+            Object.keys(data).every(k => ['smsBalance', 'sms_balance'].includes(k));
+        if (isSmsOnlyUpdate) {
+            const rawBal = data.smsBalance !== undefined ? data.smsBalance : data.sms_balance;
+            const cleanBal = Math.max(0, Number(rawBal) || 0);
+            // Optimistically patch in-memory state immediately
+            setInstitutions(prev => {
+                const exists = prev.some(i => i.id === id);
+                const patchedInst = { ...(inst || { id, name: 'Academic Institution' }), smsBalance: cleanBal, sms_balance: cleanBal };
+                return exists ? prev.map(i => i.id === id ? patchedInst as any : i) : [...prev, patchedInst as any];
+            });
+            // Persist via dedicated endpoint (non-blocking)
+            apiService.adjustInstitutionSmsBalance(id, 0, cleanBal).catch(() => {});
+            return;
+        }
+
+        // Normalise smsBalance / sms_balance so both keys are stored consistently
+        if (data.smsBalance !== undefined || data.sms_balance !== undefined) {
+            const rawBal = data.smsBalance !== undefined ? data.smsBalance : data.sms_balance;
+            const cleanBal = Math.max(0, Number(rawBal) || 0);
+            data = { ...data, smsBalance: cleanBal, sms_balance: cleanBal };
+        }
         const updated = { ...(inst || { id, name: 'Academic Institution' }), ...data };
         if (data.visitorAutoFinalizeTime !== undefined || data.visitor_auto_finalize_time !== undefined || data.visitorAutoFinalizeEnabled !== undefined || data.visitor_auto_finalize_enabled !== undefined) {
             try {
@@ -4824,6 +4850,64 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             document.addEventListener('visibilitychange', handleVisibilityChange);
         }
 
+        // Listen for SMS balance updates (from BuySMSModal after payment confirmed)
+        const handleSmsBalanceUpdated = (e: Event) => {
+            const detail = (e as CustomEvent)?.detail;
+            const institutionId = detail?.institutionId;
+            // Support both newBalance (absolute) and units/addedUnits (delta)
+            const newBalance: number | undefined = detail?.newBalance !== undefined ? Number(detail.newBalance) : (detail?.remainingBalance !== undefined ? Number(detail.remainingBalance) : undefined);
+            const addedUnits: number | undefined = detail?.units !== undefined ? Number(detail.units) : (detail?.unitsDeducted !== undefined ? -Number(detail.unitsDeducted) : undefined);
+
+            if (!institutionId) return;
+
+            const cleanInstId = (v: string) => String(v).replace(/^(inst_|br_)/i, '').toLowerCase();
+
+            setInstitutions(prev => prev.map(inst => {
+                const matches = inst.id === institutionId
+                    || cleanInstId(inst.id) === cleanInstId(institutionId)
+                    || `inst_${cleanInstId(inst.id)}` === institutionId
+                    || inst.id === `inst_${cleanInstId(institutionId)}`;
+                if (!matches) return inst;
+
+                if (newBalance !== undefined && !isNaN(newBalance)) {
+                    const bal = Math.max(0, newBalance);
+                    return { ...inst, smsBalance: bal, sms_balance: bal } as any;
+                } else if (addedUnits !== undefined && !isNaN(addedUnits)) {
+                    const bal = Math.max(0, ((inst as any).smsBalance ?? (inst as any).sms_balance ?? 0) + addedUnits);
+                    return { ...inst, smsBalance: bal, sms_balance: bal } as any;
+                }
+                return inst;
+            }));
+
+            // Also update localStorage so stale reads don't overwrite the patch
+            try {
+                const lsInsts: any[] = JSON.parse(localStorage.getItem('institutions') || '[]');
+                const cleanTarget = cleanInstId(institutionId);
+                const updated = lsInsts.map(inst => {
+                    const matches = inst.id === institutionId || cleanInstId(inst.id) === cleanTarget;
+                    if (!matches) return inst;
+                    if (newBalance !== undefined && !isNaN(newBalance)) {
+                        const bal = Math.max(0, newBalance);
+                        return { ...inst, smsBalance: bal, sms_balance: bal };
+                    } else if (addedUnits !== undefined && !isNaN(addedUnits)) {
+                        const bal = Math.max(0, (inst.smsBalance ?? inst.sms_balance ?? 0) + addedUnits);
+                        return { ...inst, smsBalance: bal, sms_balance: bal };
+                    }
+                    return inst;
+                });
+                localStorage.setItem('institutions', JSON.stringify(updated));
+            } catch (_) {}
+
+            // Invalidate memory cache so force-refresh below gets fresh data
+            if (typeof (apiService as any).clearLocalCache === 'function') {
+                (apiService as any).clearLocalCache('institutions').catch(() => {});
+            }
+
+            // Force a data refresh bypassing server cache so DB value is authoritative
+            loadData(false, true);
+        };
+        window.addEventListener('eduai_sms_balance_updated', handleSmsBalanceUpdated);
+
         // Initial schedule
         scheduleNext();
 
@@ -4832,6 +4916,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             window.removeEventListener('app_notification_updated', syncNotifications);
             window.removeEventListener('storage', syncNotifications);
             window.removeEventListener('online', handleOnline);
+            window.removeEventListener('eduai_sms_balance_updated', handleSmsBalanceUpdated);
             if (typeof document !== 'undefined') {
                 document.removeEventListener('visibilitychange', handleVisibilityChange);
             }

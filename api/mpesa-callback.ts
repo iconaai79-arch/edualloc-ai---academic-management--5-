@@ -40,6 +40,44 @@ const fetchWithTimeout = async (url: string, options: any, timeout = 10000) => {
     }
 };
 
+let _pgPool: any = null;
+const getPgPool = async () => {
+    if (_pgPool) return _pgPool;
+    const connectionString = 
+        process.env.DATABASE_URL || 
+        process.env.POSTGRES_URL || 
+        process.env.VITE_DATABASE_URL ||
+        process.env.SUPABASE_DB_URL;
+    if (!connectionString) return null;
+    try {
+        const pgModule: any = await import('pg');
+        const Pool = pgModule.Pool || pgModule.default?.Pool || null;
+        if (!Pool) return null;
+        const poolConfig: any = {
+            connectionString: connectionString.trim(),
+            max: 5,
+            idleTimeoutMillis: 15000,
+            connectionTimeoutMillis: 5000
+        };
+        try {
+            const parsedUrl = new URL(connectionString);
+            const h = (parsedUrl.hostname || '').toLowerCase();
+            const isLocal = h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === 'host.docker.internal';
+            if (isLocal || parsedUrl.searchParams.get('sslmode') === 'disable') {
+                poolConfig.ssl = false;
+            } else {
+                poolConfig.ssl = { rejectUnauthorized: false };
+            }
+        } catch (_) {
+            poolConfig.ssl = { rejectUnauthorized: false };
+        }
+        _pgPool = new Pool(poolConfig);
+        return _pgPool;
+    } catch (_) {
+        return null;
+    }
+};
+
 // --- Custom Payment Notification & SMS Gateway Cascade Helpers ---
 const DEFAULT_PAYMENT_NOTIFICATION_TEMPLATE = `Dear parent,
 Student: {adm_no} - {student_name}
@@ -974,18 +1012,100 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.log(`[M-Pesa Callback] Crediting SMS units: ${metadata.units} for ${transaction.institution_id}`);
 
                 const unitsToCredit = parseInt(metadata.units);
-                const { error: smsCreditError } = await supabase.rpc('increment_sms_balance', {
-                    inst_id: transaction.institution_id,
-                    amount: unitsToCredit
-                });
+                const instId = transaction.institution_id;
+                const cleanId = String(instId).replace(/^inst_/i, '');
+                const instIdWithPrefix = `inst_${cleanId}`;
+                let newBalance = 0;
 
-                if (smsCreditError) {
-                    console.error('[M-Pesa Callback] RPC Error crediting SMS:', smsCreditError);
-                    // Fallback to direct update if RPC fails
-                    await supabase.from('institutions')
-                        .update({ sms_balance: supabase.rpc('increment', { amount: unitsToCredit }) })
-                        .eq('id', transaction.institution_id);
+                // 1. Direct PG primary execution if available
+                try {
+                    const pool = await getPgPool();
+                    if (pool) {
+                        const pgInc = await pool.query(
+                            `UPDATE public.institutions 
+                             SET sms_balance = COALESCE(sms_balance, 0) + $1 
+                             WHERE id = $2 OR id = $3 OR id = $4 
+                             RETURNING sms_balance`,
+                            [unitsToCredit, instId, cleanId, instIdWithPrefix]
+                        );
+                        if (pgInc?.rows?.[0]) {
+                            newBalance = Number(pgInc.rows[0].sms_balance || 0);
+                            await pool.query(
+                                `UPDATE public.institutions 
+                                 SET "smsBalance" = sms_balance,
+                                     data = jsonb_set(COALESCE(data, '{}'::jsonb), '{sms_balance}', to_jsonb(COALESCE(sms_balance, 0))) 
+                                 WHERE id = $1 OR id = $2 OR id = $3`,
+                                [instId, cleanId, instIdWithPrefix]
+                            ).catch(() => {});
+                        }
+                    }
+                } catch (pgErr: any) {
+                    console.warn('[M-Pesa Callback] Direct PG SMS increment error:', pgErr?.message || pgErr);
                 }
+
+                // 2. Supabase execution & sync
+                let suSuccess = false;
+                try {
+                    const { error: smsCreditError } = await supabase.rpc('increment_sms_balance', {
+                        inst_id: instId,
+                        amount: unitsToCredit
+                    });
+                    if (!smsCreditError) {
+                        suSuccess = true;
+                    }
+                } catch (_) {}
+
+                // If RPC failed or didn't run, perform direct update on Supabase
+                try {
+                    const { data: curInst } = await supabase
+                        .from('institutions')
+                        .select('id, sms_balance, email, sms_config')
+                        .or(`id.eq.${instId},id.eq.${cleanId},id.eq.${instIdWithPrefix}`)
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (curInst) {
+                        const currentBal = Number(curInst.sms_balance || 0);
+                        const calcBalance = newBalance > 0 ? newBalance : (currentBal + unitsToCredit);
+                        if (!suSuccess || newBalance > 0) {
+                            await supabase
+                                .from('institutions')
+                                .update({ sms_balance: calcBalance })
+                                .eq('id', curInst.id);
+                        }
+                        newBalance = calcBalance;
+                    }
+                } catch (e: any) {
+                    console.warn('[M-Pesa Callback] Supabase direct update error:', e?.message || e);
+                }
+
+                if (newBalance === 0) {
+                    newBalance = unitsToCredit;
+                }
+
+                // Update transaction metadata with confirmed newBalance so queryPaymentStatus gets it
+                const updatedMeta = {
+                    ...metadata,
+                    units: unitsToCredit,
+                    newBalance,
+                    reconciled: true,
+                    reconciled_at: new Date().toISOString()
+                };
+
+                await supabase
+                    .from('mpesa_transactions')
+                    .update({ metadata: updatedMeta })
+                    .eq('id', transaction.id);
+
+                try {
+                    const pool = await getPgPool();
+                    if (pool) {
+                        await pool.query(
+                            `UPDATE public.mpesa_transactions SET metadata = $1::jsonb WHERE id = $2`,
+                            [JSON.stringify(updatedMeta), transaction.id]
+                        ).catch(() => {});
+                    }
+                } catch (_) {}
 
                 // Create invoice & receipt for SMS
                 const invoiceId = `inv_sms_${Date.now()}`;
@@ -1023,7 +1143,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     .eq('id', transaction.institution_id)
                     .single();
 
-                const newBalance = updatedInst?.sms_balance || 0;
+                if (updatedInst?.sms_balance !== undefined && updatedInst?.sms_balance !== null) {
+                    newBalance = Number(updatedInst.sms_balance);
+                }
 
                 console.log(`[M-Pesa Callback] ✅ SMS Units Credited: ${unitsToCredit}. New Total: ${newBalance}`);
 

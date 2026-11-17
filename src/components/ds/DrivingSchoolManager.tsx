@@ -14317,7 +14317,13 @@ END $$;
                     <BuySMSModal 
                         isOpen={isBuySMSModalOpen}
                         onClose={() => setIsBuySMSModalOpen(false)}
-                        onPurchaseComplete={() => {
+                        onPurchaseComplete={(purchasedUnits, newBalance) => {
+                            const instId = billableInstitutionId || currentInstitution?.id;
+                            if (instId) {
+                                window.dispatchEvent(new CustomEvent('eduai_sms_balance_updated', {
+                                    detail: { institutionId: instId, units: purchasedUnits, newBalance }
+                                }));
+                            }
                             if (onRefreshDataProp) onRefreshDataProp();
                             refreshData();
                             setIsBuySMSModalOpen(false);

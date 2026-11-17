@@ -2699,6 +2699,11 @@ export const apiService = {
                 if (options?.limit) url.searchParams.append('limit', options.limit.toString());
                 if (options?.offset) url.searchParams.append('offset', options.offset.toString());
                 if (options?.isBackup) url.searchParams.append('isBackup', 'true');
+                if (options?.bypassCache || options?.forceRefresh) {
+                    url.searchParams.append('bypassCache', 'true');
+                    url.searchParams.append('forceRefresh', 'true');
+                    url.searchParams.append('t', Date.now().toString());
+                }
                 if (options?.filter) {
                     Object.entries(options.filter).forEach(([k, v]) => {
                         const dbKey = k.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
@@ -5307,7 +5312,7 @@ export const apiService = {
             if (activeId === institutionId) {
                 localStorage.removeItem('eduai_active_institution_id');
             }
-            const currentInst = ls.get('current_institution');
+            const currentInst: any = ls.get('current_institution') as any;
             if (currentInst && (currentInst.id === institutionId || currentInst._id === institutionId)) {
                 ls.set('current_institution', null);
             }
@@ -6761,8 +6766,8 @@ export const apiService = {
             await apiService.saveModuleRecord('institution_module_states', moduleState);
         }
     },
-    async fetchInstitutions(institutionId?: string): Promise<Institution[]> { 
-        let insts = await apiService.fetchModuleRecords<Institution>('institutions', institutionId, undefined, { limit: 10000 });
+    async fetchInstitutions(institutionId?: string, forceRefresh = false): Promise<Institution[]> { 
+        let insts = await apiService.fetchModuleRecords<Institution>('institutions', institutionId, undefined, { limit: 10000, bypassCache: forceRefresh, forceRefresh });
         if (!insts || insts.length === 0) {
             const idbInsts = await localDb.getAll<Institution>('institutions').catch(() => []);
             if (idbInsts && idbInsts.length > 0) {
@@ -6956,6 +6961,29 @@ export const apiService = {
                 cachedBranding?.stampUrl || '';
             inst.stamp_url = inst.stampUrl;
             inst.tagline = inst.tagline || (inst as any).motto || cachedBranding?.tagline || '';
+
+            const rawSmsBalance = inst.smsBalance !== undefined
+                ? inst.smsBalance
+                : (inst.sms_balance !== undefined
+                    ? inst.sms_balance
+                    : (inst.data?.smsBalance ?? inst.data?.sms_balance ?? 0));
+            const numSmsBalance = Number(rawSmsBalance);
+            inst.smsBalance = isNaN(numSmsBalance) ? 0 : Math.max(0, numSmsBalance);
+            inst.sms_balance = inst.smsBalance;
+
+            const rawCustomPrice = inst.customSmsPrice !== undefined
+                ? inst.customSmsPrice
+                : (inst.custom_sms_price !== undefined
+                    ? inst.custom_sms_price
+                    : (inst.data?.customSmsPrice ?? inst.data?.custom_sms_price));
+            if (rawCustomPrice !== undefined && rawCustomPrice !== null) {
+                const numCustomPrice = Number(rawCustomPrice);
+                if (!isNaN(numCustomPrice)) {
+                    inst.customSmsPrice = numCustomPrice;
+                    inst.custom_sms_price = numCustomPrice;
+                }
+            }
+
             return inst as Institution;
         });
         try {
@@ -7015,7 +7043,98 @@ export const apiService = {
             const list = ls.get('institutions') || [];
             inst = list.find((i: any) => i.id === id) || ({ id, name: '' } as Institution);
         }
-        await this.saveInstitution({ ...inst, ...updates });
+        await this.saveInstitution({ ...inst, ...updates, id } as Institution);
+    },
+
+    /**
+     * Atomically adjusts an institution's SMS balance via the dedicated
+     * /api/records?module=institutions&action=adjustSmsBalance endpoint.
+     * This bypasses the heavy saveInstitution path and directly patches both
+     * Direct PG and Supabase, then clears server + client caches so the next
+     * GET returns the fresh balance.
+     */
+    async adjustInstitutionSmsBalance(
+        institutionId: string,
+        amount: number,
+        newBalance?: number,
+        reason?: string
+    ): Promise<{ success: boolean; newBalance: number }> {
+        const token = await apiService.getAuthToken();
+        let finalBalance = 0;
+        try {
+            const resp = await fetch(
+                `${typeof window !== 'undefined' ? window.location.origin : ''}/api/records?module=institutions&action=adjustSmsBalance`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    },
+                    body: JSON.stringify({
+                        action: 'adjustSmsBalance',
+                        institutionId,
+                        amount,
+                        ...(newBalance !== undefined ? { newBalance } : {}),
+                        ...(reason ? { reason } : {})
+                    })
+                }
+            );
+            const data = await resp.json().catch(() => ({}));
+            if (data?.success) {
+                finalBalance = Number(data.newBalance ?? newBalance ?? 0);
+            } else {
+                throw new Error(data?.error || data?.message || 'adjustSmsBalance API failed');
+            }
+        } catch (err: any) {
+            console.warn('[apiService] adjustInstitutionSmsBalance remote error:', err?.message);
+            // Fall back: compute optimistically
+            if (newBalance !== undefined) {
+                finalBalance = Math.max(0, newBalance);
+            } else {
+                const cached: any[] = ls.get('institutions') || [];
+                const cachedInst = cached.find((i: any) => i.id === institutionId);
+                finalBalance = Math.max(0, (Number(cachedInst?.smsBalance ?? cachedInst?.sms_balance ?? 0)) + amount);
+            }
+        }
+
+        // Always update localStorage so UI renders correct value even before next loadData
+        try {
+            let lsInsts: any[] = ls.get('institutions') || [];
+            if (!Array.isArray(lsInsts)) lsInsts = [];
+            const idx = lsInsts.findIndex((i: any) => i.id === institutionId);
+            if (idx >= 0) {
+                lsInsts[idx] = { ...lsInsts[idx], smsBalance: finalBalance, sms_balance: finalBalance };
+            }
+            ls.set('institutions', lsInsts);
+        } catch (_) {}
+
+        // Update IndexedDB
+        try {
+            const idbInsts = await localDb.getAll<any>('institutions').catch(() => []);
+            const idbIdx = idbInsts.findIndex((i: any) => i.id === institutionId);
+            if (idbIdx >= 0) {
+                const updated = { ...idbInsts[idbIdx], smsBalance: finalBalance, sms_balance: finalBalance };
+                await localDb.put('institutions', updated).catch(() => {});
+            }
+        } catch (_) {}
+
+        // Invalidate client-side memory cache for institutions
+        try {
+            Array.from((_moduleMemoryCache as Map<string, any>).keys()).forEach(key => {
+                if (typeof key === 'string' && key.startsWith('institutions:')) {
+                    (_moduleMemoryCache as Map<string, any>).delete(key);
+                }
+            });
+        } catch (_) {}
+
+        // Dispatch global event so all listeners update immediately
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('eduai_sms_balance_updated', {
+                detail: { institutionId, newBalance: finalBalance, units: amount }
+            }));
+        }
+
+        return { success: true, newBalance: finalBalance };
     },
     async saveInstitution(inst: Institution): Promise<void> { 
         const { countyId, moduleStates, coopConfig, coopSettings, treeGradingNodes, tree_grading_nodes, classExamConfigs, class_exam_configs, classTeacherCommentsConfig, class_teacher_comments_config, classRankingConfigs, class_ranking_configs, othersExamSettings, others_exam_settings, imConfig, im_config, ...rest } = inst as any;
@@ -7093,6 +7212,12 @@ export const apiService = {
         const resId = inst.resellerId || (inst as any).reseller_id || null;
         const instEmail = typeof inst.email === 'string' ? inst.email.trim() : '';
         const cleanEmail = instEmail && instEmail.toLowerCase() !== 'null' && instEmail.toLowerCase() !== 'undefined' ? instEmail : null;
+
+        const rawSmsBal = inst.smsBalance !== undefined ? inst.smsBalance : (inst as any).sms_balance;
+        const cleanSmsBal = rawSmsBal !== undefined ? (Number(rawSmsBal) || 0) : undefined;
+        const rawCustomPrice = inst.customSmsPrice !== undefined ? inst.customSmsPrice : (inst as any).custom_sms_price;
+        const cleanCustomPrice = rawCustomPrice !== undefined ? (Number(rawCustomPrice) || null) : undefined;
+
         await apiService.saveModuleRecord('institutions', { 
             ...rest, 
             email: cleanEmail, 
@@ -7100,6 +7225,8 @@ export const apiService = {
             is_otp_enabled: isOtpOn,
             reseller_id: resId,
             resellerId: resId,
+            ...(cleanSmsBal !== undefined ? { sms_balance: cleanSmsBal, smsBalance: cleanSmsBal } : {}),
+            ...(cleanCustomPrice !== undefined ? { custom_sms_price: cleanCustomPrice, customSmsPrice: cleanCustomPrice } : {}),
             coop_settings,
             tree_grading_nodes: finalTreeNodes,
             treeGradingNodes: finalTreeNodes,

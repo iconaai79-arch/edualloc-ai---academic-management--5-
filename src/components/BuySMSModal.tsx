@@ -8,7 +8,7 @@ import { formatPhoneNumber } from '../utils/stringUtils';
 interface BuySMSModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onPurchaseComplete: (units: number) => void;
+    onPurchaseComplete: (units: number, newBalance?: number) => void;
     mpesaConfig?: MpesaConfig;
     airtelMoneyConfig?: any;
     intasendConfig?: any;
@@ -228,8 +228,11 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                         setFinalStatus('completed');
                         setStatusMessage(`Payment Confirmed! ${units?.toLocaleString()} SMS units have been added to your balance.`);
                         setIsLoading(false);
-                        window.dispatchEvent(new CustomEvent('eduai_sms_balance_updated'));
-                        onPurchaseComplete(units);
+                        const newBalance: number | undefined = result?.newBalance ?? result?.metadata?.newBalance ?? undefined;
+                        window.dispatchEvent(new CustomEvent('eduai_sms_balance_updated', {
+                            detail: { units, newBalance, institutionId }
+                        }));
+                        onPurchaseComplete(units, newBalance);
                     } else if ((isFailed || attempts >= maxAttempts) && !isCompletedRef.current) {
                         isCompletedRef.current = true;
                         clearInterval(pollInterval);

@@ -651,7 +651,15 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                 <BuySMSModal
                     isOpen={isBuySMSModalOpen}
                     onClose={() => setIsBuySMSModalOpen(false)}
-                    onPurchaseComplete={(purchasedUnits) => {
+                    onPurchaseComplete={(purchasedUnits, newBalance) => {
+                        // Dispatch global event so App.tsx and all listeners update immediately
+                        window.dispatchEvent(new CustomEvent('eduai_sms_balance_updated', {
+                            detail: {
+                                institutionId: institution.id,
+                                units: purchasedUnits,
+                                newBalance: newBalance !== undefined ? newBalance : undefined
+                            }
+                        }));
                         if (onRefreshData) {
                             onRefreshData();
                         }

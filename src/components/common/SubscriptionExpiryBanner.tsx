@@ -438,9 +438,19 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
                     mpesaConfig={institution?.mpesaConfig || { paybillNumber: '247247', accountNumber: 'SUBSCRIPTION', consumerKey: '', consumerSecret: '', passkey: '' }}
                     ncbaConfig={institution?.ncbaConfig}
                     smsUnitPrice={Number(smsInfo.unitPrice) || 2.0}
-                    onPurchaseComplete={(purchasedUnits) => {
+                    onPurchaseComplete={(purchasedUnits, newBalance) => {
                         setIsSmsModalOpen(false);
-                        alert(`Successfully topped up ${purchasedUnits} SMS credits!`);
+                        // Dispatch global event so App.tsx and all listeners update immediately
+                        const institutionId = institution?.id;
+                        if (institutionId) {
+                            window.dispatchEvent(new CustomEvent('eduai_sms_balance_updated', {
+                                detail: {
+                                    institutionId,
+                                    units: purchasedUnits,
+                                    newBalance: newBalance !== undefined ? newBalance : undefined
+                                }
+                            }));
+                        }
                     }}
                 />
             )}

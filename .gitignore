@@ -26,6 +26,7 @@ dist-ssr
 # Temp / debug files
 tmp/
 scratch/
+scratch_*.*
 ts_errors*.txt
 ts_errors*.log
 tsc_errors*.log

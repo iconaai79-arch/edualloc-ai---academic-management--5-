@@ -24,6 +24,7 @@ interface CommunicationsManagerProps {
     onSendSms: (recipient: string | string[], message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<{ success: boolean; message: string }>;
     currentUser?: User;
     smsBalance?: number;
+    onSmsBalanceChange?: (newBalance: number) => void;
     currentInstitution?: Institution | null;
     mpesaConfig?: MpesaConfig;
     smsConfig?: SmsConfig;
@@ -68,7 +69,8 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({
     institutions, 
     onSendSms, 
     currentUser, 
-    smsBalance, 
+    smsBalance: smsBalanceProp, 
+    onSmsBalanceChange,
     currentInstitution, 
     mpesaConfig, 
     smsConfig, 
@@ -79,6 +81,10 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({
     studentEnrollments,
     students
 }) => {
+    const [localSmsBalance, setLocalSmsBalance] = React.useState<number | undefined>(smsBalanceProp);
+    // Keep local balance in sync whenever the prop changes
+    React.useEffect(() => { setLocalSmsBalance(smsBalanceProp); }, [smsBalanceProp]);
+    const smsBalance = localSmsBalance ?? smsBalanceProp;
     const isRetailAgency = useMemo(() => {
         if (currentInstitution?.institutionType === 'Church') return false;
         if (moduleContext === 'auto_marketplace') return true;
@@ -1884,7 +1890,16 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({
                 <BuySMSModal
                     isOpen={isBuySMSModalOpen}
                     onClose={() => setIsBuySMSModalOpen(false)}
-                    onPurchaseComplete={async (purchasedUnits) => {
+                    onPurchaseComplete={async (purchasedUnits, newBalance) => {
+                        // Immediately update local balance for instant UI feedback
+                        if (newBalance !== undefined) {
+                            setLocalSmsBalance(newBalance);
+                            if (onSmsBalanceChange) onSmsBalanceChange(newBalance);
+                        } else {
+                            setLocalSmsBalance(prev => (prev ?? 0) + purchasedUnits);
+                            if (onSmsBalanceChange) onSmsBalanceChange((localSmsBalance ?? 0) + purchasedUnits);
+                        }
+                        // Then fetch authoritative data from backend
                         if (onRefreshData) {
                             await onRefreshData();
                         }

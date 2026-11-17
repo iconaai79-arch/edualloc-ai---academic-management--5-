@@ -616,6 +616,11 @@ const ensureEssentialSchema = async (pool: any) => {
                 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "coopConfig" JSONB;
                 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS sms_config JSONB;
                 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "smsConfig" JSONB;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS sms_balance NUMERIC DEFAULT 0;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "smsBalance" NUMERIC DEFAULT 0;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS custom_sms_price NUMERIC;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "customSmsPrice" NUMERIC;
+                UPDATE public.institutions SET sms_balance = COALESCE(sms_balance, "smsBalance", 0), "smsBalance" = COALESCE("smsBalance", sms_balance, 0) WHERE sms_balance IS NULL OR "smsBalance" IS NULL;
                 BEGIN
                     ALTER TABLE public.institutions ALTER COLUMN email DROP NOT NULL;
                     ALTER TABLE public.institutions ALTER COLUMN name DROP NOT NULL;
@@ -2356,6 +2361,119 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const authHeader = req.headers.authorization;
         const reqAction = getStrParam(req.query.action) || (typeof req.body === 'object' && req.body !== null ? req.body.action : '');
 
+        // ── Direct SMS Balance Adjustment Action ──
+        if (req.method === 'POST' && (reqAction === 'adjustSmsBalance' || reqAction === 'adjust_sms_balance')) {
+            const rawInstId = (req.body?.institutionId || req.body?.institution_id || req.body?.id || getStrParam(req.query.id) || getStrParam(req.query.institutionId) || '').toString().trim();
+            if (!rawInstId) {
+                return res.status(400).json({ success: false, error: 'missing_institution_id', message: 'Institution ID is required for SMS balance adjustment.' });
+            }
+
+            const cleanId = rawInstId.replace(/^(inst_|br_)/i, '');
+            const instIdWithPrefix = `inst_${cleanId}`;
+            const amount = Number(req.body?.amount ?? req.body?.units ?? 0);
+            const explicitNewBalance = req.body?.newBalance !== undefined ? Number(req.body.newBalance) : (req.body?.new_balance !== undefined ? Number(req.body.new_balance) : undefined);
+
+            let currentBal = 0;
+            let finalBalance = 0;
+            let updateSuccess = false;
+            let matchedInstName = '';
+
+            // 1. Direct PG primary execution
+            try {
+                const pool = await getPgPool();
+                if (pool) {
+                    const selRes = await pool.query(
+                        `SELECT id, name, COALESCE(sms_balance, ("smsBalance")::numeric, 0) as sms_balance FROM public.institutions WHERE id = $1 OR id = $2 OR id = $3 LIMIT 1`,
+                        [rawInstId, cleanId, instIdWithPrefix]
+                    );
+                    if (selRes?.rows?.[0]) {
+                        currentBal = Number(selRes.rows[0].sms_balance || 0);
+                        matchedInstName = selRes.rows[0].name || '';
+                    }
+
+                    if (explicitNewBalance !== undefined && !isNaN(explicitNewBalance)) {
+                        finalBalance = Math.max(0, explicitNewBalance);
+                    } else {
+                        finalBalance = Math.max(0, currentBal + amount);
+                    }
+
+                    const updRes = await pool.query(
+                        `UPDATE public.institutions 
+                         SET sms_balance = $1, 
+                             "smsBalance" = $1, 
+                             data = jsonb_set(COALESCE(data, '{}'::jsonb), '{sms_balance}', to_jsonb($1::numeric)),
+                             updated_at = NOW() 
+                         WHERE id = $2 OR id = $3 OR id = $4 
+                         RETURNING id, name, sms_balance`,
+                        [finalBalance, rawInstId, cleanId, instIdWithPrefix]
+                    );
+
+                    if (updRes?.rows && updRes.rows.length > 0) {
+                        updateSuccess = true;
+                        finalBalance = Number(updRes.rows[0].sms_balance);
+                        matchedInstName = updRes.rows[0].name || matchedInstName;
+                    }
+                }
+            } catch (pgErr: any) {
+                console.warn('[api/records:adjustSmsBalance] Direct PG error:', pgErr?.message || pgErr);
+            }
+
+            // 2. Supabase synchronization
+            if (supabase) {
+                try {
+                    if (!updateSuccess && (explicitNewBalance === undefined || isNaN(explicitNewBalance))) {
+                        const { data: suInst } = await supabase
+                            .from('institutions')
+                            .select('id, name, sms_balance')
+                            .or(`id.eq.${rawInstId},id.eq.${cleanId},id.eq.${instIdWithPrefix}`)
+                            .limit(1)
+                            .maybeSingle();
+                        if (suInst) {
+                            currentBal = Number(suInst.sms_balance || 0);
+                            finalBalance = Math.max(0, currentBal + amount);
+                            matchedInstName = suInst.name || matchedInstName;
+                        }
+                    } else if (explicitNewBalance !== undefined && !isNaN(explicitNewBalance)) {
+                        finalBalance = Math.max(0, explicitNewBalance);
+                    }
+
+                    const { error: suErr } = await supabase
+                        .from('institutions')
+                        .update({ sms_balance: finalBalance, smsBalance: finalBalance })
+                        .or(`id.eq.${rawInstId},id.eq.${cleanId},id.eq.${instIdWithPrefix}`);
+
+                    if (suErr) {
+                        await supabase
+                            .from('institutions')
+                            .update({ sms_balance: finalBalance })
+                            .or(`id.eq.${rawInstId},id.eq.${cleanId},id.eq.${instIdWithPrefix}`);
+                    }
+                    updateSuccess = true;
+                } catch (suErr: any) {
+                    console.warn('[api/records:adjustSmsBalance] Supabase update error:', suErr?.message || suErr);
+                }
+            }
+
+            // Clear in-memory cache immediately so subsequent GET returns fresh balance
+            _serverModuleMemoryCache.delete('institutions');
+
+            return res.status(200).json({
+                success: true,
+                institutionId: rawInstId,
+                name: matchedInstName,
+                previousBalance: currentBal,
+                amount,
+                newBalance: finalBalance
+            });
+        }
+
+        // ── Direct Cache Invalidation Action ──
+        if (reqAction === 'clearCache' || reqAction === 'clear_cache') {
+            const targetMod = (req.body?.module || getStrParam(req.query.module) || 'institutions').toString().trim();
+            _serverModuleMemoryCache.delete(targetMod);
+            return res.status(200).json({ success: true, cleared: targetMod });
+        }
+
         // ── Direct Authentication Gate (Login Action) ──
         if (req.method === 'POST' && (moduleName === 'users' || rawModuleName === 'users') && reqAction === 'login') {
             const rawIdentifier = (req.body?.identifier || req.body?.email || req.body?.phone || req.body?.username || req.body?.id || '').toString().trim();
@@ -2745,7 +2863,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             // Fast-path: in-memory server cache for hot configuration modules (institutions, counties, etc.)
-            if (CACHEABLE_MODULES.includes(moduleName) && !getStrParam(select)) {
+            const shouldBypassServerCache = req.query.bypassCache === 'true' || 
+                                           req.query.forceRefresh === 'true' || 
+                                           req.query.bypass_cache === 'true' || 
+                                           req.headers['x-bypass-cache'] === 'true' ||
+                                           Boolean(req.query.t && req.query.t !== '0');
+            if (!shouldBypassServerCache && CACHEABLE_MODULES.includes(moduleName) && !getStrParam(select)) {
                 const cached = _serverModuleMemoryCache.get(moduleName);
                 const ttl = moduleName === 'institutions' ? 60000 : (moduleName === 'school_registry' ? 300000 : 120000);
                 if (cached && (Date.now() - cached.timestamp) < ttl && Array.isArray(cached.data) && cached.data.length > 0) {
@@ -4524,12 +4647,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         });
                         // Background heal placeholder row in DB so direct ID lookups also have the real name & status
                         if (supabase && isPlaceholderInst(sec) && !isPlaceholderInst(primary)) {
-                            supabase.from('institutions').update({
-                                name: primary.name,
-                                status: primary.status || 'active',
-                                institution_type: primary.institution_type || primary.institutionType,
-                                subscription_ends_at: primary.subscription_ends_at || primary.subscriptionEndsAt
-                            }).eq('id', sec.id).then(() => {}).catch(() => {});
+                            (async () => {
+                                try {
+                                    await supabase.from('institutions').update({
+                                        name: primary.name,
+                                        status: primary.status || 'active',
+                                        institution_type: primary.institution_type || primary.institutionType,
+                                        subscription_ends_at: primary.subscription_ends_at || primary.subscriptionEndsAt
+                                    }).eq('id', sec.id);
+                                } catch (_) {}
+                            })();
                         }
                     }
 
@@ -6085,6 +6212,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.reseller_id && !copy.resellerId) copy.resellerId = copy.reseller_id;
                     if (copy.reseller_id === '' || copy.reseller_id === 'null' || copy.reseller_id === 'undefined') copy.reseller_id = null;
                     if (copy.resellerId === '' || copy.resellerId === 'null' || copy.resellerId === 'undefined') copy.resellerId = null;
+                    if (copy.smsBalance !== undefined || copy.sms_balance !== undefined) {
+                        const rawBal = copy.smsBalance !== undefined ? copy.smsBalance : copy.sms_balance;
+                        const balNum = Number(rawBal);
+                        const cleanBal = isNaN(balNum) ? 0 : Math.max(0, balNum);
+                        copy.sms_balance = cleanBal;
+                        copy.smsBalance = cleanBal;
+                        if (copy.data && typeof copy.data === 'object') {
+                            copy.data.sms_balance = cleanBal;
+                            copy.data.smsBalance = cleanBal;
+                        }
+                    }
+                    if (copy.customSmsPrice !== undefined || copy.custom_sms_price !== undefined) {
+                        const rawPrice = copy.customSmsPrice !== undefined ? copy.customSmsPrice : copy.custom_sms_price;
+                        const priceNum = Number(rawPrice);
+                        const cleanPrice = isNaN(priceNum) ? null : priceNum;
+                        copy.custom_sms_price = cleanPrice;
+                        copy.customSmsPrice = cleanPrice;
+                    }
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanInstitution) : cleanInstitution(currentPayload);
@@ -9279,7 +9424,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const pool = await getPgPool();
                             const isResellerCol = offendingCol === 'reseller_id' || offendingCol === 'resellerId';
                             const isBrandingCol = ['header_image_url', 'headerImageUrl', 'letterhead_url', 'letterheadUrl', 'stamp_url', 'stampUrl', 'footer_image_url', 'footerImageUrl', 'logo_url', 'logoUrl'].includes(offendingCol);
-                            if (pool && (isResellerCol || isBrandingCol)) {
+                            const isSmsCol = ['sms_balance', 'smsBalance', 'custom_sms_price', 'customSmsPrice'].includes(offendingCol);
+                            if (pool && (isResellerCol || isBrandingCol || isSmsCol)) {
                                 await executeWithTimeout(
                                     pool.query(`
                                         ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS reseller_id TEXT;
@@ -9295,6 +9441,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS logo_url TEXT;
                                         ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "logoUrl" TEXT;
                                         ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS letterhead_config JSONB DEFAULT '{}'::jsonb;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS sms_balance NUMERIC DEFAULT 0;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "smsBalance" NUMERIC DEFAULT 0;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS custom_sms_price NUMERIC;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "customSmsPrice" NUMERIC;
                                         NOTIFY pgrst, 'reload schema';
                                     `),
                                     2500
@@ -12028,7 +12178,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 const pool = await getPgPool();
                                 const isResellerCol = offendingCol === 'reseller_id' || offendingCol === 'resellerId';
                                 const isBrandingCol = ['header_image_url', 'headerImageUrl', 'letterhead_url', 'letterheadUrl', 'stamp_url', 'stampUrl', 'footer_image_url', 'footerImageUrl', 'logo_url', 'logoUrl'].includes(offendingCol);
-                                if (pool && (isResellerCol || isBrandingCol)) {
+                                const isSmsCol = ['sms_balance', 'smsBalance', 'custom_sms_price', 'customSmsPrice'].includes(offendingCol);
+                                if (pool && (isResellerCol || isBrandingCol || isSmsCol)) {
                                     await executeWithTimeout(
                                         pool.query(`
                                             ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS reseller_id TEXT;
@@ -12044,6 +12195,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                             ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS logo_url TEXT;
                                             ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "logoUrl" TEXT;
                                             ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS letterhead_config JSONB DEFAULT '{}'::jsonb;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS sms_balance NUMERIC DEFAULT 0;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "smsBalance" NUMERIC DEFAULT 0;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS custom_sms_price NUMERIC;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "customSmsPrice" NUMERIC;
                                             NOTIFY pgrst, 'reload schema';
                                         `),
                                         2500
