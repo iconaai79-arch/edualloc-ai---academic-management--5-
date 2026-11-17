@@ -55,6 +55,8 @@ export interface TransportFeeInvoice {
     paidAmount?: number;
     balance?: number;
     isOpeningBalance?: boolean;
+    balanceType?: 'arrears' | 'credit';
+    prepaymentAmount?: number;
 }
 
 interface TransportBillingProps {
@@ -857,8 +859,12 @@ const InvoiceTable: React.FC<{
                                                         <div className="flex items-center gap-2">
                                                             <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{inv.studentName}</p>
                                                             {(inv.isOpeningBalance || (inv.period && inv.period.toLowerCase().includes('opening'))) && (
-                                                                <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                                                                    Opening B/F
+                                                                <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider border ${
+                                                                    inv.balanceType === 'credit' || Boolean(inv.prepaymentAmount && inv.prepaymentAmount > 0) || Boolean(inv.notes && inv.notes.toLowerCase().includes('prepayment'))
+                                                                        ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                                                                        : 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                                                                }`}>
+                                                                    {inv.balanceType === 'credit' || Boolean(inv.prepaymentAmount && inv.prepaymentAmount > 0) || Boolean(inv.notes && inv.notes.toLowerCase().includes('prepayment')) ? 'Prepayment (Credit B/F)' : 'Arrears B/F'}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -874,7 +880,9 @@ const InvoiceTable: React.FC<{
                                             <td className="p-5">
                                                 <p className="text-sm font-black text-slate-900 dark:text-white">{fmt(inv.finalAmount)}</p>
                                                 {inv.discountAmount > 0 && (
-                                                    <p className="text-[9px] font-bold text-emerald-600">-{fmt(inv.discountAmount)} discount</p>
+                                                    <p className="text-[9px] font-bold text-emerald-600">
+                                                        -{fmt(inv.discountAmount)} {inv.notes?.includes('prepayment') || inv.notes?.includes('Prepayment') ? 'credit offset' : 'discount'}
+                                                    </p>
                                                 )}
                                             </td>
                                             <td className="p-5 text-xs font-bold text-slate-500 whitespace-nowrap">

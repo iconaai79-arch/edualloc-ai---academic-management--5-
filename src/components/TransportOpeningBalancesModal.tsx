@@ -115,10 +115,31 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
         );
     }, [existingInvoices]);
 
-    // Total Opening Balance Sum
-    const totalOpeningBalancesSum = useMemo(() => {
-        return openingBalanceInvoices.reduce((acc, curr) => acc + (curr.finalAmount || curr.amount || 0), 0);
+    // Total Opening Balance Sum & Categorized Balance Stats
+    const balanceStats = useMemo(() => {
+        let arrears = 0;
+        let credits = 0;
+        openingBalanceInvoices.forEach(i => {
+            const isCredit = i.balanceType === 'credit' || 
+                             Boolean(i.prepaymentAmount && i.prepaymentAmount > 0) || 
+                             (i.notes && (i.notes.toLowerCase().includes('prepayment') || i.notes.toLowerCase().includes('advance credit'))) || 
+                             (i.status === 'paid' && !i.paidDate);
+            const amt = Math.abs(i.finalAmount || i.amount || 0);
+            if (isCredit) {
+                credits += amt;
+            } else {
+                arrears += amt;
+            }
+        });
+        return {
+            arrears,
+            credits,
+            net: arrears - credits,
+            totalSum: arrears + credits
+        };
     }, [openingBalanceInvoices]);
+
+    const totalOpeningBalancesSum = balanceStats.arrears;
 
     // Handle student selection change in manual entry
     const handleStudentSelect = (stId: string) => {
@@ -138,6 +159,11 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                 if (existing.routeId) setManualRouteId(existing.routeId);
                 if (existing.period) setManualPeriod(existing.period);
                 if (existing.notes) setManualNotes(existing.notes);
+                const isCredit = existing.balanceType === 'credit' || 
+                                 Boolean(existing.prepaymentAmount && existing.prepaymentAmount > 0) || 
+                                 (existing.notes && (existing.notes.toLowerCase().includes('prepayment') || existing.notes.toLowerCase().includes('advance credit'))) ||
+                                 (existing.status === 'paid' && !existing.paidDate);
+                setManualBalanceType(isCredit ? 'credit' : 'arrears');
             }
         }
     };
@@ -148,6 +174,11 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
             const templateRows = students.map((st, idx) => {
                 const assignedRoute = routes.find(r => r.id === st.assignedRouteId);
                 const existing = openingBalanceInvoices.find(i => i.studentId === st.id);
+                const isCredit = existing?.balanceType === 'credit' || 
+                                 Boolean(existing?.prepaymentAmount && existing.prepaymentAmount > 0) || 
+                                 Boolean(existing?.notes && (existing.notes.toLowerCase().includes('prepayment') || existing.notes.toLowerCase().includes('advance credit'))) ||
+                                 (existing?.status === 'paid' && !existing?.paidDate);
+                const balTypeStr = existing ? (isCredit ? 'Prepayment (Credit)' : 'Arrears') : 'Arrears';
                 return {
                     'Admission / ID No.': st.admissionNumber || `ADM-${String(idx + 1).padStart(4, '0')}`,
                     'Full Name': st.name,
@@ -155,9 +186,9 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                     'Assigned Route': assignedRoute ? assignedRoute.name : (routes[0]?.name || 'Main Route'),
                     'Parent / Phone': st.parentPhone || '',
                     'Opening Balance (KES)': existing ? (existing.finalAmount || existing.amount || 0) : 0,
-                    'Balance Type': existing?.status === 'paid' ? 'Paid' : 'Arrears',
+                    'Balance Type (Arrears or Prepayment)': balTypeStr,
                     'Period / As-Of': existing?.period || defaultPeriod,
-                    'Remarks': existing?.notes || 'Transport arrears brought forward'
+                    'Remarks': existing?.notes || (isCredit ? 'Transport prepayment / advance credit brought forward' : 'Transport arrears brought forward')
                 };
             });
 
@@ -169,7 +200,7 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                 { wch: 32 }, // Route
                 { wch: 20 }, // Phone
                 { wch: 22 }, // Balance
-                { wch: 16 }, // Balance Type
+                { wch: 24 }, // Balance Type
                 { wch: 24 }, // Period
                 { wch: 35 }  // Remarks
             ];
@@ -286,7 +317,21 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                         matchedRoute = routes[0];
                     }
 
-                    const balanceType: 'arrears' | 'credit' = rawAmount < 0 ? 'credit' : 'arrears';
+                    const rawType = String(
+                        row['Balance Type (Arrears or Prepayment)'] || 
+                        row['Balance Type'] || 
+                        row['Type'] || 
+                        row['Category'] || 
+                        ''
+                    ).trim().toLowerCase();
+
+                    const isCredit = rawAmount < 0 || 
+                                     rawType.includes('credit') || 
+                                     rawType.includes('prepay') || 
+                                     rawType.includes('advance') || 
+                                     rawType.includes('paid');
+
+                    const balanceType: 'arrears' | 'credit' = isCredit ? 'credit' : 'arrears';
 
                     return {
                         id: `parsed_${Date.now()}_${idx}`,
@@ -336,6 +381,11 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                 .filter(r => r.amount > 0)
                 .map((row, idx) => {
                     const invId = `tinv_opb_${Date.now()}_${idx}`;
+                    const isCredit = row.balanceType === 'credit';
+                    const defaultNotes = isCredit 
+                        ? 'Transport prepayment / advance credit brought forward' 
+                        : 'Transport arrears brought forward';
+
                     return {
                         id: invId,
                         studentId: row.studentId,
@@ -349,15 +399,17 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                         baseAmount: row.amount,
                         discountAmount: 0,
                         finalAmount: row.amount,
-                        status: 'pending',
+                        status: isCredit ? 'paid' : 'pending',
                         issuedDate: new Date().toISOString(),
                         dueDate: dueDate.toISOString(),
                         parentPhone: row.parentPhone,
-                        notes: row.notes,
+                        notes: row.notes || defaultNotes,
                         isOpeningBalance: true,
+                        balanceType: row.balanceType,
                         amount: row.amount,
-                        paidAmount: 0,
-                        balance: row.amount
+                        paidAmount: isCredit ? row.amount : 0,
+                        balance: isCredit ? 0 : row.amount,
+                        prepaymentAmount: isCredit ? row.amount : undefined
                     };
                 });
 
@@ -399,6 +451,11 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                 ? existingInvoices.find(i => i.id === editingInvoiceId) 
                 : openingBalanceInvoices.find(i => i.studentId === manualStudentId);
 
+            const isCredit = manualBalanceType === 'credit';
+            const defaultNotes = isCredit 
+                ? 'Transport prepayment / advance credit brought forward' 
+                : 'Transport arrears brought forward';
+
             const invoiceToSave: TransportFeeInvoice = {
                 id: existingInv ? existingInv.id : `tinv_opb_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
                 studentId: manualStudentId,
@@ -412,19 +469,23 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                 baseAmount: amt,
                 discountAmount: 0,
                 finalAmount: amt,
-                status: amt === 0 ? 'paid' : (existingInv?.status === 'paid' && amt > 0 ? 'pending' : (existingInv?.status || 'pending')),
+                status: isCredit ? 'paid' : (amt === 0 ? 'paid' : 'pending'),
                 issuedDate: manualAsOfDate ? new Date(manualAsOfDate).toISOString() : (existingInv?.issuedDate || new Date().toISOString()),
                 dueDate: existingInv?.dueDate || dueDate.toISOString(),
                 parentPhone: selectedStudent?.parentPhone || existingInv?.parentPhone || '',
-                notes: manualNotes || 'Transport opening balance brought forward',
+                notes: manualNotes || defaultNotes,
                 isOpeningBalance: true,
+                balanceType: manualBalanceType,
                 amount: amt,
-                paidAmount: existingInv?.paidAmount || 0,
-                balance: amt
+                paidAmount: isCredit ? amt : (existingInv?.paidAmount || 0),
+                balance: isCredit ? 0 : amt,
+                prepaymentAmount: isCredit ? amt : undefined
             };
 
             onSaveOpeningBalance(invoiceToSave);
-            alert(editingInvoiceId ? 'Opening balance updated successfully!' : 'Opening balance saved successfully!');
+            alert(editingInvoiceId 
+                ? 'Opening balance updated successfully!' 
+                : (isCredit ? 'Prepayment credit saved successfully!' : 'Opening arrears saved successfully!'));
 
             // Reset manual form
             setEditingInvoiceId(null);
@@ -448,6 +509,11 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
         setManualRouteId(inv.routeId || '');
         setManualPeriod(inv.period || defaultPeriod);
         setManualNotes(inv.notes || '');
+        const isCredit = inv.balanceType === 'credit' || 
+                         Boolean(inv.prepaymentAmount && inv.prepaymentAmount > 0) || 
+                         Boolean(inv.notes && (inv.notes.toLowerCase().includes('prepayment') || inv.notes.toLowerCase().includes('advance credit'))) ||
+                         (inv.status === 'paid' && !inv.paidDate);
+        setManualBalanceType(isCredit ? 'credit' : 'arrears');
         if (inv.issuedDate) {
             setManualAsOfDate(inv.issuedDate.split('T')[0]);
         }
@@ -501,16 +567,30 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
 
                 {/* Sub-Header KPI Strip */}
                 <div className="bg-slate-50 dark:bg-slate-800/60 p-4 px-6 lg:px-8 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 shrink-0">
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-6 flex-wrap">
                         <div>
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total B/F Records</p>
                             <p className="text-lg font-black text-slate-900 dark:text-white">{openingBalanceInvoices.length} Commuters</p>
                         </div>
-                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-700" />
+                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
                         <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Outstanding B/F</p>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-rose-500">Arrears (Debt B/F)</p>
                             <p className="text-lg font-black text-rose-600 dark:text-rose-400 font-mono">
-                                KES {totalOpeningBalancesSum.toLocaleString()}
+                                +KES {balanceStats.arrears.toLocaleString()}
+                            </p>
+                        </div>
+                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
+                        <div>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Prepayments (Credit B/F)</p>
+                            <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                                -KES {balanceStats.credits.toLocaleString()}
+                            </p>
+                        </div>
+                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 hidden md:block" />
+                        <div className="hidden md:block">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Net Ledger Balance</p>
+                            <p className={`text-lg font-black font-mono ${balanceStats.net >= 0 ? 'text-slate-900 dark:text-white' : 'text-emerald-600'}`}>
+                                KES {balanceStats.net.toLocaleString()}
                             </p>
                         </div>
                     </div>
@@ -709,11 +789,69 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                                     </select>
                                 </div>
 
+                                {/* Balance Nature: Arrears vs Prepayment */}
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
+                                        Balance Nature *
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setManualBalanceType('arrears');
+                                                if (!manualNotes || manualNotes.includes('prepayment') || manualNotes.includes('advance')) {
+                                                    setManualNotes('Transport arrears brought forward');
+                                                }
+                                            }}
+                                            className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center gap-3 ${
+                                                manualBalanceType === 'arrears'
+                                                    ? 'border-rose-500 bg-rose-50/70 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 shadow-sm'
+                                                    : 'border-slate-200 dark:border-slate-700 hover:border-rose-200 text-slate-600 dark:text-slate-400'
+                                            }`}
+                                        >
+                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black ${
+                                                manualBalanceType === 'arrears' ? 'bg-rose-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                            }`}>
+                                                🔴
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-black uppercase tracking-wide">Arrears (Debt)</p>
+                                                <p className="text-[10px] opacity-75">Parent owes bus fee</p>
+                                            </div>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setManualBalanceType('credit');
+                                                if (!manualNotes || manualNotes.includes('arrears')) {
+                                                    setManualNotes('Transport prepayment / advance credit brought forward');
+                                                }
+                                            }}
+                                            className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center gap-3 ${
+                                                manualBalanceType === 'credit'
+                                                    ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 shadow-sm'
+                                                    : 'border-slate-200 dark:border-slate-700 hover:border-emerald-200 text-slate-600 dark:text-slate-400'
+                                            }`}
+                                        >
+                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black ${
+                                                manualBalanceType === 'credit' ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                            }`}>
+                                                🟢
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-black uppercase tracking-wide">Prepayment (Credit)</p>
+                                                <p className="text-[10px] opacity-75">Advance payment / credit</p>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+
                                 {/* Amount & Balance Type */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
-                                            Opening Balance Amount (KES) *
+                                            {manualBalanceType === 'credit' ? 'Prepayment / Credit Amount (KES) *' : 'Opening Arrears Amount (KES) *'}
                                         </label>
                                         <div className="relative">
                                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">KES</span>
@@ -882,17 +1020,31 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                                                     <td className="p-4 text-slate-500 font-medium">
                                                         {inv.period}
                                                     </td>
-                                                    <td className="p-4 text-right font-mono font-black text-rose-600 dark:text-rose-400 text-sm">
-                                                        KES {(inv.finalAmount || inv.amount || 0).toLocaleString()}
+                                                    <td className="p-4 text-right font-mono font-black text-sm">
+                                                        {inv.balanceType === 'credit' || Boolean(inv.prepaymentAmount && inv.prepaymentAmount > 0) || Boolean(inv.notes && inv.notes.toLowerCase().includes('prepayment')) || (inv.status === 'paid' && !inv.paidDate) ? (
+                                                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                                                -KES {(inv.finalAmount || inv.amount || 0).toLocaleString()} <span className="text-[10px] uppercase font-black tracking-wider">(Credit)</span>
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-rose-600 dark:text-rose-400 font-bold">
+                                                                +KES {(inv.finalAmount || inv.amount || 0).toLocaleString()} <span className="text-[10px] uppercase font-black tracking-wider">(Arrears)</span>
+                                                            </span>
+                                                        )}
                                                     </td>
                                                     <td className="p-4 text-center">
-                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
-                                                            inv.status === 'paid' 
-                                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                                                                : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
-                                                        }`}>
-                                                            {inv.status}
-                                                        </span>
+                                                        {inv.balanceType === 'credit' || Boolean(inv.prepaymentAmount && inv.prepaymentAmount > 0) || Boolean(inv.notes && inv.notes.toLowerCase().includes('prepayment')) || (inv.status === 'paid' && !inv.paidDate) ? (
+                                                            <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                                                Prepayment (Credit)
+                                                            </span>
+                                                        ) : (
+                                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
+                                                                inv.status === 'paid' 
+                                                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                                                    : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                                            }`}>
+                                                                {inv.status === 'paid' ? 'Settled Arrears' : 'Arrears Due'}
+                                                            </span>
+                                                        )}
                                                     </td>
                                                     <td className="p-4 text-right">
                                                         <div className="flex items-center justify-end gap-2">

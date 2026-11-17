@@ -2445,6 +2445,26 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             // avoid duplicates for the same period
             if (transportInvoices.some(i => i.studentId === student.id && i.period === period)) continue;
 
+                        // Check for available unconsumed prepayment / credit for this student
+            const studentCredits = transportInvoices.filter(i => 
+                i.studentId === student.id &&
+                (
+                    i.balanceType === 'credit' ||
+                    Boolean(i.prepaymentAmount && i.prepaymentAmount > 0) ||
+                    Boolean(i.isOpeningBalance && (i.status === 'paid' || (i.notes && (i.notes.toLowerCase().includes('prepayment') || i.notes.toLowerCase().includes('advance credit')))))
+                )
+            );
+
+            const totalPrepayment = studentCredits.reduce((sum, c) => sum + (c.prepaymentAmount || c.finalAmount || c.amount || 0), 0);
+            const totalAlreadyConsumed = transportInvoices
+                .filter(i => i.studentId === student.id && !i.isOpeningBalance && i.discountAmount > 0 && i.notes?.includes('Prepayment credit'))
+                .reduce((sum, i) => sum + (i.discountAmount || 0), 0);
+            
+            const availableCredit = Math.max(0, totalPrepayment - totalAlreadyConsumed);
+            const offsetAmount = Math.min(availableCredit, finalAmt);
+            const netAmountDue = Math.max(0, finalAmt - offsetAmount);
+            const isFullyCovered = offsetAmount >= finalAmt;
+
             const inv: TransportFeeInvoice = {
                 id: `tinv_${Date.now()}_${idx}`,
                 studentId: student.id,
@@ -2456,19 +2476,29 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 billingCycle: cycle,
                 period,
                 baseAmount: base,
-                discountAmount: 0,
-                finalAmount: finalAmt,
-                status: 'pending',
+                discountAmount: offsetAmount,
+                finalAmount: netAmountDue,
+                amount: netAmountDue,
+                paidAmount: isFullyCovered ? finalAmt : offsetAmount,
+                balance: netAmountDue,
+                status: isFullyCovered ? 'paid' : 'pending',
                 issuedDate: new Date().toISOString(),
                 dueDate: due.toISOString(),
                 parentPhone: student.parentPhone,
+                notes: offsetAmount > 0 
+                    ? (isFullyCovered 
+                        ? `Fully settled via opening prepayment credit of KES ${offsetAmount.toLocaleString()} B/F` 
+                        : `Partially offset by KES ${offsetAmount.toLocaleString()} prepayment credit B/F. Net due: KES ${netAmountDue.toLocaleString()}`)
+                    : undefined
             };
 
             newInvoices.push(inv);
 
             // Optional SMS invoice notification dispatch
             if (notifySms && student.parentPhone && student.parentPhone !== '0700000000') {
-                const msg = `Dear Parent, Transport invoice of KES ${finalAmt.toLocaleString()} for ${student.name} (${student.admissionNumber}) on route ${route.routeName} (${period}) has been generated. Due date: ${due.toLocaleDateString()}. Thank you, ${currentInstitution?.name || 'School Transport Desk'}.`;
+                const msg = offsetAmount > 0
+                    ? `Dear Parent, Transport invoice for ${student.name} (${student.admissionNumber}) on route ${route.routeName} (${period}) generated. Base fare: KES ${finalAmt.toLocaleString()}. Prepayment credit applied: KES ${offsetAmount.toLocaleString()}. Net balance due: KES ${netAmountDue.toLocaleString()}. Due date: ${due.toLocaleDateString()}. Thank you, ${currentInstitution?.name || 'School Transport Desk'}.`
+                    : `Dear Parent, Transport invoice of KES ${finalAmt.toLocaleString()} for ${student.name} (${student.admissionNumber}) on route ${route.routeName} (${period}) has been generated. Due date: ${due.toLocaleDateString()}. Thank you, ${currentInstitution?.name || 'School Transport Desk'}.`;
                 apiService.sendSms(student.parentPhone, msg, (currentInstitution as any)?.smsConfig, 1, currentInstitution?.id).catch(e => console.warn('SMS invoice dispatch error:', e));
             }
         }
