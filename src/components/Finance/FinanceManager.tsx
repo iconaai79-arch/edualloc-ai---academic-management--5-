@@ -21538,57 +21538,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                     return (
                         <div className="space-y-6 animate-in fade-in duration-300">
-                            {/* Horizontal menu — switches to sub-menus when on ledger tab */}
-                            {reportsSubTab === 'ledger' ? (
-                                /* Receipts Ledger sub-menu */
-                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-emerald-100 dark:border-emerald-900/40 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2">
+                            {/* Main Reports horizontal nav */}
+                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2">
+                                {reportSubTabs.map(tab => (
                                     <button
-                                        onClick={() => setReportsSubTab('collection')}
-                                        className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all mr-1 border border-emerald-200 dark:border-emerald-800"
+                                        key={tab.id}
+                                        onClick={() => setReportsSubTab(tab.id as any)}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
+                                            reportsSubTab === tab.id
+                                                ? 'bg-indigo-600 text-white shadow-md'
+                                                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                        }`}
                                     >
-                                        ← Back
+                                        <span>{tab.icon}</span>
+                                        {tab.label}
                                     </button>
-                                    <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
-                                    {[
-                                        { id: 'collection_summary', label: 'Collection Summary', icon: '📥' },
-                                        { id: 'cash_book', label: 'Cash Book', icon: '📖' },
-                                        { id: 'fee_register', label: 'Fee Register', icon: '📒' },
-                                        { id: 'cash_flow', label: 'Cash Flow', icon: '🌊' },
-                                        { id: 'fee_installment', label: 'Fee Installment', icon: '💰' },
-                                    ].map(tab => (
-                                        <button
-                                            key={tab.id}
-                                            onClick={() => setLedgerSubTab(tab.id as any)}
-                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
-                                                ledgerSubTab === tab.id
-                                                    ? 'bg-emerald-600 text-white shadow-md'
-                                                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                            }`}
-                                        >
-                                            <span>{tab.icon}</span>
-                                            {tab.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : (
-                                /* Normal Reports menu */
-                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2">
-                                    {reportSubTabs.map(tab => (
-                                        <button
-                                            key={tab.id}
-                                            onClick={() => setReportsSubTab(tab.id as any)}
-                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
-                                                reportsSubTab === tab.id
-                                                    ? 'bg-indigo-600 text-white shadow-md'
-                                                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                            }`}
-                                        >
-                                            <span>{tab.icon}</span>
-                                            {tab.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
+                                ))}
+                            </div>
 
                             {/* Fee Collection Report — with 3D Per-Class Graphical Analytics, Class Filtering & Pagination */}
                             {reportsSubTab === 'collection' && (() => {
@@ -23559,8 +23525,46 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 const TD = ({ children, cls = '' }: any) => <td className={`py-2.5 px-3 text-xs ${cls}`}>{children}</td>;
 
                                 return (
-                                    <div className="space-y-6 animate-in fade-in duration-200">
-                                        
+                                    <div className="flex flex-col lg:flex-row gap-6 items-start animate-in fade-in duration-200">
+
+                                        {/* ── Vertical Sidebar ── */}
+                                        <div className="w-full lg:w-64 shrink-0 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800/80 p-4 shadow-xl space-y-1 sticky top-6">
+                                            <div className="flex items-center justify-between px-2 pb-3 mb-1 border-b border-slate-100 dark:border-slate-800">
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800/50">
+                                                    🧾 Receipts Ledger
+                                                </span>
+                                            </div>
+                                            {[
+                                                { id: 'collection_summary', label: 'Collection Summary', icon: '📥', desc: 'Daily fee collection log' },
+                                                { id: 'cash_book', label: 'Cash Book', icon: '📖', desc: 'Double-entry cash journal' },
+                                                { id: 'fee_register', label: 'Fee Register', icon: '📒', desc: 'All invoices by student' },
+                                                { id: 'cash_flow', label: 'Cash Flow', icon: '🌊', desc: 'Inflow & outflow timeline' },
+                                                { id: 'fee_installment', label: 'Fee Installment', icon: '💰', desc: 'Installment payment plans' },
+                                            ].map(tab => {
+                                                const isActive = ledgerSubTab === tab.id;
+                                                return (
+                                                    <button
+                                                        key={tab.id}
+                                                        onClick={() => setLedgerSubTab(tab.id as any)}
+                                                        className={`w-full flex items-start gap-3 px-3 py-3 rounded-2xl text-left transition-all duration-200 cursor-pointer group ${
+                                                            isActive
+                                                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                                                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-600 dark:text-slate-300'
+                                                        }`}
+                                                    >
+                                                        <span className={`text-lg mt-0.5 shrink-0 ${isActive ? '' : 'grayscale group-hover:grayscale-0'} transition-all`}>{tab.icon}</span>
+                                                        <div>
+                                                            <p className={`text-[11px] font-black uppercase tracking-wide ${isActive ? 'text-white' : 'text-slate-700 dark:text-slate-200'}`}>{tab.label}</p>
+                                                            <p className={`text-[9px] font-medium mt-0.5 ${isActive ? 'text-emerald-100' : 'text-slate-400 dark:text-slate-500'}`}>{tab.desc}</p>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* ── Content Panel ── */}
+                                        <div className="flex-1 min-w-0 space-y-6">
+
                                         {/* 1. Collection Tab */}
                                         {ledgerSubTab === 'collection_summary' && (() => {
                                             // Discover voteheads only when Collection Summary is open
@@ -26075,6 +26079,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             );
                                         })()}
 
+                                        </div>
                                     </div>
                                 );
                             })()}
