@@ -2923,7 +2923,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 : (targetInstParam && !isSystemOrAll(targetInstParam) ? targetInstParam : undefined);
 
             const shouldSkipTenancy = (isGroupOrSuperAdmin || (moduleName === 'institutions' && !getStrParam(id))) && (!targetInstParam || isSystemOrAll(targetInstParam));
-            const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'institution_id', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback'];
+            const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'institution_id', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback', 'reseller_id', 'resellerId'];
+
+            // Reseller detection & normalization (handles role, header, query, and institution type)
+            const isResellerRequest = user?.role === 'reseller' || 
+                req.headers['x-user-role'] === 'reseller' || 
+                Boolean(req.headers['x-reseller-id']) || 
+                Boolean(req.query.reseller_id) || 
+                Boolean(req.query.resellerId) ||
+                user?.institutionType === 'Reseller' ||
+                user?.institution_type === 'Reseller' ||
+                (user as any)?.metadata?.institutionType === 'Reseller' ||
+                (user as any)?.metadata?.institution_type === 'Reseller';
+
+            const effectiveResellerId = getStrParam(req.query.reseller_id) || 
+                getStrParam(req.query.resellerId) || 
+                (req.headers['x-reseller-id'] as string) || 
+                (isResellerRequest ? user?.institutionId : '');
+
+            const cleanResellerId = (val?: string) => val ? String(val).replace(/^(inst_|br_)/i, '').toLowerCase() : '';
+            const rawResellerId = effectiveResellerId ? cleanResellerId(effectiveResellerId) : '';
+            const prefixedResellerId = effectiveResellerId ? (effectiveResellerId.startsWith('inst_') ? effectiveResellerId : `inst_${effectiveResellerId}`) : '';
+            const resellerVariants = Array.from(new Set([effectiveResellerId, rawResellerId, prefixedResellerId])).filter(Boolean);
 
             // Fast-path: timetable_settings and exam_timetable_settings are JSONB configs on the institutions table
             if (moduleName === 'timetable_settings' || moduleName === 'exam_timetable_settings') {
@@ -2968,15 +2989,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (cached && (Date.now() - cached.timestamp) < ttl && Array.isArray(cached.data) && cached.data.length > 0) {
                     const explicitInstFilter = targetInstParam && !isSystemOrAll(targetInstParam) ? targetInstParam : '';
                     const reqId = getStrParam(id) || explicitInstFilter || (!isGroupOrSuperAdmin && !shouldSkipTenancy && user?.institutionId ? user.institutionId : '');
-                    if (reqId && moduleName === 'institutions') {
-                        if (user?.role === 'reseller' && !getStrParam(id)) {
-                            const resellerId = user.institutionId;
-                            const cleanR = (val?: string) => val ? String(val).replace(/^(inst_|br_)/i, '').toLowerCase() : '';
-                            const normR = cleanR(resellerId);
+                    if ((reqId || (isResellerRequest && effectiveResellerId)) && moduleName === 'institutions') {
+                        if (isResellerRequest && effectiveResellerId && !getStrParam(id)) {
+                            const normR = cleanResellerId(effectiveResellerId);
                             const matched = cached.data.filter((i: any) => {
                                 if (!i) return false;
-                                const rId = i.resellerId || i.reseller_id || i.metadata?.resellerId || i.metadata?.reseller_id;
-                                return i.id === resellerId || rId === resellerId || (normR && (cleanR(i.id) === normR || cleanR(rId) === normR));
+                                let meta = i.metadata;
+                                if (typeof meta === 'string') { try { meta = JSON.parse(meta); } catch (_) {} }
+                                let iData = i.data;
+                                if (typeof iData === 'string') { try { iData = JSON.parse(iData); } catch (_) {} }
+                                const rId = i.resellerId || i.reseller_id || (i as any).resellerId || (i as any).reseller_id || meta?.resellerId || meta?.reseller_id || iData?.resellerId || iData?.reseller_id;
+                                return resellerVariants.includes(i.id) || 
+                                       resellerVariants.includes(rId) || 
+                                       (normR && (cleanResellerId(i.id) === normR || cleanResellerId(rId) === normR));
                             });
                             return res.status(200).json(matched);
                         }
@@ -3098,11 +3123,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         } else if (!isTableWithoutInstitutionId(moduleName)) {
                             q = q.eq('institution_id', user.institutionId);
                         }
-                    } else if (user?.role === 'reseller') {
+                    } else if (isResellerRequest && resellerVariants.length > 0) {
                         if (moduleName === 'institutions') {
-                            q = q.or(`id.eq.${user.institutionId},reseller_id.eq.${user.institutionId}`);
+                            const orParts: string[] = [];
+                            resellerVariants.forEach(v => {
+                                orParts.push(`id.eq.${v}`);
+                                orParts.push(`reseller_id.eq.${v}`);
+                            });
+                            q = q.or(orParts.join(','));
                         } else if (moduleName === 'commission_withdrawal_requests') {
-                            q = q.or(`reseller_id.eq.${user.institutionId},institution_id.eq.${user.institutionId}`);
+                            const cwrParts: string[] = [];
+                            resellerVariants.forEach(v => {
+                                cwrParts.push(`reseller_id.eq.${v}`);
+                                cwrParts.push(`institution_id.eq.${v}`);
+                            });
+                            q = q.or(cwrParts.join(','));
                         } else if (moduleName === 'users') {
                             if (targetInstParam && targetInstParam !== 'ALL') {
                                 q = q.eq('institution_id', targetInstParam);
@@ -3111,7 +3146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (targetInstParam && targetInstParam !== 'ALL') {
                                 q = q.eq('institution_id', targetInstParam);
                             } else {
-                                q = q.eq('institution_id', user.institutionId);
+                                q = q.eq('institution_id', user?.institutionId || effectiveResellerId);
                             }
                         }
                     } else if (effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
@@ -3321,11 +3356,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     } else if (!isTableWithoutInstitutionId(moduleName)) {
                         sqlConditions.push({ sql: `institution_id::text = $VAL`, val: user.institutionId });
                     }
-                } else if (user?.role === 'reseller') {
+                } else if (isResellerRequest && resellerVariants.length > 0) {
                     if (moduleName === 'institutions') {
-                        sqlConditions.push({ sql: `(id::text = $VAL OR reseller_id::text = $VAL)`, vals: [user.institutionId, user.institutionId] });
+                        const valPlaceholders = resellerVariants.map(() => '$VAL').join(', ');
+                        sqlConditions.push({
+                            sql: `(
+                                id::text IN (${valPlaceholders})
+                                OR reseller_id::text IN (${valPlaceholders})
+                                OR "resellerId"::text IN (${valPlaceholders})
+                                OR (metadata IS NOT NULL AND (
+                                    metadata->>'resellerId' IN (${valPlaceholders})
+                                    OR metadata->>'reseller_id' IN (${valPlaceholders})
+                                ))
+                                OR (data IS NOT NULL AND (
+                                    data->>'resellerId' IN (${valPlaceholders})
+                                    OR data->>'reseller_id' IN (${valPlaceholders})
+                                ))
+                            )`,
+                            vals: [
+                                ...resellerVariants,
+                                ...resellerVariants,
+                                ...resellerVariants,
+                                ...resellerVariants,
+                                ...resellerVariants,
+                                ...resellerVariants,
+                                ...resellerVariants
+                            ]
+                        });
                     } else if (moduleName === 'commission_withdrawal_requests') {
-                        sqlConditions.push({ sql: `(reseller_id::text = $VAL OR institution_id::text = $VAL)`, vals: [user.institutionId, user.institutionId] });
+                        const valPlaceholders = resellerVariants.map(() => '$VAL').join(', ');
+                        sqlConditions.push({
+                            sql: `(reseller_id::text IN (${valPlaceholders}) OR institution_id::text IN (${valPlaceholders}))`,
+                            vals: [...resellerVariants, ...resellerVariants]
+                        });
                     } else if (moduleName === 'users') {
                         if (targetInstParam && targetInstParam !== 'ALL') {
                             sqlConditions.push({ sql: `institution_id::text = $VAL`, val: targetInstParam });
@@ -3334,7 +3397,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (targetInstParam && targetInstParam !== 'ALL') {
                             sqlConditions.push({ sql: `institution_id::text = $VAL`, val: targetInstParam });
                         } else {
-                            sqlConditions.push({ sql: `institution_id::text = $VAL`, val: user.institutionId });
+                            sqlConditions.push({ sql: `institution_id::text = $VAL`, val: user?.institutionId || effectiveResellerId });
                         }
                     }
                 } else if (effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
@@ -3545,9 +3608,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             res = await executeWithTimeout(applyRange(buildFastBaseQuery(true), offset, offset + Math.min(finalLimit, 500) - 1), 3000)
                                 .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                         }
-                        if (res?.error && moduleName === 'institutions' && user?.role === 'reseller' && (String(res.error.message || '').includes('reseller_id') || res.error.code === '42703')) {
+                        if (res?.error && moduleName === 'institutions' && isResellerRequest && (String(res.error.message || '').includes('reseller_id') || res.error.code === '42703')) {
                             console.warn(`[API GET] Missing reseller_id column on institutions query, retrying by institution id only...`);
-                            const fallbackInstQ = supabase.from('institutions').select(getStrParam(select) || '*').eq('id', user.institutionId);
+                            const fallbackInstQ = supabase.from('institutions').select(getStrParam(select) || '*').in('id', resellerVariants);
                             const fallbackRes: any = await executeWithTimeout(applyRange(fallbackInstQ, offset, offset + finalLimit - 1), 3000)
                                 .catch(() => null);
                             if (fallbackRes && !fallbackRes.error && Array.isArray(fallbackRes.data)) {

@@ -2711,6 +2711,13 @@ export const apiService = {
                     });
                 }
 
+                const savedInstForAuth = ls.get('current_institution') as any;
+                const savedUserForAuth = ls.get('current_user') as any;
+                const isResellerAuth = savedUserForAuth?.role === 'reseller' || 
+                    savedInstForAuth?.institutionType === 'Reseller' || 
+                    savedInstForAuth?.category === 'Reseller';
+                const resellerIdHeader = isResellerAuth ? (savedInstForAuth?.id || savedUserForAuth?.institutionId) : undefined;
+
                 const fetchTimeoutMs = options?.isBackup ? 60000 : ((module === 'activity_log' || module === 'app_notifications') ? 8000 : (module === 'institutions' ? 30000 : 15000));
                 const doFetch = (tkn: string) => {
                     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -2723,6 +2730,7 @@ export const apiService = {
                             ...(_activeUrl ? { 'x-supabase-url': _activeUrl } : {}),
                             ...(_activeKey ? { 'x-supabase-key': _activeKey } : {}),
                             ...(effectiveInstId && effectiveInstId !== 'ALL' ? { 'x-institution-id': effectiveInstId } : {}),
+                            ...(isResellerAuth ? { 'x-user-role': 'reseller', ...(resellerIdHeader ? { 'x-reseller-id': resellerIdHeader } : {}) } : {}),
                             ...(options?.isBackup ? { 'x-backup-mode': 'true' } : {})
                         }
                     }).finally(() => {
