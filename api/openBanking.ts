@@ -268,6 +268,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             const token = await getAccessToken();
+            if (!token) {
+                const probeSummary = lastProbeResults.map(p => `${p.method} ${p.url.replace(/^https?:\/\/[^\/]+/, '')} [${p.format}] -> ${p.status}`).join(' | ');
+                throw new Error(`NCBA Open Banking Bearer token could not be acquired. Probed endpoints: ${probeSummary || 'None'}. Please verify your Open Banking User ID, Password, and Subscription Key, or provide the exact Token URL in the Token URL Override field.`);
+            }
             const cleanPath = endpointPath.startsWith('/') ? endpointPath.slice(1) : endpointPath;
             // Always build fullUrl using rootBase + cleanPath to avoid duplicate api/v1
             const fullUrl = `${rootBase}/${cleanPath}`;
@@ -275,20 +279,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Integration-Client)'
+                'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Integration-Client)',
+                'Authorization': `Bearer ${token}`
             };
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            } else if (userId && password) {
-                // Direct APIM Basic Auth fallback when gateway uses subscription key without separate /token endpoint
-                headers['Authorization'] = `Basic ${Buffer.from(`${userId}:${password}`).toString('base64')}`;
-            }
             if (subscriptionKey) {
                 headers['Ocp-Apim-Subscription-Key'] = subscriptionKey;
                 headers['ocp-apim-subscription-key'] = subscriptionKey;
             }
 
-            console.log(`[NCBA OpenBanking] Requesting ${fullUrl} [${method}] with auth mode: ${token ? 'Bearer Token' : 'Direct APIM Key + Basic'}`);
+            console.log(`[NCBA OpenBanking] Requesting ${fullUrl} [${method}] with Bearer Token`);
             const apiAbort = new AbortController();
             const apiTimer = setTimeout(() => apiAbort.abort(), 12000);
             let response: Response;
