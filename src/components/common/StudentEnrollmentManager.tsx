@@ -2182,7 +2182,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     dateOfBirth: resolvedDob
                 }).catch(err => console.error('Failed to dispatch student admission notifications:', err));
 
-                setStatusMsg({ type: 'success', message: 'New student enrolled successfully.' });
+                setStatusMsg({ 
+                    type: 'success', 
+                    message: formData.status === 'Active' 
+                        ? 'New student enrolled and activated successfully.' 
+                        : 'New student enrolled and submitted for approval. Record will be visible in Finance once approved.' 
+                });
             }
             
             setIsFormOpen(false);
@@ -6974,8 +6979,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 transition-colors"
                             >
                                 <option value="All">All Statuses</option>
-                                <option value="Enrolled">Enrolled</option>
-                                <option value="Active">Active</option>
+                                <option value="Enrolled">⏳ Approval Stage (Enrolled)</option>
+                                <option value="Active">🟢 Active (Approved)</option>
                                 <option value="Graduated">Graduated</option>
                                 <option value="Suspended">Suspended</option>
                                 <option value="Dropped">Dropped</option>
@@ -7153,11 +7158,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         const avatarCls = avatarColors[i % avatarColors.length];
 
                                         const statusCfg: Record<string, string> = {
-                                            Active:    'bg-indigo-50 border-indigo-200 text-indigo-700',
-                                            Enrolled:  'bg-indigo-50 border-indigo-200 text-indigo-700',
-                                            Graduated: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-                                            Suspended: 'bg-amber-50 border-amber-200 text-amber-700',
-                                            Dropped:   'bg-red-50 border-red-200 text-red-700',
+                                            Active:    'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-400',
+                                            Enrolled:  'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-400',
+                                            Graduated: 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-400',
+                                            Suspended: 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-400',
+                                            Dropped:   'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/40 dark:border-red-800 dark:text-red-400',
                                         };
                                         const statusCls = statusCfg[enr.status] || 'bg-slate-50 border-slate-200 text-slate-600';
 
@@ -7332,10 +7337,36 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 </div>
 
                                                 {/* ── Status ── */}
-                                                <div className="shrink-0">
+                                                <div className="shrink-0 flex items-center gap-1.5">
                                                     <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider border ${statusCls}`}>
-                                                        {enr.status}
+                                                        {enr.status === 'Enrolled' ? '⏳ Approval Stage' : enr.status}
                                                     </span>
+                                                    {enr.status === 'Enrolled' && currentUser && ['admin', 'head_teacher', 'headteacher', 'hoi', 'principal', 'dos', 'super_admin', 'main_admin', 'finance_officer', 'bursar'].includes(currentUser.role) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                try {
+                                                                    const updated = {
+                                                                        ...enr,
+                                                                        status: 'Active' as const,
+                                                                        updatedAt: new Date().toISOString()
+                                                                    };
+                                                                    await apiService.updateModuleRecord('student_enrollments', enr.id, updated);
+                                                                    setStatusMsg({ type: 'success', message: `✓ Enrollment approved for ${associatedUser?.name || enr.metadata?.studentName || 'student'}. Now visible in Finance.` });
+                                                                    loadAllData();
+                                                                    if (onLogAction) await onLogAction(`Approved student enrollment for ${associatedUser?.name || enr.metadata?.studentName} (${enr.id})`);
+                                                                } catch (err: any) {
+                                                                    setStatusMsg({ type: 'error', message: `Approval failed: ${err.message}` });
+                                                                }
+                                                            }}
+                                                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                                                            title="Approve student enrollment (makes learner active & visible in Finance)"
+                                                        >
+                                                            <CheckCircle2 className="w-3 h-3" />
+                                                            <span>Approve</span>
+                                                        </button>
+                                                    )}
                                                 </div>
 
                                                 {/* ── Actions ── */}
@@ -9169,8 +9200,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         onChange={e => setFormData({ ...formData, status: e.target.value as any })}
                                         className="form-select mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                     >
-                                        <option value="Enrolled">Enrolled</option>
-                                        <option value="Active">Active</option>
+                                        <option value="Enrolled">Enrolled (Approval Stage — Hidden from Finance until approved)</option>
+                                        <option value="Active">Active (Approved — Immediately visible in Finance)</option>
                                         <option value="Graduated">Graduated</option>
                                         <option value="Suspended">Suspended</option>
                                         <option value="Dropped">Dropped</option>

@@ -210,14 +210,23 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
     // Filter students target pool based on target selection
     const billingStudents = useMemo(() => {
+        // Exclude students in the approval stage from automated billing
+        const isApprovedActive = (s: User) => {
+            const enr = studentEnrollmentMap.get(s.id);
+            const rawStatus = String(enr?.status || (s as any).enrollmentStatus || (s as any).enrollment_status || s.status || '').toLowerCase().trim();
+            return !((rawStatus === 'enrolled' || rawStatus === 'pending' || rawStatus === 'pending_approval' || rawStatus === 'unapproved') && rawStatus !== 'active');
+        };
+
+        const activeStudents = students.filter(isApprovedActive);
+
         if (targetType === 'individual') {
-            return students.filter(s => s.id === selectedStudentId);
+            return activeStudents.filter(s => s.id === selectedStudentId);
         }
         if (targetType === 'class') {
-            return students.filter(s => (studentClassMap.get(s.id) || '').toLowerCase() === (selectedClass || '').toLowerCase());
+            return activeStudents.filter(s => (studentClassMap.get(s.id) || '').toLowerCase() === (selectedClass || '').toLowerCase());
         }
         if (targetType === 'course') {
-            return students.filter(s => getStudentCourseId(s) === selectedCourseId);
+            return activeStudents.filter(s => getStudentCourseId(s) === selectedCourseId);
         }
         if (targetType === 'uninvoiced') {
             const termInvoicedStudentIds = new Set<string>();
@@ -233,14 +242,14 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                 }
             });
 
-            return students.filter(s => {
+            return activeStudents.filter(s => {
                 if (termInvoicedStudentIds.has(String(s.id))) return false;
                 const adm = s.admissionNumber || s.admission_number || admissionNumberMap.get(s.id);
                 if (adm && termInvoicedAdms.has(String(adm).trim().toLowerCase())) return false;
                 return true;
             });
         }
-        return students;
+        return activeStudents;
     }, [students, targetType, selectedStudentId, selectedClass, selectedCourseId, selectedAY, selectedSem, selectedSemName, existingInvoices, admissionNumberMap, studentClassMap, studentEnrollmentMap]);
 
     const activeFeeStructures = useMemo(() => {

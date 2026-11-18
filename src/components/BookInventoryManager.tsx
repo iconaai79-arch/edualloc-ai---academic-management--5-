@@ -71,7 +71,8 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
         quantity: 1,
         available: 1,
         category: '',
-        location: ''
+        location: '',
+        grade: ''
     });
 
     const duplicateAccessions = useMemo(() => {
@@ -353,7 +354,8 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
             quantity: 1,
             available: 1,
             category: '',
-            location: ''
+            location: '',
+            grade: ''
         });
     };
 
@@ -461,6 +463,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                     isbn: (newBook.isbn || '').trim(),
                     category: (newBook.category || 'General').trim(),
                     location: (newBook.location || '').trim(),
+                    grade: (newBook.grade || '').trim() || undefined,
                     quantity: qty,
                     available: Math.min(qty, Math.max(0, avail)),
                     institutionId,
@@ -476,6 +479,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                     isbn: (newBook.isbn || 'N/A').trim(),
                     category: (newBook.category || 'General').trim(),
                     location: (newBook.location || '').trim(),
+                    grade: (newBook.grade || '').trim() || undefined,
                     quantity: qty,
                     available: qty,
                     institutionId,
@@ -513,7 +517,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
 
             setIsAddingBook(false);
             setEditingBook(null);
-            setNewBook({ title: '', author: '', isbn: '', accessionNumber: '', quantity: 1, available: 1, category: '', location: '' });
+            setNewBook({ title: '', author: '', isbn: '', accessionNumber: '', quantity: 1, available: 1, category: '', location: '', grade: '' });
             setCurrentPage(1); // Jump to page 1 where newly added book is located
 
             // 4. Background refresh to reconcile with server state
@@ -1100,6 +1104,22 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                                         className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all"
                                         placeholder="e.g. A2-S4 (Aisle 2, Shelf 4)"
                                     />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">
+                                        Target Grade / Class Level <span className="normal-case font-semibold text-slate-300">(Optional)</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={(newBook as any).grade || ''}
+                                        onChange={(e) => setNewBook({ ...newBook, grade: e.target.value } as any)}
+                                        list="grade-list"
+                                        className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all"
+                                        placeholder="e.g. Form 1, Grade 7, All Levels"
+                                    />
+                                    <datalist id="grade-list">
+                                        {['All Levels', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4', 'Year 1', 'Year 2', 'Year 3', 'Year 4'].map(g => <option key={g} value={g} />)}
+                                    </datalist>
                                 </div>
                                 <div className="md:col-span-2 space-y-2">
                                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Digital PDF / E-Book URL (Optional)</label>

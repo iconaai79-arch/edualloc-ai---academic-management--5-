@@ -2189,6 +2189,7 @@ export interface Book {
     available: number;
     category: string;
     location: string;
+    grade?: string; // Optional: target grade/class level (e.g. "Form 1", "Grade 7")
     addedDate: string;
     institutionId: string;
 }

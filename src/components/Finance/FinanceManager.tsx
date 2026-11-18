@@ -5195,6 +5195,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 String(cls || '').toLowerCase().includes('graduated') ||
                 String(cls || '').toLowerCase().includes('alumni');
 
+            const rawEnrStatus = String(enrollment?.status || (s as any).enrollmentStatus || (s as any).enrollment_status || s.status || '').toLowerCase().trim();
+            // A student is in the approval stage if their status is 'enrolled', 'pending', or 'pending_approval' (and not 'active')
+            // and they have no recorded invoice or receipt activity yet
+            const isPendingApproval = (rawEnrStatus === 'enrolled' || rawEnrStatus === 'pending' || rawEnrStatus === 'pending_approval' || rawEnrStatus === 'unapproved') &&
+                rawEnrStatus !== 'active' &&
+                studentInvoices.length === 0 &&
+                studentReceipts.length === 0;
+
             // Backfill admission number from matched student invoices or receipts if still missing
             if (!adm || adm === '—' || isSyntheticAdm(adm)) {
                 for (const inv of studentInvoices) {
@@ -5257,6 +5265,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 openingBalance: openingBal,
                 lastUpdatedTime,
                 isGraduated: Boolean(isGraduated),
+                isPendingApproval: Boolean(isPendingApproval),
+                enrollmentStatus: rawEnrStatus || 'active',
                 totals: {
                     openingBalance: openingBal,
                     transportOpeningBalance: transportOp ? (transportOp.isCredit ? -transportOp.amount : transportOp.amount) : 0,
@@ -5381,6 +5391,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const filteredFinanceStudents = useMemo(() => {
         const query = (searchBalances || '').trim().toLowerCase();
         const list = studentFinanceData.filter(s => {
+            // Students currently on the approval stage (not yet approved active)
+            // must NOT be visible immediately on finance fee balances unless explicitly filtered
+            if (s.isPendingApproval && balanceStatusFilter !== 'pending_approval') {
+                return false;
+            }
+
             const adm = studentAdmissionNumber(s);
             const matchesSearch = !query || (
                 (s.name || '').toLowerCase().includes(query) ||
@@ -5400,7 +5416,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             );
 
             let matchesStatus = true;
-            if (balanceStatusFilter === 'has_balance') {
+            if (balanceStatusFilter === 'pending_approval') {
+                matchesStatus = s.isPendingApproval === true;
+            } else if (balanceStatusFilter === 'has_balance') {
                 matchesStatus = s.totals.balance > 0;
             } else if (balanceStatusFilter === 'no_balance' || balanceStatusFilter === 'zero_balance' || balanceStatusFilter === 'cleared') {
                 matchesStatus = s.totals.balance <= 0;
@@ -8477,6 +8495,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const role = (s.role || '').toLowerCase();
             if (role && role !== 'student') return false;
 
+            // Students currently in approval stage must NOT be auto-invoiced
+            const sEnrStatus = String((s as any).enrollmentStatus || (s as any).enrollment_status || (s as any).status || '').toLowerCase().trim();
+            if ((sEnrStatus === 'enrolled' || sEnrStatus === 'pending' || sEnrStatus === 'pending_approval' || sEnrStatus === 'unapproved') && sEnrStatus !== 'active') {
+                return false;
+            }
+
             const sId = String(s.id);
             if (invoicedStudentIdSet.has(sId)) return false;
 
@@ -10333,7 +10357,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 : 'bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 border-none'
                         }`}
                     >
-                        <option value="All">All Payment Statuses</option>
+                        <option value="All">All Payment Statuses (Approved Active)</option>
+                        <option value="pending_approval">⏳ Pending Approval Stage</option>
                         <option value="no_balance">✅ No Balance (Cleared / Paid / Credit)</option>
                         <option value="exact_zero_balance">✨ Zero Balance Only (Exact 0.00)</option>
                         <option value="fully_paid">✨ Fully Paid (0 Balance)</option>
@@ -26211,6 +26236,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             {reportsSubTab === 'student_statement' && (() => {
                                 const q = (stmtSearch || '').trim().toLowerCase();
                                 const filteredStudents = mergedStudents.filter((s: any) => {
+                                    const sEnrStatus = String((s as any).enrollmentStatus || (s as any).enrollment_status || (s as any).status || '').toLowerCase().trim();
+                                    const isPending = (sEnrStatus === 'enrolled' || sEnrStatus === 'pending' || sEnrStatus === 'pending_approval' || sEnrStatus === 'unapproved') && sEnrStatus !== 'active';
+                                    if (!q && isPending) return false;
                                     if (!q) return true;
                                     const adm = studentAdmissionNumber(s);
                                     return (s.name || '').toLowerCase().includes(q) ||
