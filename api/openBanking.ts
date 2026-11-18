@@ -471,6 +471,156 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
+            // 1b. Test B2C Authentication (token probe + transfer endpoint reachability, no real money moved)
+            case 'testB2cAuth': {
+                const steps: Array<{ step: string; status: string; detail: string }> = [];
+                let overallSuccess = false;
+                let tokenData: CachedToken | null = null;
+
+                // Step 1 – Acquire Open Banking token
+                try {
+                    tokenData = await getAccessTokenData();
+                    if (tokenData?.token) {
+                        steps.push({
+                            step: 'Token Acquisition',
+                            status: 'OK',
+                            detail: `Bearer token acquired from ${tokenData.sourceUrl} (accessToken: ${(tokenData.accessToken || tokenData.token).slice(0, 20)}...)`
+                        });
+                    } else {
+                        steps.push({
+                            step: 'Token Acquisition',
+                            status: 'FALLBACK',
+                            detail: 'No /token endpoint answered — running in Direct APIM Subscription Key + Basic Auth fallback mode.'
+                        });
+                    }
+                } catch (tokenErr: any) {
+                    steps.push({ step: 'Token Acquisition', status: 'ERROR', detail: tokenErr.message });
+                }
+
+                // Step 2 – Probe transfer endpoint reachability (OPTIONS or tiny GET to check 401 vs 403 vs 404)
+                const transferPath = '/api/v1/MobileMoneyTransfer/mobilemoneytransfer';
+                const fullTransferUrl = `${rootBase}${transferPath}`;
+                try {
+                    const transferHeaders: Record<string, string> = {
+                        'Ocp-Apim-Subscription-Key': subscriptionKey,
+                        'Content-Type': 'application/json'
+                    };
+                    if (tokenData?.token) {
+                        transferHeaders['Authorization'] = `Bearer ${tokenData.token}`;
+                    } else if (userId && password) {
+                        transferHeaders['Authorization'] = `Basic ${Buffer.from(`${userId}:${password}`).toString('base64')}`;
+                    }
+                    // Send a minimal probe payload (amount = 0, dummy phone) to test endpoint reachability
+                    // NCBA will reject 0-amount transfers but will respond with a schema/auth error rather than a network error
+                    const probePayload = {
+                        beneficiaryName: 'B2C Auth Probe',
+                        date: new Date().toISOString().split('T')[0],
+                        debitAccount: debitAccount || '0000000000',
+                        debitAmount: '0',
+                        mobileNumber: '254700000000',
+                        transactionNarration: 'Auth Probe Only',
+                        uniqueReferenceNumber: `PROBE-${Date.now()}`
+                    };
+                    const probeRes = await fetch(fullTransferUrl, {
+                        method: 'POST',
+                        headers: transferHeaders,
+                        body: JSON.stringify(probePayload),
+                        signal: AbortSignal.timeout(10000)
+                    });
+                    const probeStatus = probeRes.status;
+                    let probeBody = '';
+                    try { probeBody = await probeRes.text(); } catch (_) {}
+
+                    if (probeStatus === 403) {
+                        steps.push({
+                            step: 'Transfer Endpoint Reachability',
+                            status: 'BLOCKED',
+                            detail: `HTTP 403 Forbidden — Server IP is NOT whitelisted by NCBA WAF. Ask NCBA to whitelist the server outbound IP shown above.`
+                        });
+                    } else if (probeStatus === 401) {
+                        steps.push({
+                            step: 'Transfer Endpoint Reachability',
+                            status: 'AUTH_FAIL',
+                            detail: `HTTP 401 Unauthorized — Endpoint reachable but credentials rejected. Verify UserID, Password, and Subscription Key.`
+                        });
+                        overallSuccess = false;
+                    } else if (probeStatus === 400 || probeStatus === 422) {
+                        // 400/422 means endpoint is alive and authenticated — just rejected the dummy payload
+                        steps.push({
+                            step: 'Transfer Endpoint Reachability',
+                            status: 'REACHABLE',
+                            detail: `HTTP ${probeStatus} — Endpoint authenticated and reachable! (Probe payload rejected as expected for a 0-amount dummy request).`
+                        });
+                        overallSuccess = true;
+                    } else if (probeStatus === 200) {
+                        steps.push({
+                            step: 'Transfer Endpoint Reachability',
+                            status: 'OK',
+                            detail: `HTTP 200 — Transfer endpoint fully reachable and authenticated. B2C is ready.`
+                        });
+                        overallSuccess = true;
+                    } else if (probeStatus === 404) {
+                        steps.push({
+                            step: 'Transfer Endpoint Reachability',
+                            status: 'NOT_FOUND',
+                            detail: `HTTP 404 — Transfer endpoint not found at ${fullTransferUrl}. Check Base URL configuration.`
+                        });
+                    } else {
+                        steps.push({
+                            step: 'Transfer Endpoint Reachability',
+                            status: `HTTP_${probeStatus}`,
+                            detail: `HTTP ${probeStatus} from transfer endpoint. Response: ${probeBody.slice(0, 200)}`
+                        });
+                        overallSuccess = probeStatus < 400;
+                    }
+                } catch (probeErr: any) {
+                    const msg = probeErr.message || String(probeErr);
+                    if (msg.includes('fetch failed') || msg.includes('ECONNREFUSED') || msg.includes('ETIMEDOUT')) {
+                        steps.push({
+                            step: 'Transfer Endpoint Reachability',
+                            status: 'NETWORK_ERROR',
+                            detail: `Network error reaching ${fullTransferUrl}: ${msg}. Check server internet connectivity.`
+                        });
+                    } else {
+                        steps.push({ step: 'Transfer Endpoint Reachability', status: 'ERROR', detail: msg });
+                    }
+                }
+
+                // Step 3 – Token probe summary
+                steps.push({
+                    step: 'Token Probe Summary',
+                    status: 'INFO',
+                    detail: `${lastProbeResults.length} token endpoint(s) probed. Auth mode: ${tokenData?.token ? `OAuth Bearer (from ${tokenData.sourceUrl})` : 'Direct APIM Subscription Key + Basic Auth fallback'}.`
+                });
+
+                // Determine human-readable overall message
+                const blockedStep = steps.find(s => s.status === 'BLOCKED');
+                const authFailStep = steps.find(s => s.status === 'AUTH_FAIL');
+                const reachableStep = steps.find(s => s.status === 'REACHABLE' || s.status === 'OK');
+                let summaryMessage: string;
+                if (blockedStep) {
+                    summaryMessage = `❌ IP Not Whitelisted — NCBA WAF is blocking the server. Contact NCBA to whitelist the server outbound IP shown at the top of this tab.`;
+                } else if (authFailStep) {
+                    summaryMessage = `⚠️ Authentication Failed — The transfer endpoint is reachable but credentials were rejected (401). Double-check User ID, Password, and Subscription Key.`;
+                } else if (reachableStep) {
+                    summaryMessage = `✅ B2C Auth OK — Token acquired and transfer endpoint is reachable. Ready for live transfers!`;
+                } else {
+                    summaryMessage = `ℹ️ B2C Auth Probe Complete — Review the step results below for details.`;
+                }
+
+                return res.status(200).json({
+                    success: overallSuccess,
+                    message: summaryMessage,
+                    steps,
+                    tokenAcquired: !!tokenData?.token,
+                    tokenSourceUrl: tokenData?.sourceUrl,
+                    authMode: tokenData?.token ? 'OAuth Bearer Token' : 'Direct APIM Subscription Key + Basic Auth',
+                    transferEndpoint: fullTransferUrl,
+                    probes: lastProbeResults,
+                    isMock
+                });
+            }
+
             // 2. B2C Mobile Money Transfer (Disburse Bank to M-Pesa)
             case 'b2cMpesa':
             case 'mobileMoneyTransfer': {

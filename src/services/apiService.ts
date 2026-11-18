@@ -8602,6 +8602,19 @@ export const apiService = {
             return { success: false, message: e.message || "Open Banking Handshake Failed" };
         }
     },
+    async testNcbaB2cAuth(config?: any) {
+        try {
+            const response = await fetch('/api/openBanking?action=testB2cAuth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config })
+            });
+            return await response.json();
+        } catch (e: any) {
+            console.error('NCBA B2C Auth Test Failed:', e);
+            return { success: false, message: e.message || 'B2C Auth probe failed — network error.' };
+        }
+    },
     async testNcbaFundsTransfer(params: {
         transferType: 'b2c' | 'ift';
         recipient: string;

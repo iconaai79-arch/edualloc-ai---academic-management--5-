@@ -986,6 +986,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [localCoopConfig, setLocalCoopConfig] = useState<CoopB2bConfig>(companyDetails?.coopConfig || { serviceName: 'KEWISCO SACCO', connectionID: 'TEST', connectionPassword: 'CoopTest', institutionCode: '210001918' });
     const [localNcbaConfig, setLocalNcbaConfig] = useState<NcbaConfig>(companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://c2bapis.ncbagroup.com', environment: 'production' });
     const [isTestingNcba, setIsTestingNcba] = useState(false);
+    const [isTestingB2cAuth, setIsTestingB2cAuth] = useState(false);
+    const [b2cAuthResult, setB2cAuthResult] = useState<any | null>(null);
     const [ncbaTransferType, setNcbaTransferType] = useState<'b2c' | 'ift'>('b2c');
     const [ncbaTransferRecipient, setNcbaTransferRecipient] = useState('');
     const [ncbaTransferAmount, setNcbaTransferAmount] = useState('50');
@@ -6637,6 +6639,28 @@ Please change it after login.`;
                                                             <ShieldCheckIcon className="w-4 h-4 text-emerald-500" />
                                                             {isTestingNcba ? 'Probing Tokens...' : 'Test Gateway Auth'}
                                                         </button>
+
+                                                        {/* ── NEW: Test B2C Auth ── */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={async () => {
+                                                                setIsTestingB2cAuth(true);
+                                                                setB2cAuthResult(null);
+                                                                try {
+                                                                    const res = await apiService.testNcbaB2cAuth(localNcbaConfig);
+                                                                    setB2cAuthResult(res);
+                                                                } catch (err: any) {
+                                                                    setB2cAuthResult({ success: false, message: err.message || 'Network error during B2C probe.' });
+                                                                } finally {
+                                                                    setIsTestingB2cAuth(false);
+                                                                }
+                                                            }}
+                                                            disabled={isTestingB2cAuth || isTestingNcba}
+                                                            className="h-12 px-5 bg-sky-50 dark:bg-sky-950/30 hover:bg-sky-100 border border-sky-500/20 text-sky-700 dark:text-sky-300 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2"
+                                                        >
+                                                            <BanknotesIcon className="w-4 h-4 text-sky-500" />
+                                                            {isTestingB2cAuth ? 'Probing B2C...' : 'Test B2C Auth'}
+                                                        </button>
                                                     </div>
                                                 </div>
 
@@ -6663,6 +6687,63 @@ Please change it after login.`;
                                                         <pre className="p-3 bg-black/5 dark:bg-black/30 rounded-xl overflow-x-auto text-[10px] font-mono leading-relaxed">
                                                             {JSON.stringify(ncbaTransferResult, null, 2)}
                                                         </pre>
+                                                    </div>
+                                                )}
+
+                                                {/* ── B2C Auth Diagnostic Panel ── */}
+                                                {b2cAuthResult && (
+                                                    <div className={`p-4 rounded-2xl border text-xs ${
+                                                        b2cAuthResult.success
+                                                            ? 'bg-sky-50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-800 text-sky-800 dark:text-sky-200'
+                                                            : 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200'
+                                                    }`}>
+                                                        <div className="flex items-center justify-between font-bold mb-2">
+                                                            <span className="uppercase tracking-widest text-[10px]">
+                                                                {b2cAuthResult.success ? '✅ B2C Auth — Ready' : '⚠️ B2C Auth — Diagnostic'}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setB2cAuthResult(null)}
+                                                                className="text-slate-400 hover:text-slate-600 text-[10px] uppercase tracking-widest"
+                                                            >
+                                                                Dismiss
+                                                            </button>
+                                                        </div>
+                                                        <p className="font-mono text-[11px] mb-3 font-semibold">{b2cAuthResult.message}</p>
+
+                                                        {/* Step-by-step breakdown */}
+                                                        {Array.isArray(b2cAuthResult.steps) && b2cAuthResult.steps.length > 0 && (
+                                                            <div className="space-y-1.5 mb-3">
+                                                                {b2cAuthResult.steps.map((s: any, i: number) => (
+                                                                    <div key={i} className="flex items-start gap-2 p-2 bg-black/5 dark:bg-black/20 rounded-xl">
+                                                                        <span className={`mt-0.5 inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                                                                            s.status === 'OK' || s.status === 'REACHABLE' ? 'bg-emerald-500'
+                                                                            : s.status === 'FALLBACK' || s.status === 'INFO' ? 'bg-sky-400'
+                                                                            : s.status === 'BLOCKED' ? 'bg-red-500'
+                                                                            : s.status === 'AUTH_FAIL' ? 'bg-amber-500'
+                                                                            : 'bg-slate-400'
+                                                                        }`} />
+                                                                        <div className="min-w-0">
+                                                                            <span className="font-black uppercase tracking-widest text-[9px] mr-2">{s.step}</span>
+                                                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${
+                                                                                s.status === 'OK' || s.status === 'REACHABLE' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+                                                                                : s.status === 'BLOCKED' ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
+                                                                                : s.status === 'AUTH_FAIL' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                                                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                                                            }`}>{s.status}</span>
+                                                                            <p className="text-[10px] mt-0.5 font-mono leading-snug opacity-80">{s.detail}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Auth mode & endpoint info */}
+                                                        <div className="text-[10px] font-mono opacity-70 space-y-0.5">
+                                                            {b2cAuthResult.authMode && <p>Auth Mode: {b2cAuthResult.authMode}</p>}
+                                                            {b2cAuthResult.tokenSourceUrl && <p>Token Source: {b2cAuthResult.tokenSourceUrl}</p>}
+                                                            {b2cAuthResult.transferEndpoint && <p>Transfer Endpoint: {b2cAuthResult.transferEndpoint}</p>}
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
