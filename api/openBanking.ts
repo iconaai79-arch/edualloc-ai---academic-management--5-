@@ -14,6 +14,9 @@ const getSupabase = () => {
 // In-memory token cache for Open Banking credentials
 interface CachedToken {
     token: string;
+    accessToken?: string;
+    tokenId?: string;
+    sourceUrl?: string;
     expiresAt: number;
 }
 const tokenCache: Record<string, CachedToken> = {};
@@ -90,9 +93,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Helper: Obtain Bearer Token via Multi-Format APIM Probing
         let lastProbeResults: any[] = [];
-        const getAccessToken = async (): Promise<string | null> => {
+        const getAccessTokenData = async (): Promise<CachedToken | null> => {
             if (isMock) {
-                return 'mock-openbanking-token-' + Date.now();
+                return {
+                    token: 'mock-openbanking-token-' + Date.now(),
+                    expiresAt: Date.now() + 3600000,
+                    sourceUrl: 'mock'
+                };
             }
 
             if (!userId || !password) {
@@ -102,72 +109,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const cacheKey = `${userId}:${rootBase}`;
             const cached = tokenCache[cacheKey];
             if (cached && Date.now() < cached.expiresAt) {
-                return cached.token;
+                return cached;
             }
 
             interface TokenProbe {
                 url: string;
                 method: 'GET' | 'POST';
-                format: 'json' | 'form';
+                format: 'json' | 'json_full' | 'form';
                 useBasicAuth?: boolean;
-                useC2bCreds?: boolean;
             }
 
             const probeList: TokenProbe[] = [];
 
-            // If user supplied an explicit custom token URL, test that first with all formats
+            // 1. Explicit Custom Token URL (if provided by user in settings)
             if (customTokenUrl) {
                 probeList.push(
                     { url: customTokenUrl, method: 'POST', format: 'json' },
+                    { url: customTokenUrl, method: 'POST', format: 'json_full' },
                     { url: customTokenUrl, method: 'POST', format: 'form' },
                     { url: customTokenUrl, method: 'POST', format: 'form', useBasicAuth: true },
                     { url: customTokenUrl, method: 'GET', format: 'form' }
                 );
             }
 
-            // Probes on APIM gateway (JSON, Form-Urlencoded OAuth2, and Basic Auth combinations)
+            // 2. Official NCBA UAT Open Banking Token Endpoints (per CLIENT OPEN BANKING UAT GUIDE- 31032026.docx)
+            // Primary path: https://openbankingtest.api.ncbagroup.com/test/apigateway/token
             probeList.push(
-                // 1. JSON POST
-                { url: `${apiV1Base}/token`, method: 'POST', format: 'json' },
+                // Official standard JSON body: { "userID": "...", "password": "..." }
                 { url: `${rootBase}/token`, method: 'POST', format: 'json' },
-                // 2. Standard OAuth2 Form-UrlEncoded (RFC 6749)
-                { url: `${apiV1Base}/token`, method: 'POST', format: 'form' },
+                { url: `${apiV1Base}/token`, method: 'POST', format: 'json' },
+                // JSON with full field variants
+                { url: `${rootBase}/token`, method: 'POST', format: 'json_full' },
+                { url: `${apiV1Base}/token`, method: 'POST', format: 'json_full' },
+                // Standard OAuth2 Form-UrlEncoded (RFC 6749)
                 { url: `${rootBase}/token`, method: 'POST', format: 'form' },
-                // 3. OAuth2 Form-UrlEncoded with Basic Auth header
-                { url: `${apiV1Base}/token`, method: 'POST', format: 'form', useBasicAuth: true },
+                { url: `${apiV1Base}/token`, method: 'POST', format: 'form' },
+                // OAuth2 Form-UrlEncoded with Basic Auth header
                 { url: `${rootBase}/token`, method: 'POST', format: 'form', useBasicAuth: true },
-                // 4. Auth & OAuth paths
+                { url: `${apiV1Base}/token`, method: 'POST', format: 'form', useBasicAuth: true },
+                // Alternative casing and sub-paths
                 { url: `${apiV1Base}/Token`, method: 'POST', format: 'json' },
-                { url: `${apiV1Base}/Token`, method: 'POST', format: 'form' },
                 { url: `${apiV1Base}/auth/token`, method: 'POST', format: 'json' },
-                { url: `${apiV1Base}/auth/token`, method: 'POST', format: 'form', useBasicAuth: true },
-                { url: `${apiV1Base}/Auth/token`, method: 'POST', format: 'json' },
                 { url: `${apiV1Base}/Account/token`, method: 'POST', format: 'json' },
                 { url: `${apiV1Base}/oauth/token`, method: 'POST', format: 'json' },
-                { url: `${apiV1Base}/oauth/token`, method: 'POST', format: 'form', useBasicAuth: true },
-                { url: `${rootBase}/oauth/token`, method: 'POST', format: 'form', useBasicAuth: true },
-                // 5. GET token queries
-                { url: `${apiV1Base}/token`, method: 'GET', format: 'form' },
-                { url: `${rootBase}/token`, method: 'GET', format: 'form' },
-                // 6. Production APIM gateway (if credentials were issued for prod)
-                { url: `https://openbanking.api.ncbagroup.com/apigateway/token`, method: 'POST', format: 'json' },
-                { url: `https://openbanking.api.ncbagroup.com/apigateway/api/v1/token`, method: 'POST', format: 'json' },
-                { url: `https://openbanking.api.ncbagroup.com/apigateway/token`, method: 'POST', format: 'form', useBasicAuth: true },
-                // 7. C2B Live Gateway token endpoint (where IP is whitelisted) with Open Banking creds
-                { url: `https://c2bapis.ncbagroup.com/payments/api/v1/auth/token`, method: 'POST', format: 'json', useBasicAuth: true },
-                { url: `https://c2bapis.ncbagroup.com/payments/api/v1/auth/token`, method: 'GET', format: 'form', useBasicAuth: true },
-                // 8. C2B Live Gateway token endpoint with C2B credentials (sys_rtndBB)
-                { url: `https://c2bapis.ncbagroup.com/payments/api/v1/auth/token`, method: 'POST', format: 'json', useC2bCreds: true },
-                { url: `https://c2bapis.ncbagroup.com/payments/api/v1/auth/token`, method: 'GET', format: 'form', useC2bCreds: true }
+                { url: `${rootBase}/oauth/token`, method: 'POST', format: 'form', useBasicAuth: true }
             );
 
-            let tokenFound = '';
-            let tokenExpiryMs = Date.now() + 50 * 60 * 1000;
+            // 3. Production APIM Gateway (only if environment is production or custom)
+            if (environment === 'production') {
+                probeList.push(
+                    { url: `https://openbanking.api.ncbagroup.com/apigateway/token`, method: 'POST', format: 'json' },
+                    { url: `https://openbanking.api.ncbagroup.com/apigateway/api/v1/token`, method: 'POST', format: 'json' }
+                );
+            }
+
+            let tokenFound: CachedToken | null = null;
             lastProbeResults = [];
 
             for (const probe of probeList) {
                 const tokenAbort = new AbortController();
-                const tokenTimer = setTimeout(() => tokenAbort.abort(), 6000);
+                const tokenTimer = setTimeout(() => tokenAbort.abort(), 7000);
 
                 const reqHeaders: Record<string, string> = {
                     'Accept': 'application/json',
@@ -175,13 +176,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 };
                 if (subscriptionKey) {
                     reqHeaders['Ocp-Apim-Subscription-Key'] = subscriptionKey;
-                    reqHeaders['ocp-apim-subscription-key'] = subscriptionKey;
                 }
-                const activeUser = probe.useC2bCreds ? (config.username || config.clientId || userId) : userId;
-                const activePass = probe.useC2bCreds ? (config.clientSecret || config.password || password) : password;
 
-                if (probe.useBasicAuth || probe.useC2bCreds) {
-                    reqHeaders['Authorization'] = `Basic ${Buffer.from(`${activeUser}:${activePass}`).toString('base64')}`;
+                if (probe.useBasicAuth) {
+                    reqHeaders['Authorization'] = `Basic ${Buffer.from(`${userId}:${password}`).toString('base64')}`;
                 }
 
                 let fetchUrl = probe.url;
@@ -189,29 +187,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (probe.method === 'POST') {
                     if (probe.format === 'json') {
+                        // Strict NCBA UAT Guide specification: { "userID": "...", "password": "..." }
                         reqHeaders['Content-Type'] = 'application/json';
                         fetchBody = JSON.stringify({
-                            userID: activeUser,
-                            username: activeUser,
-                            clientId: activeUser,
-                            password: activePass,
-                            clientSecret: activePass
+                            userID: userId,
+                            password: password
+                        });
+                    } else if (probe.format === 'json_full') {
+                        reqHeaders['Content-Type'] = 'application/json';
+                        fetchBody = JSON.stringify({
+                            userID: userId,
+                            username: userId,
+                            clientId: userId,
+                            password: password,
+                            clientSecret: password
                         });
                     } else {
                         reqHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
                         const params = new URLSearchParams();
                         params.append('grant_type', 'client_credentials');
-                        params.append('client_id', activeUser);
-                        params.append('client_secret', activePass);
-                        params.append('username', activeUser);
-                        params.append('password', activePass);
+                        params.append('client_id', userId);
+                        params.append('client_secret', password);
+                        params.append('username', userId);
+                        params.append('password', password);
                         fetchBody = params.toString();
                     }
                 } else {
                     const queryParams = new URLSearchParams();
                     queryParams.append('grant_type', 'client_credentials');
-                    queryParams.append('username', activeUser);
-                    queryParams.append('password', activePass);
+                    queryParams.append('username', userId);
+                    queryParams.append('password', password);
                     fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + queryParams.toString();
                 }
 
@@ -238,15 +243,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     lastProbeResults.push(probeEntry);
 
                     if (resp.ok && resJson) {
-                        const token = resJson.accessToken || resJson.access_token || resJson.token;
-                        if (token) {
-                            tokenFound = token;
+                        const accessToken = resJson.accessToken || resJson.access_token || '';
+                        const tokenId = resJson.tokenID || resJson.tokenId || '';
+                        const genericToken = resJson.token || '';
+                        const primary = accessToken || tokenId || genericToken;
+
+                        if (primary) {
+                            let expiryMs = Date.now() + 50 * 60 * 1000;
                             if (resJson.tokenExpiry) {
                                 const parsed = new Date(resJson.tokenExpiry).getTime();
                                 if (!isNaN(parsed) && parsed > Date.now()) {
-                                    tokenExpiryMs = parsed - 60000;
+                                    expiryMs = parsed - 60000;
                                 }
                             }
+                            tokenFound = {
+                                token: primary,
+                                accessToken: accessToken || undefined,
+                                tokenId: tokenId || undefined,
+                                sourceUrl: probe.url,
+                                expiresAt: expiryMs
+                            };
                             console.log(`[NCBA OpenBanking] 🎉 Token acquired from ${probe.url} (${probe.method}/${probe.format})`);
                             break;
                         }
@@ -264,11 +280,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (tokenFound) {
-                tokenCache[cacheKey] = { token: tokenFound, expiresAt: tokenExpiryMs };
+                tokenCache[cacheKey] = tokenFound;
                 return tokenFound;
             }
 
             return null;
+        };
+
+        const getAccessToken = async (): Promise<string | null> => {
+            const data = await getAccessTokenData();
+            return data ? data.token : null;
         };
 
         // Helper: Call Authenticated Open Banking API
@@ -278,45 +299,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return null; // Will trigger simulated return
             }
 
-            const token = await getAccessToken();
-            if (!token) {
+            const tokenData = await getAccessTokenData();
+            if (!tokenData || !tokenData.token) {
                 const probeSummary = lastProbeResults.map(p => `${p.method} ${p.url.replace(/^https?:\/\/[^\/]+/, '')} [${p.format}] -> ${p.status}`).join(' | ');
-                throw new Error(`NCBA Open Banking Bearer token could not be acquired. Probed endpoints: ${probeSummary || 'None'}. Please verify your Open Banking User ID, Password, and Subscription Key, or provide the exact Token URL in the Token URL Override field.`);
+                throw new Error(`NCBA Open Banking Bearer token could not be acquired. Probed endpoints: ${probeSummary || 'None'}. Please verify your Open Banking User ID, Password, and Subscription Key in the bank configuration.`);
             }
+
             const cleanPath = endpointPath.startsWith('/') ? endpointPath.slice(1) : endpointPath;
-            // Always build fullUrl using rootBase + cleanPath to avoid duplicate api/v1
             const fullUrl = `${rootBase}/${cleanPath}`;
 
-            const headers: Record<string, string> = {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Integration-Client)',
-                'Authorization': `Bearer ${token}`
+            const buildHeaders = (bearer: string): Record<string, string> => {
+                const h: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Integration-Client)',
+                    'Authorization': `Bearer ${bearer}`
+                };
+                if (subscriptionKey) {
+                    h['Ocp-Apim-Subscription-Key'] = subscriptionKey;
+                }
+                return h;
             };
-            if (subscriptionKey) {
-                headers['Ocp-Apim-Subscription-Key'] = subscriptionKey;
-                headers['ocp-apim-subscription-key'] = subscriptionKey;
-            }
 
-            console.log(`[NCBA OpenBanking] Requesting ${fullUrl} [${method}] with Bearer Token`);
-            const apiAbort = new AbortController();
-            const apiTimer = setTimeout(() => apiAbort.abort(), 12000);
+            // First attempt with accessToken, or primary token
+            const initialBearer = tokenData.accessToken || tokenData.token;
+            console.log(`[NCBA OpenBanking] Requesting ${fullUrl} [${method}] with Bearer Token (source: ${tokenData.sourceUrl})`);
+
+            const executeFetch = async (bearer: string) => {
+                const apiAbort = new AbortController();
+                const apiTimer = setTimeout(() => apiAbort.abort(), 14000);
+                try {
+                    return await fetch(fullUrl, {
+                        method,
+                        headers: buildHeaders(bearer),
+                        body: method !== 'GET' ? JSON.stringify(payload) : undefined,
+                        signal: apiAbort.signal
+                    });
+                } finally {
+                    clearTimeout(apiTimer);
+                }
+            };
+
             let response: Response;
             try {
-                response = await fetch(fullUrl, {
-                    method,
-                    headers,
-                    body: method !== 'GET' ? JSON.stringify(payload) : undefined,
-                    signal: apiAbort.signal
-                });
+                response = await executeFetch(initialBearer);
             } catch (fetchErr: any) {
-                clearTimeout(apiTimer);
                 if (fetchErr.name === 'AbortError') {
-                    throw new Error(`NCBA Open Banking API request timed out after 12s (${fullUrl})`);
+                    throw new Error(`NCBA Open Banking API request timed out after 14s (${fullUrl})`);
                 }
                 throw fetchErr;
-            } finally {
-                clearTimeout(apiTimer);
+            }
+
+            // If 401 Unauthorized and we have an alternative tokenID (JWT), retry immediately with tokenID
+            if (response.status === 401 && tokenData.tokenId && initialBearer !== tokenData.tokenId) {
+                console.warn(`[NCBA OpenBanking] Got 401 using accessToken. Retrying with tokenID (JWT) Bearer...`);
+                try {
+                    response = await executeFetch(tokenData.tokenId);
+                } catch (retryErr: any) {
+                    console.warn(`[NCBA OpenBanking] tokenID retry network error:`, retryErr.message);
+                }
             }
 
             const text = await response.text();
@@ -328,6 +369,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (!response.ok) {
+                // If 401 Unauthorized, purge the cached token so next request forces a fresh authentication
+                if (response.status === 401) {
+                    const cacheKey = `${userId}:${rootBase}`;
+                    delete tokenCache[cacheKey];
+                    console.error(`[NCBA OpenBanking 401 Unauthorized] at ${fullUrl}:`, text);
+                    throw new Error(
+                        `NCBA Open Banking error (401) at ${fullUrl}: Unauthorized. ` +
+                        `The Bearer token issued by (${tokenData.sourceUrl}) was rejected by NCBA. ` +
+                        `Please verify that: (1) Your Subscription Key is activated for the Mobile Money Transfer API product on NCBA's developer portal, ` +
+                        `(2) Your Open Banking User ID and Password are correct, and (3) The Debit Account is authorized for B2C payouts.`
+                    );
+                }
+
                 console.error(`[NCBA OpenBanking Error ${response.status}] at ${fullUrl}:`, text);
                 const errMsg = parsed.message || parsed.errorMessage || parsed.statusDescription || text || `HTTP ${response.status}`;
                 throw new Error(`NCBA Open Banking error (${response.status}) at ${fullUrl}: ${errMsg}`);
@@ -344,13 +398,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // 1. Authenticate & Retrieve Token
             case 'token':
             case 'authenticate': {
-                const token = await getAccessToken();
+                const tokenData = await getAccessTokenData();
                 return res.status(200).json({
-                    success: !!token,
-                    tokenType: token ? 'Bearer' : 'None',
-                    accessToken: token,
-                    authMode: token ? 'OAuth Bearer Token' : 'Token Not Found',
-                    message: token ? 'Bearer token acquired successfully!' : 'No token endpoint issued a Bearer token.',
+                    success: !!tokenData?.token,
+                    tokenType: tokenData ? 'Bearer' : 'None',
+                    accessToken: tokenData?.accessToken || tokenData?.token,
+                    tokenId: tokenData?.tokenId,
+                    sourceUrl: tokenData?.sourceUrl,
+                    authMode: tokenData ? 'OAuth Bearer Token' : 'Token Not Found',
+                    message: tokenData ? `Bearer token acquired successfully from ${tokenData.sourceUrl}!` : 'No token endpoint issued a Bearer token.',
                     probes: lastProbeResults,
                     isMock
                 });
