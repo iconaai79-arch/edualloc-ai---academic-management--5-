@@ -6338,6 +6338,17 @@ Please change it after login.`;
                                                             placeholder="https://openbankingtest.api.ncbagroup.com/test/apigateway/"
                                                         />
                                                     </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Token URL (Optional Override)</label>
+                                                        <input
+                                                            type="text"
+                                                            value={localNcbaConfig.openBankingTokenUrl || ''}
+                                                            onChange={e => setLocalNcbaConfig({ ...localNcbaConfig, openBankingTokenUrl: e.target.value })}
+                                                            className="form-input w-full rounded-2xl text-xs font-mono"
+                                                            placeholder="e.g. https://openbankingtest.api.ncbagroup.com/test/apigateway/token"
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -6535,10 +6546,11 @@ Please change it after login.`;
                                                                 setIsTestingNcba(true);
                                                                 try {
                                                                     const res = await apiService.testNcbaOpenBankingAuth(localNcbaConfig);
-                                                                    if (res.success || res.accessToken) {
+                                                                    setNcbaTransferResult(res);
+                                                                    if (res.success && res.accessToken) {
                                                                         alert(`🎉 Open Banking Gateway Connected!\n\nBearer Token issued successfully.${res.isMock ? ' (Mock Mode Active)' : ''}`);
                                                                     } else {
-                                                                        alert(`Open Banking Handshake Failed: ${res.message || 'Check your User ID, Password and Subscription Key'}`);
+                                                                        alert(`Token Probe Complete.\nCheck the live results panel below to see the status and response for every endpoint tested.`);
                                                                     }
                                                                 } catch (err: any) {
                                                                     alert(`Gateway Connection Error: ${err.message}`);
@@ -6550,7 +6562,7 @@ Please change it after login.`;
                                                             className="h-12 px-5 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2"
                                                         >
                                                             <ShieldCheckIcon className="w-4 h-4 text-emerald-500" />
-                                                            {isTestingNcba ? 'Verifying...' : 'Test Gateway Auth'}
+                                                            {isTestingNcba ? 'Probing Tokens...' : 'Test Gateway Auth'}
                                                         </button>
                                                     </div>
                                                 </div>
@@ -6564,7 +6576,7 @@ Please change it after login.`;
                                                     }`}>
                                                         <div className="flex items-center justify-between font-bold mb-1">
                                                             <span className="uppercase tracking-wider">
-                                                                {ncbaTransferResult.success || ncbaTransferResult.succeeded ? '✅ Transfer Succeeded' : '❌ Transfer Failed'}
+                                                                {ncbaTransferResult.success || ncbaTransferResult.succeeded ? '✅ Succeeded / Active' : 'ℹ️ Bank Response / Status'}
                                                             </span>
                                                             <button
                                                                 type="button"

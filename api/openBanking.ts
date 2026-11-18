@@ -86,8 +86,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const debitAccount = sanitizeVal(config.debitAccount || config.accountNumber || process.env.NCBA_DEBIT_ACCOUNT);
         const senderCif = sanitizeVal(config.senderCif || (debitAccount ? debitAccount.slice(0, 6) : ''));
         const defaultCountry = sanitizeVal(config.senderCountry || 'Kenya');
+        const customTokenUrl = sanitizeVal(config.openBankingTokenUrl || config.tokenUrl);
 
-        // Helper: Obtain Bearer Token or fall back to Direct APIM Key
+        // Helper: Obtain Bearer Token via Multi-Format APIM Probing
+        let lastProbeResults: any[] = [];
         const getAccessToken = async (): Promise<string | null> => {
             if (isMock) {
                 return 'mock-openbanking-token-' + Date.now();
@@ -103,79 +105,150 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return cached.token;
             }
 
-            // Candidate URLs: in Azure APIM, token can be mounted under api/v1 or directly under the gateway base
-            const candidateUrls = [
-                `${apiV1Base}/token`,
-                `${apiV1Base}/auth/token`,
-                `${rootBase}/token`,
-                `${rootBase}/auth/token`,
-                `${apiV1Base}/oauth/token`,
-                `${rootBase}/oauth/token`
-            ];
-
-            const headers: Record<string, string> = {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Integration-Client)'
-            };
-            if (subscriptionKey) {
-                headers['Ocp-Apim-Subscription-Key'] = subscriptionKey;
-                headers['ocp-apim-subscription-key'] = subscriptionKey;
+            interface TokenProbe {
+                url: string;
+                method: 'GET' | 'POST';
+                format: 'json' | 'form';
+                useBasicAuth?: boolean;
             }
 
-            const bodyPayload = {
-                userID: userId,
-                username: userId,
-                clientId: userId,
-                password: password,
-                clientSecret: password
-            };
+            const probeList: TokenProbe[] = [];
+
+            // If user supplied an explicit custom token URL, test that first with all formats
+            if (customTokenUrl) {
+                probeList.push(
+                    { url: customTokenUrl, method: 'POST', format: 'json' },
+                    { url: customTokenUrl, method: 'POST', format: 'form' },
+                    { url: customTokenUrl, method: 'POST', format: 'form', useBasicAuth: true },
+                    { url: customTokenUrl, method: 'GET', format: 'form' }
+                );
+            }
+
+            // Probes on APIM gateway (JSON, Form-Urlencoded OAuth2, and Basic Auth combinations)
+            probeList.push(
+                // 1. JSON POST
+                { url: `${apiV1Base}/token`, method: 'POST', format: 'json' },
+                { url: `${rootBase}/token`, method: 'POST', format: 'json' },
+                // 2. Standard OAuth2 Form-UrlEncoded (RFC 6749)
+                { url: `${apiV1Base}/token`, method: 'POST', format: 'form' },
+                { url: `${rootBase}/token`, method: 'POST', format: 'form' },
+                // 3. OAuth2 Form-UrlEncoded with Basic Auth header
+                { url: `${apiV1Base}/token`, method: 'POST', format: 'form', useBasicAuth: true },
+                { url: `${rootBase}/token`, method: 'POST', format: 'form', useBasicAuth: true },
+                // 4. Auth & OAuth paths
+                { url: `${apiV1Base}/auth/token`, method: 'POST', format: 'json' },
+                { url: `${apiV1Base}/auth/token`, method: 'POST', format: 'form', useBasicAuth: true },
+                { url: `${apiV1Base}/oauth/token`, method: 'POST', format: 'json' },
+                { url: `${apiV1Base}/oauth/token`, method: 'POST', format: 'form', useBasicAuth: true },
+                { url: `${rootBase}/oauth/token`, method: 'POST', format: 'form', useBasicAuth: true },
+                // 5. GET token queries
+                { url: `${apiV1Base}/token`, method: 'GET', format: 'form' },
+                { url: `${rootBase}/token`, method: 'GET', format: 'form' },
+                // 6. Production APIM gateway (if credentials were issued for prod)
+                { url: `https://openbanking.api.ncbagroup.com/apigateway/token`, method: 'POST', format: 'json' },
+                { url: `https://openbanking.api.ncbagroup.com/apigateway/api/v1/token`, method: 'POST', format: 'json' },
+                { url: `https://openbanking.api.ncbagroup.com/apigateway/token`, method: 'POST', format: 'form', useBasicAuth: true },
+                // 7. C2B Live Gateway token endpoint (where IP is whitelisted)
+                { url: `https://c2bapis.ncbagroup.com/payments/api/v1/auth/token`, method: 'POST', format: 'json', useBasicAuth: true },
+                { url: `https://c2bapis.ncbagroup.com/payments/api/v1/auth/token`, method: 'GET', format: 'form', useBasicAuth: true }
+            );
 
             let tokenFound = '';
             let tokenExpiryMs = Date.now() + 50 * 60 * 1000;
-            let foundValidEndpoint = false;
+            lastProbeResults = [];
 
-            for (const testUrl of candidateUrls) {
-                console.log(`[NCBA OpenBanking] Testing token candidate for ${userId} at ${testUrl}`);
+            for (const probe of probeList) {
                 const tokenAbort = new AbortController();
-                const tokenTimer = setTimeout(() => tokenAbort.abort(), 8000);
+                const tokenTimer = setTimeout(() => tokenAbort.abort(), 6000);
+
+                const reqHeaders: Record<string, string> = {
+                    'Accept': 'application/json',
+                    'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Integration-Client)'
+                };
+                if (subscriptionKey) {
+                    reqHeaders['Ocp-Apim-Subscription-Key'] = subscriptionKey;
+                    reqHeaders['ocp-apim-subscription-key'] = subscriptionKey;
+                }
+                if (probe.useBasicAuth) {
+                    reqHeaders['Authorization'] = `Basic ${Buffer.from(`${userId}:${password}`).toString('base64')}`;
+                }
+
+                let fetchUrl = probe.url;
+                let fetchBody: string | undefined = undefined;
+
+                if (probe.method === 'POST') {
+                    if (probe.format === 'json') {
+                        reqHeaders['Content-Type'] = 'application/json';
+                        fetchBody = JSON.stringify({
+                            userID: userId,
+                            username: userId,
+                            clientId: userId,
+                            password: password,
+                            clientSecret: password
+                        });
+                    } else {
+                        reqHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
+                        const params = new URLSearchParams();
+                        params.append('grant_type', 'client_credentials');
+                        params.append('client_id', userId);
+                        params.append('client_secret', password);
+                        params.append('username', userId);
+                        params.append('password', password);
+                        fetchBody = params.toString();
+                    }
+                } else {
+                    const queryParams = new URLSearchParams();
+                    queryParams.append('grant_type', 'client_credentials');
+                    queryParams.append('username', userId);
+                    queryParams.append('password', password);
+                    fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + queryParams.toString();
+                }
+
                 try {
-                    const resp = await fetch(testUrl, {
-                        method: 'POST',
-                        headers,
-                        body: JSON.stringify(bodyPayload),
+                    const resp = await fetch(fetchUrl, {
+                        method: probe.method,
+                        headers: reqHeaders,
+                        body: fetchBody,
                         signal: tokenAbort.signal
                     });
                     clearTimeout(tokenTimer);
 
-                    if (resp.ok) {
-                        const data = await resp.json() as any;
-                        const token = data.accessToken || data.access_token || data.token;
+                    const resText = await resp.text();
+                    let resJson: any = null;
+                    try { resJson = JSON.parse(resText); } catch (_) {}
+
+                    const probeEntry = {
+                        url: probe.url,
+                        method: probe.method,
+                        format: probe.format,
+                        status: resp.status,
+                        snippet: resText.substring(0, 150)
+                    };
+                    lastProbeResults.push(probeEntry);
+
+                    if (resp.ok && resJson) {
+                        const token = resJson.accessToken || resJson.access_token || resJson.token;
                         if (token) {
                             tokenFound = token;
-                            if (data.tokenExpiry) {
-                                const parsed = new Date(data.tokenExpiry).getTime();
+                            if (resJson.tokenExpiry) {
+                                const parsed = new Date(resJson.tokenExpiry).getTime();
                                 if (!isNaN(parsed) && parsed > Date.now()) {
                                     tokenExpiryMs = parsed - 60000;
                                 }
                             }
-                            foundValidEndpoint = true;
-                            console.log(`[NCBA OpenBanking] Token acquired successfully from ${testUrl}`);
+                            console.log(`[NCBA OpenBanking] 🎉 Token acquired from ${probe.url} (${probe.method}/${probe.format})`);
                             break;
                         }
                     }
-
-                    const errText = await resp.text();
-
-                    // If APIM returns 401 or 400 (Bad Request or Unauthorized), the endpoint EXISTS!
-                    if (resp.status === 401 || resp.status === 400) {
-                        foundValidEndpoint = true;
-                        throw new Error(`NCBA Open Banking credentials rejected (${resp.status}) by ${testUrl}: ${errText || 'Invalid credentials'}`);
-                    }
-                } catch (fetchErr: any) {
+                } catch (probeErr: any) {
                     clearTimeout(tokenTimer);
-                    if (foundValidEndpoint) throw fetchErr;
-                    console.warn(`[NCBA OpenBanking] Token probe failed for ${testUrl}: ${fetchErr.message}`);
+                    lastProbeResults.push({
+                        url: probe.url,
+                        method: probe.method,
+                        format: probe.format,
+                        status: 'ERROR',
+                        snippet: probeErr.message
+                    });
                 }
             }
 
@@ -184,8 +257,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return tokenFound;
             }
 
-            // If all candidate token paths return 404, Azure APIM likely uses Direct Subscription Key + Basic Auth
-            console.warn(`[NCBA OpenBanking] All token endpoints returned 404 on ${rootBase}. Falling back to Direct Subscription Key & Basic Auth.`);
             return null;
         };
 
@@ -265,10 +336,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             case 'authenticate': {
                 const token = await getAccessToken();
                 return res.status(200).json({
-                    success: true,
-                    tokenType: token ? 'Bearer' : 'Direct-APIM-Subscription-Key',
-                    accessToken: token || 'direct-subscription-key-active',
-                    authMode: token ? 'OAuth Bearer Token' : 'Direct APIM Subscription Key + Basic Auth',
+                    success: !!token,
+                    tokenType: token ? 'Bearer' : 'None',
+                    accessToken: token,
+                    authMode: token ? 'OAuth Bearer Token' : 'Token Not Found',
+                    message: token ? 'Bearer token acquired successfully!' : 'No token endpoint issued a Bearer token.',
+                    probes: lastProbeResults,
                     isMock
                 });
             }

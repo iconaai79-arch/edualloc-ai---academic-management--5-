@@ -1420,6 +1420,7 @@ export interface NcbaConfig {
     openBankingPassword?: string;
     subscriptionKey?: string;
     openBankingBaseUrl?: string;
+    openBankingTokenUrl?: string;
     debitAccount?: string;
     senderCif?: string;
     senderCountry?: string;
