@@ -89,7 +89,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const debitAccount = sanitizeVal(config.debitAccount || config.accountNumber || process.env.NCBA_DEBIT_ACCOUNT);
         const senderCif = sanitizeVal(config.senderCif || (debitAccount ? debitAccount.slice(0, 6) : ''));
         const defaultCountry = sanitizeVal(config.senderCountry || 'Kenya');
-        const customTokenUrl = sanitizeVal(config.openBankingTokenUrl || config.tokenUrl);
+        let customTokenUrl = sanitizeVal(config.openBankingTokenUrl || config.tokenUrl);
+        if (customTokenUrl) {
+            if (!customTokenUrl.startsWith('http://') && !customTokenUrl.startsWith('https://')) {
+                customTokenUrl = `${rootBase}/${customTokenUrl.replace(/^\/+/, '')}`;
+            }
+        }
 
         // Helper: Obtain Bearer Token via Multi-Format APIM Probing
         let lastProbeResults: any[] = [];
