@@ -66,7 +66,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const isMock = config.isMock === true || config.isMock === 'true' || process.env.NCBA_MOCK_MODE === 'true';
         const environment = config.environment || 'sandbox';
-        let baseUrl = config.openBankingBaseUrl || (environment === 'production' ? DEFAULT_PROD_GATEWAY : DEFAULT_TEST_GATEWAY);
+        let baseUrl = (config.openBankingBaseUrl || '').trim();
+        if (!baseUrl) {
+            baseUrl = environment === 'production' ? DEFAULT_PROD_GATEWAY : DEFAULT_TEST_GATEWAY;
+        }
+        // Normalize: strip trailing asterisks/wildcards or accidentally included /api/v1
+        baseUrl = baseUrl.replace(/[\/\*]+$/, '');
+        if (baseUrl.toLowerCase().endsWith('/api/v1')) {
+            baseUrl = baseUrl.slice(0, -7);
+        }
         if (!baseUrl.endsWith('/')) baseUrl += '/';
 
         const userId = sanitizeVal(config.openBankingUserId || config.username || process.env.NCBA_OPEN_BANKING_USER_ID);

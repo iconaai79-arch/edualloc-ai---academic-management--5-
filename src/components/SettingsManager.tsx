@@ -5512,6 +5512,51 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 >
                                                     {isTestingNcba ? 'Connecting Gateway...' : 'Test Open Banking Gateway'}
                                                 </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        const debitAcc = (localInstNcbaConfig.debitAccount || '').trim();
+                                                        if (!debitAcc) {
+                                                            alert('Please enter Debit Account Number in your NCBA configuration first.');
+                                                            return;
+                                                        }
+                                                        const phone = (ncbaTestPhone || '').trim();
+                                                        if (!phone) {
+                                                            alert('Please enter a recipient M-Pesa phone number in the field above.');
+                                                            return;
+                                                        }
+                                                        const confirmMsg = `⚠️ REAL FUNDS TRANSFER CONFIRMATION ⚠️\n\nDebit Account: ${debitAcc}\nRecipient Phone: ${phone}\nAmount: KES 50\n\nExecute real M-Pesa B2C payout? Real funds will be debited immediately.`;
+                                                        if (!window.confirm(confirmMsg)) return;
+
+                                                        setIsTestingNcba(true);
+                                                        try {
+                                                            const res = await apiService.testNcbaFundsTransfer({
+                                                                transferType: 'b2c',
+                                                                recipient: phone,
+                                                                amount: 50,
+                                                                beneficiaryName: 'Institution Test Payout',
+                                                                narration: 'Test Outward Transfer',
+                                                                debitAccount: debitAcc
+                                                            }, localInstNcbaConfig);
+
+                                                            if (res.success || res.succeeded) {
+                                                                const ref = res.data?.bankRef || res.data?.channelRef || 'SUCCESS';
+                                                                alert(`🎉 Funds Transfer Successful!\n\nReference: ${ref}\nStatus: ${res.message || 'Completed'}`);
+                                                            } else {
+                                                                alert(`❌ Transfer Rejected by Bank: ${res.message || JSON.stringify(res)}`);
+                                                            }
+                                                        } catch (err: any) {
+                                                            alert(`Transfer Error: ${err.message}`);
+                                                        } finally {
+                                                            setIsTestingNcba(false);
+                                                        }
+                                                    }}
+                                                    disabled={isTestingNcba}
+                                                    className="sm:col-span-2 h-12 px-6 bg-slate-900 hover:bg-black text-emerald-400 border border-emerald-500/40 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"
+                                                >
+                                                    {isTestingNcba ? 'Processing...' : '💸 Test Real Funds Transfer (KES 50 B2C Outflow)'}
+                                                </button>
                                             </div>
                                         </div>
                                     )}

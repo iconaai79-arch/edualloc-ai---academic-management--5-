@@ -8579,6 +8579,71 @@ export const apiService = {
             return { success: false, message: e.message || "Open Banking Handshake Failed" };
         }
     },
+    async testNcbaFundsTransfer(params: {
+        transferType: 'b2c' | 'ift';
+        recipient: string;
+        amount: number;
+        beneficiaryName?: string;
+        narration?: string;
+        debitAccount?: string;
+    }, config?: any) {
+        try {
+            const action = params.transferType === 'ift' ? 'ift' : 'b2cMpesa';
+            let body: any = { config };
+            if (params.transferType === 'ift') {
+                body = {
+                    ...body,
+                    creditAccountNumber: params.recipient,
+                    beneficiaryAccountName: params.beneficiaryName || 'NCBA Account Recipient',
+                    amount: params.amount,
+                    narration: params.narration || 'Test Internal Funds Transfer',
+                    debitAccountNumber: params.debitAccount
+                };
+            } else {
+                body = {
+                    ...body,
+                    mobileNumber: params.recipient,
+                    beneficiaryName: params.beneficiaryName || 'M-Pesa Recipient',
+                    debitAmount: params.amount,
+                    transactionNarration: params.narration || 'Test Funds Transfer Payout',
+                    debitAccount: params.debitAccount
+                };
+            }
+            const response = await fetch(`/api/openBanking?action=${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            return await response.json();
+        } catch (e: any) {
+            console.error("NCBA Funds Transfer Test Failed:", e);
+            return { success: false, message: e.message || "Funds Transfer Failed" };
+        }
+    },
+    async validateNcbaMpesaRecipient(phone: string, config?: any) {
+        try {
+            const response = await fetch('/api/openBanking?action=validateMpesa', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone, config })
+            });
+            return await response.json();
+        } catch (e: any) {
+            return { success: false, message: e.message };
+        }
+    },
+    async getNcbaAccountBalance(accountNo?: string, config?: any) {
+        try {
+            const response = await fetch('/api/openBanking?action=miniStatement', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accountNo, config })
+            });
+            return await response.json();
+        } catch (e: any) {
+            return { success: false, message: e.message };
+        }
+    },
     async testFtpConnection(config?: any) {
         try {
             const token = await apiService.getAuthToken();

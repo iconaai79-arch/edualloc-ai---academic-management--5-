@@ -986,6 +986,15 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [localCoopConfig, setLocalCoopConfig] = useState<CoopB2bConfig>(companyDetails?.coopConfig || { serviceName: 'KEWISCO SACCO', connectionID: 'TEST', connectionPassword: 'CoopTest', institutionCode: '210001918' });
     const [localNcbaConfig, setLocalNcbaConfig] = useState<NcbaConfig>(companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://c2bapis.ncbagroup.com', environment: 'production' });
     const [isTestingNcba, setIsTestingNcba] = useState(false);
+    const [ncbaTransferType, setNcbaTransferType] = useState<'b2c' | 'ift'>('b2c');
+    const [ncbaTransferRecipient, setNcbaTransferRecipient] = useState('');
+    const [ncbaTransferAmount, setNcbaTransferAmount] = useState('50');
+    const [ncbaBeneficiaryName, setNcbaBeneficiaryName] = useState('Test Recipient');
+    const [ncbaTransferNarration, setNcbaTransferNarration] = useState('Test Funds Transfer');
+    const [ncbaTransferResult, setNcbaTransferResult] = useState<any | null>(null);
+    const [isExecutingTransfer, setIsExecutingTransfer] = useState(false);
+    const [isValidatingRecipient, setIsValidatingRecipient] = useState(false);
+    const [isCheckingBalance, setIsCheckingBalance] = useState(false);
     const [isStampCustomizerOpen, setIsStampCustomizerOpen] = useState(false);
     const [coopIps, setCoopIps] = useState<{ serverIp: string; clientIp: string } | null>(null);
     const [localGoogleDriveConfig, setLocalGoogleDriveConfig] = useState<GoogleDriveConfig>(companyDetails?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', folderId: '', isActive: false });
@@ -1521,6 +1530,114 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             alert(`NCBA STK Push test failed: ${e.message}`);
         } finally {
             setIsTestingNcba(false);
+        }
+    };
+
+    const handleExecuteFundsTransfer = async () => {
+        const debitAcc = (localNcbaConfig.debitAccount || '').trim();
+        if (!debitAcc) {
+            alert('Debit Account Number is required in the NCBA Open Banking configuration.');
+            return;
+        }
+        const recipient = ncbaTransferRecipient.trim();
+        if (!recipient) {
+            alert(ncbaTransferType === 'b2c' 
+                ? 'Please enter a recipient M-Pesa phone number (e.g. 2547XXXXXXXX).' 
+                : 'Please enter a destination NCBA Account Number.');
+            return;
+        }
+        const amt = Number(ncbaTransferAmount);
+        if (!amt || amt <= 0) {
+            alert('Please enter a valid transfer amount.');
+            return;
+        }
+        if (ncbaTransferType === 'b2c' && amt < 50) {
+            alert('NCBA Open Banking B2C requires a minimum transfer amount of KES 50.');
+            return;
+        }
+
+        const typeLabel = ncbaTransferType === 'b2c' ? 'M-Pesa B2C Payout' : 'Internal NCBA Bank Transfer';
+        const confirmMsg = `⚠️ REAL FUNDS TRANSFER CONFIRMATION ⚠️\n\n` +
+            `Action: Real Outward Money Transfer\n` +
+            `Type: ${typeLabel}\n` +
+            `Source Account: ${debitAcc}\n` +
+            `Destination: ${recipient} (${ncbaBeneficiaryName || 'Beneficiary'})\n` +
+            `Amount: KES ${amt.toLocaleString()}\n` +
+            `Narration: ${ncbaTransferNarration}\n\n` +
+            `Are you sure you want to proceed? Real money will be debited immediately.`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        setIsExecutingTransfer(true);
+        setNcbaTransferResult(null);
+        try {
+            const res = await apiService.testNcbaFundsTransfer({
+                transferType: ncbaTransferType,
+                recipient,
+                amount: amt,
+                beneficiaryName: ncbaBeneficiaryName,
+                narration: ncbaTransferNarration,
+                debitAccount: debitAcc
+            }, localNcbaConfig);
+
+            setNcbaTransferResult(res);
+            if (res.success || res.succeeded) {
+                const ref = res.data?.bankRef || res.data?.channelRef || res.cbxReferenceNumber || res.txnReferenceNo || 'SUCCESS';
+                alert(`🎉 Funds Transfer Successful!\n\nReference: ${ref}\nStatus: ${res.message || 'Completed'}`);
+                if (props.onRefreshData) props.onRefreshData();
+            } else {
+                alert(`❌ Transfer Rejected by Bank (${res.statusCode || 'Error'}):\n${res.message || JSON.stringify(res)}`);
+            }
+        } catch (err: any) {
+            console.error('Funds Transfer Error:', err);
+            setNcbaTransferResult({ success: false, message: err.message });
+            alert(`Transfer Error: ${err.message}`);
+        } finally {
+            setIsExecutingTransfer(false);
+        }
+    };
+
+    const handleValidateRecipient = async () => {
+        const phone = ncbaTransferRecipient.trim();
+        if (!phone) {
+            alert('Please enter a mobile phone number to validate.');
+            return;
+        }
+        setIsValidatingRecipient(true);
+        try {
+            const res = await apiService.validateNcbaMpesaRecipient(phone, localNcbaConfig);
+            if (res.success || res.succeeded) {
+                alert(`✅ M-Pesa Validation Successful!\n\nCustomer: ${res.customerMsisdn || phone}\nValidation ID: ${res.validationId || 'N/A'}\nMin Payment: KES ${res.minimumPaymentAmount || 50}`);
+            } else {
+                alert(`❌ Validation Failed: ${res.message || JSON.stringify(res)}`);
+            }
+        } catch (err: any) {
+            alert(`Validation Error: ${err.message}`);
+        } finally {
+            setIsValidatingRecipient(false);
+        }
+    };
+
+    const handleCheckAccountBalance = async () => {
+        const debitAcc = (localNcbaConfig.debitAccount || '').trim();
+        if (!debitAcc) {
+            alert('Please enter a Debit Account Number in the Open Banking configuration.');
+            return;
+        }
+        setIsCheckingBalance(true);
+        try {
+            const res = await apiService.getNcbaAccountBalance(debitAcc, localNcbaConfig);
+            if (res.success || res.ErrorCode === '000' || res.AvailableBalance !== undefined) {
+                const bal = res.AvailableBalance || res.availableBalance || '0.00';
+                const curr = res.Currency || 'KES';
+                alert(`🏦 NCBA Account Balance:\n\nAccount: ${debitAcc}\nAvailable Balance: ${curr} ${Number(bal).toLocaleString()}\nStatus: Active`);
+            } else {
+                alert(`Balance Query Failed: ${res.message || res.ErrorMessage || JSON.stringify(res)}`);
+            }
+        } catch (err: any) {
+            alert(`Balance Query Error: ${err.message}`);
+        } finally {
+            setIsCheckingBalance(false);
         }
     };
 
@@ -6222,14 +6339,15 @@ Please change it after login.`;
                                                 </div>
                                             </div>
 
+                                            {/* Inbound C2B STK Testing */}
                                             <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
                                                 <div className="flex items-center gap-4 mb-6">
                                                     <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-2xl">
                                                         <NcbaIcon className="w-6 h-6 text-blue-600" />
                                                     </div>
                                                     <div>
-                                                        <h4 className="text-sm font-black uppercase tracking-widest">NCBA Connectivity &amp; STK Push Testing</h4>
-                                                        <p className="text-[10px] font-bold text-slate-400">Trigger a KES 1 C2B STK Push or verify authentication</p>
+                                                        <h4 className="text-sm font-black uppercase tracking-widest">NCBA C2B STK Push Testing (Inbound)</h4>
+                                                        <p className="text-[10px] font-bold text-slate-400">Trigger a KES 1 C2B STK Push to verify customer collections</p>
                                                     </div>
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
@@ -6276,6 +6394,190 @@ Please change it after login.`;
                                                         </button>
                                                     </div>
                                                 </div>
+                                            </div>
+
+                                            {/* Outbound Real Funds Transfer Testing (Open Banking) */}
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border-2 border-emerald-500/20 dark:border-emerald-500/30 space-y-6">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl text-emerald-600">
+                                                            <BanknotesIcon className="w-6 h-6" />
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <h4 className="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-white">NCBA Real Funds Transfer Testing</h4>
+                                                                <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 uppercase tracking-widest">Real Outflow</span>
+                                                            </div>
+                                                            <p className="text-[10px] font-bold text-slate-400">
+                                                                Execute live outward money transfers from Debit Account: <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">{localNcbaConfig.debitAccount || '9115310018'}</span>
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Transfer Type Selector */}
+                                                    <div className="flex items-center bg-slate-200/70 dark:bg-slate-800 p-1 rounded-2xl shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setNcbaTransferType('b2c')}
+                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                                                                ncbaTransferType === 'b2c'
+                                                                    ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-sm'
+                                                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                                            }`}
+                                                        >
+                                                            M-Pesa B2C
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setNcbaTransferType('ift')}
+                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                                                                ncbaTransferType === 'ift'
+                                                                    ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-sm'
+                                                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                                            }`}
+                                                        >
+                                                            Internal (NCBA to NCBA)
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">
+                                                            {ncbaTransferType === 'b2c' ? 'Recipient Phone (M-Pesa)' : 'Destination NCBA Account'}
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={ncbaTransferRecipient}
+                                                            onChange={e => setNcbaTransferRecipient(e.target.value)}
+                                                            className="form-input w-full rounded-2xl text-xs font-mono font-bold"
+                                                            placeholder={ncbaTransferType === 'b2c' ? '2547XXXXXXXX' : 'e.g. 91153XXXXX'}
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Beneficiary Name</label>
+                                                        <input
+                                                            type="text"
+                                                            value={ncbaBeneficiaryName}
+                                                            onChange={e => setNcbaBeneficiaryName(e.target.value)}
+                                                            className="form-input w-full rounded-2xl text-xs font-bold"
+                                                            placeholder="e.g. Jane Doe"
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">
+                                                            Amount (KES) {ncbaTransferType === 'b2c' && <span className="text-amber-500 font-normal">(Min 50)</span>}
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            min={ncbaTransferType === 'b2c' ? 50 : 1}
+                                                            value={ncbaTransferAmount}
+                                                            onChange={e => setNcbaTransferAmount(e.target.value)}
+                                                            className="form-input w-full rounded-2xl text-xs font-mono font-bold"
+                                                            placeholder="50"
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Narration / Note</label>
+                                                        <input
+                                                            type="text"
+                                                            value={ncbaTransferNarration}
+                                                            onChange={e => setNcbaTransferNarration(e.target.value)}
+                                                            className="form-input w-full rounded-2xl text-xs"
+                                                            placeholder="Test Real Funds Transfer"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                                                    <div className="flex flex-wrap gap-2.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleExecuteFundsTransfer}
+                                                            disabled={isExecutingTransfer}
+                                                            className="h-12 px-6 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20"
+                                                        >
+                                                            <PaperAirplaneIcon className="w-4 h-4" />
+                                                            {isExecutingTransfer ? 'Executing Transfer...' : `Send KES ${Number(ncbaTransferAmount || 0).toLocaleString()} Real Transfer`}
+                                                        </button>
+
+                                                        {ncbaTransferType === 'b2c' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleValidateRecipient}
+                                                                disabled={isValidatingRecipient}
+                                                                className="h-12 px-5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
+                                                            >
+                                                                {isValidatingRecipient ? 'Validating...' : 'Validate M-Pesa Phone'}
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex flex-wrap gap-2.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleCheckAccountBalance}
+                                                            disabled={isCheckingBalance}
+                                                            className="h-12 px-5 bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2"
+                                                        >
+                                                            <CurrencyIcon className="w-4 h-4 text-emerald-500" />
+                                                            {isCheckingBalance ? 'Checking...' : 'Check Account Balance'}
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={async () => {
+                                                                setIsTestingNcba(true);
+                                                                try {
+                                                                    const res = await apiService.testNcbaOpenBankingAuth(localNcbaConfig);
+                                                                    if (res.success || res.accessToken) {
+                                                                        alert(`🎉 Open Banking Gateway Connected!\n\nBearer Token issued successfully.${res.isMock ? ' (Mock Mode Active)' : ''}`);
+                                                                    } else {
+                                                                        alert(`Open Banking Handshake Failed: ${res.message || 'Check your User ID, Password and Subscription Key'}`);
+                                                                    }
+                                                                } catch (err: any) {
+                                                                    alert(`Gateway Connection Error: ${err.message}`);
+                                                                } finally {
+                                                                    setIsTestingNcba(false);
+                                                                }
+                                                            }}
+                                                            disabled={isTestingNcba}
+                                                            className="h-12 px-5 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2"
+                                                        >
+                                                            <ShieldCheckIcon className="w-4 h-4 text-emerald-500" />
+                                                            {isTestingNcba ? 'Verifying...' : 'Test Gateway Auth'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Live Result Display */}
+                                                {ncbaTransferResult && (
+                                                    <div className={`p-4 rounded-2xl border text-xs ${
+                                                        ncbaTransferResult.success || ncbaTransferResult.succeeded
+                                                            ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                                                            : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+                                                    }`}>
+                                                        <div className="flex items-center justify-between font-bold mb-1">
+                                                            <span className="uppercase tracking-wider">
+                                                                {ncbaTransferResult.success || ncbaTransferResult.succeeded ? '✅ Transfer Succeeded' : '❌ Transfer Failed'}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setNcbaTransferResult(null)}
+                                                                className="text-slate-400 hover:text-slate-600 text-[10px] uppercase tracking-widest"
+                                                            >
+                                                                Dismiss
+                                                            </button>
+                                                        </div>
+                                                        <p className="font-mono text-[11px] mb-2">{ncbaTransferResult.message || 'Response received'}</p>
+                                                        <pre className="p-3 bg-black/5 dark:bg-black/30 rounded-xl overflow-x-auto text-[10px] font-mono leading-relaxed">
+                                                            {JSON.stringify(ncbaTransferResult, null, 2)}
+                                                        </pre>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="pt-6 border-t flex flex-col sm:flex-row justify-end items-center gap-4">
