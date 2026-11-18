@@ -997,6 +997,21 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isCheckingBalance, setIsCheckingBalance] = useState(false);
     const [isStampCustomizerOpen, setIsStampCustomizerOpen] = useState(false);
     const [coopIps, setCoopIps] = useState<{ serverIp: string; clientIp: string } | null>(null);
+    const [ncbaIps, setNcbaIps] = useState<{ serverIp: string; clientIp: string } | null>(null);
+    const [isLoadingNcbaIp, setIsLoadingNcbaIp] = useState(false);
+
+    const loadNcbaIps = useCallback(async () => {
+        setIsLoadingNcbaIp(true);
+        try {
+            const data = await apiService.getNcbaServerIp();
+            if (data?.serverIp) {
+                setNcbaIps(data);
+            }
+        } catch (_) {}
+        finally {
+            setIsLoadingNcbaIp(false);
+        }
+    }, []);
     const [localGoogleDriveConfig, setLocalGoogleDriveConfig] = useState<GoogleDriveConfig>(companyDetails?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', folderId: '', isActive: false });
     const [isTestingGoogleDrive, setIsTestingGoogleDrive] = useState(false);
     const [isTestingDriveUpload, setIsTestingDriveUpload] = useState(false);
@@ -1010,7 +1025,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             .then(res => res.json())
             .then(data => setCoopIps(data))
             .catch(() => {});
-    }, []);
+        loadNcbaIps();
+    }, [loadNcbaIps]);
 
     useEffect(() => {
         if (companyDetails) {
@@ -6184,6 +6200,62 @@ Please change it after login.`;
                                     
                                     {billingSubTab === 'ncba' && (
                                         <div className="animate-fade-in space-y-6">
+                                            {/* NCBA Server Outbound IP for Whitelisting */}
+                                            <div className="p-6 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent dark:from-amber-950/30 dark:via-amber-950/15 rounded-[2.5rem] border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                                                <div className="flex items-start sm:items-center gap-4">
+                                                    <div className="p-3.5 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-2xl shrink-0 shadow-inner">
+                                                        <GlobeAltIcon className="w-6 h-6" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                                            <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                                                                NCBA Firewall Whitelisting Required
+                                                            </h4>
+                                                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-400/30 tracking-widest">
+                                                                Mandatory for Live & UAT
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                                                            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px] tracking-wider">Server Outbound IP:</span>
+                                                            <code className="px-3 py-1 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700/60 rounded-xl font-mono text-amber-900 dark:text-amber-100 font-black select-all cursor-pointer shadow-sm text-xs">
+                                                                {ncbaIps?.serverIp || (isLoadingNcbaIp ? 'Detecting server IP...' : '154.159.237.237')}
+                                                            </code>
+                                                            {ncbaIps?.clientIp && ncbaIps.clientIp !== ncbaIps.serverIp && (
+                                                                <span className="text-[10px] text-slate-400 font-mono">
+                                                                    (Your Client IP: {ncbaIps.clientIp})
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                                                            NCBA Bank enforces perimeter IP whitelisting on all gateway connections. Share this <strong>Server Outbound IP</strong> with your NCBA integration manager so outbound requests are allowed through the firewall.
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-2 self-stretch sm:self-center shrink-0">
+                                                    <button
+                                                        type="button"
+                                                        onClick={loadNcbaIps}
+                                                        className="p-3 rounded-2xl border border-amber-400/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-300 transition-all text-xs"
+                                                        title="Refresh IP Detection"
+                                                    >
+                                                        <ArrowPathIcon className={`w-4 h-4 ${isLoadingNcbaIp ? 'animate-spin' : ''}`} />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const ipToCopy = ncbaIps?.serverIp || '154.159.237.237';
+                                                            navigator.clipboard.writeText(ipToCopy);
+                                                            alert(`📋 Copied NCBA Whitelist IP:\n\n${ipToCopy}\n\nShare this IP with the NCBA Integration Team.`);
+                                                        }}
+                                                        className="flex-1 sm:flex-initial px-5 py-3 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2"
+                                                    >
+                                                        <ClipboardListIcon className="w-4 h-4" />
+                                                        Copy Whitelist IP
+                                                    </button>
+                                                </div>
+                                            </div>
+
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-5">
                                                     <div className="flex items-center gap-4 mb-2">

@@ -8574,6 +8574,21 @@ export const apiService = {
             return { success: false, message: "Auth Handshake Failed" };
         }
     },
+    async getNcbaServerIp() {
+        try {
+            const response = await fetch('/api/openBanking?action=getIp');
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.json();
+        } catch (e: any) {
+            try {
+                const r = await fetch('https://api.ipify.org?format=json');
+                const d = await r.json();
+                return { success: true, serverIp: d.ip };
+            } catch (_) {
+                return { success: false, serverIp: null, error: e.message };
+            }
+        }
+    },
     async testNcbaOpenBankingAuth(config?: any) {
         try {
             const response = await fetch('/api/openBanking?action=token', {

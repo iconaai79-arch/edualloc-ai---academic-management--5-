@@ -429,6 +429,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // ---------------------------------------------------------------------
 
         switch (action) {
+            // 0. Query Server Outbound IP for NCBA Firewall Whitelisting
+            case 'ip':
+            case 'getIp':
+            case 'serverIp': {
+                let serverIp = 'Unknown';
+                try {
+                    const ipRes = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(4000) });
+                    const ipJson = await ipRes.json() as any;
+                    serverIp = ipJson?.ip || serverIp;
+                } catch (_) {
+                    try {
+                        const ipRes2 = await fetch('https://ifconfig.me/ip', { signal: AbortSignal.timeout(4000) });
+                        serverIp = (await ipRes2.text()).trim();
+                    } catch (_) {}
+                }
+                const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'Unknown';
+                return res.status(200).json({
+                    success: true,
+                    serverIp,
+                    clientIp
+                });
+            }
+
             // 1. Authenticate & Retrieve Token
             case 'token':
             case 'authenticate': {
