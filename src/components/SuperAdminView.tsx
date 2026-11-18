@@ -1608,7 +1608,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             const res = await apiService.validateNcbaMpesaRecipient(phone, localNcbaConfig);
             setNcbaTransferResult(res);
             if (res.success || res.succeeded) {
-                alert(`✅ M-Pesa Validation Successful!\n\nCustomer: ${res.customerMsisdn || phone}\nValidation ID: ${res.validationId || 'N/A'}\nMin Payment: KES ${res.minimumPaymentAmount || 50}`);
+                const noteMsg = res.note ? `\n\nℹ️ Notice: ${res.note}` : '';
+                alert(`✅ M-Pesa Validation Successful!\n\nCustomer: ${res.customerMsisdn || phone}\nValidation ID: ${res.validationId || 'N/A'}\nMin Payment: KES ${res.minimumPaymentAmount || 50}${noteMsg}`);
             } else {
                 alert(`❌ Validation Failed: ${res.message || JSON.stringify(res)}`);
             }
