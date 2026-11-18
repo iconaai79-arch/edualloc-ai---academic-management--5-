@@ -110,6 +110,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 method: 'GET' | 'POST';
                 format: 'json' | 'form';
                 useBasicAuth?: boolean;
+                useC2bCreds?: boolean;
             }
 
             const probeList: TokenProbe[] = [];
@@ -136,8 +137,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 { url: `${apiV1Base}/token`, method: 'POST', format: 'form', useBasicAuth: true },
                 { url: `${rootBase}/token`, method: 'POST', format: 'form', useBasicAuth: true },
                 // 4. Auth & OAuth paths
+                { url: `${apiV1Base}/Token`, method: 'POST', format: 'json' },
+                { url: `${apiV1Base}/Token`, method: 'POST', format: 'form' },
                 { url: `${apiV1Base}/auth/token`, method: 'POST', format: 'json' },
                 { url: `${apiV1Base}/auth/token`, method: 'POST', format: 'form', useBasicAuth: true },
+                { url: `${apiV1Base}/Auth/token`, method: 'POST', format: 'json' },
+                { url: `${apiV1Base}/Account/token`, method: 'POST', format: 'json' },
                 { url: `${apiV1Base}/oauth/token`, method: 'POST', format: 'json' },
                 { url: `${apiV1Base}/oauth/token`, method: 'POST', format: 'form', useBasicAuth: true },
                 { url: `${rootBase}/oauth/token`, method: 'POST', format: 'form', useBasicAuth: true },
@@ -148,9 +153,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 { url: `https://openbanking.api.ncbagroup.com/apigateway/token`, method: 'POST', format: 'json' },
                 { url: `https://openbanking.api.ncbagroup.com/apigateway/api/v1/token`, method: 'POST', format: 'json' },
                 { url: `https://openbanking.api.ncbagroup.com/apigateway/token`, method: 'POST', format: 'form', useBasicAuth: true },
-                // 7. C2B Live Gateway token endpoint (where IP is whitelisted)
+                // 7. C2B Live Gateway token endpoint (where IP is whitelisted) with Open Banking creds
                 { url: `https://c2bapis.ncbagroup.com/payments/api/v1/auth/token`, method: 'POST', format: 'json', useBasicAuth: true },
-                { url: `https://c2bapis.ncbagroup.com/payments/api/v1/auth/token`, method: 'GET', format: 'form', useBasicAuth: true }
+                { url: `https://c2bapis.ncbagroup.com/payments/api/v1/auth/token`, method: 'GET', format: 'form', useBasicAuth: true },
+                // 8. C2B Live Gateway token endpoint with C2B credentials (sys_rtndBB)
+                { url: `https://c2bapis.ncbagroup.com/payments/api/v1/auth/token`, method: 'POST', format: 'json', useC2bCreds: true },
+                { url: `https://c2bapis.ncbagroup.com/payments/api/v1/auth/token`, method: 'GET', format: 'form', useC2bCreds: true }
             );
 
             let tokenFound = '';
@@ -169,8 +177,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     reqHeaders['Ocp-Apim-Subscription-Key'] = subscriptionKey;
                     reqHeaders['ocp-apim-subscription-key'] = subscriptionKey;
                 }
-                if (probe.useBasicAuth) {
-                    reqHeaders['Authorization'] = `Basic ${Buffer.from(`${userId}:${password}`).toString('base64')}`;
+                const activeUser = probe.useC2bCreds ? (config.username || config.clientId || userId) : userId;
+                const activePass = probe.useC2bCreds ? (config.clientSecret || config.password || password) : password;
+
+                if (probe.useBasicAuth || probe.useC2bCreds) {
+                    reqHeaders['Authorization'] = `Basic ${Buffer.from(`${activeUser}:${activePass}`).toString('base64')}`;
                 }
 
                 let fetchUrl = probe.url;
@@ -180,27 +191,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (probe.format === 'json') {
                         reqHeaders['Content-Type'] = 'application/json';
                         fetchBody = JSON.stringify({
-                            userID: userId,
-                            username: userId,
-                            clientId: userId,
-                            password: password,
-                            clientSecret: password
+                            userID: activeUser,
+                            username: activeUser,
+                            clientId: activeUser,
+                            password: activePass,
+                            clientSecret: activePass
                         });
                     } else {
                         reqHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
                         const params = new URLSearchParams();
                         params.append('grant_type', 'client_credentials');
-                        params.append('client_id', userId);
-                        params.append('client_secret', password);
-                        params.append('username', userId);
-                        params.append('password', password);
+                        params.append('client_id', activeUser);
+                        params.append('client_secret', activePass);
+                        params.append('username', activeUser);
+                        params.append('password', activePass);
                         fetchBody = params.toString();
                     }
                 } else {
                     const queryParams = new URLSearchParams();
                     queryParams.append('grant_type', 'client_credentials');
-                    queryParams.append('username', userId);
-                    queryParams.append('password', password);
+                    queryParams.append('username', activeUser);
+                    queryParams.append('password', activePass);
                     fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + queryParams.toString();
                 }
 
