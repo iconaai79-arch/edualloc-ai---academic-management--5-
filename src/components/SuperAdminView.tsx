@@ -1606,6 +1606,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         setIsValidatingRecipient(true);
         try {
             const res = await apiService.validateNcbaMpesaRecipient(phone, localNcbaConfig);
+            setNcbaTransferResult(res);
             if (res.success || res.succeeded) {
                 alert(`✅ M-Pesa Validation Successful!\n\nCustomer: ${res.customerMsisdn || phone}\nValidation ID: ${res.validationId || 'N/A'}\nMin Payment: KES ${res.minimumPaymentAmount || 50}`);
             } else {
@@ -1627,6 +1628,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         setIsCheckingBalance(true);
         try {
             const res = await apiService.getNcbaAccountBalance(debitAcc, localNcbaConfig);
+            setNcbaTransferResult(res);
             if (res.success || res.ErrorCode === '000' || res.AvailableBalance !== undefined) {
                 const bal = res.AvailableBalance || res.availableBalance || '0.00';
                 const curr = res.Currency || 'KES';
