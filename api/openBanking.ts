@@ -600,7 +600,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
-            // 7. Account Mini-Statement & Balance Query
+            // 7. Account Mini-Statement & Balance Query (multi-path probe)
             case 'miniStatement':
             case 'balance': {
                 const targetAccount = req.body.accountNo || debitAccount;
@@ -613,8 +613,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     AccountNo: targetAccount
                 };
 
-                let apiResult = await callOpenBankingApi('/api/v1/Account/ministatement', payload);
+                // NCBA APIM may expose the Account API under different path patterns
+                const miniStatementPaths = [
+                    '/api/v1/Account/ministatement',
+                    '/api/v1/Account/MiniStatement',
+                    '/api/v1/account/ministatement',
+                    '/api/v1/Accounts/ministatement',
+                    '/api/v1/AccountInquiry/ministatement',
+                    '/api/v1/AccountInquiry/MiniStatement',
+                    '/api/v1/AccountServices/ministatement',
+                    '/api/v1/MiniStatement/ministatement',
+                    '/api/v1/MiniStatement',
+                ];
+
+                let apiResult: any = null;
+                let lastError = '';
+                let probeLog: string[] = [];
+
+                if (!isMock) {
+                    for (const p of miniStatementPaths) {
+                        try {
+                            apiResult = await callOpenBankingApi(p, payload);
+                            probeLog.push(`${p} -> OK`);
+                            break; // success — stop probing
+                        } catch (err: any) {
+                            const status = (err.message || '').match(/\((\d{3})\)/)?.[1] || 'ERR';
+                            probeLog.push(`${p} -> ${status}`);
+                            // 404 / 405 = wrong path, keep trying; any other error = real failure
+                            if (status !== '404' && status !== '405' && status !== '400') {
+                                lastError = err.message;
+                                break; // auth failure, timeout, etc. — stop
+                            }
+                            lastError = err.message;
+                        }
+                    }
+                }
+
                 if (isMock || !apiResult) {
+                    if (!isMock && lastError) {
+                        // All paths failed — return diagnostic
+                        return res.status(200).json({
+                            success: false,
+                            message: `Account mini-statement endpoint not found. This API product may not be provisioned on your NCBA subscription. Probed: ${probeLog.join(' | ')}`,
+                            probedPaths: probeLog,
+                            hint: 'Check with your NCBA integration manager whether the Account Inquiry API product is enabled on your subscription key, or provide the exact Account API base URL.',
+                            // Fall back to mock data so the UI still renders
+                            isMockFallback: true,
+                            ErrorCode: '000',
+                            ErrorMessage: 'success (Mock Fallback — real API unavailable)',
+                            UnitID: 'KE0010001',
+                            AccountNumber: targetAccount || '9115310018',
+                            AccountType: 1,
+                            Currency: 'KES',
+                            AvailableBalance: '0.00',
+                            MiniStatementList: []
+                        });
+                    }
                     apiResult = {
                         ErrorCode: '000',
                         ErrorMessage: 'success (Mock)',
@@ -642,6 +696,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 return res.status(200).json({
                     success: apiResult.ErrorCode === '000' || apiResult.ErrorMessage === 'success',
+                    ...(probeLog.length > 0 ? { probedPaths: probeLog } : {}),
                     ...apiResult
                 });
             }
