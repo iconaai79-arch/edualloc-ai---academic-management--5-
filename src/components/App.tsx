@@ -9849,6 +9849,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             leaveRequests={(requests || []) as any}
                                             onProcessPayroll={handleProcessPayroll}
                                             onUpdateLeaveStatus={handleUpdateLeaveStatus}
+                                            onAddUser={async (u: any) => {
+                                                const targetInstitutionId = u.institutionId || (currentUser?.role === 'super_admin' ? (activeInstitution?.id || 'SYSTEM') : currentUser?.institutionId);
+                                                await apiService.registerUser({ ...u, id: generateUserId(), institutionId: targetInstitutionId }, activeInstitution?.name);
+                                                await loadData(false, true);
+                                            }}
                                             onEditUser={onEditUser}
                                             onDeleteUser={onDeleteUser}
                                             activityLog={activityLog}

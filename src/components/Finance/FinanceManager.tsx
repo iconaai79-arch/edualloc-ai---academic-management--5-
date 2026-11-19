@@ -187,6 +187,7 @@ interface FinanceManagerProps {
     leaveRequests?: any[];
     onProcessPayroll?: (records: any[]) => Promise<void>;
     onUpdateLeaveStatus?: (id: string, status: 'approved' | 'rejected') => Promise<void>;
+    onAddUser?: (data: any) => Promise<void>;
     onEditUser?: (id: string, data: any) => Promise<void>;
     onDeleteUser?: (id: string) => Promise<void>;
     activityLog?: any[];
@@ -311,7 +312,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'dashboard' | 'communication' | 'reports'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'activity_logs' | 'household_balances' | 'promissory_commitments' | 'revenue_warroom' | 'exam_permits' | 'annual_wizard'>('collection');
-    const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution' | 'household_balances' | 'promissory_commitments'>('all_balances');
+    const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'transport_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution' | 'household_balances' | 'promissory_commitments'>('all_balances');
+    const [transBalRouteFilter, setTransBalRouteFilter] = useState('ALL');
+    const [transBalVehicleFilter, setTransBalVehicleFilter] = useState('ALL');
+    const [transBalStatusFilter, setTransBalStatusFilter] = useState<'ALL' | 'outstanding' | 'cleared'>('ALL');
+    const [transBalSearch, setTransBalSearch] = useState('');
     const [voteheadDistSearch, setVoteheadDistSearch] = useState('');
     const [voteheadDistClassFilter, setVoteheadDistClassFilter] = useState('All');
     const [voteheadDistPage, setVoteheadDistPage] = useState(1);
@@ -16298,10 +16303,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 institution={props.institution}
                                 onProcessPayroll={props.onProcessPayroll || (async () => {})}
                                 onUpdateLeaveStatus={props.onUpdateLeaveStatus || (async () => {})}
+                                onAddUser={async (userData: any) => {
+                                    if (props.onAddUser) {
+                                        await props.onAddUser(userData);
+                                    } else {
+                                        const newId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                                        const newUser = {
+                                            id: newId,
+                                            institutionId: props.institution.id,
+                                            institution_id: props.institution.id,
+                                            createdAt: new Date().toISOString(),
+                                            ...userData
+                                        };
+                                        await apiService.saveModuleRecord('users', newUser);
+                                    }
+                                    if (props.onRefreshData) await props.onRefreshData();
+                                }}
                                 onEditUser={props.onEditUser || (async () => {})}
                                 onDeleteUser={props.onDeleteUser || (async () => {})}
                                 activeTab={hrSubTab}
                                 setActiveTab={setHrSubTab}
+                                users={props.users || []}
                             />
                         </React.Suspense>
                     </div>
@@ -22509,6 +22531,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 {[
                                                     { id: 'all_balances', label: 'All Balances', icon: '📋', desc: 'Master fee arrears register' },
                                                     { id: 'balance_slip', label: 'Fee Balance Slip', icon: '📄', desc: 'Single student statement' },
+                                                    { id: 'transport_balances', label: 'Transport Balances', icon: '🚌', desc: 'Commuter route & fleet fee arrears' },
                                                     { id: 'household_balances', label: 'Household Balances', icon: '🏡', desc: 'Family aggregated debt' },
                                                     { id: 'promissory_commitments', label: 'Promissory Commitments', icon: '📊', desc: 'Pledged fee agreements' },
                                                     { id: 'student_summary', label: 'Student Summary', icon: '👤', desc: 'Individual balance list' },
@@ -22638,6 +22661,378 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 )}
                                             </div>
                                         )}
+
+                                        {/* Transport & Logistics Commuter Fee Balances */}
+                                        {outstandingSubTab === 'transport_balances' && (() => {
+                                            // 1. Build distinct route & vehicle lists
+                                            const routeMap = new Map<string, string>();
+                                            (busRoutes || []).forEach((r: any) => {
+                                                if (r.id) routeMap.set(r.id, r.name || r.id);
+                                                else if (r.name) routeMap.set(r.name, r.name);
+                                            });
+                                            (transportInvoices || []).forEach((inv: any) => {
+                                                if (inv.routeId) routeMap.set(inv.routeId, inv.routeName || inv.routeId);
+                                                else if (inv.routeName) routeMap.set(inv.routeName, inv.routeName);
+                                            });
+                                            const availRoutes = Array.from(routeMap.entries()).map(([id, name]) => ({ id, name }));
+
+                                            const vehSet = new Set<string>();
+                                            (busRoutes || []).forEach((r: any) => {
+                                                if (r.bus && typeof r.bus === 'string' && r.bus.trim()) vehSet.add(r.bus.trim());
+                                            });
+                                            (transportInvoices || []).forEach((inv: any) => {
+                                                const v = inv.vehicle || inv.busPlate || inv.bus;
+                                                if (v && typeof v === 'string' && v.trim()) vehSet.add(v.trim());
+                                            });
+                                            const availVehicles = Array.from(vehSet).sort();
+
+                                            // 2. Aggregate per student
+                                            const commuterMap = new Map<string, any>();
+
+                                            (transportInvoices || []).forEach((inv: any) => {
+                                                const sId = inv.studentId;
+                                                if (!sId) return;
+                                                const matchedR = (busRoutes || []).find((r: any) => (r.id && r.id === inv.routeId) || (r.name && inv.routeName && r.name.toLowerCase() === inv.routeName.toLowerCase()));
+                                                const veh = inv.vehicle || inv.busPlate || matchedR?.bus || 'Unassigned Vehicle';
+                                                const rName = inv.routeName || matchedR?.name || 'Unassigned Route';
+                                                const amt = inv.finalAmount || inv.amount || inv.baseAmount || 0;
+                                                const pd = inv.paidAmount || (inv.status === 'paid' ? amt : 0);
+                                                const bal = inv.balance !== undefined ? inv.balance : Math.max(0, amt - pd);
+
+                                                if (!commuterMap.has(sId)) {
+                                                    commuterMap.set(sId, {
+                                                        studentId: sId,
+                                                        name: inv.studentName || 'Student',
+                                                        admissionNumber: inv.admissionNumber || '—',
+                                                        className: '',
+                                                        routeId: inv.routeId || '',
+                                                        routeName: rName,
+                                                        vehicle: veh,
+                                                        invoiced: amt,
+                                                        paid: pd,
+                                                        balance: bal,
+                                                        openingArrears: 0
+                                                    });
+                                                } else {
+                                                    const cur = commuterMap.get(sId);
+                                                    cur.invoiced += amt;
+                                                    cur.paid += pd;
+                                                    cur.balance += bal;
+                                                    if (veh !== 'Unassigned Vehicle' && cur.vehicle === 'Unassigned Vehicle') cur.vehicle = veh;
+                                                    if (rName !== 'Unassigned Route' && cur.routeName === 'Unassigned Route') cur.routeName = rName;
+                                                }
+                                            });
+
+                                            (props.students || []).forEach((st: any) => {
+                                                const sId = st.id;
+                                                const sAdm = (st as any).admissionNumber || (st as any).admNo || (st as any).admission_number || '';
+                                                const sCls = st.className || studentClassGroup(st) || '';
+                                                const sRouteId = st.metadata?.transportRouteId || st.transportRouteId || (st as any).routeId || '';
+                                                const matchedR = (busRoutes || []).find((r: any) => (r.id && r.id === sRouteId) || (r.name && st.metadata?.routeName && r.name.toLowerCase() === st.metadata.routeName.toLowerCase()));
+                                                const veh = matchedR?.bus || st.metadata?.vehicle || 'Unassigned Vehicle';
+                                                const rName = matchedR?.name || st.metadata?.routeName || 'Unassigned Route';
+
+                                                const opBal = getStudentTransportOpeningBalance(st);
+                                                const opAmt = opBal?.amount || 0;
+                                                const opIsCredit = opBal?.isCredit || false;
+
+                                                if (commuterMap.has(sId)) {
+                                                    const cur = commuterMap.get(sId);
+                                                    if (!cur.className) cur.className = sCls;
+                                                    if (!cur.admissionNumber || cur.admissionNumber === '—') cur.admissionNumber = sAdm || '—';
+                                                    if (cur.routeName === 'Unassigned Route' && rName !== 'Unassigned Route') cur.routeName = rName;
+                                                    if (cur.vehicle === 'Unassigned Vehicle' && veh !== 'Unassigned Vehicle') cur.vehicle = veh;
+                                                    if (opAmt > 0) {
+                                                        if (opIsCredit) {
+                                                            cur.paid += opAmt;
+                                                            cur.balance = Math.max(0, cur.balance - opAmt);
+                                                        } else {
+                                                            cur.openingArrears += opAmt;
+                                                            cur.invoiced += opAmt;
+                                                            cur.balance += opAmt;
+                                                        }
+                                                    }
+                                                } else if (sRouteId || opAmt > 0) {
+                                                    const invAmt = opIsCredit ? 0 : opAmt;
+                                                    const pdAmt = opIsCredit ? opAmt : 0;
+                                                    commuterMap.set(sId, {
+                                                        studentId: sId,
+                                                        name: st.name || 'Student',
+                                                        admissionNumber: sAdm || '—',
+                                                        className: sCls,
+                                                        routeId: sRouteId,
+                                                        routeName: rName,
+                                                        vehicle: veh,
+                                                        invoiced: invAmt,
+                                                        paid: pdAmt,
+                                                        balance: invAmt - pdAmt,
+                                                        openingArrears: opIsCredit ? 0 : opAmt
+                                                    });
+                                                }
+                                            });
+
+                                            const allCommuters = Array.from(commuterMap.values());
+
+                                            // 3. Filter
+                                            const filteredTrans = allCommuters.filter(s => {
+                                                const matchesRoute = transBalRouteFilter === 'ALL' || s.routeId === transBalRouteFilter || s.routeName === transBalRouteFilter;
+                                                const matchesVehicle = transBalVehicleFilter === 'ALL' || s.vehicle.toLowerCase().trim() === transBalVehicleFilter.toLowerCase().trim();
+                                                const matchesStatus = transBalStatusFilter === 'ALL' || (transBalStatusFilter === 'outstanding' ? s.balance > 0 : s.balance <= 0);
+                                                const q = transBalSearch.toLowerCase().trim();
+                                                const matchesSearch = !q ||
+                                                    s.name.toLowerCase().includes(q) ||
+                                                    s.admissionNumber.toLowerCase().includes(q) ||
+                                                    s.routeName.toLowerCase().includes(q) ||
+                                                    s.vehicle.toLowerCase().includes(q) ||
+                                                    s.className.toLowerCase().includes(q);
+                                                return matchesRoute && matchesVehicle && matchesStatus && matchesSearch;
+                                            }).sort((a, b) => b.balance - a.balance);
+
+                                            const totInvoiced = filteredTrans.reduce((sum, s) => sum + s.invoiced, 0);
+                                            const totPaid = filteredTrans.reduce((sum, s) => sum + s.paid, 0);
+                                            const totBalance = filteredTrans.reduce((sum, s) => sum + s.balance, 0);
+
+                                            return (
+                                                <div className="p-6 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl space-y-6">
+                                                    {/* Header & Controls */}
+                                                    <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xl">🚌</span>
+                                                                <h3 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                                                    Transport & Logistics Commuter Balances
+                                                                </h3>
+                                                            </div>
+                                                            <p className="text-[10px] font-bold mt-0.5 text-slate-500 dark:text-slate-400">
+                                                                {filteredTrans.length} commuters · Route & vehicle arrears register with on-screen PDF preview
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setPdfPreviewModal({
+                                                                        title: `TRANSPORT & LOGISTICS COMMUTER FEE BALANCES REPORT`,
+                                                                        subtitle: `${props.institution.name} — Vehicle: ${transBalVehicleFilter !== 'ALL' ? transBalVehicleFilter : 'All Vehicles'} | Route: ${transBalRouteFilter !== 'ALL' ? (availRoutes.find(r => r.id === transBalRouteFilter)?.name || transBalRouteFilter) : 'All Routes'}`,
+                                                                        studentName: `Batch Commuter Register (${transBalRouteFilter !== 'ALL' ? transBalRouteFilter : 'All Routes'})`,
+                                                                        admNo: `VEHICLE: ${transBalVehicleFilter !== 'ALL' ? transBalVehicleFilter : 'ALL'} (${filteredTrans.length} Commuters)`,
+                                                                        className: transBalVehicleFilter !== 'ALL' ? transBalVehicleFilter : 'Fleet Fleet',
+                                                                        invoiced: totInvoiced,
+                                                                        paid: totPaid,
+                                                                        balance: totBalance,
+                                                                        items: filteredTrans.map(s => ({
+                                                                            name: s.name,
+                                                                            adm: s.admissionNumber || '—',
+                                                                            cls: `${s.className || '—'} [${s.vehicle}]`,
+                                                                            arrears: s.openingArrears || 0,
+                                                                            inv: s.invoiced,
+                                                                            pd: s.paid,
+                                                                            bal: s.balance
+                                                                        }))
+                                                                    });
+                                                                }}
+                                                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-indigo-600/20 active:scale-95 flex items-center gap-1.5 shrink-0"
+                                                            >
+                                                                👥 On-Screen PDF Preview
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => exportCSV('transport_commuter_balances', ['#', 'Student Name', 'Admission No', 'Class', 'Route', 'Vehicle / Bus', 'Invoiced (KES)', 'Paid (KES)', 'Balance Due (KES)', 'Status'], filteredTrans.map((s, i) => [
+                                                                    i + 1,
+                                                                    s.name,
+                                                                    s.admissionNumber || '—',
+                                                                    s.className || '—',
+                                                                    s.routeName || '—',
+                                                                    s.vehicle || '—',
+                                                                    s.invoiced,
+                                                                    s.paid,
+                                                                    s.balance,
+                                                                    s.balance > 0 ? 'Outstanding' : 'Cleared'
+                                                                ]))}
+                                                                className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-emerald-600/20 active:scale-95 flex items-center gap-1.5 shrink-0"
+                                                            >
+                                                                📥 CSV Export
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setPdfPreviewModal({
+                                                                        title: `TRANSPORT & LOGISTICS COMMUTER FEE BALANCES REPORT`,
+                                                                        subtitle: `${props.institution.name} — Vehicle: ${transBalVehicleFilter !== 'ALL' ? transBalVehicleFilter : 'All Vehicles'} | Route: ${transBalRouteFilter !== 'ALL' ? transBalRouteFilter : 'All Routes'}`,
+                                                                        studentName: `Batch Commuter Register (${transBalRouteFilter !== 'ALL' ? transBalRouteFilter : 'All Routes'})`,
+                                                                        admNo: `VEHICLE: ${transBalVehicleFilter !== 'ALL' ? transBalVehicleFilter : 'ALL'} (${filteredTrans.length} Commuters)`,
+                                                                        className: transBalVehicleFilter !== 'ALL' ? transBalVehicleFilter : 'Fleet Fleet',
+                                                                        invoiced: totInvoiced,
+                                                                        paid: totPaid,
+                                                                        balance: totBalance,
+                                                                        items: filteredTrans.map(s => ({
+                                                                            name: s.name,
+                                                                            adm: s.admissionNumber || '—',
+                                                                            cls: `${s.className || '—'} [${s.vehicle}]`,
+                                                                            arrears: s.openingArrears || 0,
+                                                                            inv: s.invoiced,
+                                                                            pd: s.paid,
+                                                                            bal: s.balance
+                                                                        }))
+                                                                    });
+                                                                    setTimeout(() => window.print(), 350);
+                                                                }}
+                                                                className="px-3.5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-slate-700/20 active:scale-95 flex items-center gap-1.5 shrink-0"
+                                                            >
+                                                                🖨️ Print Report
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Filter Row: Route, Vehicle, Status, Search */}
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-4 bg-slate-50 dark:bg-slate-950/60 rounded-2xl border border-slate-200 dark:border-slate-800">
+                                                        <div>
+                                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                                                                🚌 Filter Per Route
+                                                            </label>
+                                                            <select
+                                                                value={transBalRouteFilter}
+                                                                onChange={e => setTransBalRouteFilter(e.target.value)}
+                                                                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-rose-500 cursor-pointer"
+                                                            >
+                                                                <option value="ALL">All Routes ({availRoutes.length})</option>
+                                                                {availRoutes.map(r => (
+                                                                    <option key={r.id} value={r.id}>🚌 {r.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                                                                🚐 Filter Per Vehicle
+                                                            </label>
+                                                            <select
+                                                                value={transBalVehicleFilter}
+                                                                onChange={e => setTransBalVehicleFilter(e.target.value)}
+                                                                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-rose-500 cursor-pointer"
+                                                            >
+                                                                <option value="ALL">All Vehicles ({availVehicles.length})</option>
+                                                                {availVehicles.map(v => (
+                                                                    <option key={v} value={v}>🚐 {v}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                                                                💳 Balance Status
+                                                            </label>
+                                                            <select
+                                                                value={transBalStatusFilter}
+                                                                onChange={e => setTransBalStatusFilter(e.target.value as any)}
+                                                                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-rose-500 cursor-pointer"
+                                                            >
+                                                                <option value="ALL">All Commuters</option>
+                                                                <option value="outstanding">Outstanding Arrears Only</option>
+                                                                <option value="cleared">Cleared Balances Only</option>
+                                                            </select>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                                                                🔍 Search Commuter
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Student name, Adm No, class..."
+                                                                value={transBalSearch}
+                                                                onChange={e => setTransBalSearch(e.target.value)}
+                                                                className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-rose-500"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* KPI Stats Cards */}
+                                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Enrolled Commuters</p>
+                                                            <p className="text-xl font-black text-slate-900 dark:text-white mt-1">{filteredTrans.length}</p>
+                                                        </div>
+                                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Transport Invoiced</p>
+                                                            <p className="text-xl font-black text-slate-900 dark:text-white mt-1">KES {totInvoiced.toLocaleString()}</p>
+                                                        </div>
+                                                        <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800">
+                                                            <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Total Collected</p>
+                                                            <p className="text-xl font-black text-emerald-700 dark:text-emerald-300 mt-1">KES {totPaid.toLocaleString()}</p>
+                                                        </div>
+                                                        <div className="p-4 bg-rose-50 dark:bg-rose-950/50 rounded-2xl border border-rose-200 dark:border-rose-800 shadow-sm">
+                                                            <p className="text-[9px] font-black uppercase tracking-widest text-rose-500">Total Outstanding Balance</p>
+                                                            <p className="text-xl font-black text-rose-600 dark:text-rose-400 mt-1">KES {totBalance.toLocaleString()}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Commuter Balances Table */}
+                                                    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                                                        <table className="w-full text-left">
+                                                            <thead>
+                                                                <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                                                    <th className="p-4">#</th>
+                                                                    <th className="p-4">Student Details</th>
+                                                                    <th className="p-4">Class</th>
+                                                                    <th className="p-4">Assigned Route</th>
+                                                                    <th className="p-4">Vehicle / Fleet</th>
+                                                                    <th className="p-4 text-right">Invoiced (KES)</th>
+                                                                    <th className="p-4 text-right">Paid (KES)</th>
+                                                                    <th className="p-4 text-right">Balance Due (KES)</th>
+                                                                    <th className="p-4 text-center">Status</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-bold">
+                                                                {filteredTrans.length === 0 ? (
+                                                                    <tr>
+                                                                        <td colSpan={9} className="p-12 text-center text-slate-400 font-bold">
+                                                                            No commuter records match the route, vehicle, or status filter.
+                                                                        </td>
+                                                                    </tr>
+                                                                ) : (
+                                                                    filteredTrans.map((s, idx) => (
+                                                                        <tr key={s.studentId || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                                                                            <td className="p-4 font-mono text-slate-400 text-[10px]">{idx + 1}</td>
+                                                                            <td className="p-4">
+                                                                                <p className="font-black text-slate-900 dark:text-white uppercase">{s.name}</p>
+                                                                                <p className="font-mono text-[10px] text-slate-400">{s.admissionNumber}</p>
+                                                                            </td>
+                                                                            <td className="p-4 text-slate-600 dark:text-slate-300">{s.className || '—'}</td>
+                                                                            <td className="p-4">
+                                                                                <p className="text-slate-800 dark:text-slate-200">{s.routeName}</p>
+                                                                            </td>
+                                                                            <td className="p-4">
+                                                                                <span className="px-2 py-0.5 rounded-md font-mono text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold">
+                                                                                    🚐 {s.vehicle}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="p-4 text-right font-mono text-slate-900 dark:text-white">{s.invoiced.toLocaleString()}</td>
+                                                                            <td className="p-4 text-right font-mono text-emerald-600 dark:text-emerald-400">{s.paid.toLocaleString()}</td>
+                                                                            <td className="p-4 text-right font-mono font-black text-rose-600 dark:text-rose-400">
+                                                                                {s.balance.toLocaleString()}
+                                                                            </td>
+                                                                            <td className="p-4 text-center">
+                                                                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
+                                                                                    s.balance <= 0
+                                                                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                                                                        : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                                                                }`}>
+                                                                                    {s.balance <= 0 ? '✓ Cleared' : '⚠️ Outstanding'}
+                                                                                </span>
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))
+                                                                )}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
 
                                         {/* 2. All Balances */}
                                         {outstandingSubTab === 'all_balances' && (() => {

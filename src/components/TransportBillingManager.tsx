@@ -72,6 +72,7 @@ interface TransportBillingProps {
     currentInstitution?: Institution | null;
     users?: UserType[];
     currentUser?: any;
+    busRoutes?: Array<{ id: string; name: string; bus?: string; driver?: string; startPoint?: string; endPoint?: string }>;
     onSendSms?: (recipient: string | string[], message: string, config?: any, units?: number, institutionId?: string) => Promise<any>;
     onSaveOpeningBalance?: (invoice: TransportFeeInvoice) => void;
     onImportOpeningBalances?: (invoices: TransportFeeInvoice[]) => void;
@@ -771,11 +772,17 @@ const RouteFeeSettings: React.FC<{
 const InvoiceTable: React.FC<{
     invoices: TransportFeeInvoice[];
     institution?: Institution | null;
+    busRoutes?: Array<{ id: string; name: string; bus?: string; driver?: string; startPoint?: string; endPoint?: string }>;
+    title?: string;
     onMarkPaid: (id: string, method: string, code?: string) => void;
     onWaive: (id: string, reason: string) => void;
     onSendSms?: (recipient: string, message: string) => Promise<any>;
-}> = ({ invoices, institution, onMarkPaid, onWaive, onSendSms }) => {
+}> = ({ invoices, institution, busRoutes = [], title = 'Transport Fee Invoices', onMarkPaid, onWaive, onSendSms }) => {
     const [filterStatus, setFilterStatus] = useState<BillStatus | 'all'>('all');
+    const [filterRoute, setFilterRoute] = useState<string>('all');
+    const [filterVehicle, setFilterVehicle] = useState<string>('all');
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
     const [expanded, setExpanded] = useState<string | null>(null);
     const [payingId, setPayingId] = useState<string | null>(null);
     const [paymentMethod, setPaymentMethod] = useState('M-Pesa');
@@ -786,7 +793,73 @@ const InvoiceTable: React.FC<{
     const [reminderModalInvoice, setReminderModalInvoice] = useState<TransportFeeInvoice | null>(null);
     const [receiptModalInvoice, setReceiptModalInvoice] = useState<TransportFeeInvoice | null>(null);
 
-    const filtered = filterStatus === 'all' ? invoices : invoices.filter(i => i.status === filterStatus);
+    // Enriched invoices with resolved route name, vehicle plate, and balances
+    const enrichedInvoices = useMemo(() => {
+        return invoices.map(inv => {
+            const invRouteId = inv.routeId || '';
+            const invRouteName = inv.routeName || '';
+            const matchedRoute = (busRoutes || []).find(r => 
+                (r.id && r.id === invRouteId) || 
+                (r.name && invRouteName && r.name.toLowerCase() === invRouteName.toLowerCase())
+            );
+            const vehiclePlate = (inv as any).vehicle || (inv as any).busPlate || (inv as any).bus || matchedRoute?.bus || 'Unassigned Vehicle';
+            const finalAmt = inv.finalAmount || inv.amount || inv.baseAmount || 0;
+            const paidAmt = inv.paidAmount || (inv.status === 'paid' ? finalAmt : 0);
+            const balAmt = inv.balance !== undefined ? inv.balance : Math.max(0, finalAmt - paidAmt);
+            return {
+                ...inv,
+                computedVehicle: vehiclePlate,
+                computedInvoiced: finalAmt,
+                computedPaid: paidAmt,
+                computedBalance: balAmt,
+                matchedRouteName: matchedRoute?.name || inv.routeName || 'Unassigned Route'
+            };
+        });
+    }, [invoices, busRoutes]);
+
+    // Available routes for dropdown filter
+    const availableRoutes = useMemo(() => {
+        const map = new Map<string, string>();
+        (busRoutes || []).forEach(r => {
+            if (r.id) map.set(r.id, r.name || r.id);
+            else if (r.name) map.set(r.name, r.name);
+        });
+        enrichedInvoices.forEach(i => {
+            if (i.routeId) map.set(i.routeId, i.routeName || i.routeId);
+            else if (i.routeName) map.set(i.routeName, i.routeName);
+        });
+        return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+    }, [busRoutes, enrichedInvoices]);
+
+    // Available vehicles for dropdown filter
+    const availableVehicles = useMemo(() => {
+        const set = new Set<string>();
+        (busRoutes || []).forEach(r => {
+            if (r.bus && r.bus.trim()) set.add(r.bus.trim());
+        });
+        enrichedInvoices.forEach(i => {
+            if (i.computedVehicle && i.computedVehicle !== 'Unassigned Vehicle' && i.computedVehicle.trim()) {
+                set.add(i.computedVehicle.trim());
+            }
+        });
+        return Array.from(set).sort();
+    }, [busRoutes, enrichedInvoices]);
+
+    // Filtered invoices according to Route, Vehicle, Status, and Search
+    const filtered = useMemo(() => {
+        return enrichedInvoices.filter(inv => {
+            const matchesStatus = filterStatus === 'all' || inv.status === filterStatus;
+            const matchesRoute = filterRoute === 'all' || inv.routeId === filterRoute || inv.routeName === filterRoute;
+            const matchesVehicle = filterVehicle === 'all' || inv.computedVehicle.toLowerCase().trim() === filterVehicle.toLowerCase().trim();
+            const q = searchQuery.toLowerCase().trim();
+            const matchesSearch = !q ||
+                (inv.studentName || '').toLowerCase().includes(q) ||
+                (inv.admissionNumber || '').toLowerCase().includes(q) ||
+                (inv.routeName || '').toLowerCase().includes(q) ||
+                (inv.computedVehicle || '').toLowerCase().includes(q);
+            return matchesStatus && matchesRoute && matchesVehicle && matchesSearch;
+        });
+    }, [enrichedInvoices, filterStatus, filterRoute, filterVehicle, searchQuery]);
 
     const statusCounts = useMemo(() => {
         const counts: Record<string, number> = { all: invoices.length };
@@ -796,29 +869,250 @@ const InvoiceTable: React.FC<{
         return counts;
     }, [invoices]);
 
+    // Aggregates for currently filtered dataset
+    const totalInvoicedFiltered = useMemo(() => filtered.reduce((s, i) => s + (i.computedInvoiced || 0), 0), [filtered]);
+    const totalPaidFiltered = useMemo(() => filtered.reduce((s, i) => s + (i.computedPaid || 0), 0), [filtered]);
+    const totalBalanceFiltered = useMemo(() => filtered.reduce((s, i) => s + (i.computedBalance || 0), 0), [filtered]);
+
+    // Per-vehicle balance breakdown
+    const perVehicleBreakdown = useMemo(() => {
+        const map: Record<string, { vehicle: string; invoiced: number; paid: number; balance: number; count: number }> = {};
+        filtered.forEach(inv => {
+            const veh = inv.computedVehicle || 'Unassigned Vehicle';
+            if (!map[veh]) map[veh] = { vehicle: veh, invoiced: 0, paid: 0, balance: 0, count: 0 };
+            map[veh].invoiced += (inv.computedInvoiced || 0);
+            map[veh].paid += (inv.computedPaid || 0);
+            map[veh].balance += (inv.computedBalance || 0);
+            map[veh].count += 1;
+        });
+        return Object.values(map).sort((a, b) => b.balance - a.balance);
+    }, [filtered]);
+
+    // PDF Download via jsPDF
+    const handleDownloadPdf = async () => {
+        try {
+            const { jsPDF } = await import('jspdf');
+            const autoTableModule = await import('jspdf-autotable');
+            const autoTable = (autoTableModule as any).default || autoTableModule;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+            doc.setFontSize(15);
+            doc.setFont('helvetica', 'bold');
+            doc.text((institution?.name || 'INSTITUTION').toUpperCase(), 14, 16);
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text('OFFICIAL TRANSPORT & LOGISTICS COMMUTER FEE BALANCES REPORT', 14, 22);
+
+            const scopeText = `Vehicle: ${filterVehicle !== 'all' ? filterVehicle : 'All Vehicles'} | Route: ${filterRoute !== 'all' ? (availableRoutes.find(r => r.id === filterRoute)?.name || filterRoute) : 'All Routes'} | Status: ${filterStatus.toUpperCase()} | Generated: ${new Date().toLocaleDateString('en-KE')}`;
+            doc.setFontSize(8);
+            doc.text(scopeText, 14, 27);
+
+            const tableBody = filtered.map((inv, idx) => [
+                idx + 1,
+                inv.studentName || '—',
+                inv.admissionNumber || '—',
+                inv.routeName || '—',
+                inv.computedVehicle || '—',
+                inv.period || '—',
+                Number(inv.computedInvoiced || 0).toLocaleString(),
+                Number(inv.computedPaid || 0).toLocaleString(),
+                Number(inv.computedBalance || 0).toLocaleString(),
+                (inv.status || 'pending').toUpperCase()
+            ]);
+
+            autoTable(doc, {
+                head: [['#', 'Student', 'Adm No', 'Route', 'Vehicle', 'Period', 'Invoiced', 'Paid', 'Balance Due', 'Status']],
+                body: tableBody,
+                startY: 32,
+                theme: 'grid',
+                headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+                bodyStyles: { fontSize: 8 },
+                styles: { cellPadding: 2 }
+            });
+
+            const finalY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : 220;
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.text(`Total Invoiced: KES ${totalInvoicedFiltered.toLocaleString()}   Total Paid: KES ${totalPaidFiltered.toLocaleString()}   Total Balance Due: KES ${totalBalanceFiltered.toLocaleString()}`, 14, finalY);
+
+            // Per-Vehicle Balance Subtotals
+            if (perVehicleBreakdown.length > 1) {
+                const vehStartY = finalY + 10;
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'bold');
+                doc.text('PER-VEHICLE BALANCE BREAKDOWN', 14, vehStartY);
+
+                autoTable(doc, {
+                    head: [['Vehicle', 'Students', 'Invoiced (KES)', 'Paid (KES)', 'Balance Due (KES)']],
+                    body: perVehicleBreakdown.map(v => [
+                        v.vehicle,
+                        String(v.count),
+                        v.invoiced.toLocaleString(),
+                        v.paid.toLocaleString(),
+                        v.balance.toLocaleString()
+                    ]),
+                    startY: vehStartY + 4,
+                    theme: 'grid',
+                    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+                    bodyStyles: { fontSize: 8 },
+                    styles: { cellPadding: 2 }
+                });
+            }
+
+            doc.save(`Transport_Balances_${(filterVehicle !== 'all' ? filterVehicle : 'fleet').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (err: any) {
+            console.error(err);
+            alert('Failed to generate PDF: ' + (err.message || err));
+        }
+    };
+
     return (
         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-50 dark:border-slate-700">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Header & Controls Bar */}
+            <div className="p-6 border-b border-slate-100 dark:border-slate-700 space-y-4">
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                     <div>
-                        <h4 className="text-sm font-black uppercase tracking-tight">Transport Fee Invoices</h4>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{invoices.length} invoices total</p>
+                        <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">{title}</h4>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                            {filtered.length} of {invoices.length} commuter records · Filter by route, vehicle, status & preview PDF
+                        </p>
                     </div>
-                    {/* Status Filter Pills */}
-                    <div className="flex flex-wrap gap-2">
-                        {(['all', 'pending', 'paid', 'overdue', 'waived'] as const).map(s => (
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* On-Screen PDF Preview Button */}
+                        <button
+                            type="button"
+                            onClick={() => setIsPdfPreviewOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-wider shadow-lg shadow-indigo-600/20 active:scale-95 transition-all cursor-pointer shrink-0"
+                            title="Open interactive multi-page on-screen printable PDF preview"
+                        >
+                            <FileText className="w-4 h-4" />
+                            <span>👥 On-Screen PDF Preview</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleDownloadPdf}
+                            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0"
+                            title="Export PDF Document"
+                        >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Export PDF</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Filters Row: Route, Vehicle, Search, Status */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+                    {/* Filter per Route */}
+                    <div>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                            🚌 Route Filter
+                        </label>
+                        <select
+                            value={filterRoute}
+                            onChange={e => setFilterRoute(e.target.value)}
+                            className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        >
+                            <option value="all">All Routes ({availableRoutes.length})</option>
+                            {availableRoutes.map(r => (
+                                <option key={r.id} value={r.id}>🚌 {r.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Filter per Vehicle */}
+                    <div>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                            🚐 Vehicle / Bus Filter
+                        </label>
+                        <select
+                            value={filterVehicle}
+                            onChange={e => setFilterVehicle(e.target.value)}
+                            className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        >
+                            <option value="all">All Vehicles ({availableVehicles.length})</option>
+                            {availableVehicles.map(v => (
+                                <option key={v} value={v}>🚐 {v}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Search Commuter / Adm */}
+                    <div>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                            🔍 Search Commuter
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="Student name, Adm No, route..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                    </div>
+
+                    {/* Status Filter Dropdown */}
+                    <div>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                            💳 Payment Status
+                        </label>
+                        <select
+                            value={filterStatus}
+                            onChange={e => setFilterStatus(e.target.value as any)}
+                            className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        >
+                            <option value="all">All Statuses ({statusCounts.all || 0})</option>
+                            <option value="pending">Pending Arrears ({statusCounts.pending || 0})</option>
+                            <option value="overdue">Overdue ({statusCounts.overdue || 0})</option>
+                            <option value="paid">Paid in Full ({statusCounts.paid || 0})</option>
+                            <option value="waived">Waived ({statusCounts.waived || 0})</option>
+                        </select>
+                    </div>
+                </div>
+
+                {/* Filter Summary Metrics Pill Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100 dark:border-slate-700/60 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                            Active Scope:
+                        </span>
+                        <span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 rounded-lg font-bold text-[10px]">
+                            Route: {filterRoute !== 'all' ? (availableRoutes.find(r => r.id === filterRoute)?.name || filterRoute) : 'All Routes'}
+                        </span>
+                        <span className="px-2.5 py-1 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 rounded-lg font-bold text-[10px]">
+                            Vehicle: {filterVehicle !== 'all' ? filterVehicle : 'All Vehicles'}
+                        </span>
+                        {(filterRoute !== 'all' || filterVehicle !== 'all' || searchQuery) && (
                             <button
-                                key={s}
-                                onClick={() => setFilterStatus(s)}
-                                className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer ${
-                                    filterStatus === s
-                                        ? 'bg-indigo-600 text-white shadow-md'
-                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600'
-                                }`}
+                                type="button"
+                                onClick={() => {
+                                    setFilterRoute('all');
+                                    setFilterVehicle('all');
+                                    setSearchQuery('');
+                                    setFilterStatus('all');
+                                }}
+                                className="text-[10px] text-rose-500 hover:underline font-bold"
                             >
-                                {s} {statusCounts[s] ? `(${statusCounts[s]})` : ''}
+                                Reset Filters
                             </button>
-                        ))}
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-4 text-xs font-bold">
+                        <div>
+                            <span className="text-slate-400 mr-1 text-[10px] uppercase font-black">Invoiced:</span>
+                            <span className="font-mono text-slate-900 dark:text-white">KES {totalInvoicedFiltered.toLocaleString()}</span>
+                        </div>
+                        <div>
+                            <span className="text-slate-400 mr-1 text-[10px] uppercase font-black">Paid:</span>
+                            <span className="font-mono text-emerald-600 dark:text-emerald-400">KES {totalPaidFiltered.toLocaleString()}</span>
+                        </div>
+                        <div className="px-3 py-1 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-xl">
+                            <span className="text-rose-500 mr-1.5 text-[10px] uppercase font-black">Balance Due:</span>
+                            <span className="font-mono font-black text-rose-600 dark:text-rose-400 text-sm">KES {totalBalanceFiltered.toLocaleString()}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -833,7 +1127,7 @@ const InvoiceTable: React.FC<{
                     <table className="w-full text-left">
                         <thead>
                             <tr className="border-b border-slate-50 dark:border-slate-700">
-                                {['Student', 'Route & Preference', 'Period', 'Amount', 'Due Date', 'Status', ''].map(h => (
+                                {['Student', 'Route & Vehicle', 'Period', 'Amount & Balance', 'Due Date', 'Status', ''].map(h => (
                                     <th key={h} className="p-5 text-[9px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">{h}</th>
                                 ))}
                             </tr>
@@ -873,12 +1167,28 @@ const InvoiceTable: React.FC<{
                                                 </div>
                                             </td>
                                             <td className="p-5">
-                                                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 max-w-[160px] truncate">{inv.routeName}</p>
-                                                <span className={`text-[9px] font-black uppercase tracking-widest ${prefMeta.color}`}>{prefMeta.label}</span>
+                                                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 max-w-[180px] truncate">{inv.routeName}</p>
+                                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                                    <span className={`text-[9px] font-black uppercase tracking-widest ${prefMeta.color}`}>{prefMeta.label}</span>
+                                                    {inv.computedVehicle && (
+                                                        <span className="text-[9px] font-mono font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/80 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-600">
+                                                            🚐 {inv.computedVehicle}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="p-5 text-xs font-bold text-slate-500 whitespace-nowrap">{inv.period}</td>
                                             <td className="p-5">
-                                                <p className="text-sm font-black text-slate-900 dark:text-white">{fmt(inv.finalAmount)}</p>
+                                                <p className="text-sm font-black text-slate-900 dark:text-white">{fmt(inv.computedInvoiced)}</p>
+                                                {inv.computedBalance > 0 ? (
+                                                    <p className="text-[10px] font-black text-rose-600 dark:text-rose-400">
+                                                        Bal: {fmt(inv.computedBalance)}
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                                        ✓ Cleared
+                                                    </p>
+                                                )}
                                                 {inv.discountAmount > 0 && (
                                                     <p className="text-[9px] font-bold text-emerald-600">
                                                         -{fmt(inv.discountAmount)} {inv.notes?.includes('prepayment') || inv.notes?.includes('Prepayment') ? 'credit offset' : 'discount'}
@@ -1054,6 +1364,230 @@ const InvoiceTable: React.FC<{
                     onClose={() => setReceiptModalInvoice(null)}
                 />
             )}
+
+            {/* On-Screen Printable PDF Preview Modal */}
+            {isPdfPreviewOpen && (
+                <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center z-[9999] p-2 sm:p-4 md:p-6 animate-in fade-in duration-200">
+                    <div className="bg-slate-900 border border-slate-700 rounded-[2.5rem] shadow-2xl w-full max-w-5xl overflow-hidden max-h-[94vh] flex flex-col">
+                        {/* Top Action Bar */}
+                        <div className="p-4 sm:p-5 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+                                    <FileText className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black uppercase tracking-tight text-white">
+                                        Transport & Logistics Balances PDF Preview
+                                    </h3>
+                                    <p className="text-[10px] font-bold text-indigo-400">
+                                        {institution?.name || 'Institution'} · Vehicle: {filterVehicle !== 'all' ? filterVehicle : 'All Vehicles'} · Route: {filterRoute !== 'all' ? (availableRoutes.find(r => r.id === filterRoute)?.name || filterRoute) : 'All Routes'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => window.print()}
+                                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                                >
+                                    <Printer className="w-3.5 h-3.5" />
+                                    <span>Print / Save PDF</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleDownloadPdf}
+                                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    <span>Download</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPdfPreviewOpen(false)}
+                                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Printable Paper Preview Sheet Area */}
+                        <div id="transport-balances-printable-sheet" className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 bg-slate-950/80 custom-scrollbar space-y-6">
+                            <div className="mx-auto bg-white text-slate-900 p-8 sm:p-12 rounded-2xl shadow-2xl max-w-4xl font-sans relative border border-slate-200 min-h-[960px] flex flex-col justify-between overflow-hidden">
+                                {/* Watermark */}
+                                <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none select-none">
+                                    <span className="text-6xl font-black tracking-widest -rotate-12 text-slate-900 uppercase">
+                                        {institution?.name || 'TRANSPORT BALANCES'}
+                                    </span>
+                                </div>
+
+                                <div>
+                                    {/* Letterhead Header */}
+                                    <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-4">
+                                        <div>
+                                            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                                                {institution?.name || 'Institutional Transport Operations'}
+                                            </h2>
+                                            <p className="text-xs font-bold text-slate-600">
+                                                Transport, Logistics & Fleet Operations Management
+                                            </p>
+                                            <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                                Report Generated: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="px-3 py-1 bg-slate-900 text-white font-mono text-[9px] font-black uppercase tracking-widest rounded-md inline-block">
+                                                OFFICIAL AUDIT DOC
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Document Title Banner */}
+                                    <div className="text-center my-4 py-2 bg-slate-50 border-y border-slate-200">
+                                        <h3 className="text-base font-black uppercase tracking-wider text-slate-900">
+                                            Commuter Transport Fee Balances Register
+                                        </h3>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                            Route & Vehicle Operational Balance Sheet
+                                        </p>
+                                    </div>
+
+                                    {/* Scope / Filter Info Grid */}
+                                    <div className="grid grid-cols-4 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs mb-6">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Assigned Route</p>
+                                            <p className="font-bold text-slate-800 truncate">{filterRoute !== 'all' ? (availableRoutes.find(r => r.id === filterRoute)?.name || filterRoute) : 'All Routes'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Fleet Vehicle</p>
+                                            <p className="font-bold text-slate-800 font-mono truncate">{filterVehicle !== 'all' ? filterVehicle : 'All Vehicles / Buses'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Payment Status</p>
+                                            <p className="font-bold text-slate-800 uppercase">{filterStatus}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Total Commuters</p>
+                                            <p className="font-black text-indigo-600">{filtered.length} Students</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Balances Ledger Table */}
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr className="border-b-2 border-slate-900 bg-slate-100 text-[9px] font-black uppercase tracking-wider text-slate-700">
+                                                <th className="py-2.5 px-2">#</th>
+                                                <th className="py-2.5 px-2">Student Name</th>
+                                                <th className="py-2.5 px-2">Adm No</th>
+                                                <th className="py-2.5 px-2">Route</th>
+                                                <th className="py-2.5 px-2">Vehicle</th>
+                                                <th className="py-2.5 px-2">Period</th>
+                                                <th className="py-2.5 px-2 text-right">Invoiced (KES)</th>
+                                                <th className="py-2.5 px-2 text-right">Paid (KES)</th>
+                                                <th className="py-2.5 px-2 text-right">Balance Due (KES)</th>
+                                                <th className="py-2.5 px-2 text-center">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200">
+                                            {filtered.map((inv, idx) => (
+                                                <tr key={inv.id} className={idx % 2 === 1 ? 'bg-slate-50/50' : ''}>
+                                                    <td className="py-2 px-2 font-mono text-[10px] text-slate-400">{idx + 1}</td>
+                                                    <td className="py-2 px-2 font-bold text-slate-900">{inv.studentName}</td>
+                                                    <td className="py-2 px-2 font-mono text-slate-600">{inv.admissionNumber || '—'}</td>
+                                                    <td className="py-2 px-2 text-slate-700 truncate max-w-[140px]">{inv.routeName}</td>
+                                                    <td className="py-2 px-2 font-mono text-slate-700 text-[10px]">{inv.computedVehicle}</td>
+                                                    <td className="py-2 px-2 text-slate-600 text-[10px]">{inv.period}</td>
+                                                    <td className="py-2 px-2 text-right font-mono font-bold text-slate-800">{Number(inv.computedInvoiced || 0).toLocaleString()}</td>
+                                                    <td className="py-2 px-2 text-right font-mono font-bold text-emerald-700">{Number(inv.computedPaid || 0).toLocaleString()}</td>
+                                                    <td className="py-2 px-2 text-right font-mono font-black text-rose-700">{Number(inv.computedBalance || 0).toLocaleString()}</td>
+                                                    <td className="py-2 px-2 text-center">
+                                                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                                                            inv.status === 'paid' ? 'bg-emerald-100 text-emerald-800' :
+                                                            inv.status === 'overdue' ? 'bg-rose-100 text-rose-800' :
+                                                            'bg-amber-100 text-amber-800'
+                                                        }`}>
+                                                            {inv.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Document Footer & Totals */}
+                                <div className="pt-6 border-t-2 border-slate-900 mt-6 space-y-6">
+                                    <div className="flex justify-between items-center bg-slate-100 p-4 rounded-xl border border-slate-300">
+                                        <span className="text-xs font-black uppercase tracking-wider text-slate-800">
+                                            Consolidated Transport Balance Totals:
+                                        </span>
+                                        <div className="flex items-center gap-6 text-xs font-mono">
+                                            <div>
+                                                <span className="text-slate-500 mr-1 text-[9px] uppercase font-bold">Total Invoiced:</span>
+                                                <span className="font-bold">KES {totalInvoicedFiltered.toLocaleString()}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-500 mr-1 text-[9px] uppercase font-bold">Total Paid:</span>
+                                                <span className="font-bold text-emerald-700">KES {totalPaidFiltered.toLocaleString()}</span>
+                                            </div>
+                                            <div className="px-3 py-1 bg-white rounded-lg border border-rose-300">
+                                                <span className="text-rose-600 mr-1.5 text-[9px] uppercase font-black">Net Balance Due:</span>
+                                                <span className="font-black text-rose-700 text-sm">KES {totalBalanceFiltered.toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Sign-off Block */}
+                                    {perVehicleBreakdown.length > 1 && (
+                                        <div className="mt-4">
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Per-Vehicle Balance Breakdown</h4>
+                                            <table className="w-full text-left text-xs border-collapse">
+                                                <thead>
+                                                    <tr className="border-b-2 border-slate-700 bg-slate-800 text-[9px] font-black uppercase tracking-wider text-white">
+                                                        <th className="py-2 px-2">Vehicle / Bus</th>
+                                                        <th className="py-2 px-2 text-center">Students</th>
+                                                        <th className="py-2 px-2 text-right">Invoiced (KES)</th>
+                                                        <th className="py-2 px-2 text-right">Paid (KES)</th>
+                                                        <th className="py-2 px-2 text-right">Balance Due (KES)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-200">
+                                                    {perVehicleBreakdown.map((v, i) => (
+                                                        <tr key={v.vehicle} className={i % 2 === 1 ? 'bg-slate-50/50' : ''}>
+                                                            <td className="py-1.5 px-2 font-mono font-bold text-slate-800">{v.vehicle}</td>
+                                                            <td className="py-1.5 px-2 text-center font-mono text-slate-600">{v.count}</td>
+                                                            <td className="py-1.5 px-2 text-right font-mono font-bold text-slate-800">{v.invoiced.toLocaleString()}</td>
+                                                            <td className="py-1.5 px-2 text-right font-mono font-bold text-emerald-700">{v.paid.toLocaleString()}</td>
+                                                            <td className="py-1.5 px-2 text-right font-mono font-black text-rose-700">{v.balance.toLocaleString()}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+
+                                    {/* Sign-off Block */}
+                                    <div className="grid grid-cols-3 gap-8 pt-4 text-xs">
+                                        <div className="border-t border-slate-400 pt-2 text-center">
+                                            <p className="font-black text-slate-800">Transport Logistics Officer</p>
+                                            <p className="text-[9px] text-slate-500">Sign & Date</p>
+                                        </div>
+                                        <div className="border-t border-slate-400 pt-2 text-center">
+                                            <p className="font-black text-slate-800">Finance & Accounts Bursar</p>
+                                            <p className="text-[9px] text-slate-500">Sign & Stamp</p>
+                                        </div>
+                                        <div className="border-t border-slate-400 pt-2 text-center">
+                                            <p className="font-black text-slate-800">Principal / Head of Institution</p>
+                                            <p className="text-[9px] text-slate-500">Official Approval</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -1073,6 +1607,7 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
     currentInstitution,
     users = [],
     currentUser,
+    busRoutes = [],
     onSendSms,
     onSaveOpeningBalance,
     onImportOpeningBalances,
@@ -1121,6 +1656,35 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
             (i.notes && i.notes.toLowerCase().includes('opening balance'))
         );
     }, [invoices]);
+
+    const vehicleSummaryList = useMemo(() => {
+        const map: Record<string, { vehicle: string; expected: number; collected: number; balance: number; totalCount: number; paidCount: number; overdueCount: number }> = {};
+        invoices.forEach(inv => {
+            const invRouteId = inv.routeId || '';
+            const invRouteName = inv.routeName || '';
+            const matchedRoute = (busRoutes || []).find(r => 
+                (r.id && r.id === invRouteId) || 
+                (r.name && invRouteName && r.name.toLowerCase() === invRouteName.toLowerCase())
+            );
+            const veh = (inv as any).vehicle || (inv as any).busPlate || (inv as any).bus || matchedRoute?.bus || 'Unassigned Vehicle';
+            if (!map[veh]) {
+                map[veh] = { vehicle: veh, expected: 0, collected: 0, balance: 0, totalCount: 0, paidCount: 0, overdueCount: 0 };
+            }
+            const finalAmt = inv.finalAmount || inv.amount || inv.baseAmount || 0;
+            const paidAmt = inv.paidAmount || (inv.status === 'paid' ? finalAmt : 0);
+            const balAmt = inv.balance !== undefined ? inv.balance : Math.max(0, finalAmt - paidAmt);
+            
+            if (inv.status !== 'waived') {
+                map[veh].expected += finalAmt;
+            }
+            map[veh].collected += paidAmt;
+            map[veh].balance += balAmt;
+            map[veh].totalCount += 1;
+            if (inv.status === 'paid') map[veh].paidCount += 1;
+            if (inv.status === 'overdue') map[veh].overdueCount += 1;
+        });
+        return Object.values(map).sort((a, b) => b.balance - a.balance);
+    }, [invoices, busRoutes]);
 
     const resolvedStudents = useMemo(() => {
         const list: Array<{
@@ -1361,6 +1925,67 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
                         </div>
                     </div>
 
+                    {/* Per-Vehicle Fleet Balance Summary */}
+                    {vehicleSummaryList.length > 0 && (
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="p-6 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between flex-wrap gap-2">
+                                <div>
+                                    <h4 className="text-sm font-black uppercase tracking-tight flex items-center gap-2">
+                                        <Bus className="w-4 h-4 text-indigo-600" />
+                                        <span>Per-Vehicle Fleet Balance Summary</span>
+                                    </h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                        Track collected revenue, outstanding balances, and fee clearance rates per vehicle
+                                    </p>
+                                </div>
+                                <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-full text-[10px] font-mono font-bold">
+                                    {vehicleSummaryList.length} Vehicles
+                                </span>
+                            </div>
+                            <div className="divide-y divide-slate-50 dark:divide-slate-700">
+                                {vehicleSummaryList.map(v => {
+                                    const pct = v.expected > 0 ? Math.round((v.collected / v.expected) * 100) : 0;
+                                    return (
+                                        <div key={v.vehicle} className="p-5 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800/40 flex items-center justify-center text-indigo-600 font-mono font-bold text-sm">
+                                                        🚐
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{v.vehicle}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400">
+                                                            {v.totalCount} commuters · {v.paidCount} cleared · {v.overdueCount} overdue
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4 text-right flex-shrink-0 flex-wrap">
+                                                    <div>
+                                                        <span className="text-xs font-bold text-emerald-600 font-mono">{fmt(v.collected)}</span>
+                                                        <span className="text-[9px] font-bold text-slate-400 font-mono"> / {fmt(v.expected)}</span>
+                                                    </div>
+                                                    <div className="px-2.5 py-1 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/40 rounded-lg">
+                                                        <span className="text-[9px] font-black uppercase text-rose-500 mr-1">Bal Due:</span>
+                                                        <span className="text-xs font-black text-rose-700 dark:text-rose-400 font-mono">{fmt(v.balance)}</span>
+                                                    </div>
+                                                    <span className={`text-[10px] font-black w-10 text-right ${pct >= 80 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>
+                                                        {pct}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2">
+                                                <div
+                                                    className={`h-2 rounded-full transition-all duration-700 ${pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                                    style={{ width: `${pct}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Preference distribution */}
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                         <h4 className="text-sm font-black uppercase tracking-tight mb-6">Subscription Preference Breakdown</h4>
@@ -1428,6 +2053,8 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
                     <InvoiceTable
                         invoices={invoices}
                         institution={currentInstitution}
+                        busRoutes={busRoutes}
+                        title="Transport Fee Invoices"
                         onMarkPaid={onMarkPaid}
                         onWaive={onWaive}
                         onSendSms={onSendSms}
@@ -1478,6 +2105,8 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
                         <InvoiceTable
                             invoices={openingBalanceInvoices}
                             institution={currentInstitution}
+                            busRoutes={busRoutes}
+                            title="Commuter Opening Balances"
                             onMarkPaid={onMarkPaid}
                             onWaive={onWaive}
                             onSendSms={onSendSms}

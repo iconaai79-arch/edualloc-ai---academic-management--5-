@@ -105,11 +105,26 @@ export const HRManager: React.FC<HRManagerProps> = ({
     users = [],
     onLogAction
 }) => {
-    const staff = (rawStaff || []).filter(member => {
-        if (!member || !member.role) return false;
-        const r = member.role.toLowerCase().trim();
-        return r !== 'student' && r !== 'parent' && r !== 'visitor';
-    });
+    const [localAddedStaff, setLocalAddedStaff] = useState<any[]>([]);
+
+    const baseStaff = useMemo(() => {
+        return (rawStaff || []).filter(member => {
+            if (!member || !member.role) return false;
+            const r = member.role.toLowerCase().trim();
+            return r !== 'student' && r !== 'parent' && r !== 'visitor';
+        });
+    }, [rawStaff]);
+
+    const staff = useMemo(() => {
+        const map = new Map<string, any>();
+        baseStaff.forEach(s => map.set(s.id, s));
+        localAddedStaff.forEach(s => {
+            if (s && s.id && !map.has(s.id)) {
+                map.set(s.id, s);
+            }
+        });
+        return Array.from(map.values());
+    }, [baseStaff, localAddedStaff]);
 
     const [localActiveTab, setLocalActiveTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories' | 'activity_log' | 'eduflow'>('roster');
     const activeTab = propActiveTab || localActiveTab;
@@ -588,15 +603,29 @@ export const HRManager: React.FC<HRManagerProps> = ({
                     }
                 }).catch(() => null);
                 alert(`✓ Staff record & HR file for ${onboardForm.name} updated successfully!`);
-            } else if (onAddUser) {
-                await onAddUser({
+            } else {
+                const newUserId = `staff_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                const newStaffData = {
+                    id: newUserId,
+                    institutionId: institution.id,
+                    institution_id: institution.id,
+                    status: 'active',
+                    createdAt: new Date().toISOString(),
                     ...onboardForm,
                     pf: onboardForm.pf,
                     pfNumber: onboardForm.pf,
                     basicSalary: salary,
                     basic_salary: salary,
                     metadata: hrMetadata
-                });
+                };
+
+                if (onAddUser) {
+                    await onAddUser(newStaffData);
+                } else {
+                    await apiService.saveModuleRecord('users', newStaffData);
+                }
+
+                setLocalAddedStaff(prev => [newStaffData, ...prev]);
                 alert(`✓ Successfully onboarded ${onboardForm.name}!`);
             }
             setShowOnboardModal(false);

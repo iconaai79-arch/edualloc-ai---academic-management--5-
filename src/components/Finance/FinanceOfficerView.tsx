@@ -38,6 +38,7 @@ interface FinanceOfficerViewProps {
     leaveRequests?: any[];
     onProcessPayroll?: (records: any[]) => Promise<void>;
     onUpdateLeaveStatus?: (id: string, status: 'approved' | 'rejected') => Promise<void>;
+    onAddUser?: (data: any) => Promise<void>;
     onEditUser?: (id: string, data: any) => Promise<void>;
     onDeleteUser?: (id: string) => Promise<void>;
     activityLog?: any[];
@@ -76,6 +77,7 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
     leaveRequests,
     onProcessPayroll,
     onUpdateLeaveStatus,
+    onAddUser,
     onEditUser,
     onDeleteUser,
     activityLog,
@@ -137,6 +139,7 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                 leaveRequests={leaveRequests}
                 onProcessPayroll={onProcessPayroll}
                 onUpdateLeaveStatus={onUpdateLeaveStatus}
+                onAddUser={onAddUser}
                 onEditUser={onEditUser}
                 onDeleteUser={onDeleteUser}
                 activityLog={activityLog}

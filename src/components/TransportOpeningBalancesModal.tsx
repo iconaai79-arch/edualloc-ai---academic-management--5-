@@ -24,7 +24,9 @@ import {
     Wallet,
     Check,
     Phone,
-    ShieldCheck
+    ShieldCheck,
+    FileText,
+    Printer
 } from 'lucide-react';
 import type { Institution, User as UserType } from '../types';
 import type { TransportFeeInvoice, RouteFeeSetting } from './TransportBillingManager';
@@ -44,6 +46,7 @@ interface TransportOpeningBalancesModalProps {
     routes: Array<{
         id: string;
         name: string;
+        bus?: string;
     }>;
     routeFeeSettings?: RouteFeeSetting[];
     existingInvoices: TransportFeeInvoice[];
@@ -51,6 +54,7 @@ interface TransportOpeningBalancesModalProps {
     onImportOpeningBalances: (invoices: TransportFeeInvoice[]) => void;
     onDeleteOpeningBalance?: (invoiceId: string) => void;
     defaultPeriod?: string;
+    vehicles?: string[];
 }
 
 interface ParsedUploadRow {
@@ -86,7 +90,38 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
     const [isProcessingFile, setIsProcessingFile] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterRoute, setFilterRoute] = useState<string>('ALL');
+    const [filterVehicle, setFilterVehicle] = useState<string>('ALL');
+    const [filterBalanceType, setFilterBalanceType] = useState<'ALL' | 'arrears' | 'credit'>('ALL');
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    // Available vehicles discovered from routes and invoices
+    const availableVehicles = useMemo(() => {
+        const set = new Set<string>();
+        routes.forEach((r: any) => {
+            if (r.bus && typeof r.bus === 'string' && r.bus.trim()) {
+                set.add(r.bus.trim());
+            }
+        });
+        existingInvoices.forEach(i => {
+            const v = (i as any).vehicle || (i as any).busPlate || (i as any).bus;
+            if (v && typeof v === 'string' && v.trim() && v.toLowerCase() !== 'unassigned vehicle') {
+                set.add(v.trim());
+            }
+        });
+        return Array.from(set).sort();
+    }, [routes, existingInvoices]);
+
+    const getInvoiceVehicle = (inv: TransportFeeInvoice) => {
+        const direct = (inv as any).vehicle || (inv as any).busPlate || (inv as any).bus;
+        if (direct && typeof direct === 'string' && direct.trim()) return direct.trim();
+        const matched = routes.find(r => 
+            (r.id && r.id === inv.routeId) || 
+            (r.name && inv.routeName && r.name.toLowerCase() === inv.routeName.toLowerCase())
+        );
+        if (matched?.bus && matched.bus.trim()) return matched.bus.trim();
+        return 'Unassigned Vehicle';
+    };
 
     // Upload & parsed rows state
     const [parsedRows, setParsedRows] = useState<ParsedUploadRow[]>([]);
@@ -520,17 +555,141 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
         setActiveTab('manual');
     };
 
-    // Filtered existing opening balances
+    // Filtered existing opening balances with Route, Vehicle, Type, and Text Search
     const filteredExisting = useMemo(() => {
-        if (!searchTerm.trim()) return openingBalanceInvoices;
-        const q = searchTerm.toLowerCase();
-        return openingBalanceInvoices.filter(i => 
-            i.studentName?.toLowerCase().includes(q) ||
-            i.admissionNumber?.toLowerCase().includes(q) ||
-            i.routeName?.toLowerCase().includes(q) ||
-            i.period?.toLowerCase().includes(q)
-        );
-    }, [openingBalanceInvoices, searchTerm]);
+        return openingBalanceInvoices.filter(i => {
+            const isCredit = i.balanceType === 'credit' || 
+                             Boolean(i.prepaymentAmount && i.prepaymentAmount > 0) || 
+                             (i.notes && (i.notes.toLowerCase().includes('prepayment') || i.notes.toLowerCase().includes('advance credit'))) || 
+                             (i.status === 'paid' && !i.paidDate);
+            const matchesType = filterBalanceType === 'ALL' || (filterBalanceType === 'credit' ? isCredit : !isCredit);
+            const matchesRoute = filterRoute === 'ALL' || i.routeId === filterRoute || i.routeName === filterRoute;
+            const veh = getInvoiceVehicle(i);
+            const matchesVehicle = filterVehicle === 'ALL' || veh.toLowerCase().trim() === filterVehicle.toLowerCase().trim();
+            const q = searchTerm.toLowerCase().trim();
+            const matchesSearch = !q ||
+                (i.studentName || '').toLowerCase().includes(q) ||
+                (i.admissionNumber || '').toLowerCase().includes(q) ||
+                (i.routeName || '').toLowerCase().includes(q) ||
+                (i.period || '').toLowerCase().includes(q) ||
+                veh.toLowerCase().includes(q);
+            return matchesType && matchesRoute && matchesVehicle && matchesSearch;
+        });
+    }, [openingBalanceInvoices, searchTerm, filterBalanceType, filterRoute, filterVehicle, routes]);
+
+    // Financial stats for current filtered opening balance view
+    const filteredStats = useMemo(() => {
+        let arrears = 0;
+        let credits = 0;
+        filteredExisting.forEach(i => {
+            const isCredit = i.balanceType === 'credit' || 
+                             Boolean(i.prepaymentAmount && i.prepaymentAmount > 0) || 
+                             (i.notes && (i.notes.toLowerCase().includes('prepayment') || i.notes.toLowerCase().includes('advance credit'))) || 
+                             (i.status === 'paid' && !i.paidDate);
+            const amt = Math.abs(i.finalAmount || i.amount || 0);
+            if (isCredit) credits += amt;
+            else arrears += amt;
+        });
+        return { arrears, credits, net: arrears - credits };
+    }, [filteredExisting]);
+
+    // Download Opening Balances PDF
+    const handleDownloadOpeningBalancesPdf = async () => {
+        try {
+            const { jsPDF } = await import('jspdf');
+            const autoTableModule = await import('jspdf-autotable');
+            const autoTable = (autoTableModule as any).default || autoTableModule;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text((currentInstitution?.name || 'INSTITUTION').toUpperCase(), 14, 16);
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text('OFFICIAL TRANSPORT OPENING BALANCES (B/F) REGISTER', 14, 22);
+
+            const scope = `Vehicle: ${filterVehicle !== 'ALL' ? filterVehicle : 'All Vehicles'} | Route: ${filterRoute !== 'ALL' ? (routes.find(r => r.id === filterRoute)?.name || filterRoute) : 'All Routes'} | Type: ${filterBalanceType} | Generated: ${new Date().toLocaleDateString('en-KE')}`;
+            doc.setFontSize(8);
+            doc.text(scope, 14, 27);
+
+            const rows = filteredExisting.map((inv, idx) => {
+                const isCredit = inv.balanceType === 'credit' || 
+                                 Boolean(inv.prepaymentAmount && inv.prepaymentAmount > 0) || 
+                                 (inv.notes && (inv.notes.toLowerCase().includes('prepayment') || inv.notes.toLowerCase().includes('advance credit'))) || 
+                                 (inv.status === 'paid' && !inv.paidDate);
+                const amt = Math.abs(inv.finalAmount || inv.amount || 0);
+                const veh = getInvoiceVehicle(inv);
+                return [
+                    idx + 1,
+                    inv.studentName || '—',
+                    inv.admissionNumber || '—',
+                    inv.routeName || 'General Route',
+                    veh,
+                    isCredit ? 'Credit (Advance)' : 'Arrears (Debt)',
+                    amt.toLocaleString(),
+                    inv.period || 'Opening B/F'
+                ];
+            });
+
+            autoTable(doc, {
+                head: [['#', 'Commuter / Student', 'Adm No', 'Route', 'Vehicle', 'Nature', 'Amount (KES)', 'Period']],
+                body: rows,
+                startY: 32,
+                theme: 'grid',
+                headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+                bodyStyles: { fontSize: 8 },
+                styles: { cellPadding: 2 }
+            });
+
+            const finalY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : 220;
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.text(`Total Arrears (Debt B/F): KES ${filteredStats.arrears.toLocaleString()}   Total Prepayments (Credit B/F): KES ${filteredStats.credits.toLocaleString()}   Net Ledger: KES ${filteredStats.net.toLocaleString()}`, 14, finalY);
+
+            // Per-Vehicle Subtotals if more than 1 vehicle
+            const vMap: Record<string, { vehicle: string; arrears: number; credits: number; count: number }> = {};
+            filteredExisting.forEach(inv => {
+                const v = getInvoiceVehicle(inv);
+                if (!vMap[v]) vMap[v] = { vehicle: v, arrears: 0, credits: 0, count: 0 };
+                const isCredit = inv.balanceType === 'credit' || 
+                                 Boolean(inv.prepaymentAmount && inv.prepaymentAmount > 0) || 
+                                 (inv.notes && (inv.notes.toLowerCase().includes('prepayment') || inv.notes.toLowerCase().includes('advance credit'))) || 
+                                 (inv.status === 'paid' && !inv.paidDate);
+                const amt = Math.abs(inv.finalAmount || inv.amount || 0);
+                if (isCredit) vMap[v].credits += amt;
+                else vMap[v].arrears += amt;
+                vMap[v].count += 1;
+            });
+            const vRows = Object.values(vMap).sort((a, b) => b.arrears - a.arrears);
+            if (vRows.length > 1) {
+                const vFinalY = finalY + 10;
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'bold');
+                doc.text('PER-VEHICLE OPENING BALANCES BREAKDOWN', 14, vFinalY);
+                autoTable(doc, {
+                    head: [['Vehicle', 'Students', 'Total Arrears (KES)', 'Total Credits (KES)', 'Net Debt (KES)']],
+                    body: vRows.map(vr => [
+                        vr.vehicle,
+                        String(vr.count),
+                        vr.arrears.toLocaleString(),
+                        vr.credits.toLocaleString(),
+                        (vr.arrears - vr.credits).toLocaleString()
+                    ]),
+                    startY: vFinalY + 4,
+                    theme: 'grid',
+                    headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+                    bodyStyles: { fontSize: 8 },
+                    styles: { cellPadding: 2 }
+                });
+            }
+
+            doc.save(`Transport_Opening_Balances_${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (err: any) {
+            console.error(err);
+            alert('Failed to generate PDF: ' + (err.message || err));
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -957,41 +1116,128 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                     {/* TAB 3: EXISTING BALANCES LIST */}
                     {activeTab === 'existing' && (
                         <div className="space-y-4 animate-fade-in">
-                            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                                <div className="relative w-full sm:w-72">
-                                    <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                                    <input
-                                        type="text"
-                                        value={searchTerm}
-                                        onChange={e => setSearchTerm(e.target.value)}
-                                        placeholder="Search by student, adm, or route..."
-                                        className="w-full pl-11 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
-                                    />
+                            {/* Filter and Actions Bar */}
+                            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-3xl border border-slate-100 dark:border-slate-800">
+                                <div className="flex flex-wrap items-center gap-2 flex-1">
+                                    {/* Text Search */}
+                                    <div className="relative min-w-[200px] flex-1">
+                                        <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                                        <input
+                                            type="text"
+                                            value={searchTerm}
+                                            onChange={e => setSearchTerm(e.target.value)}
+                                            placeholder="Search student, adm, route, vehicle..."
+                                            className="w-full pl-11 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                                        />
+                                    </div>
+
+                                    {/* Route Filter Dropdown */}
+                                    <select
+                                        value={filterRoute}
+                                        onChange={e => setFilterRoute(e.target.value)}
+                                        className="px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer"
+                                    >
+                                        <option value="ALL">All Routes ({routes.length})</option>
+                                        {routes.map(r => (
+                                            <option key={r.id} value={r.id}>🚌 {r.name}</option>
+                                        ))}
+                                    </select>
+
+                                    {/* Vehicle / Bus Filter Dropdown */}
+                                    <select
+                                        value={filterVehicle}
+                                        onChange={e => setFilterVehicle(e.target.value)}
+                                        className="px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer"
+                                    >
+                                        <option value="ALL">All Fleet Vehicles ({availableVehicles.length})</option>
+                                        {availableVehicles.map(v => (
+                                            <option key={v} value={v}>🚐 {v}</option>
+                                        ))}
+                                    </select>
+
+                                    {/* Balance Nature Filter */}
+                                    <select
+                                        value={filterBalanceType}
+                                        onChange={e => setFilterBalanceType(e.target.value as any)}
+                                        className="px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer"
+                                    >
+                                        <option value="ALL">All Balance Types</option>
+                                        <option value="arrears">🔴 Arrears Only (Debt)</option>
+                                        <option value="credit">🟢 Credits Only (Prepayments)</option>
+                                    </select>
+
+                                    {(searchTerm || filterRoute !== 'ALL' || filterVehicle !== 'ALL' || filterBalanceType !== 'ALL') && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSearchTerm('');
+                                                setFilterRoute('ALL');
+                                                setFilterVehicle('ALL');
+                                                setFilterBalanceType('ALL');
+                                            }}
+                                            className="px-3 py-2 text-[10px] text-rose-500 hover:underline font-black uppercase cursor-pointer"
+                                        >
+                                            Reset
+                                        </button>
+                                    )}
                                 </div>
 
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setEditingInvoiceId(null);
-                                        setManualStudentId('');
-                                        setManualAmount('');
-                                        setActiveTab('manual');
-                                    }}
-                                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 cursor-pointer shadow-md shrink-0"
-                                >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    <span>Add Another</span>
-                                </button>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={handleDownloadOpeningBalancesPdf}
+                                        className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-sm transition-all"
+                                        title="Download filtered opening balances PDF report"
+                                    >
+                                        <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                                        <span>PDF Report</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setEditingInvoiceId(null);
+                                            setManualStudentId('');
+                                            setManualAmount('');
+                                            setActiveTab('manual');
+                                        }}
+                                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 cursor-pointer shadow-md shrink-0"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" />
+                                        <span>Add Another</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Scoped Summary Banner */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-slate-100 dark:bg-slate-800/60 rounded-2xl text-xs font-bold border border-slate-200 dark:border-slate-700">
+                                <div className="text-[10px] text-slate-500 font-black uppercase tracking-wider">
+                                    Showing {filteredExisting.length} of {openingBalanceInvoices.length} commuter balances
+                                </div>
+                                <div className="flex items-center gap-4 text-xs font-mono">
+                                    <div>
+                                        <span className="text-slate-400 mr-1 text-[9px] uppercase font-bold">Arrears:</span>
+                                        <span className="font-bold text-rose-600 dark:text-rose-400">KES {filteredStats.arrears.toLocaleString()}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-400 mr-1 text-[9px] uppercase font-bold">Credits:</span>
+                                        <span className="font-bold text-emerald-600 dark:text-emerald-400">KES {filteredStats.credits.toLocaleString()}</span>
+                                    </div>
+                                    <div className="px-2 py-0.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-300 dark:border-slate-700">
+                                        <span className="text-slate-500 mr-1 text-[9px] uppercase font-bold">Net:</span>
+                                        <span className="font-black text-indigo-600 dark:text-indigo-400">KES {filteredStats.net.toLocaleString()}</span>
+                                    </div>
+                                </div>
                             </div>
 
                             {filteredExisting.length === 0 ? (
                                 <div className="p-16 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
                                     <Wallet className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
                                     <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">
-                                        No Opening Balances Recorded Yet
+                                        No Opening Balances Match Filter
                                     </h4>
                                     <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                                        Use "Bulk Excel Upload" to import student balances from a file, or click "Single Entry / Update" to record individual opening balances.
+                                        Try adjusting your search query, route filter, vehicle filter, or balance nature.
                                     </p>
                                 </div>
                             ) : (
@@ -1000,7 +1246,7 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                                         <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800">
                                             <tr>
                                                 <th className="p-4 text-[9px] font-black uppercase tracking-wider text-slate-400">Commuter / Student</th>
-                                                <th className="p-4 text-[9px] font-black uppercase tracking-wider text-slate-400">Assigned Route</th>
+                                                <th className="p-4 text-[9px] font-black uppercase tracking-wider text-slate-400">Route & Vehicle</th>
                                                 <th className="p-4 text-[9px] font-black uppercase tracking-wider text-slate-400">Period Reference</th>
                                                 <th className="p-4 text-[9px] font-black uppercase tracking-wider text-slate-400 text-right">Balance B/F</th>
                                                 <th className="p-4 text-[9px] font-black uppercase tracking-wider text-slate-400 text-center">Status</th>
@@ -1008,14 +1254,19 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {filteredExisting.map(inv => (
+                                            {filteredExisting.map(inv => {
+                                                const veh = getInvoiceVehicle(inv);
+                                                return (
                                                 <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
                                                     <td className="p-4">
                                                         <p className="font-black text-slate-900 dark:text-white uppercase tracking-tight">{inv.studentName}</p>
                                                         <p className="text-[10px] font-mono text-slate-400">{inv.admissionNumber || 'No Adm No.'}</p>
                                                     </td>
-                                                    <td className="p-4 font-bold text-slate-700 dark:text-slate-300">
-                                                        {inv.routeName || 'General Route'}
+                                                    <td className="p-4">
+                                                        <p className="font-bold text-slate-800 dark:text-slate-200">{inv.routeName || 'General Route'}</p>
+                                                        <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md mt-0.5 border border-indigo-100 dark:border-indigo-800/40">
+                                                            🚐 {veh}
+                                                        </span>
                                                     </td>
                                                     <td className="p-4 text-slate-500 font-medium">
                                                         {inv.period}
@@ -1073,7 +1324,8 @@ export const TransportOpeningBalancesModal: React.FC<TransportOpeningBalancesMod
                                                         </div>
                                                     </td>
                                                 </tr>
-                                            ))}
+                                            );
+                                        })}
                                         </tbody>
                                     </table>
                                 </div>
