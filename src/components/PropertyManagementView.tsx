@@ -1248,15 +1248,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             }
         }
 
+        const effectiveEmail = cleanEmail || `${role}_${(cleanPhone || Date.now().toString()).replace(/\D/g, '') || Math.random().toString(36).slice(-4)}@eduai.local`;
+
         if (matchingUser) {
             // Update existing user profile
+            const currentRoles = Array.isArray(matchingUser.roles) ? matchingUser.roles : [matchingUser.role].filter(Boolean);
             const updatedUser = { 
                 ...matchingUser, 
                 role: matchingUser.role === role ? matchingUser.role : role,
+                roles: Array.from(new Set([...currentRoles, role])),
                 password: tempPassword,
                 mustChangePassword: true 
             };
             try {
+                if (props.onEditUser) {
+                    await props.onEditUser(matchingUser.id, updatedUser).catch(() => {});
+                }
                 await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
             } catch (err) {
                 console.warn("[PM] Failed to update matching user in users table:", err);
@@ -1264,13 +1271,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             return matchingUser;
         } else {
             // Create a new user profile
+            const targetInstId = institutionId || currentInstitution?.id || 'GLOBAL';
             const newUser: any = {
                 id: `user_${Date.now()}_${Math.random().toString(36).slice(-4)}`,
-                name: name,
-                email: cleanEmail,
+                name: name || (role === 'tenant' ? 'Tenant' : 'Landlord'),
+                email: effectiveEmail,
                 phoneNumber: cleanPhone || '',
                 role: role,
-                institutionId: institutionId || currentInstitution?.id,
+                roles: [role],
+                institutionId: targetInstId,
+                institution_id: targetInstId,
                 createdAt: new Date().toISOString(),
                 isActive: true,
                 mustChangePassword: true,
@@ -1278,6 +1288,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 password: tempPassword
             };
             try {
+                if (props.onAddUser) {
+                    await props.onAddUser(newUser).catch(() => {});
+                } else {
+                    await apiService.registerUser(newUser, currentInstitution?.name).catch(() => {});
+                }
                 await apiService.saveModuleRecord('users', newUser);
             } catch (err) {
                 console.warn("[PM] Failed to save new user in users table:", err);
@@ -1864,25 +1879,27 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             const tenantId = editingTenant?.id || `tenant_${Date.now()}`;
             const tempPassword = Math.random().toString(36).slice(-8);
 
-            // 1. Create or update system user account for the tenant (only for new tenants)
-            if (!editingTenant && (data.email || data.phoneNumber)) {
+            // 1. Create or update system user account for the tenant online
+            if (data.email || data.phoneNumber) {
                 await findOrCreatePortalUser(data.name || '', data.email, data.phoneNumber, 'tenant', tempPassword);
 
-                // 2. Send tenant welcome notification
-                if (data.email) {
-                    try {
-                        const subject = 'Welcome to your Tenant Portal';
-                        const body = `Welcome, ${data.name}!\n\nYou have been registered as a Tenant in our property management system.\nYou can now log in to view your lease agreement, track your rent payments, and raise maintenance requests.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${data.email}\nPassword: ${tempPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
-                        await apiService.sendEmail(data.email, subject, body, getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig));
-                    } catch (emailErr) {
-                        console.error("Failed to send tenant welcome email:", emailErr);
-                    }
-                } else if (data.phoneNumber) {
-                    try {
-                        const smsBody = `Welcome ${data.name}! Your Tenant Portal access:\nURL: ${window.location.origin}\nPhone: ${data.phoneNumber}\nPIN: ${tempPassword}\nLogin with your phone number & PIN.`;
-                        await apiService.sendSms(data.phoneNumber, smsBody, effectiveSmsConfig, 1, institutionId || currentInstitution?.id, undefined, true);
-                    } catch (smsErr) {
-                        console.error("Failed to send tenant welcome SMS:", smsErr);
+                // 2. Send tenant welcome notification for new tenants
+                if (!editingTenant) {
+                    if (data.email) {
+                        try {
+                            const subject = 'Welcome to your Tenant Portal';
+                            const body = `Welcome, ${data.name}!\n\nYou have been registered as a Tenant in our property management system.\nYou can now log in to view your lease agreement, track your rent payments, and raise maintenance requests.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${data.email}\nPassword: ${tempPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
+                            await apiService.sendEmail(data.email, subject, body, getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig));
+                        } catch (emailErr) {
+                            console.error("Failed to send tenant welcome email:", emailErr);
+                        }
+                    } else if (data.phoneNumber) {
+                        try {
+                            const smsBody = `Welcome ${data.name}! Your Tenant Portal access:\nURL: ${window.location.origin}\nPhone: ${data.phoneNumber}\nPIN: ${tempPassword}\nLogin with your phone number & PIN.`;
+                            await apiService.sendSms(data.phoneNumber, smsBody, effectiveSmsConfig, 1, institutionId || currentInstitution?.id, undefined, true);
+                        } catch (smsErr) {
+                            console.error("Failed to send tenant welcome SMS:", smsErr);
+                        }
                     }
                 }
             }
@@ -1898,6 +1915,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 institutionId,
                 createdAt: editingTenant?.createdAt || new Date().toISOString()
             };
+            // Optimistically update local tenants state
+            setTenants(prev => {
+                const exists = prev.some(t => t.id === newTenant.id);
+                return exists ? prev.map(t => t.id === newTenant.id ? newTenant : t) : [newTenant, ...prev];
+            });
             await apiService.saveModuleRecord('pm_tenants', newTenant);
 
             setShowTenantModal(false);

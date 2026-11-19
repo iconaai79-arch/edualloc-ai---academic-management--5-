@@ -5936,7 +5936,29 @@ export const apiService = {
             return toCamelCase(payload);
         }
 
-        if (!_supabase || _unsupportedServerModules.has(module)) {
+        if (_unsupportedServerModules.has(module)) {
+            return toCamelCase(payload);
+        }
+
+        const isBrowserOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+        const hasOrigin = typeof window !== 'undefined' && Boolean(window.location?.origin);
+        if (isBrowserOffline && !_supabase) {
+            const localFallbackRec = { ...payload, _is_pending_sync: true, _offlineCreated: true, _localSavedAt: Date.now() };
+            ls.upsert(module, localFallbackRec);
+            try {
+                localDb.put(module, localFallbackRec).catch(() => {});
+                localDb.put('sync_queue', {
+                    id: `sync_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                    module,
+                    data: localFallbackRec,
+                    action: 'save',
+                    timestamp: new Date().toISOString()
+                }).catch(() => {});
+            } catch (_) {}
+            return toCamelCase(localFallbackRec);
+        }
+
+        if (!hasOrigin && !_supabase) {
             return toCamelCase(payload);
         }
 

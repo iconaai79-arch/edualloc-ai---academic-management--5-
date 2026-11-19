@@ -156,7 +156,21 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
         try {
             const instId = currentInstitution.id;
             const allTenants = await apiService.fetchModuleRecords<PMTenant>('pm_tenants', instId);
-            const myTenant = allTenants.find(t => t.email?.toLowerCase() === currentUser.email.toLowerCase());
+            const userEmail = currentUser.email?.trim().toLowerCase();
+            const userPhoneDigits = (currentUser.phoneNumber || (currentUser as any).phone || '').replace(/\D/g, '');
+            const myTenant = allTenants.find(t => {
+                if (userEmail && t.email && t.email.trim().toLowerCase() === userEmail) return true;
+                if (userPhoneDigits && t.phoneNumber) {
+                    const tPhoneDigits = t.phoneNumber.replace(/\D/g, '');
+                    if (tPhoneDigits && (tPhoneDigits === userPhoneDigits || userPhoneDigits.endsWith(tPhoneDigits) || tPhoneDigits.endsWith(userPhoneDigits))) {
+                        return true;
+                    }
+                }
+                if (t.id && (currentUser.id === t.id || (currentUser as any).tenantId === t.id || currentUser.id === `user_${t.id}` || currentUser.id === `u_${t.id}`)) {
+                    return true;
+                }
+                return false;
+            });
 
             if (myTenant) {
                 setTenant(myTenant);

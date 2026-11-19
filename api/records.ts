@@ -2807,6 +2807,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
           'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'pm_utility_readings', 'branches',
+          'pm_tenants', 'pm_landlords', 'pm_properties', 'pm_maintenance', 'pm_invoices', 'pm_payments', 'pm_meter_readings',
           'payroll_records', 'payroll_runs', 'his_expenditures',
           'retail_marketplace_orders'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
@@ -2819,6 +2820,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
           'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'pm_utility_readings', 'branches',
+          'pm_tenants', 'pm_landlords', 'pm_properties', 'pm_maintenance', 'pm_invoices', 'pm_payments', 'pm_meter_readings',
           'payroll_records', 'payroll_runs', 'his_expenditures'
         ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
         const isPublicDelete = req.method === 'DELETE' && ([
@@ -2827,7 +2829,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'invoice_clients', 'company_invoice_settings',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-          'pm_utility_readings', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures'
+          'pm_utility_readings', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures',
+          'pm_tenants', 'pm_landlords', 'pm_properties', 'pm_units', 'pm_leases', 'pm_maintenance', 'pm_invoices', 'pm_payments', 'pm_meter_readings', 'pm_notices', 'pm_inspections', 'pm_deposit_refunds'
         ].includes(moduleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
