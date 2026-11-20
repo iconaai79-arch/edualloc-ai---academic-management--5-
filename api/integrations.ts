@@ -5,6 +5,8 @@ import { randomBytes } from 'crypto';
 import { Readable } from 'stream';
 import * as ftp from "basic-ftp";
 import fetch from "node-fetch";
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Self-contained Supabase service client factory to avoid external lib crashes
 const getSupabase = () => {
@@ -434,7 +436,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Priority 1: Mandatory Global Bypass for Test Handshakes & Configuration (Super Admin setup)
-    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'testNcbaAuth' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'sendEmail' || action === 'sendSms' || action === 'forgotPassword' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'ncbaGenerateQr' || action === 'ncbaQueryStk' || action === 'ncbaQueryStatus' || action === 'reconcileInternal' || action === 'initiateStkPush' || action === 'generateMpesaQr' || action === 'queryPaymentStatus' || action === 'stkPushQuery' || action === 'queryStkStatus' || action === 'sendAlumnaWelcome' || action === 'shortenUrl' || action === 'checkUrl';
+    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'testNcbaAuth' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'uploadStorage' || action === 'uploadLetterhead' || action === 'uploadFile' || action === 'sendEmail' || action === 'sendSms' || action === 'forgotPassword' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'ncbaGenerateQr' || action === 'ncbaQueryStk' || action === 'ncbaQueryStatus' || action === 'reconcileInternal' || action === 'initiateStkPush' || action === 'generateMpesaQr' || action === 'queryPaymentStatus' || action === 'stkPushQuery' || action === 'queryStkStatus' || action === 'sendAlumnaWelcome' || action === 'shortenUrl' || action === 'checkUrl';
     
     // Logic restored.
 
@@ -448,7 +450,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const authHeader = req.headers.authorization || (req.query.token as string ? `Bearer ${req.query.token}` : undefined);
         const supabase = getSupabase();
                 const hasDirectPgConfig = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.VITE_DATABASE_URL || process.env.SUPABASE_DB_URL);
-        if (!supabase && !hasDirectPgConfig && !['sendEmail', 'sendSms', 'forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'shortenUrl'].includes(action)) {
+        if (!supabase && !hasDirectPgConfig && !['sendEmail', 'sendSms', 'forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'shortenUrl', 'uploadStorage', 'uploadLetterhead', 'uploadFile'].includes(action)) {
             return res.status(503).json({
                 success: false,
                 message: 'Server configuration error: Database connection string missing.',
@@ -1155,7 +1157,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             'disconnectWhatsApp', 'saveWhatsAppConfig', 'mpesa-callback', 'ncbaWebhook', 
             'ncbaInitiateStk', 'ncbaGenerateQr', 'ncbaQueryStk', 'ncbaQueryStatus', 'testNcbaAuth', 'reconcileInternal',
             'initiateStkPush', 'generateMpesaQr', 'queryPaymentStatus', 'stkPushQuery', 'queryStkStatus',
-            'kcbInitiateStk', 'kcbIpn', 'kcbCallback', 'kcb-callback', 'shortenUrl', 'sendAlumnaWelcome'
+            'kcbInitiateStk', 'kcbIpn', 'kcbCallback', 'kcb-callback', 'shortenUrl', 'sendAlumnaWelcome',
+            'uploadStorage', 'uploadLetterhead', 'uploadFile'
         ].includes(action);
 
         if (!user && isPublicAction) {
@@ -1163,6 +1166,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // For callbacks, payment initiation, WhatsApp operations, and system setup, allow bypass directly
             if (
+                action === 'uploadStorage' || action === 'uploadLetterhead' || action === 'uploadFile' ||
                 action === 'sendEmail' || action === 'sendSms' ||
                 action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || 
                 action === 'ncbaGenerateQr' || action === 'ncbaQueryStk' || action === 'ncbaQueryStatus' || action === 'testNcbaAuth' || action === 'reconcileInternal' ||
@@ -7113,6 +7117,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } finally {
                 client.close();
             }
+        }
+
+        if (action === 'uploadStorage' || action === 'uploadLetterhead' || action === 'uploadFile') {
+            const rawPath = paramsMap.path || paramsMap.fileName || paramsMap.name || `letterhead_${Date.now()}.png`;
+            const rawData = paramsMap.fileData || paramsMap.content || paramsMap.file || paramsMap.data;
+            if (!rawData) {
+                return res.status(400).json({ success: false, message: 'Missing file data for upload.' });
+            }
+
+            // Clean & sanitize target path
+            let cleanPath = String(rawPath).replace(/^[\\\/]+/, '');
+            if (cleanPath.startsWith('storage/eduai/')) {
+                cleanPath = cleanPath.slice('storage/eduai/'.length);
+            } else if (cleanPath.startsWith('eduai/')) {
+                cleanPath = cleanPath.slice('eduai/'.length);
+            }
+            // Prevent path traversal
+            cleanPath = cleanPath.replace(/\.\.[\/\\]/g, '').replace(/^[\\\/]+/, '');
+            if (!cleanPath) {
+                cleanPath = `uploads/${Date.now()}_file.png`;
+            }
+
+            // Decode Base64 data
+            const base64Data = typeof rawData === 'string' ? rawData.replace(/^data:[^;]+;base64,/, '') : '';
+            const buffer = Buffer.from(base64Data, 'base64');
+
+            if (buffer.length === 0) {
+                return res.status(400).json({ success: false, message: 'Invalid or empty file payload.' });
+            }
+
+            // 1. Primary write to public/storage/eduai
+            const publicBase = path.resolve(process.cwd(), 'public', 'storage', 'eduai');
+            const publicTarget = path.resolve(publicBase, cleanPath);
+            fs.mkdirSync(path.dirname(publicTarget), { recursive: true });
+            fs.writeFileSync(publicTarget, buffer);
+
+            // 2. Mirror write to dist/storage/eduai (for immediate production static serving)
+            try {
+                const distBase = path.resolve(process.cwd(), 'dist', 'storage', 'eduai');
+                const distTarget = path.resolve(distBase, cleanPath);
+                fs.mkdirSync(path.dirname(distTarget), { recursive: true });
+                fs.writeFileSync(distTarget, buffer);
+            } catch (distErr) {
+                console.warn('[Integrations:Storage] Mirroring to dist directory note:', distErr);
+            }
+
+            const relativeUrl = `/storage/eduai/${cleanPath.replace(/\\/g, '/')}`;
+            console.log(`[Talksasa Storage Integrations] Successfully stored file: ${relativeUrl} (${buffer.length} bytes)`);
+
+            return res.status(200).json({
+                success: true,
+                url: relativeUrl,
+                path: cleanPath,
+                size: buffer.length
+            });
         }
 
         return res.status(400).json({ success: false, message: 'Action not supported.' });

@@ -1508,62 +1508,118 @@ export const apiService = {
                 return null;
             }
 
-            if (!_supabase) {
-                // Return as base64 for local development/offline mode
-                return new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.readAsDataURL(file!);
+            // Convert file to Base64 data string
+            const base64Data: string = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(file!);
+            });
+
+            // =========================================================================
+            // PRIORITY 1: Talksasa Direct Local Storage (/storage/eduai/)
+            // Persists files directly to Talksasa node filesystem (public & dist storage)
+            // =========================================================================
+            try {
+                const storageRes = await fetch('/api/storage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bucket: activeBucket,
+                        path: path,
+                        fileName: file.name,
+                        contentType: contentType || file.type,
+                        fileData: base64Data
+                    })
                 });
+
+                if (storageRes.ok) {
+                    const resJson = await storageRes.json();
+                    if (resJson && resJson.success && resJson.url) {
+                        console.info(`[Talksasa Storage] Uploaded successfully: ${resJson.url}`);
+                        return resJson.url;
+                    }
+                }
+            } catch (talksasaErr) {
+                console.warn('[Storage] /api/storage endpoint unreachable, attempting /api/integrations fallback...', talksasaErr);
             }
 
-            let { data, error } = await _supabase.storage
-                .from(activeBucket)
-                .upload(path, file, {
-                    upsert: true,
-                    cacheControl: '3600',
-                    contentType: contentType || file.type
+            // =========================================================================
+            // PRIORITY 2: Talksasa Integrations Action Fallback
+            // =========================================================================
+            try {
+                const integRes = await fetch('/api/integrations?action=uploadStorage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'uploadStorage',
+                        bucket: activeBucket,
+                        path: path,
+                        fileName: file.name,
+                        contentType: contentType || file.type,
+                        fileData: base64Data
+                    })
                 });
 
-            // Fallback to default 'eduai' bucket if custom bucket doesn't exist
-            if (error && activeBucket !== 'eduai') {
-                console.warn(`[Storage] Bucket '${activeBucket}' returned error (${error.message}). Retrying upload using default 'eduai' bucket...`);
-                activeBucket = 'eduai';
-                const retryRes = await _supabase.storage
-                    .from(activeBucket)
-                    .upload(path, file, {
-                        upsert: true,
-                        cacheControl: '3600',
-                        contentType: contentType || file.type
-                    });
-                data = retryRes.data;
-                error = retryRes.error;
+                if (integRes.ok) {
+                    const resJson = await integRes.json();
+                    if (resJson && resJson.success && resJson.url) {
+                        console.info(`[Talksasa Storage] Uploaded via integrations: ${resJson.url}`);
+                        return resJson.url;
+                    }
+                }
+            } catch (integErr) {
+                console.warn('[Storage] Talksasa integrations upload unreachable, attempting cloud fallback...', integErr);
             }
 
-            if (error) {
-                console.error(`[Storage] Supabase upload error (${activeBucket}/${path}):`, error);
-                console.warn(`[Storage] Falling back to Base64 data URL storage.`);
-                return new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.readAsDataURL(file!);
-                });
+            // =========================================================================
+            // PRIORITY 3: Supabase Cloud Storage Fallback (if configured & available)
+            // =========================================================================
+            if (_supabase) {
+                try {
+                    let { data, error } = await _supabase.storage
+                        .from(activeBucket)
+                        .upload(path, file, {
+                            upsert: true,
+                            cacheControl: '3600',
+                            contentType: contentType || file.type
+                        });
+
+                    if (error && activeBucket !== 'eduai') {
+                        activeBucket = 'eduai';
+                        const retryRes = await _supabase.storage
+                            .from(activeBucket)
+                            .upload(path, file, {
+                                upsert: true,
+                                cacheControl: '3600',
+                                contentType: contentType || file.type
+                            });
+                        data = retryRes.data;
+                        error = retryRes.error;
+                    }
+
+                    if (data) {
+                        const { data: { publicUrl } } = _supabase.storage
+                            .from(activeBucket)
+                            .getPublicUrl(path);
+
+                        return publicUrl;
+                    }
+                } catch (suErr) {
+                    console.warn('[Storage] Supabase storage upload failed:', suErr);
+                }
             }
 
-            if (data) {
-                const { data: { publicUrl } } = _supabase.storage
-                    .from(activeBucket)
-                    .getPublicUrl(path);
-
-                return publicUrl;
-            }
-
-            return null;
+            // =========================================================================
+            // PRIORITY 4: Graceful Base64 Inline Fallback (Offline / Dev)
+            // =========================================================================
+            console.warn('[Storage] Server storage unavailable, falling back to client-side data URL');
+            return base64Data;
         } catch (err: any) {
             console.error("Upload Service Exception:", err);
             const errMsg = String(err.message || err);
             if (errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') || errMsg.includes('fetch failed')) {
-                console.warn(`[Storage] Supabase host unreachable during upload exception. Falling back to local Base64 storage.`);
+                console.warn(`[Storage] Network exception during upload. Falling back to local Base64 storage.`);
                 if (file) {
                     return new Promise((resolve) => {
                         const reader = new FileReader();

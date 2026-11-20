@@ -64,6 +64,17 @@ function serveFile(res, filePath, contentType) {
 }
 
 const server = http.createServer((req, res) => {
+    // CORS headers for all API and storage calls
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') {
+        res.writeHead(200);
+        res.end();
+        return;
+    }
+
     // Health endpoint for cloud load balancers & Talksasa health checks
     if (req.url === '/health' || req.url === '/ping') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -74,6 +85,71 @@ const server = http.createServer((req, res) => {
     try {
         const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
         let pathname = decodeURIComponent(parsedUrl.pathname);
+
+        // Standalone Server-Side Storage Upload Handler (Talksasa Runtime)
+        if (req.method === 'POST' && (pathname === '/api/storage' || (pathname === '/api/integrations' && (req.url.includes('uploadStorage') || req.url.includes('uploadLetterhead') || req.url.includes('uploadFile'))))) {
+            let body = '';
+            req.on('data', chunk => {
+                body += chunk;
+                if (body.length > 50 * 1024 * 1024) { // 50MB limit
+                    res.writeHead(413, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Payload too large' }));
+                    req.destroy();
+                }
+            });
+            req.on('end', () => {
+                try {
+                    const parsed = body ? JSON.parse(body) : {};
+                    const rawPath = parsed.path || parsed.fileName || parsed.name || `letterhead_${Date.now()}.png`;
+                    const rawData = parsed.fileData || parsed.content || parsed.file || parsed.data;
+
+                    if (!rawData) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, message: 'Missing file data' }));
+                        return;
+                    }
+
+                    let cleanPath = String(rawPath).replace(/^[\\\/]+/, '');
+                    if (cleanPath.startsWith('storage/eduai/')) {
+                        cleanPath = cleanPath.slice('storage/eduai/'.length);
+                    } else if (cleanPath.startsWith('eduai/')) {
+                        cleanPath = cleanPath.slice('eduai/'.length);
+                    }
+                    cleanPath = cleanPath.replace(/\.\.[\/\\]/g, '').replace(/^[\\\/]+/, '');
+                    if (!cleanPath) cleanPath = `uploads/${Date.now()}_file.png`;
+
+                    const base64Data = typeof rawData === 'string' ? rawData.replace(/^data:[^;]+;base64,/, '') : '';
+                    const buffer = Buffer.from(base64Data, 'base64');
+
+                    // 1. Write to public/storage/eduai
+                    const publicBase = path.resolve(__dirname, 'public', 'storage', 'eduai');
+                    const publicTarget = path.resolve(publicBase, cleanPath);
+                    fs.mkdirSync(path.dirname(publicTarget), { recursive: true });
+                    fs.writeFileSync(publicTarget, buffer);
+
+                    // 2. Mirror to dist/storage/eduai
+                    try {
+                        const distBase = path.resolve(DIST_DIR, 'storage', 'eduai');
+                        const distTarget = path.resolve(distBase, cleanPath);
+                        fs.mkdirSync(path.dirname(distTarget), { recursive: true });
+                        fs.writeFileSync(distTarget, buffer);
+                    } catch (dErr) {
+                        console.warn('[Server Storage] Dist mirror note:', dErr);
+                    }
+
+                    const relativeUrl = `/storage/eduai/${cleanPath.replace(/\\/g, '/')}`;
+                    console.log(`[Talksasa Server Storage] Saved ${relativeUrl} (${buffer.length} bytes)`);
+
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true, url: relativeUrl, path: cleanPath, size: buffer.length }));
+                } catch (pErr) {
+                    console.error('[Server Storage] Parse error:', pErr);
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Upload processing failed', error: pErr.message }));
+                }
+            });
+            return;
+        }
 
         // Normalized requested file path in dist
         let safePath = path.normalize(pathname).replace(/^(\.\.[\/\\])+/, '');
@@ -88,23 +164,34 @@ const server = http.createServer((req, res) => {
                 return;
             }
 
-            // If it's a directory, check for index.html inside
-            if (!err && stats.isDirectory()) {
-                const subIndex = path.join(targetFile, 'index.html');
-                if (fs.existsSync(subIndex)) {
-                    serveFile(res, subIndex, 'text/html; charset=utf-8');
+            // Fallback: check public folder (ensures files uploaded at runtime are immediately served)
+            const publicFile = path.join(__dirname, 'public', safePath);
+            fs.stat(publicFile, (pubErr, pubStats) => {
+                if (!pubErr && pubStats.isFile()) {
+                    const ext = path.extname(publicFile).toLowerCase();
+                    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+                    serveFile(res, publicFile, contentType);
                     return;
                 }
-            }
 
-            // SPA Fallback: for all non-file route navigations, serve root index.html
-            const rootIndex = path.join(DIST_DIR, 'index.html');
-            if (fs.existsSync(rootIndex)) {
-                serveFile(res, rootIndex, 'text/html; charset=utf-8');
-            } else {
-                res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
-                res.end('<h1>EduAI Automation - Application Built Assets Not Found</h1><p>Please run npm run build first.</p>');
-            }
+                // If it's a directory, check for index.html inside
+                if (!err && stats && stats.isDirectory()) {
+                    const subIndex = path.join(targetFile, 'index.html');
+                    if (fs.existsSync(subIndex)) {
+                        serveFile(res, subIndex, 'text/html; charset=utf-8');
+                        return;
+                    }
+                }
+
+                // SPA Fallback: for all non-file route navigations, serve root index.html
+                const rootIndex = path.join(DIST_DIR, 'index.html');
+                if (fs.existsSync(rootIndex)) {
+                    serveFile(res, rootIndex, 'text/html; charset=utf-8');
+                } else {
+                    res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+                    res.end('<h1>EduAI Automation - Application Built Assets Not Found</h1><p>Please run npm run build first.</p>');
+                }
+            });
         });
     } catch (e) {
         console.error('[Server] Request handling error:', e);
