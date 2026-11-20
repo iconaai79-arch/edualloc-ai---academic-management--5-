@@ -1302,7 +1302,7 @@ export const App: React.FC = () => {
             'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin',
             'driving_instructor', 'staff', 'security', 'driver', 'event_manager',
             'sales', 'director', 'finance', 'reception', 'mechanic_admin',
-            'finance_officer', 'procurement_officer', 'managing_director', 'hoi',
+            'finance_officer', 'accounts_clerk', 'procurement_officer', 'managing_director', 'hoi',
             'operation_manager', 'operations_manager', 'manager'
         ].includes(activeRole || '');
     }, [currentUser, activeRole]);
@@ -4719,7 +4719,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         loadData(true);
         const role = currentUser?.role;
         const instId = currentUser?.institutionId || activeInstitution?.id;
-        if (instId && (role === 'finance_officer' || role === 'finance' || role === 'admin' || role === 'super_admin' || role === 'head_teacher' || role === 'procurement_officer')) {
+        if (instId && (role === 'finance_officer' || role === 'finance' || role === 'accounts_clerk' || role === 'admin' || role === 'super_admin' || role === 'head_teacher' || role === 'procurement_officer')) {
             apiService.prefetchFinanceRecords(instId).catch(() => {});
         }
     }, [currentUser?.id, currentUser?.institutionId, currentUser?.countyId, impersonatedRole, activityLogLimit, transactionLimit, receiptLimit, notificationLimit, activeInstitution?.id]);
@@ -9775,7 +9775,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             activityLog={activityLog}
                                         />
                                     </ModuleAccessGuard>
-                                ) : ((activeRole === 'finance_officer' || activeRole === 'finance' || activeRole === 'procurement_officer') && !isAutoMarket && !isInvoicingInstitution(activeInstitution)) ? (
+                                ) : ((activeRole === 'finance_officer' || activeRole === 'finance' || activeRole === 'accounts_clerk' || activeRole === 'procurement_officer') && !isAutoMarket && !isInvoicingInstitution(activeInstitution)) ? (
                                     <ModuleAccessGuard
                                         moduleId="finance"
                                         moduleName="Finance & Fees"
