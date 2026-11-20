@@ -1836,8 +1836,8 @@ const fetchViaDirectPg = async (
     if (err?.code === '42703' || errMsgStr.includes('column') || errMsgStr.includes('does not exist')) {
       const errMsg = errMsgStr;
 
-      // 0. If invoices or receipts has missing columns, trigger full schema & data heal
-      if (table === 'invoices' || table === 'receipts') {
+      // 0. If invoices, receipts, courses, or biometric_enrollments has missing columns, trigger full schema & data heal
+      if (table === 'invoices' || table === 'receipts' || table === 'biometric_enrollments' || table === 'courses') {
         try {
           _schemaMigrationDone = false;
           _schemaMigrationPromise = null;
@@ -1847,9 +1847,25 @@ const fetchViaDirectPg = async (
         } catch (_) {}
       }
 
-      // 1. Auto-heal missing requested_at, created_at, updated_at, sender_id, payment_date, institution_id, or branch_id column
-      if (errMsg.includes('requested_at') || errMsg.includes('requestedAt') || errMsg.includes('created_at') || errMsg.includes('updated_at') || errMsg.includes('sender_id') || errMsg.includes('senderId') || errMsg.includes('payment_date') || errMsg.includes('institution_id') || errMsg.includes('branch_id')) {
+      // 1. Auto-heal missing requested_at, created_at, updated_at, sender_id, staff_id, payment_date, institution_id, or branch_id column
+      if (errMsg.includes('requested_at') || errMsg.includes('requestedAt') || errMsg.includes('created_at') || errMsg.includes('updated_at') || errMsg.includes('sender_id') || errMsg.includes('senderId') || errMsg.includes('staff_id') || errMsg.includes('staffId') || errMsg.includes('device_pin') || errMsg.includes('devicePin') || errMsg.includes('payment_date') || errMsg.includes('institution_id') || errMsg.includes('branch_id')) {
         try {
+          if (errMsg.includes('staff_id') || errMsg.includes('staffId')) {
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS staff_id TEXT;`).catch(() => {});
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS "staffId" TEXT;`).catch(() => {});
+            await pool.query(`
+                UPDATE public."${table}" SET staff_id = "staffId" WHERE (staff_id IS NULL OR staff_id = '') AND "staffId" IS NOT NULL AND "staffId" <> '';
+                UPDATE public."${table}" SET "staffId" = staff_id WHERE ("staffId" IS NULL OR "staffId" = '') AND staff_id IS NOT NULL AND staff_id <> '';
+            `).catch(() => {});
+          }
+          if (errMsg.includes('device_pin') || errMsg.includes('devicePin')) {
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS device_pin TEXT;`).catch(() => {});
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS "devicePin" TEXT;`).catch(() => {});
+            await pool.query(`
+                UPDATE public."${table}" SET device_pin = "devicePin" WHERE (device_pin IS NULL OR device_pin = '') AND "devicePin" IS NOT NULL AND "devicePin" <> '';
+                UPDATE public."${table}" SET "devicePin" = device_pin WHERE ("devicePin" IS NULL OR "devicePin" = '') AND device_pin IS NOT NULL AND device_pin <> '';
+            `).catch(() => {});
+          }
           if (errMsg.includes('requested_at') || errMsg.includes('requestedAt')) {
             await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS requested_at TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
             await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS "requestedAt" TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
@@ -7595,36 +7611,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const allowedReceiptCols = new Set([
                             'id', 'receipt_number', 'institution_id', 'branch_id',
                             'payment_date', 'amount_paid', 'amount', 'paid_for', 'payment_method',
-                            'related_transaction_id', 'invoice_id', 'student_id', 'student_name', 'admission_number',
-                            'notes', 'metadata', 'created_at', 'updated_at'
-                        ]);
-                        Object.keys(copy).forEach(k => {
-                            if (!allowedReceiptCols.has(k)) {
-                                delete copy[k];
-                            }
-                        });
-                        if (!copy.branch_id || copy.branch_id === copy.institution_id || copy.branch_id.startsWith('inst_')) {
-                            delete copy.branch_id;
-                        }
-                    }
-
-                    return copy;
-                };
-                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanBillingRecord) : cleanBillingRecord(currentPayload);
-            } else if (moduleName === 'books') {
-                const cleanBookRecord = (item: any) => {
-                    if (!item || typeof item !== 'object') return item;
-                    const copy = { ...item };
-                    delete copy.available_copies;
-                    delete copy.availableCopies;
-                    delete copy.total_copies;
-                    delete copy.totalCopies;
-                    return copy;
-                };
-                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanBookRecord) : cleanBookRecord(currentPayload);
-            } else if (moduleName === 'visitors') {
-                const cleanVisitorRecord = (item: any) => {
-                    if (!item || typeof item !== 'object') return item;
                         } else if (cleanRole === 'parent' && phone) {
                             const cleanPhone = String(phone).replace(/[^0-9]/g, '');
                             copy.email = `parent_${cleanPhone || cleanId}@eduai.local`;
@@ -9182,32 +9168,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const isSafeId = (s: string) => /^[a-zA-Z0-9_-]+$/.test(s);
 
                             let existingRow: any = null;
-                            if (isSafeId(trimmedInst) && isSafeId(cleanInst) && isSafeId(prefixedInst)) {
-                                const { data: found } = await executeWithTimeout(
-                                    supabase
-                                        .from('institution_module_states')
-                                        .select('id')
-                                        .or(`institution_id.eq.${trimmedInst},institution_id.eq.${cleanInst},institution_id.eq.${prefixedInst}`)
-                                        .eq('module_id', it.module_id)
-                                        .order('updated_at', { ascending: false })
-                                        .limit(1)
-                                        .maybeSingle(),
-                                    2500
-                                ).catch(() => ({ data: null }));
-                                existingRow = found;
+                            if (supabase) {
+                                if (isSafeId(trimmedInst) && isSafeId(cleanInst) && isSafeId(prefixedInst)) {
+                                    const { data: found } = await executeWithTimeout(
+                                        supabase
+                                            .from('institution_module_states')
+                                            .select('id')
+                                            .or(`institution_id.eq.${trimmedInst},institution_id.eq.${cleanInst},institution_id.eq.${prefixedInst}`)
+                                            .eq('module_id', it.module_id)
+                                            .order('updated_at', { ascending: false })
+                                            .limit(1)
+                                            .maybeSingle(),
+                                        2500
+                                    ).catch(() => ({ data: null }));
+                                    existingRow = found;
+                                } else {
+                                    const { data: found } = await executeWithTimeout(
+                                        supabase
+                                            .from('institution_module_states')
+                                            .select('id')
+                                            .eq('institution_id', trimmedInst)
+                                            .eq('module_id', it.module_id)
+                                            .order('updated_at', { ascending: false })
+                                            .limit(1)
+                                            .maybeSingle(),
+                                        2500
+                                    ).catch(() => ({ data: null }));
+                                    existingRow = found;
+                                }
                             } else {
-                                const { data: found } = await executeWithTimeout(
-                                    supabase
-                                        .from('institution_module_states')
-                                        .select('id')
-                                        .eq('institution_id', trimmedInst)
-                                        .eq('module_id', it.module_id)
-                                        .order('updated_at', { ascending: false })
-                                        .limit(1)
-                                        .maybeSingle(),
-                                    2500
-                                ).catch(() => ({ data: null }));
-                                existingRow = found;
+                                const pool = await getPgPool();
+                                if (pool) {
+                                    const pgRes = await executeWithTimeout(
+                                        pool.query(
+                                            `SELECT id FROM public.institution_module_states 
+                                             WHERE (institution_id = $1 OR "institutionId" = $1) 
+                                               AND module_id = $2 
+                                             ORDER BY updated_at DESC LIMIT 1`,
+                                            [trimmedInst, it.module_id]
+                                        ),
+                                        2500
+                                    ).catch(() => null);
+                                    if (pgRes?.rows?.[0]) existingRow = pgRes.rows[0];
+                                }
                             }
 
                             if (existingRow?.id) {
@@ -9478,11 +9481,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     const upsertQuery = `INSERT INTO public."${targetDbTable}" (${keys.map(k => `"${k}"`).join(', ')}) VALUES (${placeholders.join(', ')}) ${onConflictClause} RETURNING *;`;
                                     const upRes = await pool.query(upsertQuery, vals).catch(async (e: any) => {
                                         console.warn(`[Direct PG Upsert Warning on ${targetDbTable}]:`, e?.message);
-                                        if (targetDbTable === 'invoices' || targetDbTable === 'receipts' || e?.code === '42703' || e?.code === '23503' || e?.code === '42P01') {
+                                        if (targetDbTable === 'invoices' || targetDbTable === 'receipts' || targetDbTable === 'biometric_enrollments' || targetDbTable === 'courses' || e?.code === '42703' || e?.code === '23503' || e?.code === '42P01') {
                                             try {
                                                 _schemaMigrationDone = false;
                                                 _schemaMigrationPromise = null;
                                                 await ensureEssentialSchema(pool);
+
+                                                // If error 42703, check if missing column name can be extracted and added directly
+                                                const msg = String(e?.message || '');
+                                                const missingColMatch = msg.match(/column "([^"]+)" of relation "([^"]+)" does not exist/i) || msg.match(/column "([^"]+)" does not exist/i);
+                                                if (missingColMatch && missingColMatch[1]) {
+                                                    const col = missingColMatch[1];
+                                                    await pool.query(`ALTER TABLE public."${targetDbTable}" ADD COLUMN IF NOT EXISTS "${col}" TEXT;`).catch(() => {});
+                                                }
+
                                                 return await pool.query(upsertQuery, vals);
                                             } catch (retryErr: any) {
                                                 console.warn(`[Direct PG Upsert Retry Warning on ${targetDbTable}]:`, retryErr?.message);
@@ -12429,11 +12441,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 const updateSql = `UPDATE public."${targetDbTable}" SET ${setClauses.join(', ')} WHERE "id" IN (${idPlaceholders.join(', ')}) RETURNING *;`;
                                 let patchRes = await pool.query(updateSql, vals).catch(async (e: any) => {
                                     console.warn(`[Direct PG Update Warning on ${targetDbTable}]:`, e?.message);
-                                    if (targetDbTable === 'invoices' || targetDbTable === 'receipts' || targetDbTable === 'finance_numbering_configs' || e?.code === '42703' || e?.code === '23503' || e?.code === '42P01') {
+                                    if (targetDbTable === 'invoices' || targetDbTable === 'receipts' || targetDbTable === 'finance_numbering_configs' || targetDbTable === 'biometric_enrollments' || targetDbTable === 'courses' || e?.code === '42703' || e?.code === '23503' || e?.code === '42P01') {
                                         try {
                                             _schemaMigrationDone = false;
                                             _schemaMigrationPromise = null;
                                             await ensureEssentialSchema(pool);
+                                            const msg = String(e?.message || '');
+                                            const missingColMatch = msg.match(/column "([^"]+)" of relation "([^"]+)" does not exist/i) || msg.match(/column "([^"]+)" does not exist/i);
+                                            if (missingColMatch && missingColMatch[1]) {
+                                                const col = missingColMatch[1];
+                                                await pool.query(`ALTER TABLE public."${targetDbTable}" ADD COLUMN IF NOT EXISTS "${col}" TEXT;`).catch(() => {});
+                                            }
                                             return await pool.query(updateSql, vals);
                                         } catch (_) {}
                                     }
