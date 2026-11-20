@@ -123,15 +123,17 @@ BEGIN
     v_with_prefix := 'inst_' || v_clean_id;
 
     -- Check if institution is a Driving School
-    SELECT EXISTS (
-        SELECT 1 FROM public.institutions 
-        WHERE (id = p_inst_id OR id = v_clean_id OR id = v_with_prefix)
-          AND (
-            LOWER(COALESCE(institution_type, '')) LIKE '%driving%' OR
-            LOWER(COALESCE(category, '')) LIKE '%driving%' OR
-            LOWER(COALESCE(name, '')) LIKE '%driving%'
-          )
-    ) INTO v_is_ds;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'institutions') THEN
+        SELECT EXISTS (
+            SELECT 1 FROM public.institutions 
+            WHERE (id = p_inst_id OR id = v_clean_id OR id = v_with_prefix)
+              AND (
+                LOWER(COALESCE(institution_type, '')) LIKE '%driving%' OR
+                LOWER(COALESCE(category, '')) LIKE '%driving%' OR
+                LOWER(COALESCE(name, '')) LIKE '%driving%'
+              )
+        ) INTO v_is_ds;
+    END IF;
 
     v_category := CASE WHEN LOWER(p_type) = 'sms' THEN 'Utilities' ELSE 'Operations' END;
     v_exp_id := 'exp_' || LOWER(p_type) || '_' || EXTRACT(EPOCH FROM NOW())::BIGINT || '_' || SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 4);
@@ -157,7 +159,7 @@ BEGIN
     END IF;
 
     -- 2. If Driving School, insert into public.ds_expenditures as well
-    IF v_is_ds THEN
+    IF v_is_ds AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_expenditures') THEN
         v_ds_exp_id := 'dsexp_' || LOWER(p_type) || '_' || EXTRACT(EPOCH FROM NOW())::BIGINT || '_' || SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 4);
         IF NOT EXISTS (
             SELECT 1 FROM public.ds_expenditures
@@ -185,45 +187,87 @@ DECLARE
     r RECORD;
     v_type TEXT;
     v_desc TEXT;
-    v_ref TEXT;
+    v_units TEXT;
+    v_plan TEXT;
+    v_has_txns_table BOOLEAN;
+    v_has_metadata_col BOOLEAN;
 BEGIN
-    FOR r IN 
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'mpesa_transactions'
+    ) INTO v_has_txns_table;
+
+    IF NOT v_has_txns_table THEN
+        RAISE NOTICE 'public.mpesa_transactions does not exist, skipping backfill.';
+        RETURN;
+    END IF;
+
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'mpesa_transactions' AND column_name = 'metadata'
+    ) INTO v_has_metadata_col;
+
+    IF NOT v_has_metadata_col THEN
+        RAISE NOTICE 'public.mpesa_transactions.metadata column does not exist, skipping backfill.';
+        RETURN;
+    END IF;
+
+    -- Dynamic SQL loop: type-safe regex matching that works regardless of whether metadata is TEXT, VARCHAR, JSON or JSONB
+    FOR r IN EXECUTE 
+        $query$
         SELECT 
-            t.institution_id,
-            t.amount,
-            t.phone_number,
-            t.metadata,
-            t.transaction_id,
-            t.id,
-            COALESCE(t.payment_method, 'M-Pesa') AS payment_method
+            t.institution_id::text,
+            t.amount::numeric,
+            COALESCE(t.metadata::text, '') AS metadata_raw,
+            COALESCE(t.transaction_id::text, t.id::text) AS ref_no,
+            'M-Pesa' AS payment_method
         FROM public.mpesa_transactions t
         WHERE t.status = 'completed'
           AND t.amount > 0
           AND t.institution_id IS NOT NULL 
-          AND t.institution_id NOT IN ('GLOBAL', 'SYSTEM')
+          AND t.institution_id::text NOT IN ('GLOBAL', 'SYSTEM', 'null', '')
           AND (
-            LOWER(COALESCE(t.metadata->>'type', '')) IN ('sms', 'sms_topup', 'subscription', 'license')
-            OR LOWER(COALESCE(t.metadata->>'purpose', '')) IN ('sms', 'subscription')
+            LOWER(t.metadata::text) ~ '"type"\s*:\s*"(sms|sms_topup)"'
+            OR LOWER(t.metadata::text) ~ '"purpose"\s*:\s*"sms"'
+            OR LOWER(t.metadata::text) ~ '"type"\s*:\s*"(subscription|license)"'
+            OR LOWER(t.metadata::text) ~ '"purpose"\s*:\s*"subscription"'
           )
+        $query$
     LOOP
-        v_type := LOWER(COALESCE(r.metadata->>'type', r.metadata->>'purpose', ''));
-        IF v_type LIKE '%sms%' THEN
-            v_type := 'sms';
-            v_desc := 'SMS Units Purchase - ' || COALESCE(r.metadata->>'units', 'Top-up') || ' units';
-        ELSE
-            v_type := 'subscription';
-            v_desc := 'Subscription Renewal (' || COALESCE(r.metadata->>'plan', 'Enterprise') || ')';
-        END IF;
-        v_ref := COALESCE(r.transaction_id, r.id);
+        BEGIN
+            IF LOWER(r.metadata_raw) ~ '"(type|purpose)"\s*:\s*"sms' THEN
+                v_type := 'sms';
+                v_units := SUBSTRING(r.metadata_raw FROM '"units"\s*:\s*"?([0-9]+)"?');
+                IF v_units IS NOT NULL AND v_units <> '' THEN
+                    v_desc := 'SMS Units Purchase - ' || v_units || ' units';
+                ELSE
+                    v_desc := 'SMS Units Purchase';
+                END IF;
+            ELSE
+                v_type := 'subscription';
+                v_plan := SUBSTRING(r.metadata_raw FROM '"plan"\s*:\s*"([^"]+)"');
+                IF v_plan IS NOT NULL AND v_plan <> '' THEN
+                    v_desc := 'Subscription Renewal (' || INITCAP(v_plan) || ')';
+                ELSE
+                    v_desc := 'Software Subscription Renewal';
+                END IF;
+            END IF;
 
-        PERFORM public.record_platform_expense_entry(
-            r.institution_id,
-            r.amount,
-            v_type,
-            v_desc,
-            r.payment_method,
-            v_ref,
-            'System Backfill'
-        );
+            PERFORM public.record_platform_expense_entry(
+                r.institution_id,
+                r.amount,
+                v_type,
+                v_desc,
+                r.payment_method,
+                r.ref_no,
+                'System Backfill'
+            );
+        EXCEPTION WHEN OTHERS THEN
+            NULL;
+        END;
     END LOOP;
+    
+    RAISE NOTICE 'Auto-expense migration & backfill completed successfully.';
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'Backfill notice: %', SQLERRM;
 END $$;
