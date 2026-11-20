@@ -7611,6 +7611,95 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const allowedReceiptCols = new Set([
                             'id', 'receipt_number', 'institution_id', 'branch_id',
                             'payment_date', 'amount_paid', 'amount', 'paid_for', 'payment_method',
+                            'related_transaction_id', 'invoice_id', 'student_id', 'student_name', 'admission_number',
+                            'notes', 'metadata', 'created_at', 'updated_at'
+                        ]);
+                        Object.keys(copy).forEach(k => {
+                            if (!allowedReceiptCols.has(k)) {
+                                delete copy[k];
+                            }
+                        });
+                        if (!copy.branch_id || copy.branch_id === copy.institution_id || copy.branch_id.startsWith('inst_')) {
+                            delete copy.branch_id;
+                        }
+                    }
+
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanBillingRecord) : cleanBillingRecord(currentPayload);
+            } else if (moduleName === 'books') {
+                const cleanBookRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    delete copy.available_copies;
+                    delete copy.availableCopies;
+                    delete copy.total_copies;
+                    delete copy.totalCopies;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanBookRecord) : cleanBookRecord(currentPayload);
+            } else if (moduleName === 'users' || targetDbTable === 'users') {
+                const rawUserItems = Array.isArray(currentPayload) ? currentPayload : [currentPayload];
+                const idsNeedingEmail = rawUserItems
+                    .filter((u: any) => u && typeof u === 'object' && (!u.email || typeof u.email !== 'string' || !u.email.trim() || u.email.trim().toLowerCase() === 'null' || u.email.trim().toLowerCase() === 'undefined') && u.id)
+                    .map((u: any) => u.id);
+
+                let existingUserEmailMap = new Map<string, string>();
+                if (idsNeedingEmail.length > 0) {
+                    try {
+                        if (supabase) {
+                            const { data: dbExistingUsers } = await supabase
+                                .from('users')
+                                .select('id, email')
+                                .in('id', idsNeedingEmail);
+                            if (dbExistingUsers && Array.isArray(dbExistingUsers)) {
+                                dbExistingUsers.forEach((row: any) => {
+                                    if (row.id && row.email && String(row.email).trim() && String(row.email).trim().toLowerCase() !== 'null') {
+                                        existingUserEmailMap.set(row.id, String(row.email).trim().toLowerCase());
+                                    }
+                                });
+                            }
+                        } else {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                const idPhs = idsNeedingEmail.map((_, i) => `$${i + 1}`).join(', ');
+                                const dbRes = await pool.query(`SELECT id, email FROM public.users WHERE id IN (${idPhs})`, idsNeedingEmail).catch(() => null);
+                                if (dbRes?.rows) {
+                                    dbRes.rows.forEach((row: any) => {
+                                        if (row.id && row.email && String(row.email).trim()) {
+                                            existingUserEmailMap.set(row.id, String(row.email).trim().toLowerCase());
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    } catch (_) {}
+                }
+
+                const cleanUserRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+
+                    // Ensure email is valid and never violates NOT NULL constraint on relation 'users'
+                    if (typeof copy.email === 'string' && copy.email.trim() && copy.email.trim().toLowerCase() !== 'null' && copy.email.trim().toLowerCase() !== 'undefined') {
+                        copy.email = copy.email.trim().toLowerCase();
+                    } else if (copy.id && existingUserEmailMap.has(copy.id)) {
+                        copy.email = existingUserEmailMap.get(copy.id);
+                    } else {
+                        const rawId = copy.id || `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                        const cleanId = String(rawId).replace(/^u_/, '').replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+                        const cleanRole = String(copy.role || (moduleName === 'students' ? 'student' : (moduleName === 'teachers' ? 'teacher' : 'user'))).toLowerCase().replace(/[^a-zA-Z0-9_]/g, '');
+                        const phone = copy.phone_number || copy.phoneNumber || copy.phone;
+                        const admNo = copy.admission_number || copy.admissionNumber || copy.admissionNo || meta.admissionNumber;
+                        const staffId = copy.staff_id || copy.staffId;
+
+                        if (cleanRole === 'student' && admNo) {
+                            const cleanAdm = String(admNo).replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+                            copy.email = `student_${cleanAdm}_${cleanId.slice(-4)}@eduai.local`;
+                        } else if ((cleanRole === 'teacher' || cleanRole === 'lecturer' || cleanRole === 'staff') && staffId) {
+                            const cleanStaff = String(staffId).replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+                            copy.email = `staff_${cleanStaff}_${cleanId.slice(-4)}@eduai.local`;
                         } else if (cleanRole === 'parent' && phone) {
                             const cleanPhone = String(phone).replace(/[^0-9]/g, '');
                             copy.email = `parent_${cleanPhone || cleanId}@eduai.local`;
