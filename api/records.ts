@@ -283,6 +283,62 @@ const ensureEssentialSchema = async (pool: any) => {
         ALTER TABLE public.commission_withdrawal_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
         UPDATE public.commission_withdrawal_requests SET requested_at = COALESCE(requested_at, "requestedAt", created_at, NOW()) WHERE requested_at IS NULL;
 
+        -- Ensure sms_logs & sms_outbox tables exist with sender_id and relaxed FK constraints
+        CREATE TABLE IF NOT EXISTS public.sms_logs (
+            id TEXT PRIMARY KEY DEFAULT ('smslog_' || extract(epoch from now())::text || '_' || substr(md5(random()::text), 1, 6)),
+            institution_id TEXT,
+            "institutionId" TEXT,
+            sender_id TEXT,
+            "senderId" TEXT,
+            recipient TEXT NOT NULL DEFAULT 'N/A',
+            message TEXT NOT NULL DEFAULT 'SMS notification',
+            units NUMERIC DEFAULT 1,
+            status TEXT DEFAULT 'sent',
+            provider TEXT,
+            gateway_response JSONB DEFAULT '{}'::jsonb,
+            "gatewayResponse" JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            "createdAt" TIMESTAMPTZ DEFAULT NOW()
+        );
+        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS sender_id TEXT;
+        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS "senderId" TEXT;
+        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS institution_id TEXT;
+        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS recipient TEXT DEFAULT 'N/A';
+        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS message TEXT DEFAULT 'SMS notification';
+        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS units NUMERIC DEFAULT 1;
+        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'sent';
+        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS provider TEXT;
+        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS gateway_response JSONB DEFAULT '{}'::jsonb;
+        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS "gatewayResponse" JSONB DEFAULT '{}'::jsonb;
+        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ DEFAULT NOW();
+        ALTER TABLE public.sms_logs DROP CONSTRAINT IF EXISTS sms_logs_institution_id_fkey CASCADE;
+        ALTER TABLE public.sms_logs DROP CONSTRAINT IF EXISTS sms_logs_sender_id_fkey CASCADE;
+        ALTER TABLE public.sms_logs DROP CONSTRAINT IF EXISTS fk_sms_logs_institution CASCADE;
+        ALTER TABLE public.sms_logs DROP CONSTRAINT IF EXISTS fk_sms_logs_sender CASCADE;
+        UPDATE public.sms_logs SET sender_id = COALESCE(sender_id, "senderId") WHERE sender_id IS NULL AND "senderId" IS NOT NULL;
+        UPDATE public.sms_logs SET "senderId" = COALESCE("senderId", sender_id) WHERE "senderId" IS NULL AND sender_id IS NOT NULL;
+        UPDATE public.sms_logs SET institution_id = COALESCE(institution_id, "institutionId") WHERE institution_id IS NULL AND "institutionId" IS NOT NULL;
+        UPDATE public.sms_logs SET "institutionId" = COALESCE("institutionId", institution_id) WHERE "institutionId" IS NULL AND institution_id IS NOT NULL;
+
+        CREATE TABLE IF NOT EXISTS public.sms_outbox (
+            id TEXT PRIMARY KEY DEFAULT ('smsout_' || extract(epoch from now())::text || '_' || substr(md5(random()::text), 1, 6)),
+            institution_id TEXT,
+            "institutionId" TEXT,
+            sender_id TEXT,
+            "senderId" TEXT,
+            recipient TEXT,
+            message TEXT,
+            units NUMERIC DEFAULT 1,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        ALTER TABLE public.sms_outbox ADD COLUMN IF NOT EXISTS sender_id TEXT;
+        ALTER TABLE public.sms_outbox ADD COLUMN IF NOT EXISTS "senderId" TEXT;
+        ALTER TABLE public.sms_outbox ADD COLUMN IF NOT EXISTS institution_id TEXT;
+        ALTER TABLE public.sms_outbox ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+
         -- 0e. Ensure building_floors, building_offices, and visitor tables exist
         CREATE TABLE IF NOT EXISTS public.building_floors (
             id TEXT PRIMARY KEY,
@@ -1659,13 +1715,18 @@ const fetchViaDirectPg = async (
         } catch (_) {}
       }
 
-      // 1. Auto-heal missing requested_at, created_at, updated_at, payment_date, institution_id, or branch_id column
-      if (errMsg.includes('requested_at') || errMsg.includes('requestedAt') || errMsg.includes('created_at') || errMsg.includes('updated_at') || errMsg.includes('payment_date') || errMsg.includes('institution_id') || errMsg.includes('branch_id')) {
+      // 1. Auto-heal missing requested_at, created_at, updated_at, sender_id, payment_date, institution_id, or branch_id column
+      if (errMsg.includes('requested_at') || errMsg.includes('requestedAt') || errMsg.includes('created_at') || errMsg.includes('updated_at') || errMsg.includes('sender_id') || errMsg.includes('senderId') || errMsg.includes('payment_date') || errMsg.includes('institution_id') || errMsg.includes('branch_id')) {
         try {
           if (errMsg.includes('requested_at') || errMsg.includes('requestedAt')) {
             await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS requested_at TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
             await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS "requestedAt" TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
             await pool.query(`UPDATE public."${table}" SET requested_at = COALESCE(requested_at, "requestedAt", created_at, NOW()) WHERE requested_at IS NULL;`).catch(() => {});
+          }
+          if (errMsg.includes('sender_id') || errMsg.includes('senderId')) {
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS sender_id TEXT;`).catch(() => {});
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS "senderId" TEXT;`).catch(() => {});
+            await pool.query(`ALTER TABLE public."${table}" DROP CONSTRAINT IF EXISTS sms_logs_sender_id_fkey CASCADE;`).catch(() => {});
           }
           if (errMsg.includes('created_at')) {
             await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
@@ -9777,6 +9838,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             return copy;
                         };
                         currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripDemoCol) : stripDemoCol(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
+                    if (moduleName === 'sms_logs' || targetDbTable === 'sms_logs' || moduleName === 'sms_outbox' || targetDbTable === 'sms_outbox') {
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await executeWithTimeout(
+                                    pool.query(`
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS sender_id TEXT;
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS "senderId" TEXT;
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS recipient TEXT DEFAULT 'N/A';
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS message TEXT DEFAULT 'SMS notification';
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS units NUMERIC DEFAULT 1;
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'sent';
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS provider TEXT;
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS gateway_response JSONB DEFAULT '{}'::jsonb;
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS "gatewayResponse" JSONB DEFAULT '{}'::jsonb;
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                                        ALTER TABLE public.sms_logs DROP CONSTRAINT IF EXISTS sms_logs_institution_id_fkey CASCADE;
+                                        ALTER TABLE public.sms_logs DROP CONSTRAINT IF EXISTS sms_logs_sender_id_fkey CASCADE;
+                                        NOTIFY pgrst, 'reload schema';
+                                    `),
+                                    2500
+                                ).catch(() => {});
+                            }
+                        } catch (_) {}
+
+                        const stripSmsCol = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            delete copy[offendingCol];
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripSmsCol) : stripSmsCol(currentPayload);
                         maxRetries--;
                         continue;
                     }

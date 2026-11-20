@@ -2436,8 +2436,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             );
                         }
                     }
-                } catch (logErr) {
-                    console.error('[SMS Logging] Failed to record SMS log:', logErr);
+                } catch (logErr: any) {
+                    const errStr = String(logErr?.message || logErr || '');
+                    if (errStr.includes('sender_id') || errStr.includes('column') || errStr.includes('relation') || logErr?.code === '42703' || logErr?.code === '42P01') {
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await pool.query(`
+                                    CREATE TABLE IF NOT EXISTS public.sms_logs (
+                                        id TEXT PRIMARY KEY DEFAULT ('smslog_' || extract(epoch from now())::text || '_' || substr(md5(random()::text), 1, 6)),
+                                        institution_id TEXT,
+                                        sender_id TEXT,
+                                        recipient TEXT NOT NULL DEFAULT 'N/A',
+                                        message TEXT NOT NULL DEFAULT 'SMS notification',
+                                        units NUMERIC DEFAULT 1,
+                                        status TEXT DEFAULT 'sent',
+                                        provider TEXT,
+                                        gateway_response JSONB DEFAULT '{}'::jsonb,
+                                        created_at TIMESTAMPTZ DEFAULT NOW()
+                                    );
+                                    ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS sender_id TEXT;
+                                    ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS "senderId" TEXT;
+                                    ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                                    ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                    ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS recipient TEXT DEFAULT 'N/A';
+                                    ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS message TEXT DEFAULT 'SMS notification';
+                                    ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS units NUMERIC DEFAULT 1;
+                                    ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'sent';
+                                    ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS provider TEXT;
+                                    ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS gateway_response JSONB DEFAULT '{}'::jsonb;
+                                    ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS "gatewayResponse" JSONB DEFAULT '{}'::jsonb;
+                                    ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+                                    ALTER TABLE public.sms_logs DROP CONSTRAINT IF EXISTS sms_logs_institution_id_fkey CASCADE;
+                                    ALTER TABLE public.sms_logs DROP CONSTRAINT IF EXISTS sms_logs_sender_id_fkey CASCADE;
+                                    NOTIFY pgrst, 'reload schema';
+                                `).catch(() => {});
+                                await pool.query(
+                                    'INSERT INTO public.sms_logs (id, institution_id, sender_id, recipient, message, units, status, provider) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+                                    [
+                                        `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                                        (effectiveBillableInstId && effectiveBillableInstId !== 'GLOBAL' && effectiveBillableInstId !== 'SYSTEM') ? effectiveBillableInstId : null,
+                                        (user?.id === 'system' || !user?.id) ? null : user.id,
+                                        normalizedRecipients.length === 1 ? normalizedRecipients[0] : `${normalizedRecipients.length} recipients`,
+                                        message,
+                                        totalUnitsToDeduct,
+                                        'sent',
+                                        chosenProvider
+                                    ]
+                                ).catch(() => {});
+                            }
+                        } catch (_) {}
+                    } else {
+                        console.error('[SMS Logging] Failed to record SMS log:', logErr);
+                    }
                 }
             }
 
@@ -2761,8 +2812,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 dual_email_sent: emailSent
                             }
                         });
-                    } catch (logErr) {
-                        console.error('[SMS Logging] Failed to record OTP SMS log:', logErr);
+                    } catch (logErr: any) {
+                        const errStr = String(logErr?.message || logErr || '');
+                        if (errStr.includes('sender_id') || errStr.includes('column') || errStr.includes('relation') || logErr?.code === '42703' || logErr?.code === '42P01') {
+                            try {
+                                const pool = await getPgPool();
+                                if (pool) {
+                                    await pool.query(`
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS sender_id TEXT;
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS "senderId" TEXT;
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                                        ALTER TABLE public.sms_logs ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                        ALTER TABLE public.sms_logs DROP CONSTRAINT IF EXISTS sms_logs_sender_id_fkey CASCADE;
+                                        NOTIFY pgrst, 'reload schema';
+                                    `).catch(() => {});
+                                    await pool.query(
+                                        'INSERT INTO public.sms_logs (id, institution_id, sender_id, recipient, message, units, status, provider) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+                                        [
+                                            `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                                            (targetInstId && targetInstId !== 'GLOBAL' && targetInstId !== 'SYSTEM') ? targetInstId : null,
+                                            targetUser.id,
+                                            phone,
+                                            'Password Reset OTP',
+                                            1,
+                                            'sent',
+                                            dispatchResult.provider
+                                        ]
+                                    ).catch(() => {});
+                                }
+                            } catch (_) {}
+                        } else {
+                            console.error('[SMS Logging] Failed to record OTP SMS log:', logErr);
+                        }
                     }
                 }
 
