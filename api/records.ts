@@ -5422,7 +5422,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 }
                             });
 
+                            const targetInstNorm = String(targetInst || '').trim().toLowerCase().replace(/^inst_/, '');
                             const missingRows = studentRows.filter((u: any) => {
+                                if (!u) return false;
+                                // Strict tenant check: never auto-enroll users belonging to another institution
+                                const uInstNorm = String(u.institution_id || u.institutionId || '').trim().toLowerCase().replace(/^inst_/, '');
+                                if (targetInstNorm && (!uInstNorm || uInstNorm !== targetInstNorm)) return false;
+                                // Skip users whose enrollment was explicitly deleted
+                                if (u.metadata?.enrollmentDeleted === true || String(u.status || '').toLowerCase() === 'deleted') return false;
+
                                 const uId = String(u.id || '').trim().toLowerCase();
                                 const rawUid = uId.replace(/^u_/, '');
                                 const adm = String(u.admission_number || u.metadata?.admissionNumber || u.metadata?.admNo || '').trim().toLowerCase();

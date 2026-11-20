@@ -658,25 +658,38 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         if (globalEnrollmentCache[cacheKey]) {
             return globalEnrollmentCache[cacheKey];
         }
-        let localEnrs: StudentEnrollment[] = (initialEnrollments && initialEnrollments.length > 0) ? [...initialEnrollments] : [];
+        const normInstId = (val: any) => String(val || '').trim().toLowerCase().replace(/^inst_/, '');
+        const targetInstNorm = normInstId(instId);
+        const matchesInst = (item: any) => {
+            if (!item) return false;
+            if (!targetInstNorm) return true;
+            const itemInst = normInstId(item.institutionId || item.institution_id || item.metadata?.institutionId || item.metadata?.institution_id);
+            return itemInst !== '' && itemInst === targetInstNorm;
+        };
+
+        let localEnrs: StudentEnrollment[] = (initialEnrollments && initialEnrollments.length > 0)
+            ? initialEnrollments.filter(matchesInst)
+            : [];
         let localUsers: User[] = [];
         try {
             if (localEnrs.length === 0) {
                 const savedEnrs = localStorage.getItem(`eduai_student_enrollments_${instId}`) || 
                                   localStorage.getItem(`eduai_student_enrollments_${instId.replace(/^inst_/, '')}`) ||
                                   localStorage.getItem('eduai_student_enrollments');
-                if (savedEnrs) localEnrs = JSON.parse(savedEnrs) || [];
+                if (savedEnrs) localEnrs = (JSON.parse(savedEnrs) || []).filter(matchesInst);
             }
             const savedUsers = localStorage.getItem(`eduai_users_${instId}`) ||
                                localStorage.getItem(`eduai_users_${instId.replace(/^inst_/, '')}`) ||
                                localStorage.getItem('eduai_users');
-            if (savedUsers) localUsers = JSON.parse(savedUsers) || [];
+            if (savedUsers) localUsers = (JSON.parse(savedUsers) || []).filter(matchesInst);
         } catch (e) {}
         
-        const effectiveUsers = (initialUsers && initialUsers.length > 0) ? initialUsers : localUsers;
+        const scopedInitialUsers = (initialUsers && initialUsers.length > 0) ? initialUsers.filter(matchesInst) : [];
+        const effectiveUsers = scopedInitialUsers.length > 0 ? scopedInitialUsers : localUsers;
         const effectiveInstructors = effectiveUsers.filter(u => u && (u.role === 'driving_instructor' || u.role === 'teacher' || u.role === 'lecturer'));
         const isAcademic = context === 'academic';
         let contextEnrs = localEnrs.filter(e => {
+            if (!matchesInst(e)) return false;
             if (isAcademic) {
                 return !e.enrollmentType || e.enrollmentType === 'academic' || e.enrollmentType !== 'driving_school';
             } else {
@@ -687,7 +700,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         // Fast-path automatic enrollment synthesis on initial cache render so registries never show 0
         if (contextEnrs.length === 0 && effectiveUsers.length > 0) {
             const studentUsers = effectiveUsers.filter(u => {
-                if (!u) return false;
+                if (!u || !matchesInst(u)) return false;
+                if ((u as any).metadata?.enrollmentDeleted === true || String((u as any).status || '').toLowerCase() === 'deleted') return false;
                 const r = String(u.role || '').toLowerCase();
                 return ['student', 'learner', 'pupil', 'cadet', 'scholar'].includes(r) ||
                        (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(r) && (u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).staffId || (u as any).staff_id || (u as any).studentClass || (u as any).gradeLevel));
@@ -1559,10 +1573,24 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 }
             });
 
-            // Build comprehensive user map from users module and initialUsers
+            // Strict tenant isolation helper so users/enrollments from other accounts NEVER leak into this institution
+            const normInstId = (val: any) => String(val || '').trim().toLowerCase().replace(/^inst_/, '');
+            const targetInstNorm = normInstId(effectiveTargetInstId);
+            const belongsToTargetInst = (item: any) => {
+                if (!item) return false;
+                if (!targetInstNorm) return true;
+                const itemInst = normInstId(item.institutionId || item.institution_id || item.metadata?.institutionId || item.metadata?.institution_id);
+                return itemInst !== '' && itemInst === targetInstNorm;
+            };
+
+            // Build comprehensive user map strictly scoped to the active institution
             const combinedUserMap = new Map<string, User>();
-            (initialUsers || []).forEach(u => { if (u && u.id) combinedUserMap.set(String(u.id).trim(), u); });
-            (usersData || []).forEach(u => { if (u && u.id) combinedUserMap.set(String(u.id).trim(), u); });
+            (initialUsers || []).forEach(u => {
+                if (u && u.id && belongsToTargetInst(u)) combinedUserMap.set(String(u.id).trim(), u);
+            });
+            (usersData || []).forEach(u => {
+                if (u && u.id && belongsToTargetInst(u)) combinedUserMap.set(String(u.id).trim(), u);
+            });
             const allUsers = Array.from(combinedUserMap.values());
 
             const userById = new Map<string, User>();
@@ -1617,8 +1645,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
             setUsers(allUsers);
 
-            const rawEnrollments = (enrollmentsData && enrollmentsData.length > 0) ? enrollmentsData : (initialEnrollments || []);
-            const hydrated = (rawEnrollments || []).map((e, idx) => {
+            const rawEnrollmentsSource = (enrollmentsData && enrollmentsData.length > 0) ? enrollmentsData : (initialEnrollments || []);
+            const rawEnrollments = (rawEnrollmentsSource || []).filter(belongsToTargetInst);
+            const hydrated = rawEnrollments.map((e, idx) => {
                 const eAdm = (e.admissionNumber || (e as any).admission_number || (e as any).admNo || e.metadata?.admissionNumber || '').trim().toLowerCase();
                 const eUid = (e.userId || (e as any).user_id || '').trim();
                 const rawUid = eUid.replace(/^u_/, '');
@@ -1719,10 +1748,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 if (sName && !isNameUnknown(sName)) enrolledNames.add(sName);
             });
 
-            // Auto-enrollment discovery: every registered student user missing an enrollment record gets enrolled automatically
+            // Auto-enrollment discovery: every registered student user belonging strictly to THIS institution
             const missingEnrollments: StudentEnrollment[] = [];
             allUsers.forEach((u: any, idx: number) => {
-                if (!u) return;
+                if (!u || !belongsToTargetInst(u)) return;
+                if (u.metadata?.enrollmentDeleted === true || String(u.status || '').toLowerCase() === 'deleted') return;
                 const role = String(u.role || '').toLowerCase().trim();
                 const isStudent = ['student', 'learner', 'pupil', 'cadet', 'scholar'].includes(role) ||
                     (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(role) && (u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).staffId || (u as any).staff_id || (u as any).studentClass || (u as any).classLevel || (u as any).gradeLevel));
@@ -1791,7 +1821,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                 const autoEnr: StudentEnrollment = {
                     id: `enr_${rawUid || uId || Date.now() + '_' + idx}`,
-                    institutionId: u.institutionId || (u as any).institution_id || effectiveTargetInstId,
+                    institutionId: effectiveTargetInstId,
                     userId: uId,
                     enrollmentType: context === 'driving_school' ? 'driving_school' : 'academic',
                     admissionNumber: finalAdm,
@@ -1861,6 +1891,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
             const isAcademic = context === 'academic';
             const filteredEnrs = combinedEnrollments.filter(e => {
+                if (!belongsToTargetInst(e)) return false;
                 if (isAcademic) {
                     return !e.enrollmentType || e.enrollmentType === 'academic' || e.enrollmentType !== 'driving_school';
                 } else {
@@ -2424,13 +2455,55 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
     // Handle Delete
     const handleDelete = async (id: string) => {
-        if (!window.confirm("Are you sure you want to remove this enrollment record? (Note: The user account identity will not be deleted)")) {
+        const targetEnr = enrollments.find(e => e.id === id);
+        const studentDisplayName = (targetEnr as any)?.studentName || (targetEnr as any)?.name || targetEnr?.metadata?.studentName || 'this student';
+        if (!window.confirm(`Are you sure you want to remove ${studentDisplayName} from this institution?`)) {
             return;
         }
         
         try {
+            // 1. Delete the student_enrollments record
             await apiService.deleteModuleRecord('student_enrollments', id);
-            setStatusMsg({ type: 'success', message: 'Enrollment record removed.' });
+
+            // 2. Also remove the linked student user record ONLY if it belongs to this institution and is a student role
+            // (prevents auto-enrollment discovery from immediately re-creating the deleted student)
+            const targetUserId = targetEnr?.userId || (targetEnr as any)?.user_id;
+            if (targetUserId) {
+                const normInst = (val: any) => String(val || '').trim().toLowerCase().replace(/^inst_/, '');
+                const currInstNorm = normInst(currentInstitution?.id);
+                const linkedUser = users.find(u => u && String(u.id).trim() === String(targetUserId).trim());
+                const userInstNorm = normInst(linkedUser?.institutionId || (linkedUser as any)?.institution_id);
+                const userRole = String(linkedUser?.role || '').toLowerCase().trim();
+                const isStudentUser = !linkedUser || ['student', 'learner', 'pupil', 'cadet', 'scholar', ''].includes(userRole);
+                const sameInst = !linkedUser || (currInstNorm !== '' && userInstNorm === currInstNorm);
+
+                if (isStudentUser && sameInst) {
+                    await apiService.deleteModuleRecord('users', targetUserId).catch(err => {
+                        console.warn('[StudentEnrollmentManager] Linked student user delete note:', err);
+                    });
+                }
+            }
+
+            // 3. Immediately update local state and purge caches so the deleted record cannot reappear
+            const nextEnrs = enrollments.filter(e => e.id !== id);
+            setEnrollments(nextEnrs);
+            if (targetUserId) {
+                setUsers(prev => prev.filter(u => String(u.id).trim() !== String(targetUserId).trim()));
+            }
+            if (globalEnrollmentCache[cacheKey]) {
+                globalEnrollmentCache[cacheKey] = {
+                    ...globalEnrollmentCache[cacheKey],
+                    enrollments: nextEnrs
+                };
+            }
+            try {
+                if (currentInstitution?.id) {
+                    safeLocalStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(nextEnrs.slice(0, 50)));
+                }
+                localDb.delete('student_enrollments', id).catch(() => {});
+            } catch (_) {}
+
+            setStatusMsg({ type: 'success', message: 'Student enrollment record removed.' });
             loadAllData();
         } catch (err) {
             console.error("Delete failed:", err);
