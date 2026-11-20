@@ -260,7 +260,12 @@ const ensureEssentialSchema = async (pool: any) => {
         ALTER TABLE public.demo_requests ADD COLUMN IF NOT EXISTS "requestedAt" TIMESTAMPTZ DEFAULT NOW();
         ALTER TABLE public.demo_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
         ALTER TABLE public.demo_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
-        UPDATE public.demo_requests SET requested_at = COALESCE(requested_at, "requestedAt", created_at, NOW()) WHERE requested_at IS NULL;
+        UPDATE public.demo_requests 
+        SET requested_at = CASE 
+            WHEN "requestedAt"::text ~ '^\d{4}-\d{2}-\d{2}' THEN "requestedAt"::text::timestamptz
+            ELSE NOW()
+        END 
+        WHERE requested_at IS NULL;
 
         -- Ensure commission_withdrawal_requests table and requested_at columns
         CREATE TABLE IF NOT EXISTS public.commission_withdrawal_requests (
@@ -281,7 +286,12 @@ const ensureEssentialSchema = async (pool: any) => {
         ALTER TABLE public.commission_withdrawal_requests ADD COLUMN IF NOT EXISTS "requestedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
         ALTER TABLE public.commission_withdrawal_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
         ALTER TABLE public.commission_withdrawal_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
-        UPDATE public.commission_withdrawal_requests SET requested_at = COALESCE(requested_at, "requestedAt", created_at, NOW()) WHERE requested_at IS NULL;
+        UPDATE public.commission_withdrawal_requests 
+        SET requested_at = CASE 
+            WHEN "requestedAt"::text ~ '^\d{4}-\d{2}-\d{2}' THEN "requestedAt"::text::timestamptz
+            ELSE NOW()
+        END 
+        WHERE requested_at IS NULL;
 
         -- Ensure sms_logs & sms_outbox tables exist with sender_id and relaxed FK constraints
         CREATE TABLE IF NOT EXISTS public.sms_logs (
@@ -1721,7 +1731,14 @@ const fetchViaDirectPg = async (
           if (errMsg.includes('requested_at') || errMsg.includes('requestedAt')) {
             await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS requested_at TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
             await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS "requestedAt" TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
-            await pool.query(`UPDATE public."${table}" SET requested_at = COALESCE(requested_at, "requestedAt", created_at, NOW()) WHERE requested_at IS NULL;`).catch(() => {});
+            await pool.query(`
+                UPDATE public."${table}" 
+                SET requested_at = CASE 
+                    WHEN "requestedAt"::text ~ '^\d{4}-\d{2}-\d{2}' THEN "requestedAt"::text::timestamptz
+                    ELSE NOW()
+                END 
+                WHERE requested_at IS NULL;
+            `).catch(() => {});
           }
           if (errMsg.includes('sender_id') || errMsg.includes('senderId')) {
             await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS sender_id TEXT;`).catch(() => {});

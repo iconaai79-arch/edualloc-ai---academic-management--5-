@@ -1,6 +1,6 @@
 -- Migration 522: Heal requested_at and requestedAt columns across request tables
 -- Description: Ensures requested_at and requestedAt exist on all request tables (demo_requests, commission_withdrawal_requests, extension_requests, institution_extension_requests)
--- Compatible with pure SQL parsers and web importers (zero DO $$ blocks).
+-- Type-safe: zero mixed-type COALESCE statements, zero DO $$ blocks. 100% web importer compatible.
 
 -- 1. demo_requests table & columns
 CREATE TABLE IF NOT EXISTS public.demo_requests (
@@ -28,9 +28,11 @@ ALTER TABLE public.demo_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ
 ALTER TABLE public.demo_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 UPDATE public.demo_requests 
-SET requested_at = COALESCE(requested_at, "requestedAt", created_at, NOW()),
-    "requestedAt" = COALESCE("requestedAt", requested_at, created_at, NOW())
-WHERE requested_at IS NULL OR "requestedAt" IS NULL;
+SET requested_at = CASE 
+    WHEN "requestedAt"::text ~ '^\d{4}-\d{2}-\d{2}' THEN "requestedAt"::text::timestamptz
+    ELSE NOW()
+END
+WHERE requested_at IS NULL;
 
 -- 2. commission_withdrawal_requests table & columns
 CREATE TABLE IF NOT EXISTS public.commission_withdrawal_requests (
@@ -54,9 +56,11 @@ ALTER TABLE public.commission_withdrawal_requests ADD COLUMN IF NOT EXISTS creat
 ALTER TABLE public.commission_withdrawal_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
 
 UPDATE public.commission_withdrawal_requests 
-SET requested_at = COALESCE(requested_at, "requestedAt", created_at, NOW()),
-    "requestedAt" = COALESCE("requestedAt", requested_at, created_at, NOW())
-WHERE requested_at IS NULL OR "requestedAt" IS NULL;
+SET requested_at = CASE 
+    WHEN "requestedAt"::text ~ '^\d{4}-\d{2}-\d{2}' THEN "requestedAt"::text::timestamptz
+    ELSE NOW()
+END
+WHERE requested_at IS NULL;
 
 -- 3. extension_requests table & columns
 CREATE TABLE IF NOT EXISTS public.extension_requests (
@@ -76,9 +80,11 @@ ALTER TABLE public.extension_requests ADD COLUMN IF NOT EXISTS "requestedAt" TIM
 ALTER TABLE public.extension_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
 
 UPDATE public.extension_requests 
-SET requested_at = COALESCE(requested_at, "requestedAt", created_at, NOW()),
-    "requestedAt" = COALESCE("requestedAt", requested_at, created_at, NOW())
-WHERE requested_at IS NULL OR "requestedAt" IS NULL;
+SET requested_at = CASE 
+    WHEN "requestedAt"::text ~ '^\d{4}-\d{2}-\d{2}' THEN "requestedAt"::text::timestamptz
+    ELSE NOW()
+END
+WHERE requested_at IS NULL;
 
 -- 4. institution_extension_requests table & columns
 CREATE TABLE IF NOT EXISTS public.institution_extension_requests (
@@ -97,9 +103,11 @@ ALTER TABLE public.institution_extension_requests ADD COLUMN IF NOT EXISTS "requ
 ALTER TABLE public.institution_extension_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
 
 UPDATE public.institution_extension_requests 
-SET requested_at = COALESCE(requested_at, "requestedAt", created_at, NOW()),
-    "requestedAt" = COALESCE("requestedAt", requested_at, created_at, NOW())
-WHERE requested_at IS NULL OR "requestedAt" IS NULL;
+SET requested_at = CASE 
+    WHEN "requestedAt"::text ~ '^\d{4}-\d{2}-\d{2}' THEN "requestedAt"::text::timestamptz
+    ELSE NOW()
+END
+WHERE requested_at IS NULL;
 
 -- 5. Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_demo_requests_requested_at ON public.demo_requests(requested_at DESC);
