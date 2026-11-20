@@ -5983,7 +5983,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         </div>
 
                         {/* Export & Action Buttons */}
-                        <div className="flex items-center gap-3 shrink-0 self-end xl:self-center">
+                        <div className="flex items-center gap-3 shrink-0 self-end lg:self-center">
                             {(isSACCO || isSaccoSavings) && (
                                 <button
                                     onClick={() => {
@@ -6002,7 +6002,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             )}
                             <button
                                 onClick={handleExportExcel}
-                                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 font-black text-xs uppercase tracking-wider transition-all shrink-0"
+                                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 font-black text-xs uppercase tracking-wider transition-all shrink-0 cursor-pointer"
                             >
                                 <Download className="w-3.5 h-3.5" />
                                 <span>Export Excel</span>
@@ -6013,7 +6013,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                 title="Open on-screen printable PDF preview"
                             >
                                 <FileText className="w-3.5 h-3.5 text-indigo-600" />
-                                <span>👥 On-Screen PDF Preview</span>
+                                <span>On-Screen PDF Preview</span>
                             </button>
                         </div>
                     </div>
