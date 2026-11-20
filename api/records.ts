@@ -1584,13 +1584,53 @@ const fetchViaDirectPg = async (
               END IF;
             END IF;
             IF '${table}' IN ('invoices', 'receipts') THEN
+              IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'student_name') THEN
+                EXECUTE 'ALTER TABLE public.' || quote_ident('${table}') || ' ADD COLUMN IF NOT EXISTS student_name TEXT';
+              END IF;
+              IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'studentName') THEN
+                EXECUTE 'ALTER TABLE public.' || quote_ident('${table}') || ' ADD COLUMN IF NOT EXISTS "studentName" TEXT';
+              END IF;
+              IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'admission_number') THEN
+                EXECUTE 'ALTER TABLE public.' || quote_ident('${table}') || ' ADD COLUMN IF NOT EXISTS admission_number TEXT';
+              END IF;
+              IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'admissionNumber') THEN
+                EXECUTE 'ALTER TABLE public.' || quote_ident('${table}') || ' ADD COLUMN IF NOT EXISTS "admissionNumber" TEXT';
+              END IF;
+              IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'student_id') THEN
+                EXECUTE 'ALTER TABLE public.' || quote_ident('${table}') || ' ADD COLUMN IF NOT EXISTS student_id TEXT';
+              END IF;
+              IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'studentId') THEN
+                EXECUTE 'ALTER TABLE public.' || quote_ident('${table}') || ' ADD COLUMN IF NOT EXISTS "studentId" TEXT';
+              END IF;
+              IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'institution_id') THEN
+                EXECUTE 'ALTER TABLE public.' || quote_ident('${table}') || ' ADD COLUMN IF NOT EXISTS institution_id TEXT';
+              END IF;
+              IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'institutionId') THEN
+                EXECUTE 'ALTER TABLE public.' || quote_ident('${table}') || ' ADD COLUMN IF NOT EXISTS "institutionId" TEXT';
+              END IF;
+
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'studentId') THEN
+                EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' SET student_id = "studentId" WHERE (student_id IS NULL OR student_id = '''')::boolean AND "studentId" IS NOT NULL AND "studentId" <> ''''';
+                EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' SET "studentId" = student_id WHERE ("studentId" IS NULL OR "studentId" = '''')::boolean AND student_id IS NOT NULL AND student_id <> ''''';
+              END IF;
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'studentName') THEN
+                EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' SET student_name = "studentName" WHERE (student_name IS NULL OR student_name = '''')::boolean AND "studentName" IS NOT NULL AND "studentName" <> ''''';
+                EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' SET "studentName" = student_name WHERE ("studentName" IS NULL OR "studentName" = '''')::boolean AND student_name IS NOT NULL AND student_name <> ''''';
+              END IF;
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'admissionNumber') THEN
+                EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' SET admission_number = "admissionNumber" WHERE (admission_number IS NULL OR admission_number = '''')::boolean AND "admissionNumber" IS NOT NULL AND "admissionNumber" <> ''''';
+                EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' SET "admissionNumber" = admission_number WHERE ("admissionNumber" IS NULL OR "admissionNumber" = '''')::boolean AND admission_number IS NOT NULL AND admission_number <> ''''';
+              END IF;
+
               IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') THEN
                 EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' t
                   SET institution_id = COALESCE(NULLIF(t.institution_id, ''''), u.institution_id),
                       student_name = COALESCE(NULLIF(t.student_name, ''''), u.name),
-                      admission_number = COALESCE(NULLIF(t.admission_number, ''''), u.admission_number)
+                      "studentName" = COALESCE(NULLIF(t."studentName", ''''), NULLIF(t.student_name, ''''), u.name),
+                      admission_number = COALESCE(NULLIF(t.admission_number, ''''), u.admission_number),
+                      "admissionNumber" = COALESCE(NULLIF(t."admissionNumber", ''''), NULLIF(t.admission_number, ''''), u.admission_number)
                   FROM public.users u
-                  WHERE (t.institution_id IS NULL OR t.institution_id = '''' OR t.student_name IS NULL OR t.student_name = '''')
+                  WHERE (t.institution_id IS NULL OR t.institution_id = '''' OR t.student_name IS NULL OR t.student_name = '''' OR t."studentName" IS NULL OR t."studentName" = '''')
                     AND t.student_id IS NOT NULL
                     AND (
                       u.id::text = t.student_id::text
@@ -1602,9 +1642,11 @@ const fetchViaDirectPg = async (
                 EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' t
                   SET institution_id = COALESCE(NULLIF(t.institution_id, ''''), se.institution_id),
                       student_name = COALESCE(NULLIF(t.student_name, ''''), se.metadata->>''studentName'', se.metadata->>''fullName'', se.metadata->>''name''),
-                      admission_number = COALESCE(NULLIF(t.admission_number, ''''), se.admission_number)
+                      "studentName" = COALESCE(NULLIF(t."studentName", ''''), NULLIF(t.student_name, ''''), se.metadata->>''studentName'', se.metadata->>''fullName'', se.metadata->>''name''),
+                      admission_number = COALESCE(NULLIF(t.admission_number, ''''), se.admission_number),
+                      "admissionNumber" = COALESCE(NULLIF(t."admissionNumber", ''''), NULLIF(t.admission_number, ''''), se.admission_number)
                   FROM public.student_enrollments se
-                  WHERE (t.institution_id IS NULL OR t.institution_id = '''' OR t.student_name IS NULL OR t.student_name = '''')
+                  WHERE (t.institution_id IS NULL OR t.institution_id = '''' OR t.student_name IS NULL OR t.student_name = '''' OR t."studentName" IS NULL OR t."studentName" = '''')
                     AND t.student_id IS NOT NULL
                     AND (
                       se.id::text = t.student_id::text 
