@@ -2283,9 +2283,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [newStreamName, setNewStreamName] = useState('');
     const [editingStreamId, setEditingStreamId] = useState<string | null>(null);
     const [editStreamName, setEditStreamName] = useState('');
+    const [isSavingStream, setIsSavingStream] = useState(false);
+    const lastCourseMutationAtRef = useRef<number>(0);
+    const courseRefreshTimerRef = useRef<any>(null);
+
+    const scheduleCourseRefresh = useCallback(() => {
+        if (courseRefreshTimerRef.current) {
+            clearTimeout(courseRefreshTimerRef.current);
+        }
+        courseRefreshTimerRef.current = setTimeout(() => {
+            props.onRefreshData?.();
+        }, 1800);
+    }, [props.onRefreshData]);
 
     useEffect(() => {
         if (props.courses && props.courses.length > 0) {
+            // Prevent stale parent refreshes from overwriting recent local grade/stream mutations
+            if (Date.now() - lastCourseMutationAtRef.current < 10000) {
+                return;
+            }
             setLocalCourses(props.courses);
             if (selectedGradeForStreams) {
                 const refreshed = props.courses.find(c => c.id === selectedGradeForStreams.id);
@@ -9414,17 +9430,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             } else if (settingsSubTab === 'numbering') {
                 fetchNumberingConfigs();
             } else if (settingsSubTab === 'grades_streams') {
-                apiService.fetchModuleRecords<Course>('courses', props.institution.id)
+                apiService.fetchModuleRecords<Course>('courses', props.institution.id, undefined, { bypassCache: true, forceRefresh: true })
                     .then(res => {
+                        if (Date.now() - lastCourseMutationAtRef.current < 10000) return;
                         const coursesList = (res && res.length > 0) ? res : (props.courses || []);
                         setLocalCourses(coursesList);
-                        if (selectedGradeForStreams) {
-                            const updatedMatch = coursesList.find(c => c.id === selectedGradeForStreams.id);
-                            if (updatedMatch) setSelectedGradeForStreams(updatedMatch);
-                        }
+                        setSelectedGradeForStreams(prev => {
+                            if (!prev) return prev;
+                            return coursesList.find(c => c.id === prev.id) || prev;
+                        });
                     })
                     .catch(err => {
                         console.error("Failed to load courses:", err);
+                        if (Date.now() - lastCourseMutationAtRef.current < 10000) return;
                         if (props.courses && props.courses.length > 0) {
                             setLocalCourses(props.courses);
                         }
@@ -18086,12 +18104,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 />
                                                 <button 
                                                     id="btn-add-finance-stream"
+                                                    disabled={isSavingStream}
                                                     onClick={async () => {
+                                                        if (isSavingStream) return;
                                                         const trimmedStream = newStreamName.trim();
                                                         if (!trimmedStream) return alert("Enter stream name.");
                                                         
-                                                        // Prevent duplicate streams for this course
-                                                        const existingLevels = selectedGradeForStreams.levels || [];
+                                                        // Always read the latest version of the selected grade from localCourses to avoid stale snapshots
+                                                        const latestGrade = (localCourses || []).find(c => c.id === selectedGradeForStreams.id) || selectedGradeForStreams;
+                                                        const existingLevels = latestGrade.levels || [];
                                                         if (existingLevels.some(l => l.name.toLowerCase() === trimmedStream.toLowerCase())) {
                                                             return alert(`Stream "${trimmedStream}" already exists for this grade.`);
                                                         }
@@ -18103,37 +18124,41 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             subjectMetadata: []
                                                         };
                                                         const updatedLevels = [...existingLevels, newLevel];
-                                                        const updatedStreams = Array.from(new Set([...(selectedGradeForStreams.streams || []), trimmedStream]));
+                                                        const updatedStreams = Array.from(new Set([...(latestGrade.streams || []), ...existingLevels.map(l => l.name), trimmedStream]));
                                                         
                                                         const fullCourse: Course = {
-                                                            ...selectedGradeForStreams,
+                                                            ...latestGrade,
                                                             levels: updatedLevels,
                                                             streams: updatedStreams,
                                                             institutionId: props.institution.id,
                                                             institution_id: props.institution.id
                                                         } as any;
 
+                                                        setIsSavingStream(true);
+                                                        lastCourseMutationAtRef.current = Date.now();
+                                                        // Update local state immediately so consecutive additions always see the latest list
+                                                        setLocalCourses(prev => (prev || []).map(c => c.id === fullCourse.id ? fullCourse : c));
+                                                        setSelectedGradeForStreams(fullCourse);
+                                                        setNewStreamName('');
+
                                                         try {
                                                             await apiService.saveModuleRecord('courses', fullCourse);
-                                                            setLocalCourses(prev => (prev || []).map(c => c.id === fullCourse.id ? fullCourse : c));
-                                                            setSelectedGradeForStreams(fullCourse);
-                                                            setNewStreamName('');
-
-                                                            const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id, undefined, { bypassCache: true, forceRefresh: true });
-                                                            if (updated && updated.length > 0) {
-                                                                setLocalCourses(updated);
-                                                                const activeCourse = updated.find(c => c.id === fullCourse.id);
-                                                                if (activeCourse) setSelectedGradeForStreams(activeCourse);
-                                                            }
-                                                            props.onRefreshData?.();
+                                                            lastCourseMutationAtRef.current = Date.now();
+                                                            scheduleCourseRefresh();
                                                         } catch (err: any) {
                                                             console.error("Failed to save stream:", err);
+                                                            // Revert on failure
+                                                            setLocalCourses(prev => (prev || []).map(c => c.id === latestGrade.id ? latestGrade : c));
+                                                            setSelectedGradeForStreams(latestGrade);
+                                                            setNewStreamName(trimmedStream);
                                                             alert(`Failed to save stream: ${err?.message || 'Unknown error'}`);
+                                                        } finally {
+                                                            setIsSavingStream(false);
                                                         }
                                                     }}
-                                                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-500/20 whitespace-nowrap cursor-pointer"
+                                                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-500/20 whitespace-nowrap cursor-pointer"
                                                 >
-                                                    Add Stream
+                                                    {isSavingStream ? 'Saving...' : 'Add Stream'}
                                                 </button>
                                             </div>
 
@@ -18160,40 +18185,44 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     />
                                                                     <button 
                                                                         id={`btn-save-stream-${lvl.id}`}
+                                                                        disabled={isSavingStream}
                                                                         onClick={async () => {
+                                                                            if (isSavingStream) return;
                                                                             const trimmed = editStreamName.trim();
                                                                             if (!trimmed) return;
-                                                                            const updatedLevels = (selectedGradeForStreams.levels || []).map(l => 
+                                                                            const latestGrade = (localCourses || []).find(c => c.id === selectedGradeForStreams.id) || selectedGradeForStreams;
+                                                                            const updatedLevels = (latestGrade.levels || []).map(l => 
                                                                                 l.id === lvl.id ? { ...l, name: trimmed } : l
                                                                             );
                                                                             const updatedStreams = updatedLevels.map(l => l.name);
                                                                             const fullCourse: Course = {
-                                                                                ...selectedGradeForStreams,
+                                                                                ...latestGrade,
                                                                                 levels: updatedLevels,
                                                                                 streams: updatedStreams,
                                                                                 institutionId: props.institution.id,
                                                                                 institution_id: props.institution.id
                                                                             } as any;
 
+                                                                            setIsSavingStream(true);
+                                                                            lastCourseMutationAtRef.current = Date.now();
+                                                                            setLocalCourses(prev => (prev || []).map(c => c.id === fullCourse.id ? fullCourse : c));
+                                                                            setSelectedGradeForStreams(fullCourse);
+                                                                            setEditingStreamId(null);
+
                                                                             try {
                                                                                 await apiService.saveModuleRecord('courses', fullCourse);
-                                                                                setLocalCourses(prev => (prev || []).map(c => c.id === fullCourse.id ? fullCourse : c));
-                                                                                setSelectedGradeForStreams(fullCourse);
-                                                                                setEditingStreamId(null);
-
-                                                                                const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id, undefined, { bypassCache: true, forceRefresh: true });
-                                                                                if (updated && updated.length > 0) {
-                                                                                    setLocalCourses(updated);
-                                                                                    const activeCourse = updated.find(c => c.id === fullCourse.id);
-                                                                                    if (activeCourse) setSelectedGradeForStreams(activeCourse);
-                                                                                }
-                                                                                props.onRefreshData?.();
+                                                                                lastCourseMutationAtRef.current = Date.now();
+                                                                                scheduleCourseRefresh();
                                                                             } catch (err: any) {
                                                                                 console.error("Failed to update stream:", err);
+                                                                                setLocalCourses(prev => (prev || []).map(c => c.id === latestGrade.id ? latestGrade : c));
+                                                                                setSelectedGradeForStreams(latestGrade);
                                                                                 alert(`Failed to update stream: ${err?.message || 'Unknown error'}`);
+                                                                            } finally {
+                                                                                setIsSavingStream(false);
                                                                             }
                                                                         }}
-                                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
                                                                     >
                                                                         Save
                                                                     </button>
@@ -18218,36 +18247,40 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             <PencilIcon className="w-3.5 h-3.5" />
                                                                         </button>
                                                                         <button 
+                                                                            disabled={isSavingStream}
                                                                             onClick={async () => {
+                                                                                if (isSavingStream) return;
                                                                                 if (!window.confirm("Are you sure you want to delete this stream?")) return;
-                                                                                const updatedLevels = (selectedGradeForStreams.levels || []).filter(l => l.id !== lvl.id);
+                                                                                const latestGrade = (localCourses || []).find(c => c.id === selectedGradeForStreams.id) || selectedGradeForStreams;
+                                                                                const updatedLevels = (latestGrade.levels || []).filter(l => l.id !== lvl.id);
                                                                                 const updatedStreams = updatedLevels.map(l => l.name);
                                                                                 const fullCourse: Course = {
-                                                                                    ...selectedGradeForStreams,
+                                                                                    ...latestGrade,
                                                                                     levels: updatedLevels,
                                                                                     streams: updatedStreams,
                                                                                     institutionId: props.institution.id,
                                                                                     institution_id: props.institution.id
                                                                                 } as any;
 
+                                                                                setIsSavingStream(true);
+                                                                                lastCourseMutationAtRef.current = Date.now();
+                                                                                setLocalCourses(prev => (prev || []).map(c => c.id === fullCourse.id ? fullCourse : c));
+                                                                                setSelectedGradeForStreams(fullCourse);
+
                                                                                 try {
                                                                                     await apiService.saveModuleRecord('courses', fullCourse);
-                                                                                    setLocalCourses(prev => (prev || []).map(c => c.id === fullCourse.id ? fullCourse : c));
-                                                                                    setSelectedGradeForStreams(fullCourse);
-
-                                                                                    const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id, undefined, { bypassCache: true, forceRefresh: true });
-                                                                                    if (updated && updated.length > 0) {
-                                                                                        setLocalCourses(updated);
-                                                                                        const activeCourse = updated.find(c => c.id === fullCourse.id);
-                                                                                        if (activeCourse) setSelectedGradeForStreams(activeCourse);
-                                                                                    }
-                                                                                    props.onRefreshData?.();
+                                                                                    lastCourseMutationAtRef.current = Date.now();
+                                                                                    scheduleCourseRefresh();
                                                                                 } catch (err: any) {
                                                                                     console.error("Failed to delete stream:", err);
+                                                                                    setLocalCourses(prev => (prev || []).map(c => c.id === latestGrade.id ? latestGrade : c));
+                                                                                    setSelectedGradeForStreams(latestGrade);
                                                                                     alert(`Failed to delete stream: ${err?.message || 'Unknown error'}`);
+                                                                                } finally {
+                                                                                    setIsSavingStream(false);
                                                                                 }
                                                                             }}
-                                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
                                                                         >
                                                                             <TrashIcon className="w-3.5 h-3.5" />
                                                                         </button>
