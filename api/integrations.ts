@@ -7147,11 +7147,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(400).json({ success: false, message: 'Invalid or empty file payload.' });
             }
 
+            const dataUrlMimeMatch = typeof rawData === 'string' ? rawData.match(/^data:([^;]+);base64,/i) : null;
+            const extLower = path.extname(cleanPath).toLowerCase();
+            const extMimeMap: Record<string, string> = {
+                '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.pdf': 'application/pdf'
+            };
+            const mimeType = paramsMap.contentType || (dataUrlMimeMatch && dataUrlMimeMatch[1]) || extMimeMap[extLower] || 'application/octet-stream';
+
+            // 0. Durable write to Talksasa PostgreSQL (public.storage_files)
+            let persistedToDb = false;
+            try {
+                const pgPool = await getPgPool();
+                if (pgPool) {
+                    await pgPool.query(`
+                        CREATE TABLE IF NOT EXISTS public.storage_files (
+                            path TEXT PRIMARY KEY,
+                            content_type TEXT DEFAULT 'application/octet-stream',
+                            data_base64 TEXT NOT NULL,
+                            size_bytes INTEGER DEFAULT 0,
+                            created_at TIMESTAMPTZ DEFAULT NOW(),
+                            updated_at TIMESTAMPTZ DEFAULT NOW()
+                        );
+                    `);
+                    await pgPool.query(
+                        `INSERT INTO public.storage_files (path, content_type, data_base64, size_bytes, created_at, updated_at)
+                         VALUES ($1, $2, $3, $4, NOW(), NOW())
+                         ON CONFLICT (path) DO UPDATE SET
+                            content_type = EXCLUDED.content_type,
+                            data_base64 = EXCLUDED.data_base64,
+                            size_bytes = EXCLUDED.size_bytes,
+                            updated_at = NOW()`,
+                        [cleanPath.replace(/\\/g, '/'), mimeType, base64Data, buffer.length]
+                    );
+                    persistedToDb = true;
+                }
+            } catch (dbErr) {
+                console.warn('[Integrations:Storage] DB persist note:', dbErr);
+            }
+
             // 1. Primary write to public/storage/eduai
-            const publicBase = path.resolve(process.cwd(), 'public', 'storage', 'eduai');
-            const publicTarget = path.resolve(publicBase, cleanPath);
-            fs.mkdirSync(path.dirname(publicTarget), { recursive: true });
-            fs.writeFileSync(publicTarget, buffer);
+            try {
+                const publicBase = path.resolve(process.cwd(), 'public', 'storage', 'eduai');
+                const publicTarget = path.resolve(publicBase, cleanPath);
+                fs.mkdirSync(path.dirname(publicTarget), { recursive: true });
+                fs.writeFileSync(publicTarget, buffer);
+            } catch (pubErr) {
+                console.warn('[Integrations:Storage] public write note:', pubErr);
+            }
 
             // 2. Mirror write to dist/storage/eduai (for immediate production static serving)
             try {
@@ -7163,14 +7206,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.warn('[Integrations:Storage] Mirroring to dist directory note:', distErr);
             }
 
-            const relativeUrl = `/storage/eduai/${cleanPath.replace(/\\/g, '/')}`;
-            console.log(`[Talksasa Storage Integrations] Successfully stored file: ${relativeUrl} (${buffer.length} bytes)`);
+            const normalizedCleanPath = cleanPath.replace(/\\/g, '/');
+            const retrievalUrl = `/api/storage?path=${encodeURIComponent(normalizedCleanPath)}`;
+            console.log(`[Talksasa Storage Integrations] Successfully stored file: ${normalizedCleanPath} (${buffer.length} bytes, db=${persistedToDb})`);
 
             return res.status(200).json({
                 success: true,
-                url: relativeUrl,
-                path: cleanPath,
-                size: buffer.length
+                url: retrievalUrl,
+                staticUrl: `/storage/eduai/${normalizedCleanPath}`,
+                path: normalizedCleanPath,
+                size: buffer.length,
+                persistedToDb
             });
         }
 

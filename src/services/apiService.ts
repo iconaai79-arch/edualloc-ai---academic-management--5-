@@ -7383,6 +7383,12 @@ export const apiService = {
         const rawCustomPrice = inst.customSmsPrice !== undefined ? inst.customSmsPrice : (inst as any).custom_sms_price;
         const cleanCustomPrice = rawCustomPrice !== undefined ? (Number(rawCustomPrice) || null) : undefined;
 
+        const lhConfig = inst.letterheadConfig || (inst as any).letterhead_config || undefined;
+        const resolvedHeaderUrl = lhConfig?.headerImageUrl ?? (inst as any).headerImageUrl ?? (inst as any).header_image_url ?? undefined;
+        const resolvedFooterUrl = inst.footerImageUrl ?? (inst as any).footer_image_url ?? lhConfig?.footerImageUrl ?? undefined;
+        const resolvedLogoUrl = inst.logoUrl ?? (inst as any).logo_url ?? undefined;
+        const resolvedStampUrl = lhConfig?.stampImageUrl ?? (inst as any).stampUrl ?? (inst as any).stamp_url ?? undefined;
+
         await apiService.saveModuleRecord('institutions', { 
             ...rest, 
             email: cleanEmail, 
@@ -7390,6 +7396,11 @@ export const apiService = {
             is_otp_enabled: isOtpOn,
             reseller_id: resId,
             resellerId: resId,
+            ...(lhConfig !== undefined ? { letterhead_config: lhConfig, letterheadConfig: lhConfig } : {}),
+            ...(resolvedHeaderUrl !== undefined ? { header_image_url: resolvedHeaderUrl, headerImageUrl: resolvedHeaderUrl } : {}),
+            ...(resolvedFooterUrl !== undefined ? { footer_image_url: resolvedFooterUrl, footerImageUrl: resolvedFooterUrl } : {}),
+            ...(resolvedLogoUrl !== undefined ? { logo_url: resolvedLogoUrl, logoUrl: resolvedLogoUrl } : {}),
+            ...(resolvedStampUrl !== undefined ? { stamp_url: resolvedStampUrl, stampUrl: resolvedStampUrl } : {}),
             ...(cleanSmsBal !== undefined ? { sms_balance: cleanSmsBal, smsBalance: cleanSmsBal } : {}),
             ...(cleanCustomPrice !== undefined ? { custom_sms_price: cleanCustomPrice, customSmsPrice: cleanCustomPrice } : {}),
             coop_settings,

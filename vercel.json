@@ -36,6 +36,7 @@
     { "source": "/api/coop-b2b/:path*", "destination": "/api/coop-b2b?path=:path*" },
     { "source": "/webhook/whatsapp", "destination": "/api/whatsapp-webhook" },
     { "source": "/whatsapp-webhook", "destination": "/api/whatsapp-webhook" },
+    { "source": "/storage/eduai/:path*", "destination": "/api/storage?path=:path*" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
