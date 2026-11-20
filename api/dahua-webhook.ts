@@ -222,6 +222,26 @@ const ensureDahuaTables = async (pool: any) => {
                 ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
                 ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
                 ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS staff_id TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "staffId" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS device_pin TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "devicePin" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS fingerprint_index INTEGER DEFAULT 0;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "fingerprintIndex" INTEGER DEFAULT 0;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS card_number TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "cardNumber" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT TRUE;
+
+                UPDATE public.biometric_enrollments SET staff_id = "staffId" WHERE (staff_id IS NULL OR staff_id = '') AND "staffId" IS NOT NULL AND "staffId" <> '';
+                UPDATE public.biometric_enrollments SET "staffId" = staff_id WHERE ("staffId" IS NULL OR "staffId" = '') AND staff_id IS NOT NULL AND staff_id <> '';
+                UPDATE public.biometric_enrollments SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '') AND "institutionId" IS NOT NULL AND "institutionId" <> '';
+                UPDATE public.biometric_enrollments SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '') AND institution_id IS NOT NULL AND institution_id <> '';
+                UPDATE public.biometric_enrollments SET device_pin = "devicePin" WHERE (device_pin IS NULL OR device_pin = '') AND "devicePin" IS NOT NULL AND "devicePin" <> '';
+                UPDATE public.biometric_enrollments SET "devicePin" = device_pin WHERE ("devicePin" IS NULL OR "devicePin" = '') AND device_pin IS NOT NULL AND device_pin <> '';
             END $$;
         `);
         _dahuaTablesEnsured = true;
@@ -518,17 +538,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (!matchedUserId) {
                         const searchPin = userId || cardNo;
                         if (searchPin) {
-                            const { data: enrollments } = await supabase
-                                .from('biometric_enrollments')
-                                .select('staff_id, institution_id')
-                                .eq('device_pin', searchPin)
-                                .eq('is_active', true)
-                                .limit(1);
+                            try {
+                                const { data: enrollments, error: enrErr } = await supabase
+                                    .from('biometric_enrollments')
+                                    .select('staff_id, institution_id')
+                                    .eq('device_pin', searchPin)
+                                    .eq('is_active', true)
+                                    .limit(1);
 
-                            if (enrollments && enrollments.length > 0) {
-                                matchedUserId = enrollments[0].staff_id;
-                                matchedInstitutionId = enrollments[0].institution_id;
-                            }
+                                if (!enrErr && enrollments && enrollments.length > 0) {
+                                    matchedUserId = enrollments[0].staff_id;
+                                    matchedInstitutionId = enrollments[0].institution_id;
+                                } else {
+                                    // Fallback to camelCase columns
+                                    const { data: enrollmentsCamel } = await supabase
+                                        .from('biometric_enrollments')
+                                        .select('"staffId", "institutionId"')
+                                        .eq('devicePin', searchPin)
+                                        .eq('isActive', true)
+                                        .limit(1);
+                                    if (enrollmentsCamel && enrollmentsCamel.length > 0) {
+                                        matchedUserId = (enrollmentsCamel[0] as any).staffId;
+                                        matchedInstitutionId = (enrollmentsCamel[0] as any).institutionId;
+                                    }
+                                }
+                            } catch (_) {}
                         }
                     }
 
@@ -655,18 +689,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     if (!matchedUserId && (userId || cardNo)) {
+                        const targetPin = userId || cardNo;
                         try {
                             const enrRes = await pool.query(
                                 `SELECT staff_id, institution_id FROM public.biometric_enrollments 
                                  WHERE device_pin = $1 AND is_active = true LIMIT 1`,
-                                [userId || cardNo]
+                                [targetPin]
                             );
                             if (enrRes.rows && enrRes.rows.length > 0) {
                                 matchedUserId = enrRes.rows[0].staff_id;
                                 matchedInstitutionId = enrRes.rows[0].institution_id;
                             }
                         } catch (eErr) {
-                            console.warn('[Dahua Webhook PG] Enrollment match query warn:', eErr);
+                            // Fallback to camelCase if snake_case columns don't exist
+                            try {
+                                const enrRes2 = await pool.query(
+                                    `SELECT "staffId" as staff_id, "institutionId" as institution_id 
+                                     FROM public.biometric_enrollments 
+                                     WHERE ("devicePin" = $1 OR device_pin = $1) 
+                                       AND ("isActive" = true OR is_active = true) 
+                                     LIMIT 1`,
+                                    [targetPin]
+                                );
+                                if (enrRes2.rows && enrRes2.rows.length > 0) {
+                                    matchedUserId = enrRes2.rows[0].staff_id;
+                                    matchedInstitutionId = enrRes2.rows[0].institution_id;
+                                }
+                            } catch (eErr2) {
+                                console.warn('[Dahua Webhook PG] Enrollment match query warn:', eErr2);
+                            }
                         }
                     }
 

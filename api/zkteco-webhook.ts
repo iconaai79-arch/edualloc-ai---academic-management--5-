@@ -169,6 +169,51 @@ const ensureZktecoTables = async (pool: any) => {
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS public.biometric_enrollments (
+                id TEXT PRIMARY KEY DEFAULT ('be_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+                institution_id TEXT,
+                "institutionId" TEXT,
+                staff_id TEXT,
+                "staffId" TEXT,
+                device_pin TEXT,
+                "devicePin" TEXT,
+                fingerprint_index INTEGER DEFAULT 0,
+                "fingerprintIndex" INTEGER DEFAULT 0,
+                fingerprint_template TEXT,
+                card_number TEXT,
+                "cardNumber" TEXT,
+                face_data TEXT,
+                is_active BOOLEAN DEFAULT TRUE,
+                "isActive" BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+
+            DO $$
+            BEGIN
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS staff_id TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "staffId" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS device_pin TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "devicePin" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS fingerprint_index INTEGER DEFAULT 0;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "fingerprintIndex" INTEGER DEFAULT 0;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS card_number TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "cardNumber" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT TRUE;
+
+                UPDATE public.biometric_enrollments SET staff_id = "staffId" WHERE (staff_id IS NULL OR staff_id = '') AND "staffId" IS NOT NULL AND "staffId" <> '';
+                UPDATE public.biometric_enrollments SET "staffId" = staff_id WHERE ("staffId" IS NULL OR "staffId" = '') AND staff_id IS NOT NULL AND staff_id <> '';
+                UPDATE public.biometric_enrollments SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '') AND "institutionId" IS NOT NULL AND "institutionId" <> '';
+                UPDATE public.biometric_enrollments SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '') AND institution_id IS NOT NULL AND institution_id <> '';
+                UPDATE public.biometric_enrollments SET device_pin = "devicePin" WHERE (device_pin IS NULL OR device_pin = '') AND "devicePin" IS NOT NULL AND "devicePin" <> '';
+                UPDATE public.biometric_enrollments SET "devicePin" = device_pin WHERE ("devicePin" IS NULL OR "devicePin" = '') AND device_pin IS NOT NULL AND device_pin <> '';
+            END $$;
         `);
         _zktecoTablesEnsured = true;
     } catch (e: any) {
@@ -584,17 +629,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 let staffId: string | null = null;
                 if (supabase) {
-                    const { data: enrollment } = await supabase
-                        .from('biometric_enrollments')
-                        .select('staff_id')
-                        .eq('institution_id', resolvedInstitutionId)
-                        .eq('device_pin', pin)
-                        .eq('is_active', true)
-                        .maybeSingle();
+                    try {
+                        const { data: enrollment, error: enrErr } = await supabase
+                            .from('biometric_enrollments')
+                            .select('staff_id')
+                            .eq('institution_id', resolvedInstitutionId)
+                            .eq('device_pin', pin)
+                            .eq('is_active', true)
+                            .maybeSingle();
 
-                    if (enrollment) {
-                        staffId = enrollment.staff_id;
-                    }
+                        if (!enrErr && enrollment) {
+                            staffId = (enrollment as any).staff_id;
+                        } else {
+                            // Fallback to camelCase columns
+                            const { data: enrollmentCamel } = await supabase
+                                .from('biometric_enrollments')
+                                .select('"staffId"')
+                                .eq('institutionId', resolvedInstitutionId)
+                                .eq('devicePin', pin)
+                                .eq('isActive', true)
+                                .maybeSingle();
+                            if (enrollmentCamel) {
+                                staffId = (enrollmentCamel as any).staffId;
+                            }
+                        }
+                    } catch (_) {}
                 } else if (pool) {
                     try {
                         const enrRes = await pool.query(
@@ -604,7 +663,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (enrRes.rows && enrRes.rows.length > 0) {
                             staffId = enrRes.rows[0].staff_id;
                         }
-                    } catch (_) {}
+                    } catch (pErr: any) {
+                        try {
+                            // Fallback to camelCase if staff_id column doesn't exist
+                            const enrRes2 = await pool.query(
+                                'SELECT "staffId" as staff_id FROM public.biometric_enrollments WHERE ("institutionId" = $1 OR institution_id = $1) AND ("devicePin" = $2 OR device_pin = $2) AND ("isActive" = true OR is_active = true) LIMIT 1',
+                                [resolvedInstitutionId, pin]
+                            );
+                            if (enrRes2.rows && enrRes2.rows.length > 0) {
+                                staffId = enrRes2.rows[0].staff_id;
+                            }
+                        } catch (_) {}
+                    }
                 }
 
                 records.push({

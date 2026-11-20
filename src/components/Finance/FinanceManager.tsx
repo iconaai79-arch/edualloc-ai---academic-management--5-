@@ -17890,15 +17890,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         name: newGradeName.trim(),
                                                         code: newGradeCode.trim(),
                                                         institutionId: props.institution.id,
+                                                        institution_id: props.institution.id,
                                                         departmentId: '',
                                                         academicLevelId: '',
                                                         levels: [],
                                                         streams: []
-                                                    };
+                                                    } as any;
                                                     try {
                                                         await apiService.saveModuleRecord('courses', newCourse);
                                                         setLocalCourses(prev => [...(prev || []), newCourse]);
-                                                        const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                        const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id, undefined, { bypassCache: true, forceRefresh: true });
                                                         if (updated && updated.length > 0) {
                                                             setLocalCourses(updated);
                                                         }
@@ -17959,8 +17960,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 ...course,
                                                                                 name: editGradeName.trim(),
                                                                                 code: editGradeCode.trim(),
-                                                                                institutionId: props.institution.id
-                                                                            };
+                                                                                institutionId: props.institution.id,
+                                                                                institution_id: props.institution.id
+                                                                            } as any;
                                                                             try {
                                                                                 await apiService.saveModuleRecord('courses', fullCourse);
                                                                                 setLocalCourses(prev => (prev || []).map(c => c.id === fullCourse.id ? fullCourse : c));
@@ -17968,7 +17970,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 if (selectedGradeForStreams?.id === course.id) {
                                                                                     setSelectedGradeForStreams(fullCourse);
                                                                                 }
-                                                                                const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                                                const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id, undefined, { bypassCache: true, forceRefresh: true });
                                                                                 if (updated && updated.length > 0) {
                                                                                     setLocalCourses(updated);
                                                                                     if (selectedGradeForStreams?.id === course.id) {
@@ -18073,9 +18075,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     placeholder="Add new stream (e.g. East)"
                                                     value={newStreamName}
                                                     onChange={e => setNewStreamName(e.target.value)}
+                                                    onKeyDown={async (e) => {
+                                                        if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            const btn = document.getElementById('btn-add-finance-stream');
+                                                            if (btn) btn.click();
+                                                        }
+                                                    }}
                                                     className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-800 dark:text-white"
                                                 />
                                                 <button 
+                                                    id="btn-add-finance-stream"
                                                     onClick={async () => {
                                                         const trimmedStream = newStreamName.trim();
                                                         if (!trimmedStream) return alert("Enter stream name.");
@@ -18099,8 +18109,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             ...selectedGradeForStreams,
                                                             levels: updatedLevels,
                                                             streams: updatedStreams,
-                                                            institutionId: props.institution.id
-                                                        };
+                                                            institutionId: props.institution.id,
+                                                            institution_id: props.institution.id
+                                                        } as any;
 
                                                         try {
                                                             await apiService.saveModuleRecord('courses', fullCourse);
@@ -18108,7 +18119,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             setSelectedGradeForStreams(fullCourse);
                                                             setNewStreamName('');
 
-                                                            const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                            const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id, undefined, { bypassCache: true, forceRefresh: true });
                                                             if (updated && updated.length > 0) {
                                                                 setLocalCourses(updated);
                                                                 const activeCourse = updated.find(c => c.id === fullCourse.id);
@@ -18120,7 +18131,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             alert(`Failed to save stream: ${err?.message || 'Unknown error'}`);
                                                         }
                                                     }}
-                                                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-500/20 whitespace-nowrap"
+                                                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-500/20 whitespace-nowrap cursor-pointer"
                                                 >
                                                     Add Stream
                                                 </button>
@@ -18131,16 +18142,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 {(selectedGradeForStreams.levels || []).map(lvl => {
                                                     const isEditingStream = editingStreamId === lvl.id;
                                                     return (
-                                                        <div key={lvl.id} className="flex justify-between items-center p-4 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-850 rounded-xl">
+                                                        <div key={lvl.id} className="flex justify-between items-center p-4 bg-slate-50/50 dark:bg-slate-955/20 border border-slate-100 dark:border-slate-850 rounded-xl">
                                                             {isEditingStream ? (
                                                                 <div className="flex items-center gap-2 flex-1 pr-4">
                                                                     <input 
                                                                         type="text" 
                                                                         value={editStreamName}
                                                                         onChange={e => setEditStreamName(e.target.value)}
+                                                                        onKeyDown={async (e) => {
+                                                                            if (e.key === 'Enter') {
+                                                                                e.preventDefault();
+                                                                                const btn = document.getElementById(`btn-save-stream-${lvl.id}`);
+                                                                                if (btn) btn.click();
+                                                                            }
+                                                                        }}
                                                                         className="flex-1 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
                                                                     />
                                                                     <button 
+                                                                        id={`btn-save-stream-${lvl.id}`}
                                                                         onClick={async () => {
                                                                             const trimmed = editStreamName.trim();
                                                                             if (!trimmed) return;
@@ -18152,8 +18171,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 ...selectedGradeForStreams,
                                                                                 levels: updatedLevels,
                                                                                 streams: updatedStreams,
-                                                                                institutionId: props.institution.id
-                                                                            };
+                                                                                institutionId: props.institution.id,
+                                                                                institution_id: props.institution.id
+                                                                            } as any;
 
                                                                             try {
                                                                                 await apiService.saveModuleRecord('courses', fullCourse);
@@ -18161,7 +18181,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 setSelectedGradeForStreams(fullCourse);
                                                                                 setEditingStreamId(null);
 
-                                                                                const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                                                const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id, undefined, { bypassCache: true, forceRefresh: true });
                                                                                 if (updated && updated.length > 0) {
                                                                                     setLocalCourses(updated);
                                                                                     const activeCourse = updated.find(c => c.id === fullCourse.id);
@@ -18173,13 +18193,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 alert(`Failed to update stream: ${err?.message || 'Unknown error'}`);
                                                                             }
                                                                         }}
-                                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition-all"
+                                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
                                                                     >
                                                                         Save
                                                                     </button>
                                                                     <button 
                                                                         onClick={() => setEditingStreamId(null)}
-                                                                        className="px-3 py-1.5 bg-slate-300 hover:bg-slate-400 text-slate-700 rounded-lg text-[10px] font-bold transition-all"
+                                                                        className="px-3 py-1.5 bg-slate-300 hover:bg-slate-400 text-slate-700 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
                                                                     >
                                                                         Cancel
                                                                     </button>
@@ -18193,7 +18213,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 setEditingStreamId(lvl.id);
                                                                                 setEditStreamName(lvl.name);
                                                                             }}
-                                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
+                                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer"
                                                                         >
                                                                             <PencilIcon className="w-3.5 h-3.5" />
                                                                         </button>
@@ -18206,15 +18226,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                     ...selectedGradeForStreams,
                                                                                     levels: updatedLevels,
                                                                                     streams: updatedStreams,
-                                                                                    institutionId: props.institution.id
-                                                                                };
+                                                                                    institutionId: props.institution.id,
+                                                                                    institution_id: props.institution.id
+                                                                                } as any;
 
                                                                                 try {
                                                                                     await apiService.saveModuleRecord('courses', fullCourse);
                                                                                     setLocalCourses(prev => (prev || []).map(c => c.id === fullCourse.id ? fullCourse : c));
                                                                                     setSelectedGradeForStreams(fullCourse);
 
-                                                                                    const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                                                    const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id, undefined, { bypassCache: true, forceRefresh: true });
                                                                                     if (updated && updated.length > 0) {
                                                                                         setLocalCourses(updated);
                                                                                         const activeCourse = updated.find(c => c.id === fullCourse.id);
@@ -18226,7 +18247,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                     alert(`Failed to delete stream: ${err?.message || 'Unknown error'}`);
                                                                                 }
                                                                             }}
-                                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
                                                                         >
                                                                             <TrashIcon className="w-3.5 h-3.5" />
                                                                         </button>

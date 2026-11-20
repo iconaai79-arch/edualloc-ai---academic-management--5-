@@ -1387,6 +1387,76 @@ const ensureEssentialSchema = async (pool: any) => {
                     EXECUTE 'UPDATE public.school_remedial_subjects SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
                 END IF;
             END IF;
+
+            -- 12. biometric_enrollments dual camelCase / snake_case healing
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'biometric_enrollments') THEN
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS staff_id TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "staffId" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS device_pin TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "devicePin" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS fingerprint_index INTEGER DEFAULT 0;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "fingerprintIndex" INTEGER DEFAULT 0;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS fingerprint_template TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "fingerprintTemplate" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS card_number TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "cardNumber" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS face_data TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "faceData" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT TRUE;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS enrolled_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "enrolledAt" TEXT;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE public.biometric_enrollments ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'biometric_enrollments' AND column_name = 'staffId') THEN
+                    EXECUTE 'UPDATE public.biometric_enrollments SET staff_id = "staffId" WHERE (staff_id IS NULL OR staff_id = '''') AND "staffId" IS NOT NULL AND "staffId" <> ''''';
+                    EXECUTE 'UPDATE public.biometric_enrollments SET "staffId" = staff_id WHERE ("staffId" IS NULL OR "staffId" = '''') AND staff_id IS NOT NULL AND staff_id <> ''''';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'biometric_enrollments' AND column_name = 'institutionId') THEN
+                    EXECUTE 'UPDATE public.biometric_enrollments SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
+                    EXECUTE 'UPDATE public.biometric_enrollments SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'biometric_enrollments' AND column_name = 'devicePin') THEN
+                    EXECUTE 'UPDATE public.biometric_enrollments SET device_pin = "devicePin" WHERE (device_pin IS NULL OR device_pin = '''') AND "devicePin" IS NOT NULL AND "devicePin" <> ''''';
+                    EXECUTE 'UPDATE public.biometric_enrollments SET "devicePin" = device_pin WHERE ("devicePin" IS NULL OR "devicePin" = '''') AND device_pin IS NOT NULL AND device_pin <> ''''';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'biometric_enrollments' AND column_name = 'isActive') THEN
+                    EXECUTE 'UPDATE public.biometric_enrollments SET is_active = "isActive" WHERE is_active IS NULL AND "isActive" IS NOT NULL';
+                    EXECUTE 'UPDATE public.biometric_enrollments SET "isActive" = is_active WHERE "isActive" IS NULL AND is_active IS NOT NULL';
+                END IF;
+            END IF;
+
+            -- 13. courses dual camelCase / snake_case healing
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'courses') THEN
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS department_id TEXT;
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS "departmentId" TEXT;
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS academic_level_id TEXT;
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS "academicLevelId" TEXT;
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS short_name TEXT;
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS "shortName" TEXT;
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS curriculum_type TEXT;
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS "curriculumType" TEXT;
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS schedule_profile_id TEXT;
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS "scheduleProfileId" TEXT;
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS levels JSONB DEFAULT '[]'::jsonb;
+                ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS streams JSONB DEFAULT '[]'::jsonb;
+
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'courses' AND column_name = 'institutionId') THEN
+                    EXECUTE 'UPDATE public.courses SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
+                    EXECUTE 'UPDATE public.courses SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'courses' AND column_name = 'departmentId') THEN
+                    EXECUTE 'UPDATE public.courses SET department_id = "departmentId" WHERE (department_id IS NULL OR department_id = '''') AND "departmentId" IS NOT NULL AND "departmentId" <> ''''';
+                    EXECUTE 'UPDATE public.courses SET "departmentId" = department_id WHERE ("departmentId" IS NULL OR "departmentId" = '''') AND department_id IS NOT NULL AND department_id <> ''''';
+                END IF;
+            END IF;
         END $$;
       `);
       _schemaMigrationDone = true;
@@ -1491,7 +1561,7 @@ const fetchViaDirectPg = async (
     );
     const result = await Promise.race([queryPromise, queryTimeoutPromise]);
     _directPgConsecutiveFailures = 0;
-    if ((!result.rows || result.rows.length === 0) && (table === 'invoices' || table === 'receipts' || table === 'student_enrollments' || table === 'users' || table === 'school_remedial_sessions' || table === 'school_remedial_allocations' || table === 'school_remedial_rate_settings' || table === 'school_remedial_payouts' || table === 'school_remedial_duty_roster' || table === 'school_remedial_subjects') && wherePart.includes('institution_id')) {
+    if ((!result.rows || result.rows.length === 0) && (table === 'invoices' || table === 'receipts' || table === 'student_enrollments' || table === 'users' || table === 'courses' || table === 'biometric_enrollments' || table === 'school_remedial_sessions' || table === 'school_remedial_allocations' || table === 'school_remedial_rate_settings' || table === 'school_remedial_payouts' || table === 'school_remedial_duty_roster' || table === 'school_remedial_subjects') && (wherePart.includes('institution_id') || wherePart.includes('staff_id'))) {
       try {
         await client.query(`
           DO $$
@@ -1499,6 +1569,16 @@ const fetchViaDirectPg = async (
             IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' AND column_name = 'institutionId') THEN
               EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' SET institution_id = "institutionId" WHERE (institution_id IS NULL OR institution_id = '''') AND "institutionId" IS NOT NULL AND "institutionId" <> ''''';
               EXECUTE 'UPDATE public.' || quote_ident('${table}') || ' SET "institutionId" = institution_id WHERE ("institutionId" IS NULL OR "institutionId" = '''') AND institution_id IS NOT NULL AND institution_id <> ''''';
+            END IF;
+            IF '${table}' = 'biometric_enrollments' THEN
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'biometric_enrollments' AND column_name = 'staffId') THEN
+                EXECUTE 'UPDATE public.biometric_enrollments SET staff_id = "staffId" WHERE (staff_id IS NULL OR staff_id = '''') AND "staffId" IS NOT NULL AND "staffId" <> ''''';
+                EXECUTE 'UPDATE public.biometric_enrollments SET "staffId" = staff_id WHERE ("staffId" IS NULL OR "staffId" = '''') AND staff_id IS NOT NULL AND staff_id <> ''''';
+              END IF;
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'biometric_enrollments' AND column_name = 'devicePin') THEN
+                EXECUTE 'UPDATE public.biometric_enrollments SET device_pin = "devicePin" WHERE (device_pin IS NULL OR device_pin = '''') AND "devicePin" IS NOT NULL AND "devicePin" <> ''''';
+                EXECUTE 'UPDATE public.biometric_enrollments SET "devicePin" = device_pin WHERE ("devicePin" IS NULL OR "devicePin" = '''') AND device_pin IS NOT NULL AND device_pin <> ''''';
+              END IF;
             END IF;
             IF '${table}' = 'school_remedial_sessions' THEN
               IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions' AND column_name = 'duration_hours') THEN
@@ -7545,168 +7625,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } else if (moduleName === 'visitors') {
                 const cleanVisitorRecord = (item: any) => {
                     if (!item || typeof item !== 'object') return item;
-                    const copy = { ...item };
-                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
-
-                    // 1. Host ID
-                    const hId = copy.host_id ?? copy.hostId;
-                    if (!hId || hId === '' || hId === 'null' || hId === 'undefined') {
-                        copy.host_id = null;
-                    } else {
-                        copy.host_id = hId;
-                    }
-                    delete copy.hostId;
-
-                    // 2. ID Number
-                    const idNum = copy.id_number ?? copy.idNumber;
-                    if (idNum !== undefined && idNum !== null && idNum !== '') {
-                        copy.id_number = String(idNum);
-                        meta.id_number = String(idNum);
-                    }
-                    delete copy.idNumber;
-
-                    // 3. Name & Full Name
-                    const fName = copy.full_name ?? copy.fullName ?? copy.name;
-                    if (fName) {
-                        copy.full_name = fName;
-                        if (!copy.name) copy.name = fName;
-                    }
-                    delete copy.fullName;
-
-                    // 4. Phone Number
-                    const phone = copy.phone_number ?? copy.phoneNumber ?? copy.phone;
-                    if (phone) {
-                        copy.phone_number = phone;
-                    }
-                    delete copy.phoneNumber;
-
-                    // 5. Date & Time
-                    if ('visitDate' in copy) {
-                        copy.visit_date = copy.visit_date || copy.visitDate;
-                        delete copy.visitDate;
-                    }
-                    if ('timeIn' in copy) {
-                        copy.time_in = copy.time_in || copy.timeIn;
-                        delete copy.timeIn;
-                    }
-                    if ('timeOut' in copy) {
-                        copy.time_out = copy.time_out || copy.timeOut;
-                        delete copy.timeOut;
-                    }
-                    if ('checkIn' in copy) {
-                        copy.check_in = copy.check_in || copy.checkIn;
-                        delete copy.checkIn;
-                    }
-                    if ('entryTime' in copy) {
-                        if (!copy.time_in) copy.time_in = copy.entryTime;
-                        delete copy.entryTime;
-                    }
-
-                    // 6. Host & Vehicle details
-                    if ('hostName' in copy) {
-                        copy.host_name = copy.host_name || copy.hostName;
-                        delete copy.hostName;
-                    }
-                    if ('vehiclePlate' in copy) {
-                        copy.vehicle_plate = copy.vehicle_plate || copy.vehiclePlate;
-                        delete copy.vehiclePlate;
-                    }
-                    if ('vehicleModel' in copy) {
-                        copy.vehicle_model = copy.vehicle_model || copy.vehicleModel;
-                        delete copy.vehicleModel;
-                    }
-
-                    // 7. Signatures & Security
-                    if ('visitorSignature' in copy) {
-                        copy.visitor_signature = copy.visitor_signature || copy.visitorSignature;
-                        delete copy.visitorSignature;
-                    }
-                    if ('hostSignature' in copy) {
-                        copy.host_signature = copy.host_signature || copy.hostSignature;
-                        delete copy.hostSignature;
-                    }
-                    if ('securityOfficerName' in copy) {
-                        copy.security_officer_name = copy.security_officer_name || copy.securityOfficerName;
-                        delete copy.securityOfficerName;
-                    }
-                    if ('institutionId' in copy) {
-                        copy.institution_id = copy.institution_id || copy.institutionId;
-                        delete copy.institutionId;
-                    }
-
-                    // 8. Status
-                    if (copy.status) {
-                        meta.status = copy.status;
-                    }
-
-                    // 9. Host notification & phone
-                    if ('notifyHostSms' in copy || 'notify_host_sms' in copy) {
-                        const nh = copy.notify_host_sms ?? copy.notifyHostSms;
-                        copy.notify_host_sms = Boolean(nh);
-                        meta.notify_host_sms = Boolean(nh);
-                        delete copy.notifyHostSms;
-                    }
-                    if ('hostPhone' in copy || 'host_phone' in copy) {
-                        const hp = copy.host_phone ?? copy.hostPhone;
-                        copy.host_phone = hp;
-                        meta.host_phone = hp;
-                        delete copy.hostPhone;
-                    }
-
-                    copy.metadata = meta;
-                    return copy;
-                };
-                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanVisitorRecord) : cleanVisitorRecord(currentPayload);
-            } else if (moduleName === 'users' || targetDbTable === 'users') {
-                const rawUserItems = Array.isArray(currentPayload) ? currentPayload : [currentPayload];
-                const idsNeedingEmail = rawUserItems
-                    .filter((u: any) => u && typeof u === 'object' && (!u.email || typeof u.email !== 'string' || !u.email.trim() || u.email.trim().toLowerCase() === 'null' || u.email.trim().toLowerCase() === 'undefined') && u.id)
-                    .map((u: any) => u.id);
-
-                let existingUserEmailMap = new Map<string, string>();
-                if (idsNeedingEmail.length > 0) {
-                    try {
-                        const { data: dbExistingUsers } = await executeWithTimeout(
-                            supabase
-                                .from('users')
-                                .select('id, email')
-                                .in('id', idsNeedingEmail),
-                            3000
-                        ).catch(() => ({ data: null }));
-                        if (dbExistingUsers && Array.isArray(dbExistingUsers)) {
-                            dbExistingUsers.forEach((row: any) => {
-                                if (row.id && row.email && String(row.email).trim() && String(row.email).trim().toLowerCase() !== 'null') {
-                                    existingUserEmailMap.set(row.id, String(row.email).trim().toLowerCase());
-                                }
-                            });
-                        }
-                    } catch (_) {}
-                }
-
-                const cleanUserRecord = (item: any) => {
-                    if (!item || typeof item !== 'object') return item;
-                    const copy = { ...item };
-                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
-
-                    // Ensure email is valid and never violates NOT NULL constraint on relation 'users'
-                    if (typeof copy.email === 'string' && copy.email.trim() && copy.email.trim().toLowerCase() !== 'null' && copy.email.trim().toLowerCase() !== 'undefined') {
-                        copy.email = copy.email.trim().toLowerCase();
-                    } else if (copy.id && existingUserEmailMap.has(copy.id)) {
-                        copy.email = existingUserEmailMap.get(copy.id);
-                    } else {
-                        const rawId = copy.id || `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-                        const cleanId = String(rawId).replace(/^u_/, '').replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
-                        const cleanRole = String(copy.role || (moduleName === 'students' ? 'student' : (moduleName === 'teachers' ? 'teacher' : 'user'))).toLowerCase().replace(/[^a-zA-Z0-9_]/g, '');
-                        const phone = copy.phone_number || copy.phoneNumber || copy.phone;
-                        const admNo = copy.admission_number || copy.admissionNumber || copy.admissionNo || meta.admissionNumber;
-                        const staffId = copy.staff_id || copy.staffId;
-
-                        if (cleanRole === 'student' && admNo) {
-                            const cleanAdm = String(admNo).replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
-                            copy.email = `student_${cleanAdm}_${cleanId.slice(-4)}@eduai.local`;
-                        } else if ((cleanRole === 'teacher' || cleanRole === 'lecturer' || cleanRole === 'staff') && staffId) {
-                            const cleanStaff = String(staffId).replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
-                            copy.email = `staff_${cleanStaff}_${cleanId.slice(-4)}@eduai.local`;
                         } else if (cleanRole === 'parent' && phone) {
                             const cleanPhone = String(phone).replace(/[^0-9]/g, '');
                             copy.email = `parent_${cleanPhone || cleanId}@eduai.local`;
@@ -8490,12 +8408,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const normCourse = (item: any) => {
                     if (!item || typeof item !== 'object') return item;
                     const c = { ...item };
-                    if (c.institutionId && !c.institution_id) { c.institution_id = c.institutionId; delete c.institutionId; }
-                    if (c.departmentId && !c.department_id) { c.department_id = c.departmentId; delete c.departmentId; }
-                    if (c.academicLevelId && !c.academic_level_id) { c.academic_level_id = c.academicLevelId; delete c.academicLevelId; }
-                    if (c.shortName && !c.short_name) { c.short_name = c.shortName; delete c.shortName; }
-                    if (c.curriculumType && !c.curriculum_type) { c.curriculum_type = c.curriculumType; delete c.curriculumType; }
-                    if (c.scheduleProfileId && !c.schedule_profile_id) { c.schedule_profile_id = c.scheduleProfileId; delete c.scheduleProfileId; }
+                    const instId = c.institution_id || c.institutionId;
+                    if (instId) { c.institution_id = instId; c.institutionId = instId; }
+                    const deptId = c.department_id || c.departmentId;
+                    if (deptId) { c.department_id = deptId; c.departmentId = deptId; }
+                    const acadLvlId = c.academic_level_id || c.academicLevelId;
+                    if (acadLvlId) { c.academic_level_id = acadLvlId; c.academicLevelId = acadLvlId; }
+                    const sName = c.short_name || c.shortName;
+                    if (sName) { c.short_name = sName; c.shortName = sName; }
+                    const currType = c.curriculum_type || c.curriculumType;
+                    if (currType) { c.curriculum_type = currType; c.curriculumType = currType; }
+                    const schedProfId = c.schedule_profile_id || c.scheduleProfileId;
+                    if (schedProfId) { c.schedule_profile_id = schedProfId; c.scheduleProfileId = schedProfId; }
 
                     // Ensure levels is a valid array of course levels
                     let lvlList = Array.isArray(c.levels) ? c.levels : [];
@@ -8514,15 +8438,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     const existingLevelNames = new Set(lvlList.map((l: any) => String(l?.name || '').toLowerCase().trim()));
                     const finalLevels = [...lvlList];
-                    combinedStreamNames.forEach((sName: string) => {
-                        if (!existingLevelNames.has(sName.toLowerCase().trim())) {
+                    combinedStreamNames.forEach((streamName: string) => {
+                        if (!existingLevelNames.has(streamName.toLowerCase().trim())) {
                             finalLevels.push({
                                 id: `lvl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                                name: sName,
+                                name: streamName,
                                 subjectIds: [],
                                 subjectMetadata: []
                             });
-                            existingLevelNames.add(sName.toLowerCase().trim());
+                            existingLevelNames.add(streamName.toLowerCase().trim());
                         }
                     });
 
@@ -8535,6 +8459,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return c;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normCourse) : normCourse(currentPayload);
+            }
+
+            // Normalize biometric_enrollments: ensure both camelCase and snake_case properties are populated
+            if (moduleName === 'biometric_enrollments' || targetDbTable === 'biometric_enrollments') {
+                const normBiometricEnrollment = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const b = { ...item };
+                    const instId = b.institution_id || b.institutionId;
+                    if (instId) { b.institution_id = instId; b.institutionId = instId; }
+                    const sId = b.staff_id || b.staffId;
+                    if (sId) { b.staff_id = sId; b.staffId = sId; }
+                    const dPin = b.device_pin || b.devicePin;
+                    if (dPin) { b.device_pin = String(dPin).trim(); b.devicePin = String(dPin).trim(); }
+                    const active = b.is_active !== undefined ? b.is_active : (b.isActive !== undefined ? b.isActive : true);
+                    b.is_active = !!active;
+                    b.isActive = !!active;
+                    const fpIdx = b.fingerprint_index !== undefined ? b.fingerprint_index : (b.fingerprintIndex !== undefined ? b.fingerprintIndex : 0);
+                    b.fingerprint_index = Number(fpIdx) || 0;
+                    b.fingerprintIndex = Number(fpIdx) || 0;
+                    const cardNum = b.card_number || b.cardNumber;
+                    if (cardNum) { b.card_number = String(cardNum).trim(); b.cardNumber = String(cardNum).trim(); }
+                    return b;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normBiometricEnrollment) : normBiometricEnrollment(currentPayload);
             }
 
             // Normalize fee_structures: map camelCase → snake_case DB columns and strip un-cached timestamp columns

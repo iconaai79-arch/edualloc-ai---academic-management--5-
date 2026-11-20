@@ -3801,6 +3801,8 @@ export const apiService = {
             }
 
             if (module === 'courses') {
+                const instId = item.institution_id || item.institutionId;
+                if (instId) { item.institution_id = instId; item.institutionId = instId; }
                 const lvlList = Array.isArray(item.levels) ? item.levels : [];
                 const streamList = Array.isArray(item.streams) ? item.streams : [];
                 const combinedStreamNames = Array.from(new Set([
@@ -3826,6 +3828,21 @@ export const apiService = {
                 delete item.createdAt;
                 delete item.updated_at;
                 delete item.updatedAt;
+            }
+
+            if (module === 'biometric_enrollments') {
+                const instId = item.institution_id || item.institutionId;
+                if (instId) { item.institution_id = instId; item.institutionId = instId; }
+                const sId = item.staff_id || item.staffId;
+                if (sId) { item.staff_id = sId; item.staffId = sId; }
+                const dPin = item.device_pin || item.devicePin;
+                if (dPin) { item.device_pin = String(dPin).trim(); item.devicePin = String(dPin).trim(); }
+                const active = item.is_active !== undefined ? item.is_active : (item.isActive !== undefined ? item.isActive : true);
+                item.is_active = !!active;
+                item.isActive = !!active;
+                const fpIdx = item.fingerprint_index !== undefined ? item.fingerprint_index : (item.fingerprintIndex !== undefined ? item.fingerprintIndex : 0);
+                item.fingerprint_index = Number(fpIdx) || 0;
+                item.fingerprintIndex = Number(fpIdx) || 0;
             }
 
             if (module === 'institution_module_states') {
