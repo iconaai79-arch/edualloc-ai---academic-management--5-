@@ -219,6 +219,21 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
             if (billingRes.receiptPdfUri) {
                 billingService.downloadPdfUri(billingRes.receiptPdfUri, `Receipt_${billingRes.receipt.receiptNumber}.pdf`);
             }
+
+            // Record transaction as an expense in Finance / DS Expenditures
+            const isDs = institution.institutionType === 'Driving School' || (institution.institutionType || '').toLowerCase().includes('driving');
+            const receiptRef = billingRes?.receipt?.receiptNumber || `SUB-${Date.now().toString().slice(-6)}`;
+            apiService.recordPlatformExpense({
+                institutionId: institution.id,
+                amount: paymentData.amount,
+                type: 'subscription',
+                description: `Software Subscription Renewal (${items?.[0]?.description || 'Institutional Enterprise Plan'})`,
+                paymentMethod: 'M-Pesa',
+                referenceNumber: receiptRef,
+                isDs,
+                recordedBy: paymentData.payerName || 'Finance'
+            }).catch(e => console.warn('[SubscriptionManager] Expense recording notice:', e));
+
             if (onRefreshData) onRefreshData();
         }
 

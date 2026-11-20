@@ -11197,6 +11197,93 @@ export const apiService = {
         }
     },
 
+    async recordPlatformExpense(params: {
+        institutionId: string;
+        amount: number;
+        type: 'sms' | 'subscription';
+        description: string;
+        paymentMethod?: string;
+        referenceNumber?: string;
+        units?: number;
+        recordedBy?: string;
+        isDs?: boolean;
+    }): Promise<void> {
+        try {
+            const { institutionId, amount, type, description, paymentMethod = 'M-Pesa', referenceNumber, units, recordedBy = 'System' } = params;
+            if (!institutionId || institutionId === 'GLOBAL' || institutionId === 'SYSTEM' || !amount || Number(amount) <= 0) return;
+
+            const todayStr = new Date().toISOString().split('T')[0];
+            const expId = `exp_${type}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+            const category = type === 'sms' ? 'Utilities' : 'Operations';
+            const ref = referenceNumber || `${type.toUpperCase()}-${Date.now().toString().slice(-6)}`;
+            const payee = 'EduAI Platform / Talksasa';
+            const numAmt = Number(amount);
+
+            let isDs = params.isDs;
+            if (isDs === undefined) {
+                try {
+                    const inst = (typeof window !== 'undefined' ? JSON.parse(safeLocalStorage.getItem('eduai_active_institution') || '{}') : {});
+                    const combined = `${inst?.institutionType || inst?.institution_type || ''} ${inst?.category || ''} ${inst?.name || ''}`.toLowerCase();
+                    if (combined.includes('driving')) isDs = true;
+                } catch (_) {}
+            }
+
+            // 1. Save to expenses
+            const expenseRecord = {
+                id: expId,
+                institutionId,
+                institution_id: institutionId,
+                category,
+                amount: numAmt,
+                description,
+                date: todayStr,
+                status: 'approved',
+                paymentMethod,
+                payment_method: paymentMethod,
+                referenceNumber: ref,
+                reference_number: ref,
+                payeeName: payee,
+                payee_name: payee,
+                recordedBy,
+                recorded_by: recordedBy,
+                metadata: {
+                    type,
+                    units,
+                    referenceNumber: ref,
+                    recordedAt: new Date().toISOString()
+                }
+            };
+            await apiService.saveModuleRecord('expenses', expenseRecord).catch(e => console.warn('[apiService] recordPlatformExpense expenses save warning:', e));
+
+            // 2. If Driving School, also save to ds_expenditures
+            if (isDs) {
+                const dsExpId = `dsexp_${type}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+                const dsRecord = {
+                    id: dsExpId,
+                    institutionId,
+                    institution_id: institutionId,
+                    description,
+                    category,
+                    amount: numAmt,
+                    paymentMethod,
+                    payment_method: paymentMethod,
+                    referenceNumber: ref,
+                    reference_number: ref,
+                    paidTo: payee,
+                    paid_to: payee,
+                    recordedBy,
+                    recorded_by: recordedBy,
+                    expenseDate: todayStr,
+                    expense_date: todayStr,
+                    notes: `${description} (${paymentMethod} Ref: ${ref})`
+                };
+                await apiService.saveModuleRecord('ds_expenditures', dsRecord).catch(e => console.warn('[apiService] recordPlatformExpense ds_expenditures save warning:', e));
+            }
+        } catch (err) {
+            console.warn('[apiService] Failed to record platform expense:', err);
+        }
+    },
+
     async prefetchFinanceRecords(institutionId?: string): Promise<void> {
         if (!institutionId || institutionId === 'ALL') {
             const session = apiService.getSession();

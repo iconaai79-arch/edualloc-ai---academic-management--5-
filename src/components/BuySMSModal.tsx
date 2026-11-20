@@ -232,6 +232,19 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                         window.dispatchEvent(new CustomEvent('eduai_sms_balance_updated', {
                             detail: { units, newBalance, institutionId }
                         }));
+
+                        // Record transaction as an expense in Finance / DS Expenditures
+                        apiService.recordPlatformExpense({
+                            institutionId,
+                            amount: calculatedTotal,
+                            type: 'sms',
+                            description: `SMS Units Purchase - ${units?.toLocaleString()} units`,
+                            paymentMethod: provider?.toUpperCase() || 'M-Pesa',
+                            referenceNumber: checkoutRequestId,
+                            units,
+                            recordedBy: requesterId || 'Finance'
+                        }).catch(e => console.warn('[BuySMSModal] Expense recording notice:', e));
+
                         onPurchaseComplete(units, newBalance);
                     } else if ((isFailed || attempts >= maxAttempts) && !isCompletedRef.current) {
                         isCompletedRef.current = true;

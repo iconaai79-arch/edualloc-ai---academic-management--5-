@@ -78,6 +78,136 @@ const getPgPool = async () => {
     }
 };
 
+const recordExpenseOnPlatform = async ({
+    pool,
+    supabase,
+    institutionId,
+    amount,
+    type,
+    description,
+    paymentMethod = 'M-Pesa',
+    referenceNumber,
+    units
+}: {
+    pool?: any;
+    supabase?: any;
+    institutionId: string;
+    amount: number;
+    type: 'sms' | 'subscription';
+    description: string;
+    paymentMethod?: string;
+    referenceNumber?: string;
+    units?: number;
+}) => {
+    if (!institutionId || institutionId === 'GLOBAL' || institutionId === 'SYSTEM' || !amount || Number(amount) <= 0) return;
+    const cleanInstId = String(institutionId).replace(/^inst_/i, '');
+    const instIdWithPrefix = `inst_${cleanInstId}`;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const expId = `exp_${type}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const category = type === 'sms' ? 'Utilities' : 'Operations';
+    const ref = referenceNumber || `${type.toUpperCase()}-${Date.now().toString().slice(-6)}`;
+    const payee = 'EduAI Platform / Talksasa';
+    const numAmt = Number(amount);
+
+    let isDs = false;
+    if (pool) {
+        try {
+            const instCheck = await pool.query(
+                `SELECT institution_type, category, name FROM public.institutions WHERE id = $1 OR id = $2 OR id = $3 LIMIT 1`,
+                [institutionId, cleanInstId, instIdWithPrefix]
+            );
+            const row = instCheck?.rows?.[0];
+            if (row) {
+                const combined = `${row.institution_type || ''} ${row.category || ''} ${row.name || ''}`.toLowerCase();
+                if (combined.includes('driving')) isDs = true;
+            }
+        } catch (_) {}
+    } else if (supabase) {
+        try {
+            const { data: instRow } = await supabase
+                .from('institutions')
+                .select('institution_type, category, name')
+                .or(`id.eq.${institutionId},id.eq.${cleanInstId},id.eq.${instIdWithPrefix}`)
+                .limit(1)
+                .maybeSingle();
+            if (instRow) {
+                const combined = `${instRow.institution_type || ''} ${instRow.category || ''} ${instRow.name || ''}`.toLowerCase();
+                if (combined.includes('driving')) isDs = true;
+            }
+        } catch (_) {}
+    }
+
+    // 1. Insert into public.expenses
+    if (pool) {
+        try {
+            await pool.query(
+                `INSERT INTO public.expenses (id, institution_id, category, amount, description, date, status, payment_method, reference_number, payee_name, recorded_by)
+                 VALUES ($1, $2, $3, $4, $5, $6, 'approved', $7, $8, $9, 'System')
+                 ON CONFLICT (id) DO NOTHING`,
+                [expId, institutionId, category, numAmt, description, todayStr, paymentMethod, ref, payee]
+            );
+        } catch (e: any) {
+            console.warn('[recordExpenseOnPlatform] Direct PG insert expenses error:', e?.message || e);
+        }
+    } else if (supabase) {
+        try {
+            await supabase.from('expenses').insert({
+                id: expId,
+                institution_id: institutionId,
+                institutionId: institutionId,
+                category,
+                amount: numAmt,
+                description,
+                date: todayStr,
+                status: 'approved',
+                payment_method: paymentMethod,
+                paymentMethod,
+                reference_number: ref,
+                referenceNumber: ref,
+                payee_name: payee,
+                payeeName: payee,
+                recorded_by: 'System'
+            });
+        } catch (e: any) {
+            console.warn('[recordExpenseOnPlatform] Supabase insert expenses error:', e?.message || e);
+        }
+    }
+
+    // 2. If Driving School, also insert into public.ds_expenditures
+    if (isDs) {
+        const dsExpId = `dsexp_${type}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        if (pool) {
+            try {
+                await pool.query(
+                    `INSERT INTO public.ds_expenditures (id, institution_id, description, category, amount, payment_method, reference_number, paid_to, recorded_by, expense_date)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'System', $9)
+                     ON CONFLICT (id) DO NOTHING`,
+                    [dsExpId, institutionId, description, category, numAmt, paymentMethod, ref, payee, todayStr]
+                );
+            } catch (e: any) {
+                console.warn('[recordExpenseOnPlatform] Direct PG insert ds_expenditures error:', e?.message || e);
+            }
+        } else if (supabase) {
+            try {
+                await supabase.from('ds_expenditures').insert({
+                    id: dsExpId,
+                    institution_id: institutionId,
+                    description,
+                    category,
+                    amount: numAmt,
+                    payment_method: paymentMethod,
+                    reference_number: ref,
+                    paid_to: payee,
+                    recorded_by: 'System',
+                    expense_date: todayStr
+                });
+            } catch (e: any) {
+                console.warn('[recordExpenseOnPlatform] Supabase insert ds_expenditures error:', e?.message || e);
+            }
+        }
+    }
+};
+
 // --- Custom Payment Notification & SMS Gateway Cascade Helpers ---
 const DEFAULT_PAYMENT_NOTIFICATION_TEMPLATE = `Dear parent,
 Student: {adm_no} - {student_name}
@@ -755,6 +885,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             related_transaction_id: mpesaReceiptNumber || transaction.transaction_id || transaction.id
                         });
 
+                        // Record expense in expenses (and ds_expenditures if Driving School)
+                        await recordExpenseOnPlatform({
+                            pool: await getPgPool(),
+                            supabase,
+                            institutionId: transaction.institution_id,
+                            amount: transaction.amount,
+                            type: 'subscription',
+                            description: `${metadata.plan.charAt(0).toUpperCase() + metadata.plan.slice(1)} Subscription Renewal`,
+                            paymentMethod: 'M-Pesa',
+                            referenceNumber: mpesaReceiptNumber || transaction.transaction_id || transaction.id
+                        }).catch(e => console.warn('[M-Pesa Callback] Failed to record subscription expense:', e));
+
                         console.log(`[M-Pesa Callback] ✅ Subscription extended by ${days} days`);
                         console.log(`[M-Pesa Callback] ✅ New expiry: ${newEndDate.toISOString()}`);
 
@@ -1135,6 +1277,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     payment_method: 'M-Pesa',
                     related_transaction_id: mpesaReceiptNumber || transaction.transaction_id || transaction.id
                 });
+
+                // Record expense in expenses (and ds_expenditures if Driving School)
+                await recordExpenseOnPlatform({
+                    pool: await getPgPool(),
+                    supabase,
+                    institutionId: transaction.institution_id,
+                    amount: transaction.amount,
+                    type: 'sms',
+                    description: `SMS Units Purchase - ${unitsToCredit} units`,
+                    paymentMethod: 'M-Pesa',
+                    referenceNumber: mpesaReceiptNumber || transaction.transaction_id || transaction.id,
+                    units: unitsToCredit
+                }).catch(e => console.warn('[M-Pesa Callback] Failed to record SMS expense:', e));
 
                 // Fetch new balance for accurate notifications
                 const { data: updatedInst } = await supabase
