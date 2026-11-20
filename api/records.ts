@@ -9544,11 +9544,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     try {
                         const pool = await getPgPool();
                         if (pool && currentPayload) {
+                            // Ensure institutions branding columns exist before column discovery
+                            if (targetDbTable === 'institutions') {
+                                await pool.query(`
+                                    ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS logo_url TEXT;
+                                    ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS header_image_url TEXT;
+                                    ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS footer_image_url TEXT;
+                                    ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stamp_url TEXT;
+                                    ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS letterhead_config JSONB DEFAULT '{}'::jsonb;
+                                `).catch(() => {});
+                            }
+
+                            // Discover actual columns in public."targetDbTable" so extra frontend keys NEVER cause silent 42703 failures
+                            let validDbCols: Set<string> | null = null;
+                            try {
+                                const colRes = await pool.query(
+                                    `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1`,
+                                    [targetDbTable]
+                                );
+                                if (colRes?.rows && colRes.rows.length > 0) {
+                                    validDbCols = new Set(colRes.rows.map((r: any) => String(r.column_name)));
+                                }
+                            } catch (_) {}
+
+                            const toSnake = (s: string) => s.replace(/[A-Z]/g, m => `_${m.toLowerCase()}`);
+
                             const items = Array.isArray(currentPayload) ? currentPayload : [currentPayload];
                             const insertedRows: any[] = [];
-                            for (const item of items) {
-                                if (item && typeof item === 'object' && item.id) {
-                                    const keys = Object.keys(item).filter(k => /^[a-zA-Z0-9_]+$/.test(k) && item[k] !== undefined);
+                            for (const rawItem of items) {
+                                if (rawItem && typeof rawItem === 'object' && rawItem.id) {
+                                    const item: any = { ...rawItem };
+                                    if (validDbCols && validDbCols.size > 0) {
+                                        // Map camelCase keys to snake_case if the snake_case column exists in DB and isn't populated yet
+                                        Object.keys(item).forEach(k => {
+                                            if (item[k] !== undefined && !validDbCols!.has(k)) {
+                                                const sn = toSnake(k);
+                                                if (validDbCols!.has(sn) && item[sn] === undefined) {
+                                                    item[sn] = item[k];
+                                                }
+                                            }
+                                        });
+                                    }
+                                    const keys = Object.keys(item).filter(k =>
+                                        /^[a-zA-Z0-9_]+$/.test(k) &&
+                                        item[k] !== undefined &&
+                                        (!validDbCols || validDbCols.size === 0 || validDbCols.has(k))
+                                    );
                                     if (keys.length === 0) continue;
 
                                     // 1. If row already exists, perform direct UPDATE first (bypasses NOT NULL checks on omitted columns)
@@ -12549,11 +12590,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     try {
                         const pool = await getPgPool();
                         if (pool && currentUpdateData) {
-                            const rawKeys = Object.keys(currentUpdateData).filter(k => /^[a-zA-Z0-9_]+$/.test(k) && currentUpdateData[k] !== undefined && k !== 'id');
+                            if (targetDbTable === 'institutions') {
+                                await pool.query(`
+                                    ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS logo_url TEXT;
+                                    ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS header_image_url TEXT;
+                                    ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS footer_image_url TEXT;
+                                    ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stamp_url TEXT;
+                                    ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS letterhead_config JSONB DEFAULT '{}'::jsonb;
+                                `).catch(() => {});
+                            }
+
+                            let validPatchCols: Set<string> | null = null;
+                            try {
+                                const colRes = await pool.query(
+                                    `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1`,
+                                    [targetDbTable]
+                                );
+                                if (colRes?.rows && colRes.rows.length > 0) {
+                                    validPatchCols = new Set(colRes.rows.map((r: any) => String(r.column_name)));
+                                }
+                            } catch (_) {}
+
+                            const toSnakePatch = (s: string) => s.replace(/[A-Z]/g, m => `_${m.toLowerCase()}`);
+                            const patchPayload: any = { ...currentUpdateData };
+                            if (validPatchCols && validPatchCols.size > 0) {
+                                Object.keys(patchPayload).forEach(k => {
+                                    if (patchPayload[k] !== undefined && !validPatchCols!.has(k)) {
+                                        const sn = toSnakePatch(k);
+                                        if (validPatchCols!.has(sn) && patchPayload[sn] === undefined) {
+                                            patchPayload[sn] = patchPayload[k];
+                                        }
+                                    }
+                                });
+                            }
+
+                            const rawKeys = Object.keys(patchPayload).filter(k =>
+                                /^[a-zA-Z0-9_]+$/.test(k) &&
+                                patchPayload[k] !== undefined &&
+                                k !== 'id' &&
+                                (!validPatchCols || validPatchCols.size === 0 || validPatchCols.has(k))
+                            );
                             if (rawKeys.length > 0 && idsArray.length > 0) {
                                 const vals: any[] = [];
                                 const setClauses = rawKeys.map((k, idx) => {
-                                    let v = currentUpdateData[k];
+                                    let v = patchPayload[k];
                                     if (v !== null && typeof v === 'object') v = JSON.stringify(v);
                                     vals.push(v);
                                     return `"${k}" = $${idx + 1}`;
