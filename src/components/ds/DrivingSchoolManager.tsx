@@ -4192,6 +4192,7 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
         deleteInvoice: onDeleteInvoice,
         addPayment: onAddPayment,
         updatePayment: onUpdatePayment,
+        bulkUpdatePayments: onBulkUpdatePayments,
         deletePayment: onDeletePayment,
         deletePayments: onDeletePayments,
         refreshData,
@@ -10182,8 +10183,8 @@ END $$;
                                                                     if (window.confirm(`Are you sure you want to confirm ${pendingSelected.length} pending payments?`)) {
                                                                         setIsActionLoading(true);
                                                                         try {
-                                                                            await Promise.all(
-                                                                                pendingSelected.map(p => onUpdatePayment({ ...p, status: 'Completed' }))
+                                                                            await onBulkUpdatePayments(
+                                                                                pendingSelected.map(p => ({ ...p, status: 'Completed' }))
                                                                             );
                                                                             success(`Successfully confirmed ${pendingSelected.length} payments!`);
                                                                             setSelectedPaymentIds(prev => prev.filter(id => !pendingSelected.some(p => p.id === id)));
@@ -10707,8 +10708,42 @@ END $$;
                                                 <div className="p-8 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between flex-wrap gap-4">
                                                     <p className="text-xs font-bold text-slate-400">{filteredAuditPayments.filter(p => p.status === 'Verified').length} of {filteredAuditPayments.length} payments verified</p>
                                                     {filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status || '')).length > 0 && (
-                                                        <button onClick={async () => { const unverified = filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status || '')); if (window.confirm(`Bulk-verify all ${unverified.length} unverified payments?`)) { setIsActionLoading(true); try { for (const p of unverified) { await onUpdatePayment({ ...p, status: 'Verified', auditedBy: currentUser?.name || currentUser?.email || 'Director', auditedAt: new Date().toISOString() } as any); } success(`${unverified.length} payments verified!`); } catch (err: any) { toastError(err.message || 'Bulk verify failed'); } finally { setIsActionLoading(false); } } }} disabled={isActionLoading} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-50">
-                                                            <CheckCircleIcon className="w-3.5 h-3.5" /> Verify All ({filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status || '')).length})
+                                                        <button
+                                                            type="button"
+                                                            onClick={async () => {
+                                                                const unverified = filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status || ''));
+                                                                if (unverified.length === 0) return;
+                                                                if (window.confirm(`Bulk-verify all ${unverified.length} unverified payments?`)) {
+                                                                    setIsActionLoading(true);
+                                                                    try {
+                                                                        const auditorName = currentUser?.name || currentUser?.email || 'Director';
+                                                                        const nowIso = new Date().toISOString();
+                                                                        const payloads = unverified.map(p => {
+                                                                            const student = getStudentForPayment(p);
+                                                                            const resolvedStudentName = getPaymentStudentName(p, student);
+                                                                            return {
+                                                                                ...p,
+                                                                                studentName: resolvedStudentName,
+                                                                                status: 'Verified',
+                                                                                auditedBy: auditorName,
+                                                                                audited_by: auditorName,
+                                                                                auditedAt: nowIso,
+                                                                                audited_at: nowIso
+                                                                            };
+                                                                        });
+                                                                        await onBulkUpdatePayments(payloads, { skipInvoiceRecalc: true });
+                                                                        success(`${unverified.length} payments verified!`);
+                                                                    } catch (err: any) {
+                                                                        toastError(err?.message || 'Bulk verify failed');
+                                                                    } finally {
+                                                                        setIsActionLoading(false);
+                                                                    }
+                                                                }
+                                                            }}
+                                                            disabled={isActionLoading}
+                                                            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-50 cursor-pointer"
+                                                        >
+                                                            <CheckCircleIcon className="w-3.5 h-3.5" /> {isActionLoading ? 'Verifying...' : `Verify All (${filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status || '')).length})`}
                                                         </button>
                                                     )}
                                                 </div>

@@ -134,6 +134,7 @@ interface DrivingSchoolContextType {
     deleteInvoice: (id: string) => Promise<void>;
     addPayment: (data: any) => Promise<void>;
     updatePayment: (data: any) => Promise<void>;
+    bulkUpdatePayments: (items: any[], options?: { skipInvoiceRecalc?: boolean }) => Promise<void>;
     deletePayment: (id: string) => Promise<void>;
     deletePayments: (ids: string[], skipConfirmation?: boolean) => Promise<void>;
     updateLesson: (data: any) => Promise<void>;
@@ -212,6 +213,7 @@ const defaultDrivingSchoolContext: DrivingSchoolContextType = {
     deleteInvoice: async () => {},
     addPayment: async () => {},
     updatePayment: async () => {},
+    bulkUpdatePayments: async () => {},
     deletePayment: async () => {},
     deletePayments: async () => {},
     updateLesson: async () => {},
@@ -2707,6 +2709,88 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
     }, [institutionId, rawPayments, rawInvoices, onRefresh, success, error, recalculateInvoicePayments, payments, invoices]);
 
+    const bulkUpdatePayments = useCallback(async (items: any[], options?: { skipInvoiceRecalc?: boolean }) => {
+        if (!institutionId || !Array.isArray(items) || items.length === 0) return;
+        try {
+            const nowIso = new Date().toISOString();
+            const paymentMap = new Map<string, any>();
+            (rawPayments || []).forEach(p => { if (p?.id) paymentMap.set(p.id, p); });
+            (payments || []).forEach(p => { if (p?.id && !paymentMap.has(p.id)) paymentMap.set(p.id, p); });
+
+            const preparedItems: any[] = [];
+            const affectedInvoiceIds = new Set<string>();
+
+            for (const data of items) {
+                if (!data?.id) continue;
+                const oldPayment = paymentMap.get(data.id) || data;
+                const existingMetadata = typeof oldPayment.metadata === 'object' && oldPayment.metadata ? oldPayment.metadata : {};
+                const updatedMetadata = {
+                    ...existingMetadata,
+                    ...(data.metadata || {}),
+                    ...(data.auditedBy ? { auditedBy: data.auditedBy, auditedAt: data.auditedAt || nowIso } : {})
+                };
+
+                const updatedPayment: any = {
+                    ...oldPayment,
+                    ...data,
+                    institutionId,
+                    institution_id: institutionId,
+                    ...(data.auditedBy !== undefined ? { auditedBy: data.auditedBy, audited_by: data.auditedBy } : {}),
+                    ...(data.auditedAt !== undefined ? { auditedAt: data.auditedAt, audited_at: data.auditedAt } : {}),
+                    metadata: updatedMetadata,
+                    updatedAt: nowIso
+                };
+                delete updatedPayment.editReason;
+                delete updatedPayment.edit_reason;
+
+                preparedItems.push(updatedPayment);
+                if (!options?.skipInvoiceRecalc) {
+                    if (oldPayment.invoiceId) affectedInvoiceIds.add(oldPayment.invoiceId);
+                    if (data.invoiceId) affectedInvoiceIds.add(data.invoiceId);
+                }
+            }
+
+            if (preparedItems.length === 0) return;
+
+            // 1. Optimistic UI update immediately so the table reflects changes without waiting
+            const updatedById = new Map(preparedItems.map(p => [p.id, p]));
+            setPayments(prev => {
+                const next = (prev || []).map(p => updatedById.has(p.id) ? { ...p, ...updatedById.get(p.id) } : p);
+                try { localStorage.setItem(`ds_payments_backup_${institutionId}`, JSON.stringify(next)); } catch (_) {}
+                return next;
+            });
+
+            // 2. Persist to server in chunks of 50 (single POST per chunk instead of 1 per record)
+            const CHUNK_SIZE = 50;
+            for (let i = 0; i < preparedItems.length; i += CHUNK_SIZE) {
+                const chunk = preparedItems.slice(i, i + CHUNK_SIZE);
+                await apiService.saveModuleRecord('ds_payments', chunk as any);
+            }
+
+            // 3. Recalculate affected invoices once (only if amounts/statuses affecting balances changed)
+            if (!options?.skipInvoiceRecalc && affectedInvoiceIds.size > 0) {
+                const mergedAllPayments = (rawPayments || []).map(p => updatedById.has(p.id) ? updatedById.get(p.id) : p);
+                const recalculatedInvoices: any[] = [];
+                for (const invId of affectedInvoiceIds) {
+                    const invoice = rawInvoices.find(inv => inv.id === invId) || invoices.find(inv => inv.id === invId);
+                    if (invoice) {
+                        const invoicePayments = mergedAllPayments.filter(p => p.invoiceId === invId);
+                        recalculatedInvoices.push(recalculateInvoicePayments(invoice, invoicePayments));
+                    }
+                }
+                if (recalculatedInvoices.length > 0) {
+                    await apiService.saveModuleRecord('ds_invoices', recalculatedInvoices as any);
+                }
+            }
+
+            // 4. Single refresh at the very end
+            await onRefresh();
+        } catch (err) {
+            error("Failed to bulk update payments");
+            throw err;
+        }
+    }, [institutionId, rawPayments, rawInvoices, onRefresh, error, recalculateInvoicePayments, payments, invoices]);
+
     const deletePayment = useCallback(async (id: string) => {
         if (!institutionId) return;
         const paymentToDelete = rawPayments.find(p => p.id === id) || payments.find(p => p.id === id);
@@ -2875,7 +2959,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         addBranch, updateBranch, deleteBranch,
         rawStudents, rawInstructors, rawVehicles, rawLessons, rawInvoices, rawPayments, rawLeads, rawExpenditures,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments, setLeads, setExpenditures,
-        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, verifyStudentPayment, updateStudent, deleteStudent, deleteStudents, bulkAssignStudentsBranch, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, deleteInvoice, addPayment, updatePayment, deletePayment, deletePayments, addLead, updateLead, deleteLead, deleteLeads,
+        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, verifyStudentPayment, updateStudent, deleteStudent, deleteStudents, bulkAssignStudentsBranch, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, deleteInvoice, addPayment, updatePayment, bulkUpdatePayments, deletePayment, deletePayments, addLead, updateLead, deleteLead, deleteLeads,
         addExpenditure, updateExpenditure, deleteExpenditure,
         sendLessonNotification,
         refreshData, stats
