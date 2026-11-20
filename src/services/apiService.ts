@@ -10840,7 +10840,7 @@ export const apiService = {
         await apiService.saveModuleRecord('church_saint_days', data);
     },
     async fetchDemoRequests(): Promise<DemoRequest[]> {
-        return apiService.fetchModuleRecords('demo_requests', undefined, undefined, { order: 'requested_at.desc' });
+        return apiService.fetchModuleRecords('demo_requests', undefined, undefined, { order: 'created_at.desc' });
     },
     async updateDemoRequestStatus(id: string, status: DemoRequest['status']): Promise<void> {
         await apiService.saveModuleRecord('demo_requests', { id, status });

@@ -237,6 +237,52 @@ const ensureEssentialSchema = async (pool: any) => {
             updated_at TIMESTAMPTZ DEFAULT NOW()
         );
 
+        -- Ensure demo_requests table and requested_at columns
+        CREATE TABLE IF NOT EXISTS public.demo_requests (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            institution TEXT,
+            phone TEXT,
+            message TEXT,
+            status TEXT DEFAULT 'new',
+            source TEXT DEFAULT 'Web Landing Page',
+            conversation_transcript JSONB DEFAULT '[]'::jsonb,
+            notes TEXT,
+            quote_amount NUMERIC(12,2) DEFAULT 0.00,
+            payment_status TEXT DEFAULT 'unpaid',
+            requested_at TIMESTAMPTZ DEFAULT NOW(),
+            "requestedAt" TIMESTAMPTZ DEFAULT NOW(),
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        ALTER TABLE public.demo_requests ADD COLUMN IF NOT EXISTS requested_at TIMESTAMPTZ DEFAULT NOW();
+        ALTER TABLE public.demo_requests ADD COLUMN IF NOT EXISTS "requestedAt" TIMESTAMPTZ DEFAULT NOW();
+        ALTER TABLE public.demo_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+        ALTER TABLE public.demo_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+        UPDATE public.demo_requests SET requested_at = COALESCE(requested_at, "requestedAt", created_at, NOW()) WHERE requested_at IS NULL;
+
+        -- Ensure commission_withdrawal_requests table and requested_at columns
+        CREATE TABLE IF NOT EXISTS public.commission_withdrawal_requests (
+            id TEXT PRIMARY KEY,
+            reseller_id TEXT,
+            reseller_name TEXT,
+            amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+            status TEXT NOT NULL DEFAULT 'pending',
+            requested_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "requestedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            processed_at TIMESTAMPTZ,
+            notes TEXT,
+            account_details TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        ALTER TABLE public.commission_withdrawal_requests ADD COLUMN IF NOT EXISTS requested_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE public.commission_withdrawal_requests ADD COLUMN IF NOT EXISTS "requestedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE public.commission_withdrawal_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE public.commission_withdrawal_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+        UPDATE public.commission_withdrawal_requests SET requested_at = COALESCE(requested_at, "requestedAt", created_at, NOW()) WHERE requested_at IS NULL;
+
         -- 0e. Ensure building_floors, building_offices, and visitor tables exist
         CREATE TABLE IF NOT EXISTS public.building_floors (
             id TEXT PRIMARY KEY,
@@ -1613,9 +1659,14 @@ const fetchViaDirectPg = async (
         } catch (_) {}
       }
 
-      // 1. Auto-heal missing created_at, updated_at, payment_date, institution_id, or branch_id column
-      if (errMsg.includes('created_at') || errMsg.includes('updated_at') || errMsg.includes('payment_date') || errMsg.includes('institution_id') || errMsg.includes('branch_id')) {
+      // 1. Auto-heal missing requested_at, created_at, updated_at, payment_date, institution_id, or branch_id column
+      if (errMsg.includes('requested_at') || errMsg.includes('requestedAt') || errMsg.includes('created_at') || errMsg.includes('updated_at') || errMsg.includes('payment_date') || errMsg.includes('institution_id') || errMsg.includes('branch_id')) {
         try {
+          if (errMsg.includes('requested_at') || errMsg.includes('requestedAt')) {
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS requested_at TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS "requestedAt" TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
+            await pool.query(`UPDATE public."${table}" SET requested_at = COALESCE(requested_at, "requestedAt", created_at, NOW()) WHERE requested_at IS NULL;`).catch(() => {});
+          }
           if (errMsg.includes('created_at')) {
             await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();`).catch(() => {});
           }
@@ -1634,12 +1685,18 @@ const fetchViaDirectPg = async (
           const retryRes = await pool.query(sql, values);
           return retryRes.rows || [];
         } catch (_) {
-          // If query still fails, retry immediately without orderPart
+          // If query still fails, retry immediately with created_at or without orderPart
           try {
-            const noOrderSql = `SELECT * FROM "${table}" ${wherePart} ${limitPart}`;
-            const noOrderRes = await pool.query(noOrderSql, values);
-            return noOrderRes.rows || [];
-          } catch (_) {}
+            const fallbackOrderSql = `SELECT * FROM "${table}" ${wherePart} ORDER BY created_at DESC ${limitPart}`;
+            const fallbackOrderRes = await pool.query(fallbackOrderSql, values);
+            return fallbackOrderRes.rows || [];
+          } catch (_) {
+            try {
+              const noOrderSql = `SELECT * FROM "${table}" ${wherePart} ${limitPart}`;
+              const noOrderRes = await pool.query(noOrderSql, values);
+              return noOrderRes.rows || [];
+            } catch (_) {}
+          }
         }
       }
 
