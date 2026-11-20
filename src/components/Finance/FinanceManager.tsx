@@ -2450,8 +2450,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [brandingConfig, setBrandingConfig] = useState({
         invoicePrefix: props.companyDetails?.globalInvoicePrefix || 'INV-',
         receiptPrefix: 'REC-',
-        footerNotes: 'Thank you for your continued partnership. For inquiries contact accounts.'
+        footerNotes: props.institution?.letterheadConfig?.footerText || 'Thank you for your continued partnership. For inquiries contact accounts.',
+        logoUrl: props.institution?.logoUrl || (props.institution as any)?.logo_url || '',
+        letterheadUrl: props.institution?.letterheadConfig?.headerImageUrl || (props.institution as any)?.headerImageUrl || (props.institution as any)?.header_image_url || '',
+        footerImageUrl: props.institution?.footerImageUrl || (props.institution as any)?.footer_image_url || props.institution?.letterheadConfig?.footerImageUrl || ''
     });
+    const [isUploadingBrandingAsset, setIsUploadingBrandingAsset] = useState<'logo' | 'letterhead' | 'footer' | null>(null);
+    const [isSavingBranding, setIsSavingBranding] = useState(false);
+
+    useEffect(() => {
+        if (!props.institution?.id) return;
+        setBrandingConfig(prev => ({
+            ...prev,
+            footerNotes: props.institution?.letterheadConfig?.footerText || prev.footerNotes,
+            logoUrl: props.institution?.logoUrl || (props.institution as any)?.logo_url || '',
+            letterheadUrl: props.institution?.letterheadConfig?.headerImageUrl || (props.institution as any)?.headerImageUrl || (props.institution as any)?.header_image_url || '',
+            footerImageUrl: props.institution?.footerImageUrl || (props.institution as any)?.footer_image_url || props.institution?.letterheadConfig?.footerImageUrl || ''
+        }));
+    }, [props.institution?.id, props.institution?.logoUrl, props.institution?.footerImageUrl, props.institution?.letterheadConfig?.headerImageUrl, props.institution?.letterheadConfig?.footerImageUrl]);
 
     // ─── Transport & Logistics State for Schools Using Transport ───
     const [transportInvoices, setTransportInvoices] = useState<any[]>(() => {
@@ -4358,10 +4374,99 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     };
 
+    const persistInstitutionBranding = async (nextBranding: typeof brandingConfig, logText?: string) => {
+        if (!props.institution?.id) return;
+        const updatedLetterheadConfig: any = {
+            ...(props.institution.letterheadConfig || {}),
+            headerImageUrl: nextBranding.letterheadUrl || null,
+            footerImageUrl: nextBranding.footerImageUrl || null,
+            footerText: nextBranding.footerNotes || ''
+        };
+        const updatedInstitution: any = {
+            ...props.institution,
+            logoUrl: nextBranding.logoUrl || null,
+            logo_url: nextBranding.logoUrl || null,
+            headerImageUrl: nextBranding.letterheadUrl || null,
+            header_image_url: nextBranding.letterheadUrl || null,
+            footerImageUrl: nextBranding.footerImageUrl || null,
+            footer_image_url: nextBranding.footerImageUrl || null,
+            letterheadConfig: updatedLetterheadConfig,
+            letterhead_config: updatedLetterheadConfig
+        };
+        await apiService.saveInstitution(updatedInstitution);
+        props.onRefreshData?.();
+        if (props.onLogAction && logText) {
+            await props.onLogAction(logText);
+        }
+    };
+
+    const handleFinanceBrandingUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer') => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            alert('Please select a valid image file (PNG, JPG, WebP, or SVG).');
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            alert('Image size must be 10MB or less.');
+            return;
+        }
+        setIsUploadingBrandingAsset(type);
+        try {
+            const timestamp = Date.now();
+            const ext = (file.name.split('.').pop() || 'png').replace(/[^a-zA-Z0-9]/g, '') || 'png';
+            const storagePath = `branding/${props.institution?.id || 'global'}/${type}_${timestamp}.${ext}`;
+            const uploadedUrl = await apiService.uploadFile('eduai', storagePath, file, file.type);
+            if (!uploadedUrl) {
+                throw new Error('Upload did not return a valid URL.');
+            }
+            const nextBranding = {
+                ...brandingConfig,
+                ...(type === 'logo' ? { logoUrl: uploadedUrl } : {}),
+                ...(type === 'letterhead' ? { letterheadUrl: uploadedUrl } : {}),
+                ...(type === 'footer' ? { footerImageUrl: uploadedUrl } : {})
+            };
+            setBrandingConfig(nextBranding);
+            await persistInstitutionBranding(nextBranding, `Uploaded institutional ${type} image in Finance Branding`);
+        } catch (err: any) {
+            console.error(`Failed to upload ${type}:`, err);
+            alert(`Failed to upload ${type}: ${err?.message || 'Unknown error'}`);
+        } finally {
+            setIsUploadingBrandingAsset(null);
+        }
+    };
+
+    const handleRemoveBrandingAsset = async (type: 'logo' | 'letterhead' | 'footer') => {
+        if (!window.confirm(`Remove the current ${type} image?`)) return;
+        setIsSavingBranding(true);
+        try {
+            const nextBranding = {
+                ...brandingConfig,
+                ...(type === 'logo' ? { logoUrl: '' } : {}),
+                ...(type === 'letterhead' ? { letterheadUrl: '' } : {}),
+                ...(type === 'footer' ? { footerImageUrl: '' } : {})
+            };
+            setBrandingConfig(nextBranding);
+            await persistInstitutionBranding(nextBranding, `Removed institutional ${type} image in Finance Branding`);
+        } catch (err: any) {
+            console.error(`Failed to remove ${type}:`, err);
+            alert(`Failed to remove ${type}: ${err?.message || 'Unknown error'}`);
+        } finally {
+            setIsSavingBranding(false);
+        }
+    };
+
     const handleSaveBranding = async () => {
-        alert("Institutional branding configurations updated successfully!");
-        if (props.onLogAction) {
-            await props.onLogAction("Configured institutional invoice/receipt prefix branding");
+        setIsSavingBranding(true);
+        try {
+            await persistInstitutionBranding(brandingConfig, "Configured institutional finance branding, letterhead, logo & footer");
+            alert("Institutional branding configurations saved successfully!");
+        } catch (err: any) {
+            console.error("Failed to save branding:", err);
+            alert(`Failed to save branding: ${err?.message || 'Unknown error'}`);
+        } finally {
+            setIsSavingBranding(false);
         }
     };
 
@@ -19249,10 +19354,125 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                         {/* Subtab content: Branding */}
                         {settingsSubTab === 'branding' && (
-                            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm text-left max-w-2xl mx-auto space-y-6">
-                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight border-b pb-4">Branding & Profiles</h3>
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm text-left max-w-4xl mx-auto space-y-8">
+                                <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Branding, Letterhead, Logo &amp; Footer</h3>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Upload official institutional assets used across invoices, receipts, fee statements, and financial reports</p>
+                                </div>
+
+                                {/* Visual Assets Grid: Logo, Letterhead, Footer */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                    {/* 1. Institution Logo */}
+                                    <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-950/60 border border-slate-100 dark:border-slate-800 flex flex-col justify-between space-y-4">
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Institution Logo</span>
+                                                {brandingConfig.logoUrl && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveBrandingAsset('logo')}
+                                                        disabled={isSavingBranding}
+                                                        className="text-[9px] font-black uppercase tracking-wider text-rose-500 hover:text-rose-600"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="h-32 rounded-2xl bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center p-3 overflow-hidden">
+                                                {brandingConfig.logoUrl ? (
+                                                    <img src={brandingConfig.logoUrl} alt="Institution Logo" className="max-h-full max-w-full object-contain" />
+                                                ) : (
+                                                    <span className="text-[10px] font-bold text-slate-400 text-center">No logo uploaded</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <label className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest text-center cursor-pointer transition-all shadow-sm">
+                                            {isUploadingBrandingAsset === 'logo' ? 'Uploading Logo...' : (brandingConfig.logoUrl ? 'Replace Logo' : 'Upload Logo')}
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                disabled={isUploadingBrandingAsset !== null}
+                                                onChange={(e) => handleFinanceBrandingUpload(e, 'logo')}
+                                            />
+                                        </label>
+                                    </div>
+
+                                    {/* 2. Official Letterhead (Header Banner) */}
+                                    <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-950/60 border border-slate-100 dark:border-slate-800 flex flex-col justify-between space-y-4">
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Letterhead Banner</span>
+                                                {brandingConfig.letterheadUrl && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveBrandingAsset('letterhead')}
+                                                        disabled={isSavingBranding}
+                                                        className="text-[9px] font-black uppercase tracking-wider text-rose-500 hover:text-rose-600"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="h-32 rounded-2xl bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center p-3 overflow-hidden">
+                                                {brandingConfig.letterheadUrl ? (
+                                                    <img src={brandingConfig.letterheadUrl} alt="Official Letterhead" className="max-h-full max-w-full object-contain" />
+                                                ) : (
+                                                    <span className="text-[10px] font-bold text-slate-400 text-center">No letterhead uploaded</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <label className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest text-center cursor-pointer transition-all shadow-sm">
+                                            {isUploadingBrandingAsset === 'letterhead' ? 'Uploading Letterhead...' : (brandingConfig.letterheadUrl ? 'Replace Letterhead' : 'Upload Letterhead')}
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                disabled={isUploadingBrandingAsset !== null}
+                                                onChange={(e) => handleFinanceBrandingUpload(e, 'letterhead')}
+                                            />
+                                        </label>
+                                    </div>
+
+                                    {/* 3. Document Footer Banner */}
+                                    <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-950/60 border border-slate-100 dark:border-slate-800 flex flex-col justify-between space-y-4">
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Footer Image</span>
+                                                {brandingConfig.footerImageUrl && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveBrandingAsset('footer')}
+                                                        disabled={isSavingBranding}
+                                                        className="text-[9px] font-black uppercase tracking-wider text-rose-500 hover:text-rose-600"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="h-32 rounded-2xl bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center p-3 overflow-hidden">
+                                                {brandingConfig.footerImageUrl ? (
+                                                    <img src={brandingConfig.footerImageUrl} alt="Document Footer" className="max-h-full max-w-full object-contain" />
+                                                ) : (
+                                                    <span className="text-[10px] font-bold text-slate-400 text-center">No footer image uploaded</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <label className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest text-center cursor-pointer transition-all shadow-sm">
+                                            {isUploadingBrandingAsset === 'footer' ? 'Uploading Footer...' : (brandingConfig.footerImageUrl ? 'Replace Footer' : 'Upload Footer')}
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                disabled={isUploadingBrandingAsset !== null}
+                                                onChange={(e) => handleFinanceBrandingUpload(e, 'footer')}
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice Prefix</label>
                                             <input
@@ -19282,10 +19502,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         />
                                     </div>
                                     <button
+                                        type="button"
                                         onClick={handleSaveBranding}
-                                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all text-center"
+                                        disabled={isSavingBranding || isUploadingBrandingAsset !== null}
+                                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 disabled:opacity-60 transition-all text-center"
                                     >
-                                        Save Branding presets
+                                        {isSavingBranding ? 'Saving Branding...' : 'Save Branding Presets'}
                                     </button>
                                 </div>
                             </div>
