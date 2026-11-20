@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import type { User, Role, Department, UserUpdateData, Institution, Constituency, County, Branch } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution, isDSInstitution } from '../utils/roleUtils';
@@ -314,10 +315,10 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
 
   if (!user) return null;
 
-  return (
-    <div className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
-        <div className="p-8 pb-4 flex justify-between items-center bg-white dark:bg-slate-900">
+  const modalContent = (
+    <div className="fixed inset-0 bg-slate-900/80 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
+        <div className="p-8 pb-4 shrink-0 flex justify-between items-center bg-white dark:bg-slate-900">
           <div>
             <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
               User Profile Registry
@@ -330,7 +331,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
         </div>
 
         {/* Tabs Navigation */}
-        <div className="px-8 border-b border-slate-100 dark:border-slate-800 flex gap-8">
+        <div className="px-8 shrink-0 border-b border-slate-100 dark:border-slate-800 flex gap-8">
           {(['basic', 'pro', 'access'] as const).map((tab) => (
             <button
               key={tab}
@@ -629,7 +630,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
             )}
           </div>
 
-          <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-6 flex justify-end items-center gap-3 border-t border-slate-100 dark:border-slate-800">
+          <div className="shrink-0 bg-slate-50 dark:bg-slate-900/50 px-8 py-6 flex justify-end items-center gap-3 border-t border-slate-100 dark:border-slate-800">
             <button type="button" onClick={onClose} className="btn-secondary h-12 px-8">Discard</button>
             <button type="submit" className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100 dark:shadow-none">Apply Unit Records</button>
           </div>
@@ -647,4 +648,6 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
       `}</style>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
