@@ -1861,10 +1861,12 @@ async function getAuthUser(supabase: any, authHeader?: string) {
       let userObj: any = null;
       let authTimer: any;
       try {
-        const timeoutP = new Promise<never>((_, rej) => { authTimer = setTimeout(() => rej(new Error('Auth getUser timeout')), 2000); });
-        const authRes: any = await Promise.race([supabase.auth.getUser(token), timeoutP]);
-        if (authRes?.error) console.warn('[Auth JWT Warning]', authRes.error.message);
-        if (authRes?.data?.user) userObj = authRes.data.user;
+        if (supabase) {
+          const timeoutP = new Promise<never>((_, rej) => { authTimer = setTimeout(() => rej(new Error('Auth getUser timeout')), 2000); });
+          const authRes: any = await Promise.race([supabase.auth.getUser(token), timeoutP]);
+          if (authRes?.error) console.warn('[Auth JWT Warning]', authRes.error.message);
+          if (authRes?.data?.user) userObj = authRes.data.user;
+        }
       } catch (e: any) {
         console.warn('[Auth JWT Exception or Timeout]', e?.message || e);
       } finally {
@@ -1980,8 +1982,10 @@ async function getAuthUser(supabase: any, authHeader?: string) {
     if (token && token.startsWith('alumna_')) {
       let alumna: any = null;
       try {
-        const { data } = await supabase.from('alumnae_members').select('*').eq('id', token).maybeSingle();
-        alumna = data;
+        if (supabase) {
+          const { data } = await supabase.from('alumnae_members').select('*').eq('id', token).maybeSingle();
+          alumna = data;
+        }
       } catch (_) {}
 
       if (!alumna) {
@@ -4999,7 +5003,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 // 2. Only query institution_module_states if any institution is missing visitor settings
                 const needsFallback = records.filter(inst => inst && inst.id && inst.visitor_auto_finalize_enabled === undefined);
-                if (needsFallback.length > 0) {
+                if (needsFallback.length > 0 && supabase) {
                     let vTimer: any;
                     try {
                         const targetIds = needsFallback.map(i => i.id).slice(0, 50);
@@ -8250,20 +8254,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const sId = item?.subject_id;
                     if (sId && typeof sId === 'string' && sId.trim()) {
                         try {
-                            const { data: existingSub } = await supabase
-                                .from('subjects')
-                                .select('id')
-                                .eq('id', sId)
-                                .limit(1);
-                            if (!existingSub || existingSub.length === 0) {
-                                const cleanName = item?.preferences?.subjectName || item?.preferences?.subject_name || item?.subjectName || item?.name || sId.replace(/^sub_/, '').replace(/_/g, ' ');
-                                const instId = item?.institution_id || user?.institutionId || 'SYSTEM';
-                                await supabase.from('subjects').insert({
-                                    id: sId,
-                                    name: cleanName,
-                                    code: sId.substring(0, 10).toUpperCase(),
-                                    institution_id: instId
-                                });
+                            const cleanName = item?.preferences?.subjectName || item?.preferences?.subject_name || item?.subjectName || item?.name || sId.replace(/^sub_/, '').replace(/_/g, ' ');
+                            const instId = item?.institution_id || user?.institutionId || 'SYSTEM';
+
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await pool.query(
+                                    `INSERT INTO public.subjects (id, name, code, institution_id) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
+                                    [sId, cleanName, sId.substring(0, 10).toUpperCase(), instId]
+                                ).catch(() => {});
+                            }
+                            if (supabase) {
+                                const { data: existingSub } = await supabase
+                                    .from('subjects')
+                                    .select('id')
+                                    .eq('id', sId)
+                                    .limit(1);
+                                if (!existingSub || existingSub.length === 0) {
+                                    await supabase.from('subjects').insert({
+                                        id: sId,
+                                        name: cleanName,
+                                        code: sId.substring(0, 10).toUpperCase(),
+                                        institution_id: instId
+                                    }).catch(() => {});
+                                }
                             }
                         } catch (_) {}
                     }
@@ -9301,34 +9315,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const isSafeId = (s: string) => /^[a-zA-Z0-9_-]+$/.test(s);
                             let matchedInst: any = null;
 
-                            if (isSafeId(trimmedInst) && isSafeId(cleanInst) && isSafeId(prefixedInst)) {
-                                const { data: foundList } = await executeWithTimeout(
-                                    supabase
-                                        .from('institutions')
-                                        .select('id, name, email, status')
-                                        .or(`id.eq.${trimmedInst},id.eq.${cleanInst},id.eq.${prefixedInst}`)
-                                        .limit(5),
-                                    3000
-                                ).catch(() => ({ data: null }));
-                                if (Array.isArray(foundList) && foundList.length > 0) {
-                                    const nonPlaceholder = foundList.filter((r: any) => !String(r?.email || '').toLowerCase().endsWith('@placeholder.local'));
-                                    const poolToSearch = nonPlaceholder.length > 0 ? nonPlaceholder : foundList;
-                                    matchedInst =
-                                        poolToSearch.find((r: any) => r.id === trimmedInst) ||
-                                        poolToSearch.find((r: any) => r.id === prefixedInst) ||
-                                        poolToSearch[0];
+                            // 1. Primary: Direct PostgreSQL check
+                            const pool = await getPgPool();
+                            if (pool && isSafeId(trimmedInst) && isSafeId(cleanInst) && isSafeId(prefixedInst)) {
+                                try {
+                                    const pgRes = await pool.query(
+                                        `SELECT id, name, email, status FROM public.institutions WHERE id = $1 OR id = $2 OR id = $3 LIMIT 5`,
+                                        [trimmedInst, cleanInst, prefixedInst]
+                                    );
+                                    if (pgRes?.rows && pgRes.rows.length > 0) {
+                                        const nonPlaceholder = pgRes.rows.filter((r: any) => !String(r?.email || '').toLowerCase().endsWith('@placeholder.local'));
+                                        const poolToSearch = nonPlaceholder.length > 0 ? nonPlaceholder : pgRes.rows;
+                                        matchedInst =
+                                            poolToSearch.find((r: any) => r.id === trimmedInst) ||
+                                            poolToSearch.find((r: any) => r.id === prefixedInst) ||
+                                            poolToSearch[0];
+                                    }
+                                } catch (_) {}
+                            }
+
+                            // 2. Secondary: Supabase check (only if supabase client is active)
+                            if (!matchedInst && supabase) {
+                                if (isSafeId(trimmedInst) && isSafeId(cleanInst) && isSafeId(prefixedInst)) {
+                                    const { data: foundList } = await executeWithTimeout(
+                                        supabase
+                                            .from('institutions')
+                                            .select('id, name, email, status')
+                                            .or(`id.eq.${trimmedInst},id.eq.${cleanInst},id.eq.${prefixedInst}`)
+                                            .limit(5),
+                                        3000
+                                    ).catch(() => ({ data: null }));
+                                    if (Array.isArray(foundList) && foundList.length > 0) {
+                                        const nonPlaceholder = foundList.filter((r: any) => !String(r?.email || '').toLowerCase().endsWith('@placeholder.local'));
+                                        const poolToSearch = nonPlaceholder.length > 0 ? nonPlaceholder : foundList;
+                                        matchedInst =
+                                            poolToSearch.find((r: any) => r.id === trimmedInst) ||
+                                            poolToSearch.find((r: any) => r.id === prefixedInst) ||
+                                            poolToSearch[0];
+                                    }
+                                } else {
+                                    const { data: found } = await executeWithTimeout(
+                                        supabase
+                                            .from('institutions')
+                                            .select('id')
+                                            .eq('id', trimmedInst)
+                                            .limit(1)
+                                            .maybeSingle(),
+                                        3000
+                                    ).catch(() => ({ data: null }));
+                                    matchedInst = found;
                                 }
-                            } else {
-                                const { data: found } = await executeWithTimeout(
-                                    supabase
-                                        .from('institutions')
-                                        .select('id')
-                                        .eq('id', trimmedInst)
-                                        .limit(1)
-                                        .maybeSingle(),
-                                    3000
-                                ).catch(() => ({ data: null }));
-                                matchedInst = found;
                             }
 
                             if (matchedInst?.id) {
@@ -9350,10 +9386,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 if (cleanInst !== trimmedInst) {
                                     stubs.push({ id: cleanInst, name: stubName, status: 'active' });
                                 }
-                                await executeWithTimeout(
-                                    supabase.from('institutions').upsert(stubs, { onConflict: 'id', ignoreDuplicates: true }),
-                                    3000
-                                ).catch(() => {});
+
+                                if (pool) {
+                                    try {
+                                        for (const s of stubs) {
+                                            await pool.query(
+                                                `INSERT INTO public.institutions (id, name, status) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+                                                [s.id, s.name, s.status]
+                                            );
+                                        }
+                                    } catch (_) {}
+                                }
+                                if (supabase) {
+                                    await executeWithTimeout(
+                                        supabase.from('institutions').upsert(stubs, { onConflict: 'id', ignoreDuplicates: true }),
+                                        3000
+                                    ).catch(() => {});
+                                }
                             }
                         } catch (instPreErr) {
                             console.warn('[api/records] Institution pre-check / provisioning note:', instPreErr);
@@ -10458,11 +10507,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const clean = curInstId.replace(/^inst_/, '');
                             const prefixed = curInstId.startsWith('inst_') ? curInstId : `inst_${curInstId}`;
                             try {
-                                await supabase.from('institutions').upsert([
-                                    { id: curInstId, name: 'Academic Institution', status: 'active' },
-                                    { id: clean, name: 'Academic Institution', status: 'active' },
-                                    { id: prefixed, name: 'Academic Institution', status: 'active' }
-                                ], { onConflict: 'id', ignoreDuplicates: true });
+                                const pool = await getPgPool();
+                                if (pool) {
+                                    for (const idToInsert of [curInstId, clean, prefixed]) {
+                                        await pool.query(
+                                            `INSERT INTO public.institutions (id, name, status) VALUES ($1, 'Academic Institution', 'active') ON CONFLICT (id) DO NOTHING`,
+                                            [idToInsert]
+                                        ).catch(() => {});
+                                    }
+                                }
+                                if (supabase) {
+                                    await supabase.from('institutions').upsert([
+                                        { id: curInstId, name: 'Academic Institution', status: 'active' },
+                                        { id: clean, name: 'Academic Institution', status: 'active' },
+                                        { id: prefixed, name: 'Academic Institution', status: 'active' }
+                                    ], { onConflict: 'id', ignoreDuplicates: true }).catch(() => {});
+                                }
                             } catch (_) {}
 
                             // Also try toggling prefix on currentPayload
@@ -11055,17 +11115,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         currentList.unshift(item);
                                     }
                                 });
-                                await executeWithTimeout(
-                                    supabase.from('institution_module_states').upsert({
-                                        id: `ims_${moduleName}_${instId}`,
-                                        institution_id: instId,
-                                        module_id: moduleName,
-                                        status: 'active',
-                                        data: currentList,
-                                        updated_at: new Date().toISOString()
-                                    }, { onConflict: 'id' }),
-                                    2500
-                                ).catch(() => {});
+                                if (supabase) {
+                                    await executeWithTimeout(
+                                        supabase.from('institution_module_states').upsert({
+                                            id: `ims_${moduleName}_${instId}`,
+                                            institution_id: instId,
+                                            module_id: moduleName,
+                                            status: 'active',
+                                            data: currentList,
+                                            updated_at: new Date().toISOString()
+                                        }, { onConflict: 'id' }),
+                                        2500
+                                    ).catch(() => {});
+                                } else {
+                                    const pool = await getPgPool();
+                                    if (pool) {
+                                        await pool.query(
+                                            `INSERT INTO public.institution_module_states (id, institution_id, module_id, status, data, updated_at)
+                                             VALUES ($1, $2, $3, 'active', $4::jsonb, NOW())
+                                             ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+                                            [`ims_${moduleName}_${instId}`, instId, moduleName, JSON.stringify(currentList)]
+                                        ).catch(() => {});
+                                    }
+                                }
                             } catch (_) {}
                         }
                     }
@@ -11118,15 +11190,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const instId = savedItem?.institution_id || savedItem?.institutionId || user?.institutionId;
                 if (instId) {
                     try {
-                        const { data: existingIms } = await supabase
-                            .from('institution_module_states')
-                            .select('data')
-                            .eq('id', `ims_school_remedial_duty_roster_${instId}`)
-                            .maybeSingle();
                         let currentList: any[] = [];
-                        if (existingIms?.data && Array.isArray(existingIms.data)) {
-                            currentList = existingIms.data;
+                        const pool = await getPgPool();
+                        if (pool) {
+                            try {
+                                const pgRes = await pool.query(`SELECT data FROM public.institution_module_states WHERE id = $1 LIMIT 1`, [`ims_school_remedial_duty_roster_${instId}`]);
+                                if (pgRes?.rows?.[0]?.data && Array.isArray(pgRes.rows[0].data)) {
+                                    currentList = pgRes.rows[0].data;
+                                }
+                            } catch (_) {}
+                        } else if (supabase) {
+                            const { data: existingIms } = await supabase
+                                .from('institution_module_states')
+                                .select('data')
+                                .eq('id', `ims_school_remedial_duty_roster_${instId}`)
+                                .maybeSingle();
+                            if (existingIms?.data && Array.isArray(existingIms.data)) {
+                                currentList = existingIms.data;
+                            }
                         }
+
                         const incomingItems = Array.isArray(data) ? data : (Array.isArray(currentPayload) ? currentPayload : [savedItem]);
                         incomingItems.forEach((item: any) => {
                             const idx = currentList.findIndex((x: any) => x.id === item.id);
@@ -11136,14 +11219,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 currentList.unshift(item);
                             }
                         });
-                        await supabase.from('institution_module_states').upsert({
-                            id: `ims_school_remedial_duty_roster_${instId}`,
-                            institution_id: instId,
-                            module_id: 'school_remedial_duty_roster',
-                            status: 'active',
-                            data: currentList,
-                            updated_at: new Date().toISOString()
-                        }, { onConflict: 'id' });
+
+                        if (pool) {
+                            await pool.query(
+                                `INSERT INTO public.institution_module_states (id, institution_id, module_id, status, data, updated_at)
+                                 VALUES ($1, $2, $3, 'active', $4::jsonb, NOW())
+                                 ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+                                [`ims_school_remedial_duty_roster_${instId}`, instId, 'school_remedial_duty_roster', JSON.stringify(currentList)]
+                            ).catch(() => {});
+                        }
+                        if (supabase) {
+                            await supabase.from('institution_module_states').upsert({
+                                id: `ims_school_remedial_duty_roster_${instId}`,
+                                institution_id: instId,
+                                module_id: 'school_remedial_duty_roster',
+                                status: 'active',
+                                data: currentList,
+                                updated_at: new Date().toISOString()
+                            }, { onConflict: 'id' }).catch(() => {});
+                        }
                     } catch (_) {}
                 }
             }
@@ -12015,20 +12109,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const sId = copy?.subject_id;
                     if (sId && typeof sId === 'string' && sId.trim()) {
                         try {
-                            const { data: existingSub } = await supabase
-                                .from('subjects')
-                                .select('id')
-                                .eq('id', sId)
-                                .limit(1);
-                            if (!existingSub || existingSub.length === 0) {
-                                const cleanName = copy?.preferences?.subjectName || copy?.preferences?.subject_name || copy?.subjectName || copy?.name || sId.replace(/^sub_/, '').replace(/_/g, ' ');
-                                const instId = copy?.institution_id || user?.institutionId || 'SYSTEM';
-                                await supabase.from('subjects').insert({
-                                    id: sId,
-                                    name: cleanName,
-                                    code: sId.substring(0, 10).toUpperCase(),
-                                    institution_id: instId
-                                });
+                            const cleanName = copy?.preferences?.subjectName || copy?.preferences?.subject_name || copy?.subjectName || copy?.name || sId.replace(/^sub_/, '').replace(/_/g, ' ');
+                            const instId = copy?.institution_id || user?.institutionId || 'SYSTEM';
+
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await pool.query(
+                                    `INSERT INTO public.subjects (id, name, code, institution_id) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
+                                    [sId, cleanName, sId.substring(0, 10).toUpperCase(), instId]
+                                ).catch(() => {});
+                            }
+                            if (supabase) {
+                                const { data: existingSub } = await supabase
+                                    .from('subjects')
+                                    .select('id')
+                                    .eq('id', sId)
+                                    .limit(1);
+                                if (!existingSub || existingSub.length === 0) {
+                                    await supabase.from('subjects').insert({
+                                        id: sId,
+                                        name: cleanName,
+                                        code: sId.substring(0, 10).toUpperCase(),
+                                        institution_id: instId
+                                    }).catch(() => {});
+                                }
                             }
                         } catch (_) {}
                     }
