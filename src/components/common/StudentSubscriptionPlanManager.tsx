@@ -22,7 +22,7 @@ export interface StudentSubscriptionPlan {
     isNegotiated?: boolean;
     resellerAdjustment?: number;
     smsAllocatedPerStudent: number;
-    smsUsageType: 'academic_results_only' | 'finance_receipts_only' | 'all';
+    smsUsageType: 'academic_results_only' | 'finance_receipts_only' | 'library_only' | 'all';
     features: string[];
     applicableClasses: string[];
     isActive: boolean;
@@ -50,7 +50,7 @@ interface StudentSubscriptionPlanManagerProps {
     users?: User[];
     courses?: Course[];
     companyDetails?: CompanyDetails;
-    moduleContext?: 'academics' | 'finance' | 'superadmin';
+    moduleContext?: 'academics' | 'finance' | 'library' | 'superadmin';
     isSuperAdmin?: boolean;
 }
 
@@ -193,17 +193,19 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
         });
     }, [plans, isSuperAdminMode, resellerId, resellerConfig, currentInstitution?.id]);
 
-    const [superAdminFilter, setSuperAdminFilter] = useState<'all' | 'academic' | 'finance' | 'combo'>('all');
+    const [superAdminFilter, setSuperAdminFilter] = useState<'all' | 'academic' | 'finance' | 'library' | 'combo'>('all');
 
     // Service-specific Plan Filtering:
     // - In Finance module: Only show packages with finance SMS or all-access
     // - In Academics module: Only show packages with academic results SMS or all-access
-    // - In Super Admin mode: Allow tabbed filtering across All / Academic / Finance / Combo
+    // - In Library module: Only show packages with library SMS or all-access
+    // - In Super Admin mode: Allow tabbed filtering across All / Academic / Finance / Library / Combo
     const filteredPlans = useMemo(() => {
         const source = effectivePlans;
         if (isSuperAdminMode || moduleContext === 'superadmin') {
             if (superAdminFilter === 'academic') return source.filter(p => p.smsUsageType === 'academic_results_only');
             if (superAdminFilter === 'finance') return source.filter(p => p.smsUsageType === 'finance_receipts_only');
+            if (superAdminFilter === 'library') return source.filter(p => p.smsUsageType === 'library_only');
             if (superAdminFilter === 'combo') return source.filter(p => p.smsUsageType === 'all');
             return source;
         }
@@ -212,6 +214,9 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
         }
         if (moduleContext === 'academics') {
             return source.filter(p => p.isActive && (p.smsUsageType === 'academic_results_only' || p.smsUsageType === 'all'));
+        }
+        if (moduleContext === 'library') {
+            return source.filter(p => p.isActive && (p.smsUsageType === 'library_only' || p.smsUsageType === 'all'));
         }
         return source.filter(p => p.isActive);
     }, [effectivePlans, moduleContext, isSuperAdminMode, superAdminFilter]);
@@ -271,8 +276,8 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
     const [newPlanCycle, setNewPlanCycle] = useState<'per_term' | 'per_year' | 'monthly'>('per_term');
     const [newPlanAmount, setNewPlanAmount] = useState<number>(150);
     const [newPlanSms, setNewPlanSms] = useState<number>(10);
-    const [newPlanSmsType, setNewPlanSmsType] = useState<'academic_results_only' | 'finance_receipts_only' | 'all'>(
-        moduleContext === 'finance' ? 'finance_receipts_only' : 'academic_results_only'
+    const [newPlanSmsType, setNewPlanSmsType] = useState<'academic_results_only' | 'finance_receipts_only' | 'library_only' | 'all'>(
+        moduleContext === 'finance' ? 'finance_receipts_only' : moduleContext === 'library' ? 'library_only' : 'academic_results_only'
     );
     const [newPlanFeatures, setNewPlanFeatures] = useState<string>('Report Cards & Transcripts\nAttendance Tracking\nBasic Subject Mark Entry');
 
@@ -659,6 +664,7 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                             { id: 'all', label: 'All Packages' },
                             { id: 'academic', label: '📚 Academic SMS' },
                             { id: 'finance', label: '💼 Finance SMS' },
+                            { id: 'library', label: '📖 Library' },
                             { id: 'combo', label: '🌟 All-Access' }
                         ].map(f => (
                             <button
@@ -679,6 +685,8 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                         {moduleContext === 'finance' 
                             ? '💼 Showing Packages with Finance & Fee Receipts SMS'
+                            : moduleContext === 'library'
+                            ? '📖 Showing Packages with Library & Book Circulation Access'
                             : '📚 Showing Packages with Academic CBC & Results SMS'}
                     </div>
                 )}
@@ -721,9 +729,17 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                             ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40'
                                             : plan.smsUsageType === 'academic_results_only'
                                             ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40'
+                                            : plan.smsUsageType === 'library_only'
+                                            ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40'
                                             : 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40'
                                     }`}>
-                                        {plan.smsUsageType === 'finance_receipts_only' ? '💼 Finance Receipts SMS Only' : plan.smsUsageType === 'academic_results_only' ? '📚 Academic Results SMS Only' : '🌟 All-Access (Academic + Finance SMS)'}
+                                        {plan.smsUsageType === 'finance_receipts_only'
+                                            ? '💼 Finance Receipts SMS Only'
+                                            : plan.smsUsageType === 'academic_results_only'
+                                            ? '📚 Academic Results SMS Only'
+                                            : plan.smsUsageType === 'library_only'
+                                            ? '📖 Library & Book Circulation'
+                                            : '🌟 All-Access (Academic + Finance + Library)'}
                                     </span>
                                 </div>
                                 
@@ -1183,7 +1199,8 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                     >
                                         <option value="academic_results_only">Academic Results Only</option>
                                         <option value="finance_receipts_only">Finance Receipts Only</option>
-                                        <option value="all">All SMS Alerts</option>
+                                        <option value="library_only">Library &amp; Book Circulation</option>
+                                        <option value="all">All SMS Alerts (Academic + Finance + Library)</option>
                                     </select>
                                 </div>
                             </div>
