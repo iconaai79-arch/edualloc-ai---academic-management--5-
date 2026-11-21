@@ -980,7 +980,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             }
             if (activeScope === 'console_hub' && activeTab !== 'dashboard') {
                 setActiveTab('dashboard');
-            } else if ((activeScope === 'academics' || activeScope === 'smart_timetable') && activeTab !== 'timetable') {
+            } else if (activeScope === 'academics' && activeTab !== 'timetable') {
+                setActiveTab('timetable');
+            } else if (activeScope === 'smart_timetable' && activeTab !== 'timetable' && activeTab !== 'reports') {
                 setActiveTab('timetable');
             } else if (activeScope === 'remedials' && activeTab !== 'remedials') {
                 setActiveTab('remedials');
@@ -1127,7 +1129,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             }
             if (activeScope === 'smart_timetable') {
                 return [
-                    { id: 'timetable', label: 'Smart Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> }
+                    { id: 'timetable', label: 'Smart Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
+                    { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> }
                 ];
             }
             return [
@@ -1290,9 +1293,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 return false;
             }
 
-            // In Smart Timetable, show ONLY the Smart Timetable tab (hide WiFi & Devices, Invoicing & Billing, etc.)
+            // In Smart Timetable, show ONLY Smart Timetable & Timetable Reports (hide WiFi & Devices, Invoicing & Billing, etc.)
             if (activeScope === 'smart_timetable') {
-                return tab.id === 'timetable';
+                return tab.id === 'timetable' || tab.id === 'reports';
             }
 
             if (tab.id === 'network_devices') {

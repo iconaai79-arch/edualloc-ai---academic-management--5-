@@ -394,6 +394,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         if (activeScope === 'logistics') return 'fleet_overview';
         if (activeScope === 'boarding') return 'enrollment_capacity';
         if (activeScope === 'eduvote') return 'turnout';
+        if (activeScope === 'smart_timetable') return 'generated_timetable';
         return 'visuals';
     });
     const [departmentFilter, setDepartmentFilter] = useState<string>('all');
@@ -889,6 +890,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
             if (activeScope === 'inventory') {
                 return ['inventory_valuation', 'store_issuances', 'audit'].includes(tab.key);
             }
+            if (activeScope === 'smart_timetable') {
+                return ['generated_timetable', 'stats', 'utilization', 'conflicts', 'advisory', 'exam_timetable'].includes(tab.key);
+            }
             if (activeScope === 'academics') {
                 const allowedKeys = ['audit'];
                 if (isModuleActive('academics')) {
@@ -915,7 +919,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
 
     return (
         <div className="space-y-6">
-            <h2 className="text-3xl font-bold tracking-tight no-print">Institutional Reports</h2>
+            <h2 className="text-3xl font-bold tracking-tight no-print">
+                {activeScope === 'smart_timetable' ? 'Smart Timetable Reports' : 'Institutional Reports'}
+            </h2>
 
             <div className="flex flex-col md:flex-row gap-8">
                 <aside className="md:w-64 flex-shrink-0 no-print text-slate-900 dark:text-slate-100">
