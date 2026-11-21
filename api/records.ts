@@ -808,10 +808,24 @@ const ensureEssentialSchema = async (pool: any) => {
                     EXECUTE 'UPDATE public.invoices SET invoice_number = "invoiceNumber" WHERE (invoice_number IS NULL OR invoice_number = '''') AND "invoiceNumber" IS NOT NULL';
                 END IF;
                 IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'issueDate') THEN
-                    EXECUTE 'UPDATE public.invoices SET issue_date = "issueDate"::text WHERE (issue_date IS NULL OR issue_date = '''') AND "issueDate" IS NOT NULL';
+                    BEGIN
+                        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'issue_date' AND data_type = 'date') THEN
+                            EXECUTE 'UPDATE public.invoices SET issue_date = NULLIF(TRIM("issueDate"::text), '''')::date WHERE issue_date IS NULL AND NULLIF(TRIM("issueDate"::text), '''') IS NOT NULL';
+                        ELSE
+                            EXECUTE 'UPDATE public.invoices SET issue_date = "issueDate"::text WHERE (issue_date IS NULL OR issue_date::text = '''') AND NULLIF(TRIM("issueDate"::text), '''') IS NOT NULL';
+                        END IF;
+                    EXCEPTION WHEN OTHERS THEN NULL;
+                    END;
                 END IF;
                 IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'dueDate') THEN
-                    EXECUTE 'UPDATE public.invoices SET due_date = "dueDate"::text WHERE (due_date IS NULL OR due_date = '''') AND "dueDate" IS NOT NULL';
+                    BEGIN
+                        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'due_date' AND data_type = 'date') THEN
+                            EXECUTE 'UPDATE public.invoices SET due_date = NULLIF(TRIM("dueDate"::text), '''')::date WHERE due_date IS NULL AND NULLIF(TRIM("dueDate"::text), '''') IS NOT NULL';
+                        ELSE
+                            EXECUTE 'UPDATE public.invoices SET due_date = "dueDate"::text WHERE (due_date IS NULL OR due_date::text = '''') AND NULLIF(TRIM("dueDate"::text), '''') IS NOT NULL';
+                        END IF;
+                    EXCEPTION WHEN OTHERS THEN NULL;
+                    END;
                 END IF;
                 IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'totalAmount') THEN
                     EXECUTE 'UPDATE public.invoices SET total_amount = COALESCE( NULLIF("totalAmount"::text, '''')::numeric, 0 ) WHERE (total_amount IS NULL OR total_amount = 0) AND "totalAmount" IS NOT NULL';
@@ -883,7 +897,14 @@ const ensureEssentialSchema = async (pool: any) => {
                     EXECUTE 'UPDATE public.receipts SET receipt_number = "receiptNumber" WHERE (receipt_number IS NULL OR receipt_number = '''') AND "receiptNumber" IS NOT NULL';
                 END IF;
                 IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'paymentDate') THEN
-                    EXECUTE 'UPDATE public.receipts SET payment_date = "paymentDate"::text WHERE (payment_date IS NULL OR payment_date = '''') AND "paymentDate" IS NOT NULL';
+                    BEGIN
+                        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'payment_date' AND data_type = 'date') THEN
+                            EXECUTE 'UPDATE public.receipts SET payment_date = NULLIF(TRIM("paymentDate"::text), '''')::date WHERE payment_date IS NULL AND NULLIF(TRIM("paymentDate"::text), '''') IS NOT NULL';
+                        ELSE
+                            EXECUTE 'UPDATE public.receipts SET payment_date = "paymentDate"::text WHERE (payment_date IS NULL OR payment_date::text = '''') AND NULLIF(TRIM("paymentDate"::text), '''') IS NOT NULL';
+                        END IF;
+                    EXCEPTION WHEN OTHERS THEN NULL;
+                    END;
                 END IF;
                 IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'amountPaid') THEN
                     EXECUTE 'UPDATE public.receipts SET amount_paid = COALESCE( NULLIF("amountPaid"::text, '''')::numeric, 0 ) WHERE (amount_paid IS NULL OR amount_paid = 0) AND "amountPaid" IS NOT NULL';
