@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import { Header } from './Header';
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
@@ -9606,6 +9606,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 ) : activeRole === 'parent' ? (
                                     <ParentView {...{
                                         ...parentProps,
+                                        companyDetails,
                                         user: currentUser,
                                         users,
                                         subjects,

@@ -44,11 +44,13 @@ interface ParentViewProps {
     onAcknowledgeAlert?: (id: string, parentId: string) => void;
     transportInvoices?: TransportFeeInvoice[];
     isSimulatorMode?: boolean;
+    companyDetails?: any;
     onLogAction?: (msg: string) => Promise<void> | void;
 }
 
 import { AttendanceAnalytics } from './AttendanceAnalytics';
 import { StudentTransportTracker } from './StudentTransportTracker';
+import { ParentPocketMoneyPanel } from './Finance/ParentPocketMoneyPanel';
 
 const ChildCard: React.FC<{ child: User, course?: Course, attendances: StudentAttendance[], timetable: TimetableEntry[], subjects: Subject[] }> = ({ child, course, attendances, timetable, subjects }) => {
     const childAttendances = attendances.filter(a => a.studentId === child.id);
@@ -384,7 +386,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
         ? children 
         : (isSimulator ? [demoChildUser] : []);
 
-    const [activePanel, setActivePanel] = useState<'dashboard' | 'synergy' | 'transport'>('dashboard');
+    const [activePanel, setActivePanel] = useState<'dashboard' | 'synergy' | 'transport' | 'pocket_money'>('dashboard');
 
     // ── Transport Invoice & Statement States ──────────────────────────────────
     const transportInvKey = user?.institutionId ? `eduai_transport_fee_invoices_${user.institutionId}` : null;
@@ -931,6 +933,15 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                         Transport Tracker
                     </button>
                     <button
+                        onClick={() => setActivePanel('pocket_money')}
+                        className={`py-4 px-4 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${
+                            activePanel === 'pocket_money' ? 'border-indigo-650 text-indigo-650' : 'border-transparent text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <Wallet className="w-4 h-4 text-emerald-500" />
+                        Pocket Money
+                    </button>
+                    <button
                         onClick={() => setActivePanel('synergy')}
                         className={`py-4 px-4 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${
                             activePanel === 'synergy' ? 'border-indigo-650 text-indigo-650' : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -1124,6 +1135,13 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                 )}
             </div>
             </>
+            ) : activePanel === 'pocket_money' ? (
+                <ParentPocketMoneyPanel
+                    parentUser={user}
+                    childrenList={effectiveChildren}
+                    institutionId={user?.institutionId || effectiveChildren[0]?.institutionId || ''}
+                    companyDetails={props.companyDetails}
+                />
             ) : activePanel === 'transport' ? (
                 <div className="space-y-8 animate-fade-in">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
