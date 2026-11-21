@@ -139,6 +139,66 @@ export const HRManager: React.FC<HRManagerProps> = ({
         return DEFAULT_ALLOWANCE_CATEGORIES.map((d, i) => ({ ...d, id: `def_a_${i}`, institutionId: institution.id || 'default', createdAt: new Date().toISOString() }));
     });
 
+    // Staff SACCO Check-Off Auto-Sync (Savings & Active Loan Repayments)
+    const [saccoMembers, setSaccoMembers] = useState<any[]>(() => {
+        try {
+            const raw = localStorage.getItem(`eduai_sacco_members_${institution.id || 'default_inst'}`);
+            if (raw) return JSON.parse(raw);
+        } catch {}
+        return [];
+    });
+    const [saccoLoans, setSaccoLoans] = useState<any[]>(() => {
+        try {
+            const raw = localStorage.getItem(`eduai_sacco_loans_${institution.id || 'default_inst'}`);
+            if (raw) return JSON.parse(raw);
+        } catch {}
+        return [];
+    });
+
+    useEffect(() => {
+        const instId = institution.id || 'default_inst';
+        let active = true;
+        Promise.all([
+            apiService.fetchModuleRecords('edu_sacco_members').catch(() => null),
+            apiService.fetchModuleRecords('edu_sacco_loans').catch(() => null),
+        ]).then(([mRecs, lRecs]) => {
+            if (!active) return;
+            if (Array.isArray(mRecs)) {
+                const filtered = mRecs.filter((r: any) => !r.institutionId || r.institutionId === instId);
+                if (filtered.length > 0) {
+                    setSaccoMembers(filtered);
+                    try { localStorage.setItem(`eduai_sacco_members_${instId}`, JSON.stringify(filtered)); } catch {}
+                }
+            }
+            if (Array.isArray(lRecs)) {
+                const filtered = lRecs.filter((r: any) => !r.institutionId || r.institutionId === instId);
+                if (filtered.length > 0) {
+                    setSaccoLoans(filtered);
+                    try { localStorage.setItem(`eduai_sacco_loans_${instId}`, JSON.stringify(filtered)); } catch {}
+                }
+            }
+        });
+        return () => { active = false; };
+    }, [institution.id]);
+
+    const getStaffSaccoCheckOff = (staffMember: any): { savings: number; loanRepayment: number } => {
+        if (!staffMember) return { savings: 0, loanRepayment: 0 };
+        const member = saccoMembers.find(
+            (m: any) =>
+                m.status === 'active' &&
+                (m.userId === staffMember.id ||
+                    (m.email && staffMember.email && m.email.toLowerCase() === staffMember.email.toLowerCase()))
+        );
+        if (!member) return { savings: 0, loanRepayment: 0 };
+        const savings = Math.max(0, Math.round(Number(member.monthlyContribution || 0)));
+        const loanRepayment = Math.round(
+            saccoLoans
+                .filter((l: any) => l.memberId === member.id && l.status === 'active' && Number(l.balanceRemaining || 0) > 0)
+                .reduce((sum: number, l: any) => sum + Math.min(Number(l.monthlyInstallment || 0), Number(l.balanceRemaining || 0)), 0)
+        );
+        return { savings, loanRepayment };
+    };
+
     const [availableDeductions, setAvailableDeductions] = useState<DeductionCategory[]>(() => {
         try {
             const raw = localStorage.getItem(`eduai_hr_deductions_${institution.id || 'default_inst'}`);
@@ -794,6 +854,15 @@ export const HRManager: React.FC<HRManagerProps> = ({
                 });
             }
 
+            // Auto-sync Staff SACCO Savings & Active Loan Repayments
+            const saccoCheckOff = getStaffSaccoCheckOff(member);
+            if (saccoCheckOff.savings > 0 && !deductions.some(d => d.name.toLowerCase().includes('sacco saving'))) {
+                deductions.push({ name: 'Staff SACCO Savings (Check-Off)', amount: saccoCheckOff.savings });
+            }
+            if (saccoCheckOff.loanRepayment > 0 && !deductions.some(d => d.name.toLowerCase().includes('sacco loan'))) {
+                deductions.push({ name: 'Staff SACCO Loan Repayment', amount: saccoCheckOff.loanRepayment });
+            }
+
             const totalAlls = allowances.reduce((a, b) => a + b.amount, 0);
             const totalDeds = deductions.reduce((a, b) => a + b.amount, 0);
             record = {
@@ -921,6 +990,15 @@ export const HRManager: React.FC<HRManagerProps> = ({
                         meta.assignedDeductions.forEach((d: any) => {
                             if (Number(d.amount) > 0) deductions.push({ name: d.name || 'Custom Deduction', amount: Number(d.amount) });
                         });
+                    }
+
+                    // Auto-sync Staff SACCO Savings & Active Loan Repayments
+                    const saccoCheckOff = getStaffSaccoCheckOff(s);
+                    if (saccoCheckOff.savings > 0 && !deductions.some(d => d.name.toLowerCase().includes('sacco saving'))) {
+                        deductions.push({ name: 'Staff SACCO Savings (Check-Off)', amount: saccoCheckOff.savings });
+                    }
+                    if (saccoCheckOff.loanRepayment > 0 && !deductions.some(d => d.name.toLowerCase().includes('sacco loan'))) {
+                        deductions.push({ name: 'Staff SACCO Loan Repayment', amount: saccoCheckOff.loanRepayment });
                     }
 
                     const totalAlls = allowances.reduce((a, b) => a + b.amount, 0);

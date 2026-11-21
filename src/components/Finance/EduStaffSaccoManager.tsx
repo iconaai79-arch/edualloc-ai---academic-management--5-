@@ -41,6 +41,16 @@ export interface EduSaccoLoanProduct {
     isActive: boolean;
 }
 
+export interface EduSaccoGuarantor {
+    memberId: string;
+    memberName: string;
+    phoneNumber?: string;
+    guaranteedAmount: number;
+    status?: 'pending' | 'accepted' | 'declined';
+    otpCode?: string;
+    acceptedAt?: string;
+}
+
 export interface EduSaccoLoan {
     id: string;
     institutionId: string;
@@ -59,7 +69,7 @@ export interface EduSaccoLoan {
     monthlyInstallment: number;
     amountPaid: number;
     balanceRemaining: number;
-    guarantors: { memberId: string; memberName: string; guaranteedAmount: number }[];
+    guarantors: EduSaccoGuarantor[];
     status: 'pending_approval' | 'active' | 'cleared' | 'rejected';
     disbursementMode?: 'cash' | 'bank' | 'mpesa' | 'ncba';
     disbursementRef?: string;
@@ -414,14 +424,25 @@ export const EduStaffSaccoManager: React.FC<EduStaffSaccoManagerProps> = ({
         }
         const months = Math.max(1, Math.min(product.maxMonths, Math.floor(loanMonths)));
         const math = computeLoanMath(loanPrincipal, product.monthlyInterestRate, months, product.interestType, product.processingFeePercent);
-        const guarantors = loanGuarantorIds
+        const guarantors: EduSaccoGuarantor[] = loanGuarantorIds
             .map(gid => members.find(m => m.id === gid))
             .filter(Boolean)
             .map(g => ({
                 memberId: g!.id,
                 memberName: g!.name,
-                guaranteedAmount: Math.round(loanPrincipal / Math.max(1, loanGuarantorIds.length))
+                phoneNumber: g!.phoneNumber,
+                guaranteedAmount: Math.round(loanPrincipal / Math.max(1, loanGuarantorIds.length)),
+                status: 'pending' as const,
+                otpCode: String(Math.floor(100000 + Math.random() * 900000))
             }));
+
+        // Notify each guarantor via SMS with their 6-digit consent OTP
+        for (const g of guarantors) {
+            if (g.phoneNumber && onSendSms) {
+                const msg = `${institution.name} Staff SACCO: ${member.name} requested you to guarantee KES ${g.guaranteedAmount.toLocaleString()} for a ${product.name}. Approve in My SACCO using OTP: ${g.otpCode}.`;
+                onSendSms(g.phoneNumber, msg, smsConfig || institution.smsConfig, 1, instId).catch(() => {});
+            }
+        }
 
         const newLoan: EduSaccoLoan = {
             id: `sacco_loan_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
@@ -454,7 +475,23 @@ export const EduStaffSaccoManager: React.FC<EduStaffSaccoManagerProps> = ({
         showBanner('success', `Loan application of KES ${loanPrincipal.toLocaleString()} submitted for ${member.name} (Monthly: KES ${math.monthlyInstallment.toLocaleString()}).`);
     };
 
+    const getLockedGuarantorAmount = (memberId: string): number => {
+        return loans
+            .filter(l => l.status === 'active' || l.status === 'pending_approval')
+            .reduce((sum, l) => {
+                const match = (l.guarantors || []).find(g => g.memberId === memberId && g.status !== 'declined');
+                return sum + (match ? Number(match.guaranteedAmount) || 0 : 0);
+            }, 0);
+    };
+
     const handleApproveAndDisburseLoan = async (loan: EduSaccoLoan) => {
+        const pendingGuarantors = (loan.guarantors || []).filter(g => g.status === 'pending');
+        if (pendingGuarantors.length > 0) {
+            const proceed = window.confirm(
+                `${pendingGuarantors.length} guarantor(s) (${pendingGuarantors.map(g => g.memberName).join(', ')}) have not yet confirmed via OTP. Override as SACCO Committee and approve anyway?`
+            );
+            if (!proceed) return;
+        }
         const nowIso = new Date().toISOString();
         const ref = `DISB-${Date.now().toString().slice(-6)}`;
         const activeLoan: EduSaccoLoan = {
@@ -823,7 +860,14 @@ export const EduStaffSaccoManager: React.FC<EduStaffSaccoManagerProps> = ({
                                         </td>
                                         <td className="p-3.5 uppercase text-[10px] font-bold text-slate-500">{m.role.replace('_', ' ')}</td>
                                         <td className="p-3.5 font-bold text-indigo-600">KES {m.shareCapital.toLocaleString()}</td>
-                                        <td className="p-3.5 font-black text-teal-600 text-sm">KES {m.savingsBalance.toLocaleString()}</td>
+                                        <td className="p-3.5 font-black text-teal-600 text-sm">
+                                            KES {m.savingsBalance.toLocaleString()}
+                                            {getLockedGuarantorAmount(m.id) > 0 && (
+                                                <span className="block text-[9px] font-bold text-amber-600">
+                                                    Locked Guarantee: KES {getLockedGuarantorAmount(m.id).toLocaleString()}
+                                                </span>
+                                            )}
+                                        </td>
                                         <td className="p-3.5 font-mono">KES {m.monthlyContribution.toLocaleString()} / mo</td>
                                         <td className="p-3.5 text-right space-x-1.5">
                                             <button
@@ -872,7 +916,23 @@ export const EduStaffSaccoManager: React.FC<EduStaffSaccoManagerProps> = ({
                                     <tr key={l.id}>
                                         <td className="p-3">
                                             <div className="font-black text-slate-900 dark:text-white">{l.memberName}</div>
-                                            <div className="text-[10px] text-slate-500">{l.memberNumber} • {l.guarantors.length} guarantor(s)</div>
+                                            <div className="text-[10px] text-slate-500 flex flex-wrap gap-1 mt-0.5">
+                                                <span>{l.memberNumber}</span>
+                                                {(l.guarantors || []).map(g => (
+                                                    <span
+                                                        key={g.memberId}
+                                                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                                            g.status === 'accepted'
+                                                                ? 'bg-emerald-100 text-emerald-700'
+                                                                : g.status === 'declined'
+                                                                ? 'bg-rose-100 text-rose-700'
+                                                                : 'bg-amber-100 text-amber-800'
+                                                        }`}
+                                                    >
+                                                        {g.memberName}: {g.status === 'accepted' ? 'OTP ✓' : g.status === 'declined' ? 'Declined' : 'Pending OTP'}
+                                                    </span>
+                                                ))}
+                                            </div>
                                         </td>
                                         <td className="p-3 font-bold">{l.productName} ({l.months}m @ {l.interestRate}%/mo)</td>
                                         <td className="p-3 font-bold">KES {l.principal.toLocaleString()}</td>

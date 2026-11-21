@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, Institution } from '../../types';
+import type { User, Institution, CompanyDetails } from '../../types';
 import { apiService } from '../../services/apiService';
+import { PayNowModal } from '../PayNowModal';
 import type {
     EduSaccoMember,
     EduSaccoLoanProduct,
     EduSaccoLoan,
-    EduSaccoTransaction
+    EduSaccoTransaction,
+    EduSaccoGuarantor
 } from './EduStaffSaccoManager';
 import { WalletIcon } from '../icons/WalletIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
@@ -17,6 +19,7 @@ import { XIcon } from '../icons/XIcon';
 interface StaffSaccoSelfServicePanelProps {
     currentUser: User;
     institution?: Institution | null;
+    companyDetails?: CompanyDetails;
 }
 
 const DEFAULT_PRODUCTS = (instId: string): EduSaccoLoanProduct[] => [
@@ -76,7 +79,8 @@ const computeLoanMath = (
 
 export const StaffSaccoSelfServicePanel: React.FC<StaffSaccoSelfServicePanelProps> = ({
     currentUser,
-    institution
+    institution,
+    companyDetails
 }) => {
     const instId = institution?.id || currentUser?.institutionId || 'default_inst';
     const instName = institution?.name || 'School';
@@ -129,11 +133,18 @@ export const StaffSaccoSelfServicePanel: React.FC<StaffSaccoSelfServicePanelProp
     const [loanPurpose, setLoanPurpose] = useState('');
     const [selectedGuarantorIds, setSelectedGuarantorIds] = useState<string[]>([]);
 
-    // Self-Service Savings Top-Up / Check-Off Edit Modal
+    // Self-Service Savings Top-Up / STK Push State
     const [isTopUpOpen, setIsTopUpOpen] = useState(false);
     const [topUpAmount, setTopUpAmount] = useState('');
-    const [topUpMode, setTopUpMode] = useState<'mpesa' | 'ncba' | 'bank'>('mpesa');
+    const [topUpMode, setTopUpMode] = useState<'stk_push' | 'mpesa' | 'ncba' | 'bank'>('stk_push');
     const [topUpRef, setTopUpRef] = useState('');
+    const [stkPayContext, setStkPayContext] = useState<{
+        kind: 'savings' | 'loan_repayment';
+        amount: number;
+        loan?: EduSaccoLoan;
+        label: string;
+    } | null>(null);
+    const [guarantorOtpInputs, setGuarantorOtpInputs] = useState<Record<string, string>>({});
 
     useEffect(() => {
         if (!instId) return;
@@ -201,6 +212,134 @@ export const StaffSaccoSelfServicePanel: React.FC<StaffSaccoSelfServicePanelProp
         [myLoans]
     );
 
+    const pendingGuarantorRequests = useMemo(() => {
+        if (!myMember) return [];
+        return allLoans.filter(
+            l => (l.status === 'pending_approval' || l.status === 'active') &&
+                (l.guarantors || []).some(g => g.memberId === myMember.id && (g.status || 'pending') === 'pending')
+        );
+    }, [allLoans, myMember]);
+
+    const lockedGuarantorAmount = useMemo(() => {
+        if (!myMember) return 0;
+        return allLoans
+            .filter(l => l.status === 'active' || l.status === 'pending_approval')
+            .reduce((sum, l) => {
+                const g = (l.guarantors || []).find(x => x.memberId === myMember.id && x.status === 'accepted');
+                return sum + (g ? Number(g.guaranteedAmount) || 0 : 0);
+            }, 0);
+    }, [allLoans, myMember]);
+
+    const handleRespondGuarantorRequest = async (loan: EduSaccoLoan, decision: 'accepted' | 'declined') => {
+        if (!myMember) return;
+        const entry = (loan.guarantors || []).find(g => g.memberId === myMember.id);
+        if (!entry) return;
+
+        if (decision === 'accepted' && entry.otpCode) {
+            const entered = (guarantorOtpInputs[loan.id] || '').trim();
+            if (entered !== entry.otpCode) {
+                showBanner('error', 'Invalid 6-digit SMS OTP. Enter the OTP sent to your phone to confirm guarantee.');
+                return;
+            }
+        }
+
+        const updatedLoan: EduSaccoLoan = {
+            ...loan,
+            guarantors: (loan.guarantors || []).map(g =>
+                g.memberId === myMember.id
+                    ? { ...g, status: decision, acceptedAt: decision === 'accepted' ? new Date().toISOString() : undefined }
+                    : g
+            )
+        };
+        const nextLoans = allLoans.map(l => (l.id === loan.id ? updatedLoan : l));
+        setAllLoans(nextLoans);
+        try { localStorage.setItem(`eduai_sacco_loans_${instId}`, JSON.stringify(nextLoans)); } catch (_) {}
+        await apiService.saveModuleRecord('edu_sacco_loans', updatedLoan).catch(() => {});
+        showBanner(
+            'success',
+            decision === 'accepted'
+                ? `Confirmed guarantee of KES ${entry.guaranteedAmount.toLocaleString()} for ${loan.memberName}.`
+                : `Declined guarantee request from ${loan.memberName}.`
+        );
+    };
+
+    const handleStkPushSuccess = async (receiptRef?: string) => {
+        if (!stkPayContext || !myMember) return;
+        const nowIso = new Date().toISOString();
+        const ref = receiptRef || `STK-${Date.now().toString().slice(-6)}`;
+
+        if (stkPayContext.kind === 'savings') {
+            const updatedMember: EduSaccoMember = {
+                ...myMember,
+                savingsBalance: myMember.savingsBalance + stkPayContext.amount,
+                updatedAt: nowIso
+            };
+            const tx: EduSaccoTransaction = {
+                id: `sacco_tx_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+                institutionId: instId,
+                memberId: myMember.id,
+                memberName: myMember.name,
+                memberNumber: myMember.memberNumber,
+                type: 'savings_deposit',
+                amount: stkPayContext.amount,
+                mode: 'ncba',
+                reference: ref,
+                notes: 'Self-Service STK Push Savings Top-Up',
+                recordedBy: currentUser.name,
+                createdAt: nowIso
+            };
+            const nextMembers = allMembers.map(m => (m.id === updatedMember.id ? updatedMember : m));
+            const nextTxns = [tx, ...allTxns];
+            setAllMembers(nextMembers);
+            setAllTxns(nextTxns);
+            try {
+                localStorage.setItem(`eduai_sacco_members_${instId}`, JSON.stringify(nextMembers));
+                localStorage.setItem(`eduai_sacco_txns_${instId}`, JSON.stringify(nextTxns));
+            } catch (_) {}
+            await apiService.saveModuleRecord('edu_sacco_members', updatedMember).catch(() => {});
+            await apiService.saveModuleRecord('edu_sacco_txns', tx).catch(() => {});
+            showBanner('success', `STK Push confirmed! KES ${stkPayContext.amount.toLocaleString()} added to your SACCO savings (Ref: ${ref}).`);
+        } else if (stkPayContext.kind === 'loan_repayment' && stkPayContext.loan) {
+            const targetLoan = stkPayContext.loan;
+            const nextPaid = targetLoan.amountPaid + stkPayContext.amount;
+            const nextBal = Math.max(0, targetLoan.totalRepayable - nextPaid);
+            const updatedLoan: EduSaccoLoan = {
+                ...targetLoan,
+                amountPaid: nextPaid,
+                balanceRemaining: nextBal,
+                status: nextBal <= 0 ? 'cleared' : 'active'
+            };
+            const tx: EduSaccoTransaction = {
+                id: `sacco_tx_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+                institutionId: instId,
+                memberId: myMember.id,
+                memberName: myMember.name,
+                memberNumber: myMember.memberNumber,
+                type: 'loan_repayment',
+                amount: stkPayContext.amount,
+                mode: 'ncba',
+                reference: ref,
+                notes: `Self-Service STK Loan Repayment (${targetLoan.productName})`,
+                recordedBy: currentUser.name,
+                createdAt: nowIso
+            };
+            const nextLoans = allLoans.map(l => (l.id === updatedLoan.id ? updatedLoan : l));
+            const nextTxns = [tx, ...allTxns];
+            setAllLoans(nextLoans);
+            setAllTxns(nextTxns);
+            try {
+                localStorage.setItem(`eduai_sacco_loans_${instId}`, JSON.stringify(nextLoans));
+                localStorage.setItem(`eduai_sacco_txns_${instId}`, JSON.stringify(nextTxns));
+            } catch (_) {}
+            await apiService.saveModuleRecord('edu_sacco_loans', updatedLoan).catch(() => {});
+            await apiService.saveModuleRecord('edu_sacco_txns', tx).catch(() => {});
+            showBanner('success', `Loan repayment of KES ${stkPayContext.amount.toLocaleString()} confirmed (Ref: ${ref})! Remaining: KES ${nextBal.toLocaleString()}.`);
+        }
+        setStkPayContext(null);
+        setIsTopUpOpen(false);
+        setTopUpAmount('');
+    };
+
     const handleSelfJoinSacco = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsJoining(true);
@@ -253,14 +392,29 @@ export const StaffSaccoSelfServicePanel: React.FC<StaffSaccoSelfServicePanelProp
 
         const months = Math.max(1, Math.min(product.maxMonths, Math.floor(loanMonths)));
         const math = computeLoanMath(loanAmount, product.monthlyInterestRate, months, product.interestType, product.processingFeePercent);
-        const guarantors = selectedGuarantorIds
+        const guarantors: EduSaccoGuarantor[] = selectedGuarantorIds
             .map(id => allMembers.find(m => m.id === id))
             .filter(Boolean)
             .map(g => ({
                 memberId: g!.id,
                 memberName: g!.name,
-                guaranteedAmount: Math.round(loanAmount / Math.max(1, selectedGuarantorIds.length))
+                phoneNumber: g!.phoneNumber,
+                guaranteedAmount: Math.round(loanAmount / Math.max(1, selectedGuarantorIds.length)),
+                status: 'pending' as const,
+                otpCode: String(Math.floor(100000 + Math.random() * 900000))
             }));
+
+        // Dispatch SMS OTP consent prompt to each selected guarantor
+        for (const g of guarantors) {
+            if (g.phoneNumber) {
+                const msg = `${instName} Staff SACCO: ${myMember.name} listed you to guarantee KES ${g.guaranteedAmount.toLocaleString()} for a ${product.name}. Approve in My SACCO using OTP: ${g.otpCode}.`;
+                fetch('/api/integrations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'sendSms', recipient: g.phoneNumber, phone: g.phoneNumber, message: msg, institutionId: instId })
+                }).catch(() => {});
+            }
+        }
 
         const newLoan: EduSaccoLoan = {
             id: `sacco_loan_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
@@ -303,6 +457,14 @@ export const StaffSaccoSelfServicePanel: React.FC<StaffSaccoSelfServicePanelProp
         const amt = Number(topUpAmount);
         if (Number.isNaN(amt) || amt <= 0) {
             showBanner('error', 'Enter a valid deposit amount.');
+            return;
+        }
+        if (topUpMode === 'stk_push') {
+            setStkPayContext({
+                kind: 'savings',
+                amount: amt,
+                label: `Staff SACCO Savings Top-Up — ${myMember.name} (${myMember.memberNumber})`
+            });
             return;
         }
         const nowIso = new Date().toISOString();
@@ -483,6 +645,11 @@ export const StaffSaccoSelfServicePanel: React.FC<StaffSaccoSelfServicePanelProp
                         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
                             <span className="text-[10px] font-black uppercase text-teal-600">My Savings</span>
                             <div className="text-xl font-black text-teal-600 mt-1">KES {myMember.savingsBalance.toLocaleString()}</div>
+                            {lockedGuarantorAmount > 0 && (
+                                <span className="text-[10px] font-bold text-amber-600 block mt-0.5">
+                                    Locked Guarantee: KES {lockedGuarantorAmount.toLocaleString()}
+                                </span>
+                            )}
                         </div>
                         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
                             <span className="text-[10px] font-black uppercase text-indigo-600">Share Capital</span>
@@ -497,6 +664,57 @@ export const StaffSaccoSelfServicePanel: React.FC<StaffSaccoSelfServicePanelProp
                             <div className="text-xl font-black text-amber-600 mt-1">KES {activeLoanBalance.toLocaleString()}</div>
                         </div>
                     </div>
+
+                    {/* Pending Guarantor OTP Consent Requests */}
+                    {pendingGuarantorRequests.length > 0 && (
+                        <div className="bg-amber-50 dark:bg-amber-950/30 rounded-3xl border border-amber-200 dark:border-amber-800 p-5 shadow-sm space-y-3">
+                            <h3 className="text-sm font-black text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                                <ShieldCheckIcon className="w-5 h-5 text-amber-600" />
+                                Guarantor Approval Requests ({pendingGuarantorRequests.length})
+                            </h3>
+                            {pendingGuarantorRequests.map(loan => {
+                                const myG = (loan.guarantors || []).find(g => g.memberId === myMember.id);
+                                return (
+                                    <div key={loan.id} className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div className="text-xs space-y-0.5">
+                                            <div className="font-black text-slate-900 dark:text-white">
+                                                {loan.memberName} requested you to guarantee KES {(myG?.guaranteedAmount || 0).toLocaleString()}
+                                            </div>
+                                            <div className="text-slate-500">
+                                                {loan.productName} • Principal KES {loan.principal.toLocaleString()} ({loan.months} months)
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {myG?.otpCode && (
+                                                <input
+                                                    type="text"
+                                                    maxLength={6}
+                                                    value={guarantorOtpInputs[loan.id] || ''}
+                                                    onChange={e => setGuarantorOtpInputs(prev => ({ ...prev, [loan.id]: e.target.value.replace(/\D/g, '') }))}
+                                                    placeholder="SMS OTP"
+                                                    className="w-24 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50/40 text-center font-mono font-black text-xs"
+                                                />
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRespondGuarantorRequest(loan, 'accepted')}
+                                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] uppercase cursor-pointer"
+                                            >
+                                                Verify &amp; Approve
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRespondGuarantorRequest(loan, 'declined')}
+                                                className="px-3 py-1.5 rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200 font-black text-[10px] uppercase cursor-pointer"
+                                            >
+                                                Decline
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
 
                     {/* My Loans */}
                     <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm space-y-3">
@@ -528,9 +746,25 @@ export const StaffSaccoSelfServicePanel: React.FC<StaffSaccoSelfServicePanelProp
                                             <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                                                 <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
                                             </div>
-                                            <div className="flex justify-between text-[11px] font-bold text-slate-500">
+                                            <div className="flex justify-between items-center text-[11px] font-bold text-slate-500">
                                                 <span>Paid: KES {l.amountPaid.toLocaleString()} ({pct}%)</span>
-                                                <span className="text-amber-600">Remaining: KES {l.balanceRemaining.toLocaleString()}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-amber-600">Remaining: KES {l.balanceRemaining.toLocaleString()}</span>
+                                                    {l.status === 'active' && l.balanceRemaining > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setStkPayContext({
+                                                                kind: 'loan_repayment',
+                                                                loan: l,
+                                                                amount: Math.min(l.monthlyInstallment, l.balanceRemaining),
+                                                                label: `SACCO Loan Installment — ${l.productName} (${myMember.memberNumber})`
+                                                            })}
+                                                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] uppercase cursor-pointer"
+                                                        >
+                                                            Pay Now (STK)
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -644,18 +878,41 @@ export const StaffSaccoSelfServicePanel: React.FC<StaffSaccoSelfServicePanelProp
                             <input type="number" min={1} required value={topUpAmount} onChange={e => setTopUpAmount(e.target.value)} placeholder="Amount (KES)" className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-base font-black" />
                             <div className="grid grid-cols-2 gap-3">
                                 <select value={topUpMode} onChange={e => setTopUpMode(e.target.value as any)} className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold">
-                                    <option value="mpesa">M-Pesa</option>
-                                    <option value="ncba">NCBA</option>
-                                    <option value="bank">Bank</option>
+                                    <option value="stk_push">Instant STK Push (NCBA / M-Pesa)</option>
+                                    <option value="mpesa">M-Pesa (Manual Ref)</option>
+                                    <option value="ncba">NCBA (Manual Ref)</option>
+                                    <option value="bank">Bank (Manual Ref)</option>
                                 </select>
-                                <input type="text" value={topUpRef} onChange={e => setTopUpRef(e.target.value)} placeholder="M-Pesa / Bank Ref" className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-mono font-bold" />
+                                {topUpMode !== 'stk_push' && (
+                                    <input type="text" value={topUpRef} onChange={e => setTopUpRef(e.target.value)} placeholder="M-Pesa / Bank Ref" className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-mono font-bold" />
+                                )}
                             </div>
                             <button type="submit" className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-black text-xs uppercase cursor-pointer">
-                                Record Savings Top-Up
+                                {topUpMode === 'stk_push' ? 'Pay Now via STK Push' : 'Record Savings Top-Up'}
                             </button>
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* LIVE STK PUSH CHECKOUT MODAL FOR SAVINGS & LOAN REPAYMENTS */}
+            {stkPayContext && (
+                <PayNowModal
+                    isOpen={Boolean(stkPayContext)}
+                    onClose={() => setStkPayContext(null)}
+                    institutionId={instId}
+                    institutionName={`${instName} Staff SACCO`}
+                    forceAmount={stkPayContext.amount}
+                    forcedItems={[{
+                        description: stkPayContext.label,
+                        quantity: 1,
+                        unitPrice: stkPayContext.amount,
+                        amount: stkPayContext.amount
+                    }]}
+                    mpesaConfig={companyDetails?.mpesaConfig || institution?.mpesaConfig!}
+                    ncbaConfig={companyDetails?.ncbaConfig || institution?.ncbaConfig}
+                    onSuccess={(ref) => handleStkPushSuccess(ref)}
+                />
             )}
         </div>
     );

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { User, PayrollRecord, Institution } from '../../types';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { CalculatorIcon } from '../icons/CalculatorIcon';
@@ -172,6 +172,47 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
     });
     const [isProcessing, setIsProcessing] = useState(false);
     const [useBiometric, setUseBiometric] = useState(false);
+    const [autoSyncSacco, setAutoSyncSacco] = useState(true);
+    const [saccoMembers, setSaccoMembers] = useState<any[]>(() => {
+        try {
+            const raw = localStorage.getItem(`eduai_sacco_members_${institution.id || 'default_inst'}`);
+            if (raw) return JSON.parse(raw);
+        } catch {}
+        return [];
+    });
+    const [saccoLoans, setSaccoLoans] = useState<any[]>(() => {
+        try {
+            const raw = localStorage.getItem(`eduai_sacco_loans_${institution.id || 'default_inst'}`);
+            if (raw) return JSON.parse(raw);
+        } catch {}
+        return [];
+    });
+
+    useEffect(() => {
+        const instId = institution.id || 'default_inst';
+        let active = true;
+        Promise.all([
+            apiService.fetchModuleRecords('edu_sacco_members').catch(() => null),
+            apiService.fetchModuleRecords('edu_sacco_loans').catch(() => null),
+        ]).then(([mRecs, lRecs]) => {
+            if (!active) return;
+            if (Array.isArray(mRecs)) {
+                const filtered = mRecs.filter((r: any) => !r.institutionId || r.institutionId === instId);
+                if (filtered.length > 0) {
+                    setSaccoMembers(filtered);
+                    try { localStorage.setItem(`eduai_sacco_members_${instId}`, JSON.stringify(filtered)); } catch {}
+                }
+            }
+            if (Array.isArray(lRecs)) {
+                const filtered = lRecs.filter((r: any) => !r.institutionId || r.institutionId === instId);
+                if (filtered.length > 0) {
+                    setSaccoLoans(filtered);
+                    try { localStorage.setItem(`eduai_sacco_loans_${instId}`, JSON.stringify(filtered)); } catch {}
+                }
+            }
+        });
+        return () => { active = false; };
+    }, [institution.id]);
     const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null);
     const [showDesignerModal, setShowDesignerModal] = useState(false);
     const [showStatutorySettingsModal, setShowStatutorySettingsModal] = useState(false);
@@ -247,7 +288,31 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                 try { m = JSON.parse(m); } catch (e) { m = {}; }
             }
             const assignedAllowances: Array<{ name: string; amount: number; type?: string }> = Array.isArray(m.assignedAllowances) ? m.assignedAllowances : [];
-            const assignedDeductions: Array<{ name: string; amount: number; type?: string; referenceNumber?: string }> = Array.isArray(m.assignedDeductions) ? m.assignedDeductions : [];
+            const baseAssignedDeductions: Array<{ name: string; amount: number; type?: string; referenceNumber?: string }> = Array.isArray(m.assignedDeductions) ? m.assignedDeductions : [];
+            const assignedDeductions = [...baseAssignedDeductions];
+
+            // Auto-sync Staff SACCO Check-Off (Monthly Savings + Active Loan Installments)
+            if (autoSyncSacco) {
+                const saccoMember = saccoMembers.find(
+                    (sm: any) =>
+                        sm.status === 'active' &&
+                        (sm.userId === s.id || (sm.email && s.email && sm.email.toLowerCase() === s.email.toLowerCase()))
+                );
+                if (saccoMember) {
+                    const monthlySavings = Math.max(0, Math.round(Number(saccoMember.monthlyContribution || 0)));
+                    if (monthlySavings > 0 && !assignedDeductions.some(d => d.name.toLowerCase().includes('sacco saving'))) {
+                        assignedDeductions.push({ name: 'Staff SACCO Savings (Check-Off)', amount: monthlySavings, type: 'sacco_auto' });
+                    }
+                    const loanInstallment = Math.round(
+                        saccoLoans
+                            .filter((l: any) => l.memberId === saccoMember.id && l.status === 'active' && Number(l.balanceRemaining || 0) > 0)
+                            .reduce((sum: number, l: any) => sum + Math.min(Number(l.monthlyInstallment || 0), Number(l.balanceRemaining || 0)), 0)
+                    );
+                    if (loanInstallment > 0 && !assignedDeductions.some(d => d.name.toLowerCase().includes('sacco loan'))) {
+                        assignedDeductions.push({ name: 'Staff SACCO Loan Repayment', amount: loanInstallment, type: 'sacco_auto' });
+                    }
+                }
+            }
 
             // If house allowance is not explicitly assigned in custom allowances, provide default 15%
             const hasCustomHouse = assignedAllowances.some(a => a.name.toLowerCase().includes('house'));
@@ -277,7 +342,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                 configuredSalary: configured 
             };
         });
-    }, [staff, useBiometric, salaryOverrides]);
+    }, [staff, useBiometric, salaryOverrides, autoSyncSacco, saccoMembers, saccoLoans, statutorySettings]);
 
     const stats = useMemo(() => {
         const currentMonthRecords = localRecords.filter(r => r.month === selectedMonth);
@@ -481,7 +546,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                     basicSalary: calc.basicSalary,
                     allowances,
                     deductions,
-                    netSalary: Math.round(calc.payroll.netSalary * 100) / 100,
+                    netSalary: Math.round(calc.adjustedNetSalary * 100) / 100,
                     status: 'paid',
                     recordedBy: 'Kenyan Payroll Engine',
                     paymentDate: new Date().toISOString()

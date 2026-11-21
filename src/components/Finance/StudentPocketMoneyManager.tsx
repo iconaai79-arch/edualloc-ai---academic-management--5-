@@ -155,7 +155,17 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
     onLogAction
 }) => {
     const instId = institution?.id || 'default_inst';
-    const [subTab, setSubTab] = useState<'wallets' | 'requests' | 'ncba_wallet' | 'bulk' | 'ledger' | 'statement'>('wallets');
+    const [subTab, setSubTab] = useState<'wallets' | 'canteen' | 'requests' | 'ncba_wallet' | 'bulk' | 'ledger' | 'statement'>('wallets');
+    const [lowBalanceThreshold, setLowBalanceThreshold] = useState<number>(100);
+    const [autoLowBalanceSms, setAutoLowBalanceSms] = useState<boolean>(true);
+
+    // Cashless Canteen / Tuckshop POS State
+    const [canteenStudentSearch, setCanteenStudentSearch] = useState('');
+    const [canteenSelectedStudentId, setCanteenSelectedStudentId] = useState('');
+    const [canteenCart, setCanteenCart] = useState<{ name: string; price: number; qty: number }[]>([]);
+    const [canteenCustomItemName, setCanteenCustomItemName] = useState('');
+    const [canteenCustomItemPrice, setCanteenCustomItemPrice] = useState('');
+    const [isChargingCanteen, setIsChargingCanteen] = useState(false);
     const [paymentRequests, setPaymentRequests] = useState<PocketMoneyPaymentRequest[]>(() => {
         try {
             const raw = localStorage.getItem(`eduai_pocket_pay_reqs_${instId}`);
@@ -631,6 +641,141 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
         return mergedWallets.filter(({ account }) => reqClassFilter === 'All' || account.className === reqClassFilter);
     }, [mergedWallets, reqClassFilter]);
 
+    const triggerLowBalanceAutoTopUpSms = async (account: PocketMoneyAccount) => {
+        if (!autoLowBalanceSms || !account.parentPhone) return;
+        if ((Number(account.balance) || 0) > lowBalanceThreshold) return;
+        const normalizedPhone = formatPhoneNumber(account.parentPhone);
+        if (!/^254\d{9}$/.test(normalizedPhone)) return;
+
+        const shortCode = generateShortPayCode();
+        const origin = typeof window !== 'undefined' ? window.location.origin : 'https://portal.eduai.co.ke';
+        const shortUrl = `${origin}/p/${shortCode}`;
+        const suggestedAmt = 500;
+        const breakdown = calculatePocketMoneyCharges(suggestedAmt, feeConfig);
+
+        const reqRecord: PocketMoneyPaymentRequest = {
+            id: shortCode,
+            shortCode,
+            shortUrl,
+            institutionId: instId,
+            institutionName: institution.name,
+            studentId: account.studentId,
+            studentName: account.studentName,
+            admissionNumber: account.admissionNumber,
+            className: account.className,
+            parentName: account.parentName,
+            parentPhone: normalizedPhone,
+            category: 'Pocket Money',
+            title: 'Low Balance Pocket Money Top-Up',
+            netAmount: suggestedAmt,
+            allowCustomAmount: true,
+            totalPayableByParent: breakdown.totalPayableByParent,
+            status: 'pending',
+            smsSent: true,
+            createdBy: 'Auto Low-Balance Alert',
+            createdAt: new Date().toISOString()
+        };
+
+        await apiService.saveModuleRecord('pocket_money_payment_requests', reqRecord).catch(() => {});
+        const nextReqs = [reqRecord, ...paymentRequests];
+        setPaymentRequests(nextReqs);
+        try { localStorage.setItem(`eduai_pocket_pay_reqs_${instId}`, JSON.stringify(nextReqs)); } catch (_) {}
+
+        const msg = `${institution.name}: ${account.studentName}'s pocket money is low (Balance: KES ${account.balance.toLocaleString()}). Tap to top up instantly via M-Pesa: ${shortUrl}`;
+        await dispatchOtpSms(normalizedPhone, msg);
+    };
+
+    const CANTEEN_CATALOG = [
+        { name: 'Milk 250ml', price: 40 },
+        { name: 'Bread / Mandazi', price: 30 },
+        { name: 'Bottled Water', price: 40 },
+        { name: 'Fruit Juice', price: 50 },
+        { name: 'Exercise Book', price: 50 },
+        { name: 'Pen / Pencil', price: 20 },
+        { name: 'Biscuits / Snack', price: 30 },
+        { name: 'Soap / Toiletries', price: 80 }
+    ];
+
+    const addCanteenItem = (name: string, price: number) => {
+        if (!name.trim() || price <= 0) return;
+        setCanteenCart(prev => {
+            const idx = prev.findIndex(i => i.name.toLowerCase() === name.trim().toLowerCase() && i.price === price);
+            if (idx >= 0) {
+                const copy = [...prev];
+                copy[idx] = { ...copy[idx], qty: copy[idx].qty + 1 };
+                return copy;
+            }
+            return [...prev, { name: name.trim(), price, qty: 1 }];
+        });
+    };
+
+    const handleChargeCanteenPos = async () => {
+        const walletEntry = mergedWallets.find(w => w.account.studentId === canteenSelectedStudentId);
+        if (!walletEntry) {
+            showBanner('error', 'Select or scan a student first.');
+            return;
+        }
+        const total = canteenCart.reduce((s, i) => s + i.price * i.qty, 0);
+        if (total <= 0) {
+            showBanner('error', 'Add at least one canteen item to charge.');
+            return;
+        }
+        const { account } = walletEntry;
+        if (account.status === 'frozen') {
+            showBanner('error', `${account.studentName}'s pocket money wallet is FROZEN.`);
+            return;
+        }
+        if (total > account.balance) {
+            showBanner('error', `Insufficient pocket money balance (Available: KES ${account.balance.toLocaleString()}, Cart: KES ${total.toLocaleString()}).`);
+            return;
+        }
+        const { spentToday, spentWeek } = getStudentSpentStats(account.studentId);
+        if (account.dailyLimit && account.dailyLimit > 0 && spentToday + total > account.dailyLimit) {
+            showBanner('error', `Exceeds parent daily limit of KES ${account.dailyLimit.toLocaleString()} (Spent today: KES ${spentToday.toLocaleString()}).`);
+            return;
+        }
+        if (account.weeklyLimit && account.weeklyLimit > 0 && spentWeek + total > account.weeklyLimit) {
+            showBanner('error', `Exceeds parent weekly limit of KES ${account.weeklyLimit.toLocaleString()} (Spent 7d: KES ${spentWeek.toLocaleString()}).`);
+            return;
+        }
+
+        setIsChargingCanteen(true);
+        try {
+            const nowIso = new Date().toISOString();
+            const nextBal = account.balance - total;
+            const summary = canteenCart.map(i => `${i.qty}x ${i.name}`).join(', ');
+            const nextAccount: PocketMoneyAccount = { ...account, balance: nextBal, updatedAt: nowIso };
+            const tx: PocketMoneyTransaction = {
+                id: `pm_tx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                institutionId: instId,
+                accountId: nextAccount.id,
+                studentId: account.studentId,
+                studentName: account.studentName,
+                admissionNumber: account.admissionNumber,
+                className: account.className,
+                type: 'withdrawal',
+                amount: total,
+                balanceBefore: account.balance,
+                balanceAfter: nextBal,
+                paymentMode: 'cash',
+                referenceNumber: `CNT-${Date.now().toString().slice(-6)}`,
+                purpose: `Canteen POS: ${summary}`,
+                issuedBy: currentUser?.name || 'School Canteen',
+                createdAt: nowIso
+            };
+
+            tx.parentNotified = await notifyParent(nextAccount, tx);
+            await persistAccountAndTx(nextAccount, tx);
+            await triggerLowBalanceAutoTopUpSms(nextAccount);
+
+            setCanteenCart([]);
+            onLogAction?.(`Canteen POS charged KES ${total} to ${account.studentName} (${summary})`);
+            showBanner('success', `Charged KES ${total.toLocaleString()} to ${account.studentName} (${summary}). New balance: KES ${nextBal.toLocaleString()}.`);
+        } finally {
+            setIsChargingCanteen(false);
+        }
+    };
+
     const handleSendParentPaymentRequests = async () => {
         const amt = Number(reqAmount) || 0;
         if (amt <= 0) {
@@ -1014,6 +1159,9 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
             tx.parentNotified = notified;
 
             await persistAccountAndTx(nextAccount, tx);
+            if (mode === 'withdrawal') {
+                await triggerLowBalanceAutoTopUpSms(nextAccount);
+            }
             onLogAction?.(`Pocket Money ${mode}: KES ${amt} for ${account.studentName} (Bal: KES ${nextBal})`);
 
             setTxModal(null);
@@ -1240,15 +1388,35 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                         Manage student deposits, controlled withdrawals, bulk boarding payouts, and parent statements without mixing with fee revenue.
                     </p>
                 </div>
-                <label className="flex items-center gap-2.5 bg-white/10 px-4 py-2.5 rounded-2xl border border-white/15 cursor-pointer self-start lg:self-auto">
-                    <input
-                        type="checkbox"
-                        checked={autoSendParentSms}
-                        onChange={e => setAutoSendParentSms(e.target.checked)}
-                        className="w-4 h-4 accent-emerald-400"
-                    />
-                    <span className="text-xs font-bold">Auto-SMS Parent Alerts</span>
-                </label>
+                <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+                    <label className="flex items-center gap-2 bg-white/10 px-3.5 py-2 rounded-2xl border border-white/15 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={autoSendParentSms}
+                            onChange={e => setAutoSendParentSms(e.target.checked)}
+                            className="w-4 h-4 accent-emerald-400"
+                        />
+                        <span className="text-[11px] font-bold">Auto-SMS Alerts</span>
+                    </label>
+                    <label className="flex items-center gap-2 bg-white/10 px-3.5 py-2 rounded-2xl border border-white/15 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={autoLowBalanceSms}
+                            onChange={e => setAutoLowBalanceSms(e.target.checked)}
+                            className="w-4 h-4 accent-amber-400"
+                        />
+                        <span className="text-[11px] font-bold">Auto Low-Bal Link (&le; KES</span>
+                        <input
+                            type="number"
+                            min={0}
+                            value={lowBalanceThreshold}
+                            onChange={e => setLowBalanceThreshold(Math.max(0, Number(e.target.value) || 0))}
+                            onClick={e => e.stopPropagation()}
+                            className="w-14 px-1.5 py-0.5 rounded bg-slate-900/80 border border-white/20 text-amber-300 text-[11px] font-mono font-black text-center"
+                        />
+                        <span className="text-[11px] font-bold">)</span>
+                    </label>
+                </div>
             </div>
 
             {statusBanner && (
@@ -1298,6 +1466,7 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
             <div className="flex flex-wrap gap-2 bg-white dark:bg-slate-800 p-2 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 {[
                     { id: 'wallets', label: 'Student Wallets' },
+                    { id: 'canteen', label: 'Canteen / Tuckshop POS' },
                     { id: 'requests', label: `Parent Pay Requests (${paymentRequests.length})` },
                     { id: 'ncba_wallet', label: walletConfig?.isActivated ? `School NCBA Wallet (KES ${(walletConfig.ncbaFloatBalance || 0).toLocaleString()})` : 'Activate NCBA Wallet' },
                     { id: 'bulk', label: 'Bulk Payout & Sign-Off' },
@@ -1463,6 +1632,163 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                     </div>
                 </div>
             )}
+
+            {/* TAB 1C: CASHLESS SCHOOL CANTEEN / TUCKSHOP POS */}
+            {subTab === 'canteen' && (() => {
+                const q = canteenStudentSearch.trim().toLowerCase();
+                const matchedStudents = q
+                    ? mergedWallets.filter(({ account }) => `${account.studentName} ${account.admissionNumber} ${account.className}`.toLowerCase().includes(q)).slice(0, 8)
+                    : mergedWallets.slice(0, 8);
+                const selectedWallet = mergedWallets.find(w => w.account.studentId === canteenSelectedStudentId)?.account || null;
+                const cartTotal = canteenCart.reduce((s, i) => s + i.price * i.qty, 0);
+
+                return (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-2 space-y-5">
+                            {/* Student Lookup / QR Scan */}
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm space-y-3">
+                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                    1. Scan Student ID / Search Student
+                                </h3>
+                                <input
+                                    type="text"
+                                    value={canteenStudentSearch}
+                                    onChange={e => setCanteenStudentSearch(e.target.value)}
+                                    placeholder="Scan QR / type Admission No or Student Name..."
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {matchedStudents.map(({ account }) => (
+                                        <button
+                                            key={account.studentId}
+                                            type="button"
+                                            onClick={() => setCanteenSelectedStudentId(account.studentId)}
+                                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                                                canteenSelectedStudentId === account.studentId
+                                                    ? 'border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/30'
+                                                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                                            }`}
+                                        >
+                                            <div>
+                                                <div className="font-black text-xs text-slate-900 dark:text-white">{account.studentName}</div>
+                                                <div className="text-[10px] font-mono text-slate-500">Adm: {account.admissionNumber} • {account.className}</div>
+                                            </div>
+                                            <span className={`font-black text-xs ${account.balance > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                KES {account.balance.toLocaleString()}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Quick-Tap Canteen Catalog */}
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm space-y-4">
+                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                    2. Tap Canteen / Tuckshop Items
+                                </h3>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                    {CANTEEN_CATALOG.map(item => (
+                                        <button
+                                            key={item.name}
+                                            type="button"
+                                            onClick={() => addCanteenItem(item.name, item.price)}
+                                            className="p-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 hover:border-indigo-500 hover:bg-indigo-50/50 text-left transition-all cursor-pointer"
+                                        >
+                                            <div className="font-black text-xs text-slate-900 dark:text-white">{item.name}</div>
+                                            <div className="text-xs font-black text-emerald-600 mt-1">KES {item.price}</div>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
+                                    <input
+                                        type="text"
+                                        value={canteenCustomItemName}
+                                        onChange={e => setCanteenCustomItemName(e.target.value)}
+                                        placeholder="Custom item name"
+                                        className="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                    />
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={canteenCustomItemPrice}
+                                        onChange={e => setCanteenCustomItemPrice(e.target.value)}
+                                        placeholder="Price (KES)"
+                                        className="w-28 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-black"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            addCanteenItem(canteenCustomItemName, Number(canteenCustomItemPrice) || 0);
+                                            setCanteenCustomItemName('');
+                                            setCanteenCustomItemPrice('');
+                                        }}
+                                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase cursor-pointer"
+                                    >
+                                        + Add
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Cashless Checkout Cart */}
+                        <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-xl flex flex-col justify-between space-y-5">
+                            <div className="space-y-4">
+                                <div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Cashless Tuckshop Checkout</span>
+                                    <h3 className="text-lg font-black mt-0.5">
+                                        {selectedWallet ? selectedWallet.studentName : 'No Student Selected'}
+                                    </h3>
+                                    {selectedWallet && (
+                                        <p className="text-xs text-slate-300 font-mono">
+                                            Available: <strong className="text-emerald-400">KES {selectedWallet.balance.toLocaleString()}</strong>
+                                            {selectedWallet.dailyLimit ? ` • Day Limit: KES ${selectedWallet.dailyLimit}` : ''}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2 border-t border-white/10 pt-3 max-h-56 overflow-y-auto">
+                                    {canteenCart.length === 0 ? (
+                                        <p className="text-xs text-slate-400 py-6 text-center">Tap items on the left to build order.</p>
+                                    ) : canteenCart.map((item, idx) => (
+                                        <div key={`${item.name}-${idx}`} className="flex items-center justify-between text-xs bg-white/5 px-3 py-2 rounded-xl">
+                                            <div>
+                                                <span className="font-bold">{item.qty}× {item.name}</span>
+                                                <span className="text-slate-400 ml-1.5">@ KES {item.price}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-black text-emerald-400">KES {(item.price * item.qty).toLocaleString()}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCanteenCart(prev => prev.filter((_, i) => i !== idx))}
+                                                    className="text-rose-400 hover:text-rose-300 font-black cursor-pointer"
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="space-y-3 border-t border-white/15 pt-4">
+                                <div className="flex justify-between items-center text-base">
+                                    <span className="font-black uppercase">Cart Total</span>
+                                    <span className="font-black text-emerald-400 text-xl">KES {cartTotal.toLocaleString()}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    disabled={isChargingCanteen || !selectedWallet || cartTotal <= 0}
+                                    onClick={handleChargeCanteenPos}
+                                    className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg disabled:opacity-40 cursor-pointer"
+                                >
+                                    {isChargingCanteen ? 'Charging Wallet...' : `Charge KES ${cartTotal.toLocaleString()} from Pocket Money`}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* TAB 1A: SEND PARENT PAYMENT REQUESTS WITH UNIQUE SHORT URLS */}
             {subTab === 'requests' && (
