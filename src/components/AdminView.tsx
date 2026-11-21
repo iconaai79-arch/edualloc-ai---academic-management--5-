@@ -79,6 +79,7 @@ const SchoolDeviceAccessManager = lazy(() => import('./Network/SchoolDeviceAcces
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { RemedialLessonsManager } from './RemedialLessonsManager';
+import { EduStaffSaccoManager } from './Finance/EduStaffSaccoManager';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 
 import { DocumentTextIcon } from './icons/DocumentTextIcon';
@@ -494,8 +495,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'deliveries' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'enrollment_portal_hub' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials' | 'beauty_college' | 'fiscal_guard' | 'milling' | 'corporate_invoices' | 'network_devices'>('dashboard');
-    const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'smart_timetable' | 'inventory' | 'boarding' | 'logistics' | 'ds' | 'bc' | 'eduvote' | 'remedials'>(() => {
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'staff_sacco' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'deliveries' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'enrollment_portal_hub' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials' | 'beauty_college' | 'fiscal_guard' | 'milling' | 'corporate_invoices' | 'network_devices'>('dashboard');
+    const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'smart_timetable' | 'staff_sacco' | 'inventory' | 'boarding' | 'logistics' | 'ds' | 'bc' | 'eduvote' | 'remedials'>(() => {
         const isDSInst = props.currentInstitution && (
             isDSInstitution(props.currentInstitution) || 
             props.currentInstitution.institutionType === 'Driving School' || 
@@ -1331,6 +1332,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     const smartTimetableTabs = ['timetable', 'courses', 'reports', 'settings'];
                     return smartTimetableTabs.includes(tab.id);
                 }
+                if (activeScope === 'staff_sacco') {
+                    return false;
+                }
                 if (activeScope === 'inventory') {
                     return false; // Handled separately
                 }
@@ -1804,6 +1808,28 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
                             {!isDos && (
                                 <>
+                                    {/* Card: Staff SACCO Savings & Loans (Teachers & Staff Only) */}
+                                    <div
+                                        onClick={() => {
+                                            setActiveScope('staff_sacco');
+                                            setActiveTab('staff_sacco');
+                                        }}
+                                        className="group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-teal-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px]"
+                                    >
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 dark:bg-teal-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-gradient-to-br from-teal-600 to-emerald-600 text-white rounded-2xl w-fit shadow-lg shadow-teal-100 dark:shadow-none">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">Staff SACCO &amp; Loans</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Teachers &amp; staff savings, share capital, monthly payroll check-off, guarantor-backed loans, and annual dividends.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     {/* Card 2: School Inventory & Store */}
                             {(() => {
                                 const isActive = isModuleActive('school_store');
@@ -3177,6 +3203,19 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         </div>
                     );
                 })()}
+
+                {activeTab === 'staff_sacco' && props.currentInstitution && (
+                    <div className="animate-fade-in-up">
+                        <EduStaffSaccoManager
+                            institution={props.currentInstitution}
+                            currentUser={props.currentUser}
+                            users={props.users || []}
+                            smsConfig={props.smsConfig as any}
+                            onSendSms={props.onSendSms as any}
+                            onLogAction={props.onLogAction}
+                        />
+                    </div>
+                )}
 
                 {activeTab === 'timetable' && (
                     <ModuleAccessGuard
