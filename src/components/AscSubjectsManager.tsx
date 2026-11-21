@@ -1,7 +1,26 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { Subject, Department, Room, Course, TimetableEntry, TimetableSettings, AllocationRequest } from '../types';
+import type { Subject, Department, Room, Course, TimetableEntry, TimetableSettings, AllocationRequest, User } from '../types';
 import { generatePeriodLabels } from '../utils/timeUtils';
 import { apiService } from '../services/apiService';
+
+export interface AscLessonRow {
+    id: string;
+    institutionId: string;
+    subjectId: string;
+    teacherId: string;
+    teacherName: string;
+    courseId: string;
+    levelId: string;
+    classLabel: string;
+    count: number;   // lessons per week
+    length: number;  // 1 = Single, 2 = Double, 3 = Triple
+    classroomMode: 'home' | 'specific';
+    roomId?: string;
+    roomName?: string;
+    week: string;    // '' (Every week) or 'Week A' / 'Week B'
+    term: string;    // '' (All terms) or 'Term 1' etc.
+    createdAt: string;
+}
 
 interface AscSubjectPrefs {
     // key: `${dayIdx}_${periodIdx}` -> true means BLOCKED (red X), false/absent means ALLOWED (green check)
@@ -17,6 +36,7 @@ interface AscSubjectsManagerProps {
     departments: Department[];
     rooms: Room[];
     courses: Course[];
+    lecturers?: User[];
     timetableEntries?: TimetableEntry[];
     allocations?: AllocationRequest[];
     timetableSettings?: TimetableSettings;
@@ -52,6 +72,7 @@ export const AscSubjectsManager: React.FC<AscSubjectsManagerProps> = ({
     departments,
     rooms,
     courses,
+    lecturers = [],
     timetableEntries = [],
     allocations = [],
     timetableSettings,
@@ -61,12 +82,23 @@ export const AscSubjectsManager: React.FC<AscSubjectsManagerProps> = ({
     onSwitchTab,
 }) => {
     const prefsKey = `eduai_asc_subject_prefs_${institutionId || 'default'}`;
+    const lessonsKey = `eduai_asc_lessons_${institutionId || 'default'}`;
     const [prefsMap, setPrefsMap] = useState<Record<string, AscSubjectPrefs>>(() => {
         try {
             const raw = localStorage.getItem(prefsKey);
             if (raw) return JSON.parse(raw);
         } catch (_) {}
         return {};
+    });
+    const [ascLessons, setAscLessons] = useState<AscLessonRow[]>(() => {
+        try {
+            const raw = localStorage.getItem(lessonsKey);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch (_) {}
+        return [];
     });
 
     const [selectedSubjectId, setSelectedSubjectId] = useState<string>(() => subjects?.[0]?.id || '');
@@ -82,9 +114,17 @@ export const AscSubjectsManager: React.FC<AscSubjectsManagerProps> = ({
 
     const [timeOffModalSubject, setTimeOffModalSubject] = useState<Subject | null>(null);
     const [lessonsModalSubject, setLessonsModalSubject] = useState<Subject | null>(null);
-    const [singlesCount, setSinglesCount] = useState<number>(3);
-    const [doublesCount, setDoublesCount] = useState<number>(0);
-    const [triplesCount, setTriplesCount] = useState<number>(0);
+    const [selectedLessonId, setSelectedLessonId] = useState<string>('');
+    const [lessonSortAsc, setLessonSortAsc] = useState<boolean>(true);
+    const [lessonEditorModal, setLessonEditorModal] = useState<{ mode: 'new' | 'edit' | 'add_more' | 'copy_to'; lesson?: AscLessonRow } | null>(null);
+    const [lesTeacherId, setLesTeacherId] = useState<string>('');
+    const [lesClassKeys, setLesClassKeys] = useState<string[]>([]);
+    const [lesCount, setLesCount] = useState<number>(6);
+    const [lesLength, setLesLength] = useState<number>(1);
+    const [lesRoomMode, setLesRoomMode] = useState<'home' | 'specific'>('home');
+    const [lesRoomId, setLesRoomId] = useState<string>('');
+    const [lesWeek, setLesWeek] = useState<string>('');
+    const [lesTerm, setLesTerm] = useState<string>('');
 
     const [constraintsModalSubject, setConstraintsModalSubject] = useState<Subject | null>(null);
     const [constraintDist, setConstraintDist] = useState<'Ideal' | 'Spread' | 'Compact'>('Ideal');
@@ -107,7 +147,54 @@ export const AscSubjectsManager: React.FC<AscSubjectsManagerProps> = ({
                 }
             })
             .catch(() => {});
-    }, [institutionId, prefsKey]);
+
+        apiService.fetchModuleRecords<AscLessonRow>('asc_subject_lessons', institutionId)
+            .then(recs => {
+                if (Array.isArray(recs) && recs.length > 0) {
+                    setAscLessons(recs);
+                    try { localStorage.setItem(lessonsKey, JSON.stringify(recs)); } catch (_) {}
+                }
+            })
+            .catch(() => {});
+    }, [institutionId, prefsKey, lessonsKey]);
+
+    const persistLessons = async (next: AscLessonRow[], savedItems?: AscLessonRow[]) => {
+        setAscLessons(next);
+        try { localStorage.setItem(lessonsKey, JSON.stringify(next)); } catch (_) {}
+        if (savedItems && savedItems.length > 0) {
+            for (const item of savedItems) {
+                await apiService.saveModuleRecord('asc_subject_lessons', item).catch(() => {});
+            }
+        }
+    };
+
+    // Flatten classes/streams for lesson assignment dropdowns
+    const classOptions = useMemo(() => {
+        const list: Array<{ key: string; courseId: string; levelId: string; label: string }> = [];
+        (courses || []).forEach(c => {
+            if (!c) return;
+            const levels = Array.isArray(c.levels) && c.levels.length > 0 ? c.levels : [];
+            if (levels.length === 0) {
+                list.push({ key: `${c.id}::${c.id}`, courseId: c.id, levelId: c.id, label: c.code || c.name });
+            } else {
+                levels.forEach(l => {
+                    if (!l) return;
+                    const numMatch = (c.name || '').match(/\d+/);
+                    const cleanStream = (l.name || '').replace(new RegExp(`^${c.name}\\s*[-–]?\\s*`, 'i'), '').trim();
+                    const shortLabel = numMatch && cleanStream.length <= 12
+                        ? `${numMatch[0]}${cleanStream.length <= 3 ? cleanStream.toUpperCase() : cleanStream[0].toUpperCase()}`
+                        : l.name;
+                    list.push({
+                        key: `${c.id}::${l.id}`,
+                        courseId: c.id,
+                        levelId: String(l.id),
+                        label: shortLabel || `${c.name} ${l.name}`,
+                    });
+                });
+            }
+        });
+        return list;
+    }, [courses]);
 
     const savePrefs = async (next: Record<string, AscSubjectPrefs>) => {
         setPrefsMap(next);
@@ -134,11 +221,17 @@ export const AscSubjectsManager: React.FC<AscSubjectsManagerProps> = ({
         return 10;
     }, [timetableSettings]);
 
-    // Compute lesson count per subject (placed timetable cards, or configured lessonStructure × linked classes)
+    // Compute lesson count per subject (explicit aSc lessons first, then placed cards, then allocations)
     const subjectCountMap = useMemo(() => {
         const map = new Map<string, number>();
         (subjects || []).forEach(sub => {
             if (!sub) return;
+            const customLessons = ascLessons.filter(l => l.subjectId === sub.id);
+            if (customLessons.length > 0) {
+                const total = customLessons.reduce((s, l) => s + (Number(l.count) || 0) * (Number(l.length) || 1), 0);
+                map.set(sub.id, total);
+                return;
+            }
             const placed = (timetableEntries || []).filter(e => e && e.subjectId === sub.id).length;
             if (placed > 0) {
                 map.set(sub.id, placed);
@@ -157,7 +250,7 @@ export const AscSubjectsManager: React.FC<AscSubjectsManagerProps> = ({
             }
         });
         return map;
-    }, [subjects, timetableEntries, allocations, courses]);
+    }, [subjects, ascLessons, timetableEntries, allocations, courses]);
 
     const filteredSubjects = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -232,26 +325,158 @@ export const AscSubjectsManager: React.FC<AscSubjectsManagerProps> = ({
 
     const openLessonsModal = () => {
         if (!selectedSubject) return;
-        const ls = selectedSubject.lessonStructure || [];
-        setSinglesCount(ls.find(x => x.periods === 1)?.count ?? 3);
-        setDoublesCount(ls.find(x => x.periods === 2)?.count ?? 0);
-        setTriplesCount(ls.find(x => x.periods === 3)?.count ?? 0);
+        // Auto-seed from approved allocations if no explicit aSc lessons exist for this subject yet
+        const existingForSub = ascLessons.filter(l => l.subjectId === selectedSubject.id);
+        if (existingForSub.length === 0) {
+            const matchingAllocs = (allocations || []).filter(a => a && a.subjectId === selectedSubject.id);
+            if (matchingAllocs.length > 0) {
+                const defaultCount = Array.isArray(selectedSubject.lessonStructure) && selectedSubject.lessonStructure.length > 0
+                    ? selectedSubject.lessonStructure.reduce((s, ls) => s + (Number(ls.count) || 0), 0)
+                    : (Number((selectedSubject as any).hoursPerWeek) || 4);
+                const seeded: AscLessonRow[] = matchingAllocs.map(a => {
+                    const teacher = lecturers.find(t => t.id === a.lecturerId);
+                    const clsOpt = classOptions.find(c => c.levelId === String((a as any).levelId || '') || c.courseId === a.courseId);
+                    return {
+                        id: `les_${a.id}`,
+                        institutionId,
+                        subjectId: selectedSubject.id,
+                        teacherId: a.lecturerId || '',
+                        teacherName: teacher?.name || 'Unassigned',
+                        courseId: clsOpt?.courseId || a.courseId || '',
+                        levelId: clsOpt?.levelId || String((a as any).levelId || a.courseId || ''),
+                        classLabel: clsOpt?.label || a.courseId || 'Class',
+                        count: defaultCount,
+                        length: 1,
+                        classroomMode: 'home',
+                        week: '',
+                        term: '',
+                        createdAt: new Date().toISOString(),
+                    };
+                });
+                persistLessons([...seeded, ...ascLessons]);
+                setSelectedLessonId(seeded[0]?.id || '');
+            } else {
+                setSelectedLessonId('');
+            }
+        } else {
+            setSelectedLessonId(existingForSub[0]?.id || '');
+        }
         setLessonsModalSubject(selectedSubject);
     };
 
-    const handleSaveLessons = (e: React.FormEvent) => {
+    const currentSubjectLessons = useMemo(() => {
+        if (!lessonsModalSubject) return [];
+        const list = ascLessons.filter(l => l.subjectId === lessonsModalSubject.id);
+        return [...list].sort((a, b) =>
+            lessonSortAsc
+                ? a.classLabel.localeCompare(b.classLabel, undefined, { numeric: true })
+                : b.classLabel.localeCompare(a.classLabel, undefined, { numeric: true })
+        );
+    }, [ascLessons, lessonsModalSubject, lessonSortAsc]);
+
+    const openLessonEditor = (mode: 'new' | 'edit' | 'add_more' | 'copy_to') => {
+        const activeLesson = currentSubjectLessons.find(l => l.id === selectedLessonId) || currentSubjectLessons[0];
+        if ((mode === 'edit' || mode === 'copy_to') && !activeLesson) return;
+
+        if (mode === 'edit' && activeLesson) {
+            setLesTeacherId(activeLesson.teacherId);
+            setLesClassKeys([`${activeLesson.courseId}::${activeLesson.levelId}`]);
+            setLesCount(activeLesson.count);
+            setLesLength(activeLesson.length);
+            setLesRoomMode(activeLesson.classroomMode);
+            setLesRoomId(activeLesson.roomId || '');
+            setLesWeek(activeLesson.week || '');
+            setLesTerm(activeLesson.term || '');
+            setLessonEditorModal({ mode, lesson: activeLesson });
+        } else if (mode === 'copy_to' && activeLesson) {
+            setLesTeacherId(activeLesson.teacherId);
+            setLesClassKeys([]);
+            setLesCount(activeLesson.count);
+            setLesLength(activeLesson.length);
+            setLesRoomMode(activeLesson.classroomMode);
+            setLesRoomId(activeLesson.roomId || '');
+            setLesWeek(activeLesson.week || '');
+            setLesTerm(activeLesson.term || '');
+            setLessonEditorModal({ mode, lesson: activeLesson });
+        } else {
+            setLesTeacherId(lecturers[0]?.id || '');
+            setLesClassKeys(mode === 'new' && classOptions[0] ? [classOptions[0].key] : []);
+            setLesCount(6);
+            setLesLength(1);
+            setLesRoomMode('home');
+            setLesRoomId('');
+            setLesWeek('');
+            setLesTerm('');
+            setLessonEditorModal({ mode });
+        }
+    };
+
+    const handleSaveLessonEditor = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!lessonsModalSubject || !onUpdateSubject) return;
-        const nextStructure: Array<{ count: number; periods: number }> = [];
-        if (singlesCount > 0) nextStructure.push({ count: singlesCount, periods: 1 });
-        if (doublesCount > 0) nextStructure.push({ count: doublesCount, periods: 2 });
-        if (triplesCount > 0) nextStructure.push({ count: triplesCount, periods: 3 });
-        const totalHours = singlesCount + doublesCount * 2 + triplesCount * 3;
-        onUpdateSubject(lessonsModalSubject.id, {
-            lessonStructure: nextStructure.length > 0 ? nextStructure : [{ count: 1, periods: 1 }],
-            hoursPerWeek: totalHours,
-        } as any);
-        setLessonsModalSubject(null);
+        if (!lessonsModalSubject || !lessonEditorModal) return;
+        if (lesClassKeys.length === 0) {
+            alert('Select at least one class.');
+            return;
+        }
+        const teacher = lecturers.find(t => t.id === lesTeacherId);
+        const room = rooms.find(r => r.id === lesRoomId);
+
+        if (lessonEditorModal.mode === 'edit' && lessonEditorModal.lesson) {
+            const cls = classOptions.find(c => c.key === lesClassKeys[0]);
+            const updated: AscLessonRow = {
+                ...lessonEditorModal.lesson,
+                teacherId: lesTeacherId,
+                teacherName: teacher?.name || 'Unassigned',
+                courseId: cls?.courseId || lessonEditorModal.lesson.courseId,
+                levelId: cls?.levelId || lessonEditorModal.lesson.levelId,
+                classLabel: cls?.label || lessonEditorModal.lesson.classLabel,
+                count: Math.max(1, Number(lesCount) || 1),
+                length: Math.max(1, Math.min(4, Number(lesLength) || 1)),
+                classroomMode: lesRoomMode,
+                roomId: lesRoomMode === 'specific' ? lesRoomId : undefined,
+                roomName: lesRoomMode === 'specific' ? room?.name : undefined,
+                week: lesWeek.trim(),
+                term: lesTerm.trim(),
+            };
+            const next = ascLessons.map(l => l.id === updated.id ? updated : l);
+            await persistLessons(next, [updated]);
+            setSelectedLessonId(updated.id);
+        } else {
+            const created: AscLessonRow[] = lesClassKeys.map(ck => {
+                const cls = classOptions.find(c => c.key === ck);
+                return {
+                    id: `les_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                    institutionId,
+                    subjectId: lessonsModalSubject.id,
+                    teacherId: lesTeacherId,
+                    teacherName: teacher?.name || 'Unassigned',
+                    courseId: cls?.courseId || '',
+                    levelId: cls?.levelId || '',
+                    classLabel: cls?.label || ck,
+                    count: Math.max(1, Number(lesCount) || 1),
+                    length: Math.max(1, Math.min(4, Number(lesLength) || 1)),
+                    classroomMode: lesRoomMode,
+                    roomId: lesRoomMode === 'specific' ? lesRoomId : undefined,
+                    roomName: lesRoomMode === 'specific' ? room?.name : undefined,
+                    week: lesWeek.trim(),
+                    term: lesTerm.trim(),
+                    createdAt: new Date().toISOString(),
+                };
+            });
+            await persistLessons([...created, ...ascLessons], created);
+            if (created[0]) setSelectedLessonId(created[0].id);
+        }
+        setLessonEditorModal(null);
+    };
+
+    const handleRemoveLesson = () => {
+        if (!selectedLessonId) return;
+        const target = currentSubjectLessons.find(l => l.id === selectedLessonId);
+        if (!target) return;
+        if (!window.confirm(`Remove lesson ${lessonsModalSubject?.name} — ${target.teacherName} (${target.classLabel})?`)) return;
+        const next = ascLessons.filter(l => l.id !== selectedLessonId);
+        persistLessons(next);
+        setSelectedLessonId('');
     };
 
     const toggleTimeOffCell = (subjectId: string, dayIdx: number, pIdx: number) => {
@@ -610,36 +835,323 @@ export const AscSubjectsManager: React.FC<AscSubjectsManagerProps> = ({
                 </div>
             )}
 
-            {/* MODAL 2: SUBJECT LESSONS STRUCTURE */}
-            {lessonsModalSubject && (
-                <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-                    <form onSubmit={handleSaveLessons} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 w-full max-w-md shadow-2xl space-y-4">
+            {/* MODAL 2: aSc "LESSONS FOR SUBJECT" WINDOW */}
+            {lessonsModalSubject && (() => {
+                const subCode = (lessonsModalSubject.code || lessonsModalSubject.name.slice(0, 3)).toUpperCase();
+                const badgeColors = ['#eab308', '#22c55e', '#991b1b', '#4ade80', '#38bdf8', '#f472b6', '#fb923c', '#a78bfa'];
+                const activeLesson = currentSubjectLessons.find(l => l.id === selectedLessonId) || null;
+
+                return (
+                    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+                        <div className="bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-400 dark:border-slate-600 w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+                            {/* Classic aSc Dialog Title Bar */}
+                            <div className="bg-white dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 px-4 py-2 flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-white">
+                                    <span>📋</span>
+                                    <span>Lessons for subject</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setLessonsModalSubject(null)}
+                                    className="px-2 py-0.5 rounded hover:bg-rose-100 text-slate-600 hover:text-rose-600 font-black text-sm cursor-pointer"
+                                >
+                                    ×
+                                </button>
+                            </div>
+
+                            {/* Subject Banner (Blue Book + Name + Short Code) */}
+                            <div className="bg-slate-100 dark:bg-slate-800/80 px-5 py-3 flex items-center gap-3.5 border-b border-slate-300 dark:border-slate-700">
+                                <div className="w-11 h-12 rounded-lg bg-gradient-to-b from-blue-400 to-blue-600 border border-blue-700 flex items-center justify-center text-white text-xl shadow-sm shrink-0">
+                                    📘
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white leading-tight">
+                                        {lessonsModalSubject.name}
+                                    </h3>
+                                    <div className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                                        {subCode} • {currentSubjectLessons.reduce((s, l) => s + l.count * l.length, 0)} total periods / week
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Lessons Table */}
+                            <div className="flex-1 bg-white dark:bg-slate-900 overflow-auto min-h-[300px] border-b border-slate-300 dark:border-slate-700">
+                                <table className="w-full text-left border-collapse text-xs select-none">
+                                    <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                        <tr>
+                                            <th className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-44">Subject</th>
+                                            <th className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-44">Teacher</th>
+                                            <th
+                                                onClick={() => setLessonSortAsc(prev => !prev)}
+                                                className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-28 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700"
+                                            >
+                                                Class {lessonSortAsc ? '▲' : '▼'}
+                                            </th>
+                                            <th className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-16 text-center">Count</th>
+                                            <th className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-16 text-center">Length</th>
+                                            <th className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-28">Classrooms</th>
+                                            <th className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-20">Week</th>
+                                            <th className="py-1.5 px-3 w-20">Term</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {currentSubjectLessons.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={8} className="p-12 text-center text-slate-400">
+                                                    No lessons assigned for <strong>{lessonsModalSubject.name}</strong> yet. Click <strong>New lesson</strong> or <strong>Add more</strong> below.
+                                                </td>
+                                            </tr>
+                                        ) : currentSubjectLessons.map((les, idx) => {
+                                            const isSel = selectedLessonId === les.id;
+                                            const badgeBg = badgeColors[idx % badgeColors.length];
+                                            const darkText = ['#eab308', '#4ade80', '#22c55e', '#38bdf8', '#fb923c'].includes(badgeBg);
+                                            return (
+                                                <tr
+                                                    key={les.id}
+                                                    onClick={() => setSelectedLessonId(les.id)}
+                                                    onDoubleClick={() => {
+                                                        setSelectedLessonId(les.id);
+                                                        openLessonEditor('edit');
+                                                    }}
+                                                    className={`cursor-pointer transition-colors ${
+                                                        isSel
+                                                            ? 'bg-blue-600 text-white font-bold'
+                                                            : idx % 2 === 0
+                                                                ? 'bg-slate-50/70 dark:bg-slate-800/40 hover:bg-blue-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100'
+                                                                : 'bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100'
+                                                    }`}
+                                                >
+                                                    <td className="py-1.5 px-3 flex items-center gap-2.5">
+                                                        <span
+                                                            style={{ backgroundColor: badgeBg, color: darkText ? '#0f172a' : '#ffffff' }}
+                                                            className="w-7 h-6 rounded-xs border border-black/25 flex items-center justify-center font-black text-[10px] shrink-0 shadow-xs"
+                                                        >
+                                                            {subCode}
+                                                        </span>
+                                                        <span className="uppercase truncate">{lessonsModalSubject.name}</span>
+                                                    </td>
+                                                    <td className="py-1.5 px-3 truncate">{les.teacherName}</td>
+                                                    <td className="py-1.5 px-3 font-bold">{les.classLabel}</td>
+                                                    <td className="py-1.5 px-3 text-center font-mono">{les.count}</td>
+                                                    <td className="py-1.5 px-3 text-center font-mono">{les.length}</td>
+                                                    <td className="py-1.5 px-3">
+                                                        {les.classroomMode === 'home' ? (
+                                                            <span title="Home Classroom" className="text-sm">🏠</span>
+                                                        ) : (
+                                                            <span className="truncate">{les.roomName || 'Room'}</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-1.5 px-3 text-[11px]">{les.week}</td>
+                                                    <td className="py-1.5 px-3 text-[11px]">{les.term}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Classic aSc Bottom Action Bar */}
+                            <div className="bg-slate-100 dark:bg-slate-800 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => openLessonEditor('new')}
+                                        className="px-4 py-1.5 rounded-md bg-white dark:bg-slate-700 hover:bg-blue-50 border-2 border-blue-500 text-xs font-black text-slate-900 dark:text-white shadow-xs cursor-pointer"
+                                    >
+                                        New lesson
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={!activeLesson}
+                                        onClick={() => openLessonEditor('edit')}
+                                        className="px-4 py-1.5 rounded-md bg-white dark:bg-slate-700 hover:bg-slate-50 border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-white shadow-xs disabled:opacity-40 cursor-pointer"
+                                    >
+                                        Edit lesson
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={!activeLesson}
+                                        onClick={handleRemoveLesson}
+                                        className="px-4 py-1.5 rounded-md bg-white dark:bg-slate-700 hover:bg-rose-50 border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-white shadow-xs disabled:opacity-40 cursor-pointer"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={!activeLesson}
+                                        onClick={() => openLessonEditor('copy_to')}
+                                        className="px-4 py-1.5 rounded-md bg-white dark:bg-slate-700 hover:bg-slate-50 border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-white shadow-xs disabled:opacity-40 cursor-pointer"
+                                    >
+                                        Copy to
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => openLessonEditor('add_more')}
+                                        className="px-4 py-1.5 rounded-md bg-white dark:bg-slate-700 hover:bg-slate-50 border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-white shadow-xs cursor-pointer"
+                                    >
+                                        Add more
+                                    </button>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setLessonsModalSubject(null)}
+                                    className="px-6 py-1.5 rounded-md bg-white dark:bg-slate-700 hover:bg-slate-50 border border-slate-300 dark:border-slate-600 text-xs font-black text-slate-800 dark:text-white shadow-xs cursor-pointer"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* SUB-MODAL: NEW / EDIT / COPY TO / ADD MORE LESSON */}
+            {lessonEditorModal && lessonsModalSubject && (
+                <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+                    <form onSubmit={handleSaveLessonEditor} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 w-full max-w-lg shadow-2xl space-y-4">
                         <h3 className="text-sm font-black uppercase text-slate-900 dark:text-white">
-                            Weekly Lessons — {lessonsModalSubject.name} ({lessonsModalSubject.code})
+                            {lessonEditorModal.mode === 'new' && `New Lesson — ${lessonsModalSubject.name}`}
+                            {lessonEditorModal.mode === 'edit' && `Edit Lesson — ${lessonsModalSubject.name}`}
+                            {lessonEditorModal.mode === 'copy_to' && `Copy Lesson to Other Classes — ${lessonsModalSubject.name}`}
+                            {lessonEditorModal.mode === 'add_more' && `Add Multiple Lessons — ${lessonsModalSubject.name}`}
                         </h3>
-                        <p className="text-xs text-slate-500">
-                            Configure how many single, double, and triple lessons this subject has per week per class.
-                        </p>
-                        <div className="grid grid-cols-3 gap-3">
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Singles (1p)</label>
-                                <input type="number" min={0} max={10} value={singlesCount} onChange={e => setSinglesCount(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm font-black text-center" />
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Teacher</label>
+                                <select
+                                    value={lesTeacherId}
+                                    onChange={e => setLesTeacherId(e.target.value)}
+                                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                >
+                                    <option value="">— Select Teacher —</option>
+                                    {lecturers.map(t => (
+                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                    ))}
+                                </select>
                             </div>
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Doubles (2p)</label>
-                                <input type="number" min={0} max={5} value={doublesCount} onChange={e => setDoublesCount(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm font-black text-center" />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Triples (3p)</label>
-                                <input type="number" min={0} max={3} value={triplesCount} onChange={e => setTriplesCount(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm font-black text-center" />
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Count / Wk</label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={15}
+                                        value={lesCount}
+                                        onChange={e => setLesCount(Math.max(1, Number(e.target.value) || 1))}
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-black text-center"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Length</label>
+                                    <select
+                                        value={lesLength}
+                                        onChange={e => setLesLength(Number(e.target.value) || 1)}
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                    >
+                                        <option value={1}>1 (Single)</option>
+                                        <option value={2}>2 (Double)</option>
+                                        <option value={3}>3 (Triple)</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
-                        <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-xs font-bold text-indigo-700 dark:text-indigo-300">
-                            Total weekly periods per class: <strong>{singlesCount + doublesCount * 2 + triplesCount * 3}</strong>
+
+                        {/* Class / Stream Picker (single for new/edit, multi-select for copy_to / add_more) */}
+                        <div>
+                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5">
+                                {lessonEditorModal.mode === 'edit' ? 'Class' : `Select Class(es) (${lesClassKeys.length} selected)`} *
+                            </label>
+                            {lessonEditorModal.mode === 'edit' ? (
+                                <select
+                                    value={lesClassKeys[0] || ''}
+                                    onChange={e => setLesClassKeys(e.target.value ? [e.target.value] : [])}
+                                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                >
+                                    {classOptions.map(c => (
+                                        <option key={c.key} value={c.key}>{c.label}</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                    {classOptions.length === 0 ? (
+                                        <span className="text-[11px] text-slate-400">No classes configured yet. Add classes in the Classes tab first.</span>
+                                    ) : classOptions.map(c => {
+                                        const picked = lesClassKeys.includes(c.key);
+                                        return (
+                                            <button
+                                                key={c.key}
+                                                type="button"
+                                                onClick={() => {
+                                                    if (lessonEditorModal.mode === 'new') {
+                                                        setLesClassKeys([c.key]);
+                                                    } else {
+                                                        setLesClassKeys(prev => prev.includes(c.key) ? prev.filter(x => x !== c.key) : [...prev, c.key]);
+                                                    }
+                                                }}
+                                                className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer ${
+                                                    picked ? 'bg-blue-600 text-white shadow-xs' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                                                }`}
+                                            >
+                                                {c.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setLessonsModalSubject(null)} className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-xs font-bold cursor-pointer">Cancel</button>
-                            <button type="submit" className="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-black uppercase cursor-pointer">Save Lessons</button>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Classroom</label>
+                                <select
+                                    value={lesRoomMode === 'home' ? '__home__' : lesRoomId}
+                                    onChange={e => {
+                                        if (e.target.value === '__home__') {
+                                            setLesRoomMode('home');
+                                            setLesRoomId('');
+                                        } else {
+                                            setLesRoomMode('specific');
+                                            setLesRoomId(e.target.value);
+                                        }
+                                    }}
+                                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                >
+                                    <option value="__home__">🏠 Home Classroom</option>
+                                    {(rooms || []).map(r => (
+                                        <option key={r.id} value={r.id}>{r.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Week</label>
+                                <input
+                                    type="text"
+                                    value={lesWeek}
+                                    onChange={e => setLesWeek(e.target.value)}
+                                    placeholder="Every week"
+                                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Term</label>
+                                <input
+                                    type="text"
+                                    value={lesTerm}
+                                    onChange={e => setLesTerm(e.target.value)}
+                                    placeholder="All terms"
+                                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2">
+                            <button type="button" onClick={() => setLessonEditorModal(null)} className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-xs font-bold cursor-pointer">Cancel</button>
+                            <button type="submit" className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase cursor-pointer">OK</button>
                         </div>
                     </form>
                 </div>

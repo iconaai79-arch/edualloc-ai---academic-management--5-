@@ -3345,6 +3345,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                             departments={props.departments || []}
                                             rooms={props.rooms || []}
                                             courses={props.courses || []}
+                                            lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
                                             timetableEntries={props.generatedTimetable || []}
                                             allocations={(props.requests || []).filter((r: any) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
                                             timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
