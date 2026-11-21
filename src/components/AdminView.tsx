@@ -24,6 +24,7 @@ import type {
 const UserManager = lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 const TimetableGenerator = lazy(() => import('./TimetableGenerator').then(m => ({ default: m.TimetableGenerator })));
 const AscTimetableCardsDashboard = lazy(() => import('./AscTimetableCardsDashboard').then(m => ({ default: m.AscTimetableCardsDashboard })));
+const AscSubjectsManager = lazy(() => import('./AscSubjectsManager').then(m => ({ default: m.AscSubjectsManager })));
 const TimetableClassroomsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableClassroomsManager })));
 const TimetableRelationsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableRelationsManager })));
 const SettingsManager = lazy(() => import('./SettingsManager').then(m => ({ default: m.SettingsManager })));
@@ -3338,22 +3339,19 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     </Suspense>
                                 ) : timetableSubTab === 'subjects' ? (
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
-                                        <SubjectManager
-                                            {...props}
+                                        <AscSubjectsManager
+                                            institutionId={props.currentInstitution?.id || ''}
                                             subjects={props.subjects || []}
-                                            courses={props.courses || []}
                                             departments={props.departments || []}
-                                            buildings={props.buildings || []}
+                                            rooms={props.rooms || []}
+                                            courses={props.courses || []}
+                                            timetableEntries={props.generatedTimetable || []}
+                                            allocations={(props.requests || []).filter((r: any) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
                                             timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                                             onAddSubject={props.onAddSubject}
                                             onUpdateSubject={props.onUpdateSubject}
                                             onDeleteSubject={props.onDeleteSubject}
-                                            onEditSubject={props.onEditSubject}
-                                            onSaveTimetableSettings={props.onSaveTimetableSettings!}
-                                            onUpdateCourse={props.onUpdateCourse}
-                                            onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate as any}
-                                            currentUser={props.currentUser!}
-                                            rooms={props.rooms || []}
+                                            onSwitchTab={(tab) => setTimetableSubTab(tab)}
                                         />
                                     </Suspense>
                                 ) : timetableSubTab === 'classes' ? (
