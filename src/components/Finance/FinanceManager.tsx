@@ -22962,89 +22962,188 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             });
                                             const availVehicles = Array.from(vehSet).sort();
 
-                                            // 2. Aggregate per student
+                                            // 2. Aggregate TRANSPORT-ONLY balances per commuter (never double-counting opening balances or mixing tuition/boarding fees)
                                             const commuterMap = new Map<string, any>();
+                                            const commuterKeyByAdm = new Map<string, string>();
+                                            const commuterKeyByName = new Map<string, string>();
+
+                                            const isTransportOpeningInv = (inv: any) =>
+                                                inv?.isOpeningBalance === true ||
+                                                (inv?.period && /opening|b\/f|brought forward/i.test(String(inv.period))) ||
+                                                (inv?.notes && /opening balance|b\/f|brought forward/i.test(String(inv.notes)));
 
                                             (transportInvoices || []).forEach((inv: any) => {
-                                                const sId = inv.studentId;
-                                                if (!sId) return;
+                                                const rawSid = String(inv.studentId || inv.student_id || '').trim();
+                                                const normSid = rawSid ? cleanId(rawSid).toLowerCase() : '';
+                                                const invAdm = String(inv.admissionNumber || inv.admission_number || '').trim();
+                                                const invName = String(inv.studentName || inv.student_name || '').trim();
+                                                const key = normSid || (invAdm ? `adm:${invAdm.toLowerCase()}` : (invName ? `name:${invName.toLowerCase()}` : ''));
+                                                if (!key) return;
+
                                                 const matchedR = (busRoutes || []).find((r: any) => (r.id && r.id === inv.routeId) || (r.name && inv.routeName && r.name.toLowerCase() === inv.routeName.toLowerCase()));
                                                 const veh = inv.vehicle || inv.busPlate || matchedR?.bus || 'Unassigned Vehicle';
                                                 const rName = inv.routeName || matchedR?.name || 'Unassigned Route';
-                                                const amt = inv.finalAmount || inv.amount || inv.baseAmount || 0;
-                                                const pd = inv.paidAmount || (inv.status === 'paid' ? amt : 0);
-                                                const bal = inv.balance !== undefined ? inv.balance : Math.max(0, amt - pd);
+                                                const rawAmt = Number(inv.finalAmount ?? inv.amount ?? inv.baseAmount ?? 0) || 0;
+                                                const isCreditOp = isTransportOpeningInv(inv) && ((inv as any).balanceType === 'credit' || rawAmt < 0);
+                                                const amt = isCreditOp ? 0 : Math.abs(rawAmt);
+                                                const pd = isCreditOp
+                                                    ? Math.abs(rawAmt)
+                                                    : (Number(inv.paidAmount ?? (inv.status === 'paid' ? amt : 0)) || 0);
+                                                const isOp = isTransportOpeningInv(inv);
 
-                                                if (!commuterMap.has(sId)) {
-                                                    commuterMap.set(sId, {
-                                                        studentId: sId,
-                                                        name: inv.studentName || 'Student',
-                                                        admissionNumber: inv.admissionNumber || '—',
-                                                        className: '',
+                                                if (!commuterMap.has(key)) {
+                                                    commuterMap.set(key, {
+                                                        studentId: rawSid || key,
+                                                        normId: normSid,
+                                                        name: invName || 'Student',
+                                                        admissionNumber: invAdm || '—',
+                                                        className: inv.className || inv.gradeLevel || '',
                                                         routeId: inv.routeId || '',
                                                         routeName: rName,
                                                         vehicle: veh,
                                                         invoiced: amt,
                                                         paid: pd,
-                                                        balance: bal,
-                                                        openingArrears: 0
+                                                        balance: Math.max(0, amt - pd),
+                                                        openingArrears: isOp && !isCreditOp ? amt : 0,
+                                                        hasOpeningBalanceInvoice: isOp
                                                     });
+                                                    if (invAdm && invAdm !== '—') commuterKeyByAdm.set(invAdm.toLowerCase().replace(/^0+/, ''), key);
+                                                    if (invName) commuterKeyByName.set(invName.toLowerCase(), key);
                                                 } else {
-                                                    const cur = commuterMap.get(sId);
+                                                    const cur = commuterMap.get(key);
                                                     cur.invoiced += amt;
                                                     cur.paid += pd;
-                                                    cur.balance += bal;
+                                                    cur.balance = Math.max(0, cur.invoiced - cur.paid);
+                                                    if (isOp) {
+                                                        cur.hasOpeningBalanceInvoice = true;
+                                                        if (!isCreditOp) cur.openingArrears += amt;
+                                                    }
                                                     if (veh !== 'Unassigned Vehicle' && cur.vehicle === 'Unassigned Vehicle') cur.vehicle = veh;
                                                     if (rName !== 'Unassigned Route' && cur.routeName === 'Unassigned Route') cur.routeName = rName;
+                                                    if (!cur.admissionNumber || cur.admissionNumber === '—') cur.admissionNumber = invAdm || '—';
                                                 }
                                             });
 
-                                            (props.students || []).forEach((st: any) => {
-                                                const sId = st.id;
-                                                const sAdm = (st as any).admissionNumber || (st as any).admNo || (st as any).admission_number || '';
-                                                const sCls = st.className || studentClassGroup(st) || '';
-                                                const sRouteId = st.metadata?.transportRouteId || st.transportRouteId || (st as any).routeId || '';
+                                            // Enrich commuters from mergedStudents (for class, adm, route, and metadata-only transport opening balances)
+                                            (mergedStudents || props.students || []).forEach((st: any) => {
+                                                const sId = String(st.id || '').trim();
+                                                const normSid = sId ? cleanId(sId).toLowerCase() : '';
+                                                const sAdm = String(getStudentAdmNumber(st) || (st as any).admissionNumber || (st as any).admNo || (st as any).admission_number || '').trim();
+                                                const normAdm = sAdm && sAdm !== '—' ? sAdm.toLowerCase().replace(/^0+/, '') : '';
+                                                const sName = String(st.name || '').trim();
+                                                const sCls = getStudentClassName(st) || st.className || studentClassGroup(st) || '';
+                                                const sRouteId = st.assignedRouteId || (st as any).assigned_route_id || st.metadata?.transportRouteId || st.transportRouteId || (st as any).routeId || '';
                                                 const matchedR = (busRoutes || []).find((r: any) => (r.id && r.id === sRouteId) || (r.name && st.metadata?.routeName && r.name.toLowerCase() === st.metadata.routeName.toLowerCase()));
                                                 const veh = matchedR?.bus || st.metadata?.vehicle || 'Unassigned Vehicle';
                                                 const rName = matchedR?.name || st.metadata?.routeName || 'Unassigned Route';
 
-                                                const opBal = getStudentTransportOpeningBalance(st);
-                                                const opAmt = opBal?.amount || 0;
-                                                const opIsCredit = opBal?.isCredit || false;
+                                                const existingKey = (normSid && commuterMap.has(normSid))
+                                                    ? normSid
+                                                    : (normAdm && commuterKeyByAdm.has(normAdm))
+                                                        ? commuterKeyByAdm.get(normAdm)!
+                                                        : (sName && commuterKeyByName.has(sName.toLowerCase()))
+                                                            ? commuterKeyByName.get(sName.toLowerCase())!
+                                                            : null;
 
-                                                if (commuterMap.has(sId)) {
-                                                    const cur = commuterMap.get(sId);
-                                                    if (!cur.className) cur.className = sCls;
-                                                    if (!cur.admissionNumber || cur.admissionNumber === '—') cur.admissionNumber = sAdm || '—';
+                                                if (existingKey) {
+                                                    const cur = commuterMap.get(existingKey);
+                                                    if (!cur.className && sCls) cur.className = sCls;
+                                                    if ((!cur.admissionNumber || cur.admissionNumber === '—') && sAdm) cur.admissionNumber = sAdm;
                                                     if (cur.routeName === 'Unassigned Route' && rName !== 'Unassigned Route') cur.routeName = rName;
                                                     if (cur.vehicle === 'Unassigned Vehicle' && veh !== 'Unassigned Vehicle') cur.vehicle = veh;
-                                                    if (opAmt > 0) {
-                                                        if (opIsCredit) {
-                                                            cur.paid += opAmt;
-                                                            cur.balance = Math.max(0, cur.balance - opAmt);
-                                                        } else {
-                                                            cur.openingArrears += opAmt;
-                                                            cur.invoiced += opAmt;
-                                                            cur.balance += opAmt;
+                                                    // Only add metadata transport opening balance if NOT already present as an Opening Balance invoice in transportInvoices (prevents 2x double-counting!)
+                                                    if (!cur.hasOpeningBalanceInvoice) {
+                                                        const opBal = getStudentTransportOpeningBalance(st);
+                                                        const opAmt = opBal?.amount || 0;
+                                                        const opIsCredit = opBal?.isCredit || false;
+                                                        if (opAmt > 0) {
+                                                            if (opIsCredit) {
+                                                                cur.paid += opAmt;
+                                                            } else {
+                                                                cur.openingArrears += opAmt;
+                                                                cur.invoiced += opAmt;
+                                                            }
+                                                            cur.balance = Math.max(0, cur.invoiced - cur.paid);
                                                         }
                                                     }
-                                                } else if (sRouteId || opAmt > 0) {
-                                                    const invAmt = opIsCredit ? 0 : opAmt;
-                                                    const pdAmt = opIsCredit ? opAmt : 0;
-                                                    commuterMap.set(sId, {
-                                                        studentId: sId,
-                                                        name: st.name || 'Student',
-                                                        admissionNumber: sAdm || '—',
-                                                        className: sCls,
-                                                        routeId: sRouteId,
-                                                        routeName: rName,
-                                                        vehicle: veh,
-                                                        invoiced: invAmt,
-                                                        paid: pdAmt,
-                                                        balance: invAmt - pdAmt,
-                                                        openingArrears: opIsCredit ? 0 : opAmt
-                                                    });
+                                                } else {
+                                                    const opBal = getStudentTransportOpeningBalance(st);
+                                                    const opAmt = opBal?.amount || 0;
+                                                    const opIsCredit = opBal?.isCredit || false;
+                                                    if (sRouteId || opAmt > 0) {
+                                                        const invAmt = opIsCredit ? 0 : opAmt;
+                                                        const pdAmt = opIsCredit ? opAmt : 0;
+                                                        const newKey = normSid || (normAdm ? `adm:${normAdm}` : `name:${sName.toLowerCase()}`);
+                                                        commuterMap.set(newKey, {
+                                                            studentId: sId,
+                                                            normId: normSid,
+                                                            name: sName || 'Student',
+                                                            admissionNumber: sAdm || '—',
+                                                            className: sCls,
+                                                            routeId: sRouteId,
+                                                            routeName: opBal?.routeName || rName,
+                                                            vehicle: veh,
+                                                            invoiced: invAmt,
+                                                            paid: pdAmt,
+                                                            balance: Math.max(0, invAmt - pdAmt),
+                                                            openingArrears: opIsCredit ? 0 : opAmt,
+                                                            hasOpeningBalanceInvoice: false
+                                                        });
+                                                        if (normAdm) commuterKeyByAdm.set(normAdm, newKey);
+                                                        if (sName) commuterKeyByName.set(sName.toLowerCase(), newKey);
+                                                    }
                                                 }
+                                            });
+
+                                            // 2b. Deduct transport-only payments recorded in Finance Receipts (mappedReceipts)
+                                            const transportReceiptPaidByKey = new Map<string, number>();
+                                            const isTransportLabel = (txt: any) => /transport|bus\s*fee|commut|shuttle/i.test(String(txt || ''));
+                                            (mappedReceipts || []).forEach((r: any) => {
+                                                if (!r || String(r.status || '').toLowerCase() === 'cancelled' || String(r.status || '').toLowerCase() === 'reversed') return;
+                                                const rSid = String(r.studentId || r.student_id || '').trim();
+                                                const rNormSid = rSid ? cleanId(rSid).toLowerCase() : '';
+                                                const rAdm = String(r.admissionNumber || r.admission_number || '').trim().toLowerCase().replace(/^0+/, '');
+                                                const rName = String(r.studentName || r.student_name || '').trim().toLowerCase();
+
+                                                const matchKey = (rNormSid && commuterMap.has(rNormSid))
+                                                    ? rNormSid
+                                                    : (rAdm && commuterKeyByAdm.has(rAdm))
+                                                        ? commuterKeyByAdm.get(rAdm)!
+                                                        : (rName && commuterKeyByName.has(rName))
+                                                            ? commuterKeyByName.get(rName)!
+                                                            : null;
+                                                if (!matchKey) return;
+
+                                                // Extract ONLY the transport portion of the receipt
+                                                let transportPortion = 0;
+                                                const allocs = Array.isArray(r.allocations) ? r.allocations
+                                                    : (Array.isArray(r.voteheadAllocations) ? r.voteheadAllocations
+                                                    : (Array.isArray(r.items) ? r.items : []));
+                                                if (allocs.length > 0) {
+                                                    allocs.forEach((a: any) => {
+                                                        if (isTransportLabel(a?.name || a?.votehead || a?.voteHead || a?.description || a?.category)) {
+                                                            transportPortion += Number(a?.amount ?? a?.paid ?? a?.allocatedAmount ?? 0) || 0;
+                                                        }
+                                                    });
+                                                } else if (
+                                                    r.metadata?.isTransport === true ||
+                                                    r.isTransport === true ||
+                                                    isTransportLabel(r.paidFor || r.paid_for || r.description || r.voteHead || r.vote_head || r.category || r.metadata?.paidFor || r.metadata?.category)
+                                                ) {
+                                                    transportPortion = Number(r.amountPaid ?? r.amount_paid ?? r.amount ?? 0) || 0;
+                                                }
+
+                                                if (transportPortion > 0) {
+                                                    transportReceiptPaidByKey.set(matchKey, (transportReceiptPaidByKey.get(matchKey) || 0) + transportPortion);
+                                                }
+                                            });
+
+                                            commuterMap.forEach((cur, key) => {
+                                                const receiptPaid = transportReceiptPaidByKey.get(key) || 0;
+                                                if (receiptPaid > cur.paid) {
+                                                    cur.paid = receiptPaid;
+                                                }
+                                                cur.balance = Math.max(0, cur.invoiced - cur.paid);
                                             });
 
                                             const allCommuters = Array.from(commuterMap.values());
