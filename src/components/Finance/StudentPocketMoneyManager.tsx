@@ -118,8 +118,46 @@ export interface PocketMoneyTransaction {
     paymentMode: 'cash' | 'mpesa' | 'bank' | 'ncba';
     referenceNumber?: string;
     purpose?: string;
+    vendorId?: string;
+    vendorName?: string;
     issuedBy: string;
     parentNotified?: boolean;
+    createdAt: string;
+}
+
+export interface PocketMoneyVendor {
+    id: string;
+    institutionId: string;
+    name: string;
+    category: 'Canteen / Tuckshop' | 'Bookshop / Stationery' | 'Uniform Shop' | 'Barber / Salon' | 'Medical / Sanatorium' | 'Other';
+    ownerType: 'school_owned' | 'external_vendor';
+    attendantName: string;
+    settlementMethod: 'internal_ledger' | 'mpesa_phone' | 'mpesa_till' | 'mpesa_paybill' | 'bank_account';
+    settlementAccount: string;
+    settlementOtpVerified?: boolean;
+    commissionRate: number; // % deducted on external vendor settlement
+    unsettledBalance: number;
+    totalSales: number;
+    totalSettled: number;
+    status: 'active' | 'suspended';
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface PocketMoneyVendorSettlement {
+    id: string;
+    institutionId: string;
+    vendorId: string;
+    vendorName: string;
+    ownerType: 'school_owned' | 'external_vendor';
+    grossAmount: number;
+    commissionFee: number;
+    netPayout: number;
+    settlementMethod: string;
+    settlementAccount: string;
+    referenceNumber: string;
+    settledBy: string;
+    status: 'completed';
     createdAt: string;
 }
 
@@ -155,17 +193,68 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
     onLogAction
 }) => {
     const instId = institution?.id || 'default_inst';
-    const [subTab, setSubTab] = useState<'wallets' | 'canteen' | 'requests' | 'ncba_wallet' | 'bulk' | 'ledger' | 'statement'>('wallets');
+    const [subTab, setSubTab] = useState<'wallets' | 'canteen' | 'vendors' | 'requests' | 'ncba_wallet' | 'bulk' | 'ledger' | 'statement'>('wallets');
     const [lowBalanceThreshold, setLowBalanceThreshold] = useState<number>(100);
     const [autoLowBalanceSms, setAutoLowBalanceSms] = useState<boolean>(true);
 
-    // Cashless Canteen / Tuckshop POS State
+    // Cashless Canteen / Tuckshop POS & School Vendor Accounts State
     const [canteenStudentSearch, setCanteenStudentSearch] = useState('');
     const [canteenSelectedStudentId, setCanteenSelectedStudentId] = useState('');
+    const [canteenSelectedVendorId, setCanteenSelectedVendorId] = useState('');
     const [canteenCart, setCanteenCart] = useState<{ name: string; price: number; qty: number }[]>([]);
     const [canteenCustomItemName, setCanteenCustomItemName] = useState('');
     const [canteenCustomItemPrice, setCanteenCustomItemPrice] = useState('');
     const [isChargingCanteen, setIsChargingCanteen] = useState(false);
+
+    const [vendors, setVendors] = useState<PocketMoneyVendor[]>(() => {
+        try {
+            const raw = localStorage.getItem(`eduai_pocket_vendors_${instId}`);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch (_) {}
+        const now = new Date().toISOString();
+        return [{
+            id: `pm_vnd_default_${instId}`,
+            institutionId: instId,
+            name: 'Main School Canteen',
+            category: 'Canteen / Tuckshop',
+            ownerType: 'school_owned',
+            attendantName: 'Canteen Matron',
+            settlementMethod: 'internal_ledger',
+            settlementAccount: 'School Internal Canteen Ledger',
+            settlementOtpVerified: true,
+            commissionRate: 0,
+            unsettledBalance: 0,
+            totalSales: 0,
+            totalSettled: 0,
+            status: 'active',
+            createdAt: now,
+            updatedAt: now
+        }];
+    });
+    const [vendorSettlements, setVendorSettlements] = useState<PocketMoneyVendorSettlement[]>(() => {
+        try {
+            const raw = localStorage.getItem(`eduai_pocket_vendor_settlements_${instId}`);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch (_) {}
+        return [];
+    });
+    const [vndName, setVndName] = useState('');
+    const [vndCategory, setVndCategory] = useState<PocketMoneyVendor['category']>('Canteen / Tuckshop');
+    const [vndOwnerType, setVndOwnerType] = useState<PocketMoneyVendor['ownerType']>('external_vendor');
+    const [vndAttendant, setVndAttendant] = useState('');
+    const [vndMethod, setVndMethod] = useState<PocketMoneyVendor['settlementMethod']>('mpesa_phone');
+    const [vndAccount, setVndAccount] = useState('');
+    const [vndCommission, setVndCommission] = useState<number>(1.5);
+    const [vndOtpChallenge, setVndOtpChallenge] = useState<{ code: string; phone: string; expiresAt: number } | null>(null);
+    const [vndOtpInput, setVndOtpInput] = useState('');
+    const [isSendingVndOtp, setIsSendingVndOtp] = useState(false);
+    const [isSettlingVendorId, setIsSettlingVendorId] = useState<string | null>(null);
     const [paymentRequests, setPaymentRequests] = useState<PocketMoneyPaymentRequest[]>(() => {
         try {
             const raw = localStorage.getItem(`eduai_pocket_pay_reqs_${instId}`);
@@ -361,6 +450,25 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                     const sorted = [...records].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
                     setPaymentRequests(sorted);
                     try { localStorage.setItem(`eduai_pocket_pay_reqs_${instId}`, JSON.stringify(sorted)); } catch (_) {}
+                }
+            })
+            .catch(() => {});
+
+        apiService.fetchModuleRecords<PocketMoneyVendor>('pocket_money_vendors', instId)
+            .then(records => {
+                if (Array.isArray(records) && records.length > 0) {
+                    setVendors(records);
+                    try { localStorage.setItem(`eduai_pocket_vendors_${instId}`, JSON.stringify(records)); } catch (_) {}
+                }
+            })
+            .catch(() => {});
+
+        apiService.fetchModuleRecords<PocketMoneyVendorSettlement>('pocket_money_vendor_settlements', instId)
+            .then(records => {
+                if (Array.isArray(records)) {
+                    const sorted = [...records].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                    setVendorSettlements(sorted);
+                    try { localStorage.setItem(`eduai_pocket_vendor_settlements_${instId}`, JSON.stringify(sorted)); } catch (_) {}
                 }
             })
             .catch(() => {});
@@ -745,6 +853,11 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
             const nextBal = account.balance - total;
             const summary = canteenCart.map(i => `${i.qty}x ${i.name}`).join(', ');
             const nextAccount: PocketMoneyAccount = { ...account, balance: nextBal, updatedAt: nowIso };
+            const activeVendor = vendors.find(v => v.id === canteenSelectedVendorId) || vendors.find(v => v.status === 'active') || vendors[0];
+            if (activeVendor && activeVendor.status === 'suspended') {
+                showBanner('error', `Shop "${activeVendor.name}" is currently suspended. Activate it under Shops & Vendors first.`);
+                return;
+            }
             const tx: PocketMoneyTransaction = {
                 id: `pm_tx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
                 institutionId: instId,
@@ -759,21 +872,237 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                 balanceAfter: nextBal,
                 paymentMode: 'cash',
                 referenceNumber: `CNT-${Date.now().toString().slice(-6)}`,
-                purpose: `Canteen POS: ${summary}`,
-                issuedBy: currentUser?.name || 'School Canteen',
+                purpose: `${activeVendor ? `[${activeVendor.name}] ` : 'Canteen POS: '}${summary}`,
+                vendorId: activeVendor?.id,
+                vendorName: activeVendor?.name,
+                issuedBy: currentUser?.name || activeVendor?.attendantName || 'School Canteen',
                 createdAt: nowIso
             };
 
             tx.parentNotified = await notifyParent(nextAccount, tx);
             await persistAccountAndTx(nextAccount, tx);
+
+            // Credit Vendor / Shop Unsettled Payable Balance
+            if (activeVendor) {
+                const updatedVendor: PocketMoneyVendor = {
+                    ...activeVendor,
+                    unsettledBalance: (Number(activeVendor.unsettledBalance) || 0) + total,
+                    totalSales: (Number(activeVendor.totalSales) || 0) + total,
+                    updatedAt: nowIso
+                };
+                const nextVendors = vendors.map(v => v.id === updatedVendor.id ? updatedVendor : v);
+                setVendors(nextVendors);
+                try { localStorage.setItem(`eduai_pocket_vendors_${instId}`, JSON.stringify(nextVendors)); } catch (_) {}
+                await apiService.saveModuleRecord('pocket_money_vendors', updatedVendor).catch(() => {});
+            }
+
             await triggerLowBalanceAutoTopUpSms(nextAccount);
 
             setCanteenCart([]);
-            onLogAction?.(`Canteen POS charged KES ${total} to ${account.studentName} (${summary})`);
-            showBanner('success', `Charged KES ${total.toLocaleString()} to ${account.studentName} (${summary}). New balance: KES ${nextBal.toLocaleString()}.`);
+            onLogAction?.(`Canteen POS (${activeVendor?.name || 'Canteen'}) charged KES ${total} to ${account.studentName} (${summary})`);
+            showBanner('success', `Charged KES ${total.toLocaleString()} to ${account.studentName} & credited ${activeVendor?.name || 'Canteen'}. New student balance: KES ${nextBal.toLocaleString()}.`);
         } finally {
             setIsChargingCanteen(false);
         }
+    };
+
+    const handleSendVendorOtp = async () => {
+        const normalizedPhone = formatPhoneNumber(vndAccount);
+        if (!/^254\d{9}$/.test(normalizedPhone)) {
+            showBanner('error', 'Enter a valid Kenyan M-Pesa phone number (e.g. 0712345678) before sending OTP.');
+            return;
+        }
+        setIsSendingVndOtp(true);
+        try {
+            const code = String(Math.floor(100000 + Math.random() * 900000));
+            const msg = `${institution.name}: Your OTP to verify ${normalizedPhone} as the payout number for "${vndName.trim() || 'School Shop'}" is ${code}. Valid for 5 mins.`;
+            const sent = await dispatchOtpSms(normalizedPhone, msg);
+            setVndOtpChallenge({ code, phone: normalizedPhone, expiresAt: Date.now() + 5 * 60 * 1000 });
+            setVndOtpInput('');
+            showBanner('success', sent ? `6-digit verification OTP sent to ${normalizedPhone}.` : `OTP generated for ${normalizedPhone} (Demo/Offline code: ${code}).`);
+        } finally {
+            setIsSendingVndOtp(false);
+        }
+    };
+
+    const handleCreateVendor = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!vndName.trim()) {
+            showBanner('error', 'Enter the shop or vendor name (e.g. Main Canteen, School Bookshop).');
+            return;
+        }
+        const effectiveMethod = vndOwnerType === 'school_owned' ? 'internal_ledger' : vndMethod;
+        let cleanAccount = vndOwnerType === 'school_owned' ? 'School Internal Revenue Ledger' : vndAccount.trim();
+        let otpVerified = vndOwnerType === 'school_owned' || effectiveMethod !== 'mpesa_phone';
+
+        if (vndOwnerType === 'external_vendor') {
+            if (!cleanAccount) {
+                showBanner('error', 'Enter the vendor settlement phone, Till, Paybill, or Bank Account number.');
+                return;
+            }
+            if (effectiveMethod === 'mpesa_phone') {
+                const normalizedPhone = formatPhoneNumber(cleanAccount);
+                if (!/^254\d{9}$/.test(normalizedPhone)) {
+                    showBanner('error', 'Enter a valid Kenyan M-Pesa phone number for this vendor.');
+                    return;
+                }
+                cleanAccount = normalizedPhone;
+                if (vndOtpChallenge && vndOtpChallenge.phone === normalizedPhone) {
+                    if (Date.now() > vndOtpChallenge.expiresAt) {
+                        showBanner('error', 'Vendor OTP expired. Please resend a fresh OTP.');
+                        return;
+                    }
+                    if (vndOtpInput.trim() !== vndOtpChallenge.code) {
+                        showBanner('error', 'Invalid 6-digit OTP code for vendor phone verification.');
+                        return;
+                    }
+                    otpVerified = true;
+                }
+            }
+        }
+
+        const nowIso = new Date().toISOString();
+        const newVendor: PocketMoneyVendor = {
+            id: `pm_vnd_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+            institutionId: instId,
+            name: vndName.trim(),
+            category: vndCategory,
+            ownerType: vndOwnerType,
+            attendantName: vndAttendant.trim() || 'Shop Attendant',
+            settlementMethod: effectiveMethod,
+            settlementAccount: cleanAccount,
+            settlementOtpVerified: otpVerified,
+            commissionRate: vndOwnerType === 'external_vendor' ? Math.max(0, Math.min(20, Number(vndCommission) || 0)) : 0,
+            unsettledBalance: 0,
+            totalSales: 0,
+            totalSettled: 0,
+            status: 'active',
+            createdAt: nowIso,
+            updatedAt: nowIso
+        };
+        const nextVendors = [newVendor, ...vendors];
+        setVendors(nextVendors);
+        try { localStorage.setItem(`eduai_pocket_vendors_${instId}`, JSON.stringify(nextVendors)); } catch (_) {}
+        await apiService.saveModuleRecord('pocket_money_vendors', newVendor).catch(() => {});
+        setVndName('');
+        setVndAttendant('');
+        setVndAccount('');
+        setVndOtpChallenge(null);
+        setVndOtpInput('');
+        onLogAction?.(`Registered Pocket Money Shop/Vendor: ${newVendor.name} (${newVendor.ownerType})`);
+        showBanner('success', `Shop account "${newVendor.name}" created and ready for cashless Pocket Money checkout!`);
+    };
+
+    const handleToggleVendorStatus = async (vendor: PocketMoneyVendor) => {
+        const updated: PocketMoneyVendor = {
+            ...vendor,
+            status: vendor.status === 'active' ? 'suspended' : 'active',
+            updatedAt: new Date().toISOString()
+        };
+        const nextVendors = vendors.map(v => v.id === vendor.id ? updated : v);
+        setVendors(nextVendors);
+        try { localStorage.setItem(`eduai_pocket_vendors_${instId}`, JSON.stringify(nextVendors)); } catch (_) {}
+        await apiService.saveModuleRecord('pocket_money_vendors', updated).catch(() => {});
+        showBanner('success', `${updated.name} is now ${updated.status.toUpperCase()}.`);
+    };
+
+    const handleSettleVendor = async (vendor: PocketMoneyVendor) => {
+        const gross = Math.round(Number(vendor.unsettledBalance) || 0);
+        if (gross <= 0) {
+            showBanner('error', `${vendor.name} has no unsettled balance.`);
+            return;
+        }
+        const commFee = vendor.ownerType === 'external_vendor'
+            ? Math.round(gross * ((Number(vendor.commissionRate) || 0) / 100))
+            : 0;
+        const netPayout = Math.max(0, gross - commFee);
+        if (!window.confirm(`Settle ${vendor.name}?\n\nGross Sales: KES ${gross.toLocaleString()}\nCommission (${vendor.commissionRate}%): KES ${commFee.toLocaleString()}\nNet Payout: KES ${netPayout.toLocaleString()}\nDestination: ${vendor.settlementMethod.replace('_', ' ').toUpperCase()} — ${vendor.settlementAccount}`)) {
+            return;
+        }
+        setIsSettlingVendorId(vendor.id);
+        try {
+            const nowIso = new Date().toISOString();
+            const settlement: PocketMoneyVendorSettlement = {
+                id: `pm_vset_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+                institutionId: instId,
+                vendorId: vendor.id,
+                vendorName: vendor.name,
+                ownerType: vendor.ownerType,
+                grossAmount: gross,
+                commissionFee: commFee,
+                netPayout,
+                settlementMethod: vendor.settlementMethod,
+                settlementAccount: vendor.settlementAccount,
+                referenceNumber: `VSET-${Date.now().toString().slice(-6)}`,
+                settledBy: currentUser?.name || 'School Bursar / Admin',
+                status: 'completed',
+                createdAt: nowIso
+            };
+            const updatedVendor: PocketMoneyVendor = {
+                ...vendor,
+                unsettledBalance: 0,
+                totalSettled: (Number(vendor.totalSettled) || 0) + netPayout,
+                updatedAt: nowIso
+            };
+            const nextVendors = vendors.map(v => v.id === vendor.id ? updatedVendor : v);
+            const nextSettlements = [settlement, ...vendorSettlements];
+            setVendors(nextVendors);
+            setVendorSettlements(nextSettlements);
+            try {
+                localStorage.setItem(`eduai_pocket_vendors_${instId}`, JSON.stringify(nextVendors));
+                localStorage.setItem(`eduai_pocket_vendor_settlements_${instId}`, JSON.stringify(nextSettlements));
+            } catch (_) {}
+            await apiService.saveModuleRecord('pocket_money_vendors', updatedVendor).catch(() => {});
+            await apiService.saveModuleRecord('pocket_money_vendor_settlements', settlement).catch(() => {});
+
+            if (vendor.ownerType === 'external_vendor' && vendor.settlementMethod === 'mpesa_phone' && /^254\d{9}$/.test(vendor.settlementAccount)) {
+                await dispatchOtpSms(
+                    vendor.settlementAccount,
+                    `${institution.name}: Batch settlement of KES ${netPayout.toLocaleString()} (Gross KES ${gross.toLocaleString()}, Fee KES ${commFee.toLocaleString()}) for ${vendor.name} has been processed. Ref: ${settlement.referenceNumber}.`
+                );
+            }
+            onLogAction?.(`Settled vendor ${vendor.name}: Net KES ${netPayout} (Gross KES ${gross}, Fee KES ${commFee}) via ${vendor.settlementMethod}`);
+            showBanner('success', `Settled ${vendor.name}! Net payout KES ${netPayout.toLocaleString()} recorded (Ref: ${settlement.referenceNumber}).`);
+        } finally {
+            setIsSettlingVendorId(null);
+        }
+    };
+
+    const printVendorStatement = (vendor: PocketMoneyVendor) => {
+        const win = window.open('', '_blank', 'width=900,height=700');
+        if (!win) return;
+        const vTxns = transactions.filter(t => t.vendorId === vendor.id || (t.purpose || '').includes(`[${vendor.name}]`));
+        const vSets = vendorSettlements.filter(s => s.vendorId === vendor.id);
+        win.document.write(`
+            <html><head><title>Vendor Statement - ${vendor.name}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+                h2, h3, p { margin: 0 0 8px; }
+                table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 12px; }
+                th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+                th { background: #f1f5f9; }
+            </style></head><body>
+            <h2>${institution.name} — Cashless Shop / Vendor Statement</h2>
+            <p><strong>Shop:</strong> ${vendor.name} (${vendor.category}) • <strong>Type:</strong> ${vendor.ownerType === 'school_owned' ? 'School-Owned' : 'External Vendor'} • <strong>Payout Account:</strong> ${vendor.settlementAccount}</p>
+            <p><strong>Total Sales:</strong> KES ${vendor.totalSales.toLocaleString()} • <strong>Total Settled:</strong> KES ${vendor.totalSettled.toLocaleString()} • <strong>Unsettled Balance:</strong> KES ${vendor.unsettledBalance.toLocaleString()}</p>
+            <h3>Itemized Cashless Sales (${vTxns.length})</h3>
+            <table>
+                <thead><tr><th>Date</th><th>Student</th><th>Adm No</th><th>Items</th><th>Ref</th><th>Amount (KES)</th></tr></thead>
+                <tbody>
+                    ${vTxns.length === 0 ? '<tr><td colspan="6">No sales recorded yet.</td></tr>' : vTxns.map(t => `<tr><td>${new Date(t.createdAt).toLocaleString()}</td><td>${t.studentName}</td><td>${t.admissionNumber}</td><td>${t.purpose || '-'}</td><td>${t.referenceNumber || '-'}</td><td>${t.amount.toLocaleString()}</td></tr>`).join('')}
+                </tbody>
+            </table>
+            <h3>Batch Settlements (${vSets.length})</h3>
+            <table>
+                <thead><tr><th>Date</th><th>Ref</th><th>Gross (KES)</th><th>Commission (KES)</th><th>Net Payout (KES)</th><th>Destination</th></tr></thead>
+                <tbody>
+                    ${vSets.length === 0 ? '<tr><td colspan="6">No settlements yet.</td></tr>' : vSets.map(s => `<tr><td>${new Date(s.createdAt).toLocaleString()}</td><td>${s.referenceNumber}</td><td>${s.grossAmount.toLocaleString()}</td><td>${s.commissionFee.toLocaleString()}</td><td><strong>${s.netPayout.toLocaleString()}</strong></td><td>${s.settlementAccount}</td></tr>`).join('')}
+                </tbody>
+            </table>
+            <script>window.print();</script>
+            </body></html>
+        `);
+        win.document.close();
     };
 
     const handleSendParentPaymentRequests = async () => {
@@ -1467,6 +1796,7 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                 {[
                     { id: 'wallets', label: 'Student Wallets' },
                     { id: 'canteen', label: 'Canteen / Tuckshop POS' },
+                    { id: 'vendors', label: `Shops & Vendors (${vendors.length})` },
                     { id: 'requests', label: `Parent Pay Requests (${paymentRequests.length})` },
                     { id: 'ncba_wallet', label: walletConfig?.isActivated ? `School NCBA Wallet (KES ${(walletConfig.ncbaFloatBalance || 0).toLocaleString()})` : 'Activate NCBA Wallet' },
                     { id: 'bulk', label: 'Bulk Payout & Sign-Off' },
@@ -1640,10 +1970,48 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                     ? mergedWallets.filter(({ account }) => `${account.studentName} ${account.admissionNumber} ${account.className}`.toLowerCase().includes(q)).slice(0, 8)
                     : mergedWallets.slice(0, 8);
                 const selectedWallet = mergedWallets.find(w => w.account.studentId === canteenSelectedStudentId)?.account || null;
+                const activeVendor = vendors.find(v => v.id === canteenSelectedVendorId) || vendors.find(v => v.status === 'active') || vendors[0];
                 const cartTotal = canteenCart.reduce((s, i) => s + i.price * i.qty, 0);
 
                 return (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="space-y-5">
+                        {/* Active Shop / Vendor Account Bar */}
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                                    Active Shop / Vendor Account:
+                                </span>
+                                <select
+                                    value={activeVendor?.id || ''}
+                                    onChange={e => setCanteenSelectedVendorId(e.target.value)}
+                                    className="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-black"
+                                >
+                                    {vendors.map(v => (
+                                        <option key={v.id} value={v.id}>
+                                            {v.name} ({v.ownerType === 'school_owned' ? 'School-Owned' : 'External Vendor'}) {v.status === 'suspended' ? '— SUSPENDED' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                {activeVendor && (
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                                        activeVendor.ownerType === 'school_owned'
+                                            ? 'bg-indigo-100 text-indigo-700'
+                                            : 'bg-amber-100 text-amber-800'
+                                    }`}>
+                                        {activeVendor.ownerType === 'school_owned' ? 'School Revenue' : `External • Unsettled: KES ${activeVendor.unsettledBalance.toLocaleString()}`}
+                                    </span>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSubTab('vendors')}
+                                className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-[10px] uppercase tracking-wider hover:bg-slate-200 cursor-pointer"
+                            >
+                                Manage Shops &amp; Settle →
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-2 space-y-5">
                             {/* Student Lookup / QR Scan */}
                             <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm space-y-3">
@@ -1782,8 +2150,297 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                                     onClick={handleChargeCanteenPos}
                                     className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg disabled:opacity-40 cursor-pointer"
                                 >
-                                    {isChargingCanteen ? 'Charging Wallet...' : `Charge KES ${cartTotal.toLocaleString()} from Pocket Money`}
+                                    {isChargingCanteen ? 'Charging Wallet...' : `Charge KES ${cartTotal.toLocaleString()} to ${activeVendor?.name || 'Canteen'}`}
                                 </button>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* TAB 1D: SCHOOL SHOPS & CANTEEN VENDOR ACCOUNTS + BATCH SETTLEMENT */}
+            {subTab === 'vendors' && (() => {
+                const totalUnsettledExternal = vendors
+                    .filter(v => v.ownerType === 'external_vendor')
+                    .reduce((s, v) => s + (Number(v.unsettledBalance) || 0), 0);
+                const totalSchoolShopSales = vendors
+                    .filter(v => v.ownerType === 'school_owned')
+                    .reduce((s, v) => s + (Number(v.totalSales) || 0), 0);
+                const totalSettledAll = vendors.reduce((s, v) => s + (Number(v.totalSettled) || 0), 0);
+
+                return (
+                    <div className="space-y-6">
+                        {/* Vendor KPI Strip */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                <span className="text-[10px] font-black uppercase text-slate-400">Active Shops / Vendors</span>
+                                <div className="text-xl font-black text-indigo-600 mt-1">{vendors.filter(v => v.status === 'active').length} / {vendors.length}</div>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                <span className="text-[10px] font-black uppercase text-amber-600">External Vendor Payable</span>
+                                <div className="text-xl font-black text-amber-600 mt-1">KES {totalUnsettledExternal.toLocaleString()}</div>
+                                <span className="text-[10px] text-slate-400">Ready for batch settlement</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                <span className="text-[10px] font-black uppercase text-emerald-600">School-Owned Shop Sales</span>
+                                <div className="text-xl font-black text-emerald-600 mt-1">KES {totalSchoolShopSales.toLocaleString()}</div>
+                                <span className="text-[10px] text-slate-400">Internal canteen/bookshop revenue</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                <span className="text-[10px] font-black uppercase text-slate-400">Total Settled Payouts</span>
+                                <div className="text-xl font-black text-slate-900 dark:text-white mt-1">KES {totalSettledAll.toLocaleString()}</div>
+                            </div>
+                        </div>
+
+                        {/* Register New Shop / Vendor Form */}
+                        <form onSubmit={handleCreateVendor} className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm space-y-4">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                    Register Cashless School Shop / External Vendor Account
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    Students pay directly from Pocket Money at any registered shop. External vendor sales accumulate into a single batch settlement to save transfer fees.
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Shop / Vendor Name *</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={vndName}
+                                        onChange={e => setVndName(e.target.value)}
+                                        placeholder="e.g. Campus Tuckshop / Bookshop"
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Category</label>
+                                    <select
+                                        value={vndCategory}
+                                        onChange={e => setVndCategory(e.target.value as PocketMoneyVendor['category'])}
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                    >
+                                        <option value="Canteen / Tuckshop">Canteen / Tuckshop</option>
+                                        <option value="Bookshop / Stationery">Bookshop / Stationery</option>
+                                        <option value="Uniform Shop">Uniform Shop</option>
+                                        <option value="Barber / Salon">Barber / Salon</option>
+                                        <option value="Medical / Sanatorium">Medical / Sanatorium</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Ownership Model</label>
+                                    <select
+                                        value={vndOwnerType}
+                                        onChange={e => setVndOwnerType(e.target.value as PocketMoneyVendor['ownerType'])}
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                    >
+                                        <option value="external_vendor">External / Outsourced Vendor</option>
+                                        <option value="school_owned">School-Owned (Internal Ledger)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Attendant / Manager</label>
+                                    <input
+                                        type="text"
+                                        value={vndAttendant}
+                                        onChange={e => setVndAttendant(e.target.value)}
+                                        placeholder="e.g. Jane Wanjiku"
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                    />
+                                </div>
+                            </div>
+
+                            {vndOwnerType === 'external_vendor' && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100 dark:border-slate-700">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Settlement Method</label>
+                                        <select
+                                            value={vndMethod}
+                                            onChange={e => setVndMethod(e.target.value as PocketMoneyVendor['settlementMethod'])}
+                                            className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                        >
+                                            <option value="mpesa_phone">M-Pesa Phone (B2C)</option>
+                                            <option value="mpesa_till">M-Pesa Buy Goods Till</option>
+                                            <option value="mpesa_paybill">M-Pesa Paybill + Account</option>
+                                            <option value="bank_account">Bank Account Transfer</option>
+                                        </select>
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                                            {vndMethod === 'mpesa_phone' ? 'Vendor M-Pesa Phone *' : vndMethod === 'mpesa_till' ? 'Till Number *' : vndMethod === 'mpesa_paybill' ? 'Paybill & Account No *' : 'Bank Name & Account No *'}
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                required
+                                                value={vndAccount}
+                                                onChange={e => setVndAccount(e.target.value)}
+                                                placeholder={vndMethod === 'mpesa_phone' ? '0712345678' : 'Enter destination number'}
+                                                className="flex-1 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-mono font-bold"
+                                            />
+                                            {vndMethod === 'mpesa_phone' && (
+                                                <button
+                                                    type="button"
+                                                    disabled={isSendingVndOtp}
+                                                    onClick={handleSendVendorOtp}
+                                                    className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-[10px] uppercase whitespace-nowrap cursor-pointer"
+                                                >
+                                                    {isSendingVndOtp ? 'Sending...' : 'Send OTP'}
+                                                </button>
+                                            )}
+                                        </div>
+                                        {vndOtpChallenge && vndMethod === 'mpesa_phone' && (
+                                            <input
+                                                type="text"
+                                                maxLength={6}
+                                                value={vndOtpInput}
+                                                onChange={e => setVndOtpInput(e.target.value.replace(/\D/g, ''))}
+                                                placeholder="Enter 6-digit SMS OTP sent to vendor"
+                                                className="mt-2 w-full px-3 py-2 rounded-xl border-2 border-amber-400 bg-amber-50/50 dark:bg-amber-950/30 text-xs font-mono font-black tracking-widest"
+                                            />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Settlement Commission (%)</label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={20}
+                                            step={0.1}
+                                            value={vndCommission}
+                                            onChange={e => setVndCommission(Math.max(0, Number(e.target.value) || 0))}
+                                            className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-black"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end">
+                                <button
+                                    type="submit"
+                                    className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-md cursor-pointer"
+                                >
+                                    + Save Shop / Vendor Account
+                                </button>
+                            </div>
+                        </form>
+
+                        {/* Registered Shops & Vendors Table */}
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                                <h3 className="text-sm font-black text-slate-900 dark:text-white">Registered School Shops &amp; Vendors ({vendors.length})</h3>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-slate-900/60 text-slate-400 font-black uppercase text-[10px] border-b border-slate-200 dark:border-slate-700">
+                                            <th className="p-3.5">Shop / Vendor</th>
+                                            <th className="p-3.5">Ownership &amp; Payout</th>
+                                            <th className="p-3.5">Total Sales</th>
+                                            <th className="p-3.5">Unsettled Balance</th>
+                                            <th className="p-3.5">Status</th>
+                                            <th className="p-3.5 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                        {vendors.map(v => (
+                                            <tr key={v.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-900/30">
+                                                <td className="p-3.5">
+                                                    <div className="font-black text-slate-900 dark:text-white">{v.name}</div>
+                                                    <div className="text-[10px] text-slate-500">{v.category} • Attendant: {v.attendantName}</div>
+                                                </td>
+                                                <td className="p-3.5">
+                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                                                        v.ownerType === 'school_owned' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-800'
+                                                    }`}>
+                                                        {v.ownerType === 'school_owned' ? 'School-Owned' : `External (${v.commissionRate}% fee)`}
+                                                    </span>
+                                                    <div className="text-[10px] font-mono text-slate-500 mt-1">
+                                                        {v.settlementMethod.replace('_', ' ').toUpperCase()}: {v.settlementAccount}
+                                                        {v.settlementOtpVerified && <span className="ml-1 text-emerald-600 font-bold">OTP ✓</span>}
+                                                    </div>
+                                                </td>
+                                                <td className="p-3.5 font-bold">KES {(v.totalSales || 0).toLocaleString()}</td>
+                                                <td className="p-3.5">
+                                                    <span className={`font-black text-sm ${(v.unsettledBalance || 0) > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                                        KES {(v.unsettledBalance || 0).toLocaleString()}
+                                                    </span>
+                                                </td>
+                                                <td className="p-3.5">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                                        v.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                                                    }`}>
+                                                        {v.status}
+                                                    </span>
+                                                </td>
+                                                <td className="p-3.5 text-right">
+                                                    <div className="flex flex-wrap justify-end gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            disabled={isSettlingVendorId === v.id || (v.unsettledBalance || 0) <= 0}
+                                                            onClick={() => handleSettleVendor(v)}
+                                                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] uppercase disabled:opacity-40 cursor-pointer"
+                                                        >
+                                                            {isSettlingVendorId === v.id ? 'Settling...' : v.ownerType === 'school_owned' ? 'Reconcile' : 'Settle Batch'}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => printVendorStatement(v)}
+                                                            className="px-2.5 py-1.5 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-bold text-[10px] uppercase cursor-pointer"
+                                                        >
+                                                            Statement
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleToggleVendorStatus(v)}
+                                                            className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 font-bold text-[10px] uppercase cursor-pointer"
+                                                        >
+                                                            {v.status === 'active' ? 'Suspend' : 'Activate'}
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Batch Settlement History */}
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="p-4 border-b border-slate-100 dark:border-slate-700">
+                                <h3 className="text-sm font-black text-slate-900 dark:text-white">Vendor Batch Settlement History ({vendorSettlements.length})</h3>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-slate-900/60 text-slate-400 font-black uppercase text-[10px] border-b border-slate-200 dark:border-slate-700">
+                                            <th className="p-3">Date</th>
+                                            <th className="p-3">Shop / Vendor</th>
+                                            <th className="p-3">Gross Sales</th>
+                                            <th className="p-3">Commission</th>
+                                            <th className="p-3">Net Payout</th>
+                                            <th className="p-3">Destination &amp; Ref</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                        {vendorSettlements.length === 0 ? (
+                                            <tr><td colSpan={6} className="p-8 text-center text-slate-400">No vendor settlements processed yet.</td></tr>
+                                        ) : vendorSettlements.map(s => (
+                                            <tr key={s.id}>
+                                                <td className="p-3 font-mono text-[11px] text-slate-500">{new Date(s.createdAt).toLocaleString()}</td>
+                                                <td className="p-3 font-bold text-slate-900 dark:text-white">{s.vendorName}</td>
+                                                <td className="p-3">KES {s.grossAmount.toLocaleString()}</td>
+                                                <td className="p-3 text-amber-600 font-bold">KES {s.commissionFee.toLocaleString()}</td>
+                                                <td className="p-3 font-black text-emerald-600">KES {s.netPayout.toLocaleString()}</td>
+                                                <td className="p-3 font-mono text-[11px]">{s.settlementAccount} • {s.referenceNumber}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
