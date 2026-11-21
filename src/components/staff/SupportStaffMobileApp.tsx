@@ -11,6 +11,7 @@ import type { Institution, User, PayrollRecord } from '../../types';
 import { apiService } from '../../services/apiService';
 import { generateStaffPayslipPdf } from '../../services/pdfService';
 import { calculateDistance } from '../../utils/locationUtils';
+import { StaffSaccoSelfServicePanel } from '../Finance/StaffSaccoSelfServicePanel';
 
 export interface SupportStaffMobileAppProps {
     currentUser: User;
@@ -20,7 +21,7 @@ export interface SupportStaffMobileAppProps {
     onLogout?: () => void;
 }
 
-type TabType = 'attendance' | 'leave' | 'payslips' | 'tasks' | 'badge';
+type TabType = 'attendance' | 'leave' | 'payslips' | 'sacco' | 'tasks' | 'badge';
 
 interface LeaveRequestItem {
     id: string;
@@ -1282,6 +1283,15 @@ export const SupportStaffMobileApp: React.FC<SupportStaffMobileAppProps> = ({
                 {/* ------------------------------------------------------------- */}
                 {/* 4. DAILY WORK TASKS & ORDERS VIEW */}
                 {/* ------------------------------------------------------------- */}
+                {activeTab === 'sacco' && (
+                    <div className="pb-6">
+                        <StaffSaccoSelfServicePanel
+                            currentUser={currentUser}
+                            institution={currentInstitution}
+                        />
+                    </div>
+                )}
+
                 {activeTab === 'tasks' && (
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
@@ -1679,7 +1689,7 @@ export const SupportStaffMobileApp: React.FC<SupportStaffMobileAppProps> = ({
             {/* FIXED BOTTOM ANDROID NAVIGATION BAR */}
             {/* ------------------------------------------------------------- */}
             <nav className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/80 px-2 py-2 shadow-2xl safe-area-inset-bottom">
-                <div className="max-w-lg mx-auto grid grid-cols-5 gap-1 text-center">
+                <div className="max-w-lg mx-auto grid grid-cols-6 gap-1 text-center">
                     {/* 1. Attendance Tab */}
                     <button
                         onClick={() => setActiveTab('attendance')}
@@ -1743,6 +1753,19 @@ export const SupportStaffMobileApp: React.FC<SupportStaffMobileAppProps> = ({
                     >
                         <Award className={`w-5 h-5 ${activeTab === 'badge' ? 'stroke-[2.5]' : ''}`} />
                         <span className="text-[10px] truncate">{t.badge}</span>
+                    </button>
+
+                    {/* 6. My SACCO Tab */}
+                    <button
+                        onClick={() => setActiveTab('sacco')}
+                        className={`py-1.5 px-1 rounded-2xl flex flex-col items-center gap-1 transition-all active:scale-95 ${
+                            activeTab === 'sacco'
+                                ? 'text-teal-400 font-extrabold bg-teal-500/10'
+                                : 'text-slate-400 font-medium hover:text-slate-200'
+                        }`}
+                    >
+                        <ShieldCheck className={`w-5 h-5 ${activeTab === 'sacco' ? 'stroke-[2.5]' : ''}`} />
+                        <span className="text-[10px] truncate">SACCO</span>
                     </button>
                 </div>
             </nav>

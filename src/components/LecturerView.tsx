@@ -61,6 +61,7 @@ import { QrCodeIcon } from './icons/QrCodeIcon';
 import { AscScannerPanel } from './AscScannerPanel';
 import { ClassSupervisorAttendanceManager } from './common/ClassSupervisorAttendanceManager';
 import { TeacherLessonPlanManager } from './Academics/TeacherLessonPlanManager';
+import { StaffSaccoSelfServicePanel } from './Finance/StaffSaccoSelfServicePanel';
 
 const EduFlowManager = lazy(() => import('./common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
 const StudentLeaveOutManager = lazy(() => import('./StudentLeaveOutManager').then(m => ({ default: m.StudentLeaveOutManager })));
@@ -83,6 +84,11 @@ const renderTabIcon = (tab: string, className = "w-5 h-5") => {
         case 'student_leave_out': return (
             <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+        );
+        case 'my_sacco': return (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
         );
         case 'academic_hub': return (
@@ -1627,7 +1633,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         if (canAccessLeaveOutAndSupervisor) {
             base.push('class_supervisor_attendance', 'class_supervisor_students', 'student_leave_out');
         }
-        base.push('academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub', 'self_checkin');
+        base.push('academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub', 'self_checkin', 'my_sacco');
         if (useRequests) base.push('my_requests');
         if (props.inventoryItems && props.inventoryItems.length > 0) base.push('inventory');
         return base;
@@ -1699,6 +1705,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                              tab === 'class_supervisor_attendance' ? 'Class Attendance' :
                                              tab === 'student_leave_out' ? 'Student Leave Out' :
                                              tab === 'self_checkin' ? 'HR Services & Check-In' :
+                                             tab === 'my_sacco' ? 'My SACCO' :
                                              tab.replace(/_/g, ' ')}
                                         </span>
                                         {tab === 'my_timetable' && pendingSubstituteRequests.length > 0 && (
@@ -4074,6 +4081,14 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             />
                         </div>
                     )}
+                    {activeTab === 'my_sacco' && (
+                        <div className="animate-fade-in space-y-6 w-full">
+                            <StaffSaccoSelfServicePanel
+                                currentUser={user}
+                                institution={currentInstitution}
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -4148,6 +4163,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     { id: 'student_leave_out', label: 'Student Leave Out', enabled: canAccessLeaveOutAndSupervisor },
                                     { id: 'scan_session', label: 'Scanner Module' },
                                     { id: 'synergy_hub', label: 'Synergy Hub' },
+                                    { id: 'my_sacco', label: 'My SACCO' },
                                     { id: 'my_requests', label: 'Load Requests', enabled: useRequests },
                                     { id: 'inventory', label: 'Inventory Desk', enabled: props.inventoryItems && props.inventoryItems.length > 0 }
                                 ]
