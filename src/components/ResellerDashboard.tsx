@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice, Role, CommissionWithdrawalRequest, ResellerSmsTransaction, ResellerSubscriptionOrder } from '../types';
 import { ResellerSubscriptionPackagesManager } from './ResellerSubscriptionPackagesManager';
+import { ResellerConfigurationManager, type ResellerOnboardingDefaults } from './ResellerConfigurationManager';
 import { apiService } from '../services/apiService';
 import { BuySMSModal } from './BuySMSModal';
 import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
@@ -86,7 +87,16 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState<'clients' | 'packages' | 'commissions' | 'invoicing'>('clients');
+    const [activeTab, setActiveTab] = useState<'clients' | 'packages' | 'commissions' | 'invoicing' | 'configuration'>('clients');
+    const [resellerInstState, setResellerInstState] = useState<Institution>(currentInstitution);
+    const [onboardingDefaults, setOnboardingDefaults] = useState<ResellerOnboardingDefaults | null>(() => {
+        if (!targetResellerId) return null;
+        try {
+            const raw = localStorage.getItem(`eduai_reseller_onboarding_cfg_${targetResellerId}`);
+            if (raw) return JSON.parse(raw);
+        } catch (_) {}
+        return null;
+    });
     const [resellerSubOrders, setResellerSubOrders] = useState<ResellerSubscriptionOrder[]>(() => {
         if (!targetResellerId) return [];
         try {
@@ -212,7 +222,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                 category: newTenantCategory,
                 businessSubType: newTenantSubType,
                 status: 'trial',
-                trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                trialEndsAt: new Date(Date.now() + (onboardingDefaults?.defaultTrialDays || 14) * 24 * 60 * 60 * 1000).toISOString(),
                 institutionCode: generateAlphanumericCode(6),
                 resellerId: targetResellerId,
                 isOtpEnabled: false,
@@ -452,6 +462,12 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                     className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'invoicing' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     Invoicing & Billing
+                </button>
+                <button
+                    onClick={() => setActiveTab('configuration')}
+                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'configuration' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Configuration
                 </button>
             </div>
 
@@ -777,12 +793,29 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                 <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden animate-fade-in">
                     <CorporateInvoicingManager
                         currentUser={currentUser}
-                        currentInstitution={currentInstitution}
+                        currentInstitution={resellerInstState}
                         companyDetails={companyDetails}
                         availableInstitutions={tenants}
                         onLogAction={(msg) => console.log('[Reseller Invoicing]', msg)}
                     />
                 </div>
+            ) : activeTab === 'configuration' ? (
+                <ResellerConfigurationManager
+                    resellerId={targetResellerId}
+                    resellerInstitution={resellerInstState}
+                    companyDetails={companyDetails}
+                    onInstitutionUpdated={(updated) => setResellerInstState(updated)}
+                    onOnboardingDefaultsUpdated={(defaults) => {
+                        setOnboardingDefaults(defaults);
+                        setNewTenantType(defaults.defaultInstitutionType);
+                        setNewTenantMonthlyPrice(defaults.defaultMonthlyPrice);
+                        setNewTenantQuarterlyPrice(defaults.defaultQuarterlyPrice);
+                        setNewTenantYearlyPrice(defaults.defaultYearlyPrice);
+                        if (defaults.defaultWithdrawalAccount && !withdrawAccount) {
+                            setWithdrawAccount(defaults.defaultWithdrawalAccount);
+                        }
+                    }}
+                />
             ) : null}
 
             {/* Add Tenant Modal */}
