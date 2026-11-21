@@ -103,6 +103,28 @@ export const AscClassesManager: React.FC<AscClassesManagerProps> = ({
 
     const [timeOffModalRow, setTimeOffModalRow] = useState<FlatClassRow | null>(null);
     const [lessonsModalRow, setLessonsModalRow] = useState<FlatClassRow | null>(null);
+    const [selectedLessonId, setSelectedLessonId] = useState<string>('');
+    const [lessonSortAsc, setLessonSortAsc] = useState<boolean>(true);
+    const [lessonEditorModal, setLessonEditorModal] = useState<{ mode: 'new' | 'edit' | 'add_more' | 'copy_to'; lesson?: AscLessonRow } | null>(null);
+    const [lesSubjectId, setLesSubjectId] = useState<string>('');
+    const [lesTeacherId, setLesTeacherId] = useState<string>('');
+    const [lesExtraTeacherIds, setLesExtraTeacherIds] = useState<string[]>([]);
+    const [showMoreTeachers, setShowMoreTeachers] = useState<boolean>(false);
+    const [lesClassKeys, setLesClassKeys] = useState<string[]>([]);
+    const [showJointClasses, setShowJointClasses] = useState<boolean>(false);
+    const [lesCount, setLesCount] = useState<number>(6);
+    const [lesLength, setLesLength] = useState<number>(1);
+    const [showMoreWeeksTerms, setShowMoreWeeksTerms] = useState<boolean>(false);
+    const [lesUseHomeRoom, setLesUseHomeRoom] = useState<boolean>(true);
+    const [lesUseTeacherRooms, setLesUseTeacherRooms] = useState<boolean>(false);
+    const [lesUseSharedRooms, setLesUseSharedRooms] = useState<boolean>(false);
+    const [lesUseSubjectRooms, setLesUseSubjectRooms] = useState<boolean>(false);
+    const [lesRoomId, setLesRoomId] = useState<string>('');
+    const [lesExtraRoomIds, setLesExtraRoomIds] = useState<string[]>([]);
+    const [showMoreRooms, setShowMoreRooms] = useState<boolean>(false);
+    const [lesWeek, setLesWeek] = useState<string>('');
+    const [lesTerm, setLesTerm] = useState<string>('');
+
     const [constraintsModalRow, setConstraintsModalRow] = useState<FlatClassRow | null>(null);
     const [cMaxPerDay, setCMaxPerDay] = useState<number>(10);
     const [cAllowArrival, setCAllowArrival] = useState<string>('');
@@ -141,6 +163,16 @@ export const AscClassesManager: React.FC<AscClassesManagerProps> = ({
             prefs: next,
             updatedAt: new Date().toISOString(),
         }).catch(() => {});
+    };
+
+    const persistLessons = async (next: AscLessonRow[], savedItems?: AscLessonRow[]) => {
+        setAscLessons(next);
+        try { localStorage.setItem(lessonsKey, JSON.stringify(next)); } catch (_) {}
+        if (savedItems && savedItems.length > 0) {
+            for (const item of savedItems) {
+                await apiService.saveModuleRecord('asc_subject_lessons', item).catch(() => {});
+            }
+        }
     };
 
     const operatingDays = useMemo(() => {
@@ -216,13 +248,215 @@ export const AscClassesManager: React.FC<AscClassesManagerProps> = ({
     const getRowLessonCount = (row: FlatClassRow): number => {
         const short = (prefsMap[row.rowKey]?.shortCode || row.defaultShort).toUpperCase();
         const fromAsc = ascLessons
-            .filter(l => l.levelId === row.levelId || l.courseId === row.courseId && l.classLabel.toUpperCase() === short)
+            .filter(l =>
+                l.levelId === row.levelId ||
+                (l.courseId === row.courseId && l.classLabel.toUpperCase() === short) ||
+                l.classLabel.toUpperCase().split(/[\s,+]+/).includes(short)
+            )
             .reduce((s, l) => s + (Number(l.count) || 0) * (Number(l.length) || 1), 0);
         if (fromAsc > 0) return fromAsc;
         const placed = (timetableEntries || []).filter(e =>
             e && (String(e.levelId || '') === row.levelId || e.courseId === row.courseId)
         ).length;
         return placed;
+    };
+
+    const currentClassLessons = useMemo(() => {
+        if (!lessonsModalRow) return [];
+        const short = (prefsMap[lessonsModalRow.rowKey]?.shortCode || lessonsModalRow.defaultShort).toUpperCase();
+        const list = ascLessons.filter(l =>
+            l.levelId === lessonsModalRow.levelId ||
+            (l.courseId === lessonsModalRow.courseId && l.classLabel.toUpperCase() === short) ||
+            l.classLabel.toUpperCase().split(/[\s,+]+/).includes(short)
+        );
+        return [...list].sort((a, b) => {
+            const sA = subjects.find(s => s.id === a.subjectId)?.name || a.subjectId;
+            const sB = subjects.find(s => s.id === b.subjectId)?.name || b.subjectId;
+            return lessonSortAsc ? sA.localeCompare(sB) : sB.localeCompare(sA);
+        });
+    }, [ascLessons, lessonsModalRow, prefsMap, subjects, lessonSortAsc]);
+
+    const openClassLessonEditor = (mode: 'new' | 'edit' | 'add_more' | 'copy_to') => {
+        if (!lessonsModalRow) return;
+        const activeLesson = currentClassLessons.find(l => l.id === selectedLessonId) || currentClassLessons[0];
+        if ((mode === 'edit' || mode === 'copy_to') && !activeLesson) return;
+
+        setLesExtraTeacherIds([]);
+        setShowMoreTeachers(false);
+        setShowJointClasses(mode === 'copy_to' || mode === 'add_more');
+        setShowMoreWeeksTerms(false);
+        setShowMoreRooms(false);
+        setLesExtraRoomIds([]);
+
+        if (mode === 'edit' && activeLesson) {
+            setLesSubjectId(activeLesson.subjectId);
+            setLesTeacherId(activeLesson.teacherId);
+            setLesClassKeys([`${activeLesson.courseId}::${activeLesson.levelId}`]);
+            setLesCount(activeLesson.count);
+            setLesLength(activeLesson.length);
+            setLesUseHomeRoom(activeLesson.classroomMode === 'home');
+            setLesUseTeacherRooms(false);
+            setLesUseSharedRooms(false);
+            setLesUseSubjectRooms(false);
+            setLesRoomId(activeLesson.roomId || '');
+            setLesWeek(activeLesson.week || '');
+            setLesTerm(activeLesson.term || '');
+            setLessonEditorModal({ mode, lesson: activeLesson });
+        } else if (mode === 'copy_to' && activeLesson) {
+            setLesSubjectId(activeLesson.subjectId);
+            setLesTeacherId(activeLesson.teacherId);
+            setLesClassKeys([]);
+            setLesCount(activeLesson.count);
+            setLesLength(activeLesson.length);
+            setLesUseHomeRoom(activeLesson.classroomMode === 'home');
+            setLesUseTeacherRooms(false);
+            setLesUseSharedRooms(false);
+            setLesUseSubjectRooms(false);
+            setLesRoomId(activeLesson.roomId || '');
+            setLesWeek(activeLesson.week || '');
+            setLesTerm(activeLesson.term || '');
+            setLessonEditorModal({ mode, lesson: activeLesson });
+        } else {
+            setLesSubjectId(subjects[0]?.id || '');
+            setLesTeacherId('');
+            setLesClassKeys([lessonsModalRow.rowKey]);
+            setLesCount(6);
+            setLesLength(1);
+            setLesUseHomeRoom(true);
+            setLesUseTeacherRooms(false);
+            setLesUseSharedRooms(false);
+            setLesUseSubjectRooms(false);
+            setLesRoomId('');
+            setLesWeek('');
+            setLesTerm('');
+            setLessonEditorModal({ mode });
+        }
+    };
+
+    const handleSaveClassLessonEditor = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!lessonsModalRow || !lessonEditorModal) return;
+        if (!lesSubjectId) {
+            alert('Please select a Subject.');
+            return;
+        }
+        if (lesClassKeys.length === 0) {
+            alert('Please select at least one Class.');
+            return;
+        }
+
+        const primaryTeacher = lecturers.find(t => t.id === lesTeacherId);
+        const extraNames = lesExtraTeacherIds
+            .filter(id => id !== lesTeacherId)
+            .map(id => lecturers.find(t => t.id === id)?.name)
+            .filter(Boolean);
+        const combinedTeacherName = [primaryTeacher?.name, ...extraNames].filter(Boolean).join(', ') || 'Unassigned';
+
+        const chosenRoomNames: string[] = [];
+        if (lesRoomId) {
+            const r = rooms.find(x => x.id === lesRoomId);
+            if (r) chosenRoomNames.push(r.name);
+        }
+        lesExtraRoomIds.forEach(rid => {
+            if (rid !== lesRoomId) {
+                const r = rooms.find(x => x.id === rid);
+                if (r) chosenRoomNames.push(r.name);
+            }
+        });
+        if (lesUseSharedRooms && chosenRoomNames.length === 0) chosenRoomNames.push('Shared Room');
+        if (lesUseSubjectRooms && chosenRoomNames.length === 0) chosenRoomNames.push('Subject Room');
+        if (lesUseTeacherRooms && chosenRoomNames.length === 0) chosenRoomNames.push('Teacher Room');
+
+        const effectiveRoomMode: 'home' | 'specific' = lesUseHomeRoom && chosenRoomNames.length === 0 ? 'home' : 'specific';
+        const effectiveRoomName = chosenRoomNames.join(', ') || undefined;
+
+        const getRowShort = (rk: string) => {
+            const r = flatRows.find(x => x.rowKey === rk);
+            return (r ? (prefsMap[r.rowKey]?.shortCode || r.defaultShort) : rk).toUpperCase();
+        };
+
+        if (lessonEditorModal.mode === 'edit' && lessonEditorModal.lesson) {
+            const firstRow = flatRows.find(x => x.rowKey === lesClassKeys[0]) || lessonsModalRow;
+            const jointLabels = lesClassKeys.map(getRowShort).join(', ');
+            const updated: AscLessonRow = {
+                ...lessonEditorModal.lesson,
+                subjectId: lesSubjectId,
+                teacherId: lesTeacherId,
+                teacherName: combinedTeacherName,
+                courseId: firstRow.courseId,
+                levelId: firstRow.levelId,
+                classLabel: jointLabels,
+                count: Math.max(1, Number(lesCount) || 1),
+                length: Math.max(1, Math.min(8, Number(lesLength) || 1)),
+                classroomMode: effectiveRoomMode,
+                roomId: effectiveRoomMode === 'specific' ? (lesRoomId || undefined) : undefined,
+                roomName: effectiveRoomMode === 'specific' ? effectiveRoomName : undefined,
+                week: lesWeek.trim(),
+                term: lesTerm.trim(),
+            };
+            await persistLessons(ascLessons.map(l => l.id === updated.id ? updated : l), [updated]);
+            setSelectedLessonId(updated.id);
+        } else if (lessonEditorModal.mode === 'new' && showJointClasses && lesClassKeys.length > 1) {
+            const firstRow = flatRows.find(x => x.rowKey === lesClassKeys[0]) || lessonsModalRow;
+            const sub = subjects.find(s => s.id === lesSubjectId);
+            const subShort = (sub?.code || sub?.name?.slice(0, 4) || '').toUpperCase();
+            const jointLabels = `${lesClassKeys.map(getRowShort).join(', ')} ${subShort}`.trim();
+            const created: AscLessonRow = {
+                id: `les_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                institutionId,
+                subjectId: lesSubjectId,
+                teacherId: lesTeacherId,
+                teacherName: combinedTeacherName,
+                courseId: firstRow.courseId,
+                levelId: firstRow.levelId,
+                classLabel: jointLabels,
+                count: Math.max(1, Number(lesCount) || 1),
+                length: Math.max(1, Math.min(8, Number(lesLength) || 1)),
+                classroomMode: effectiveRoomMode,
+                roomId: effectiveRoomMode === 'specific' ? (lesRoomId || undefined) : undefined,
+                roomName: effectiveRoomMode === 'specific' ? effectiveRoomName : undefined,
+                week: lesWeek.trim(),
+                term: lesTerm.trim(),
+                createdAt: new Date().toISOString(),
+            };
+            await persistLessons([created, ...ascLessons], [created]);
+            setSelectedLessonId(created.id);
+        } else {
+            const created: AscLessonRow[] = lesClassKeys.map(rk => {
+                const rowObj = flatRows.find(x => x.rowKey === rk) || lessonsModalRow;
+                return {
+                    id: `les_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                    institutionId,
+                    subjectId: lesSubjectId,
+                    teacherId: lesTeacherId,
+                    teacherName: combinedTeacherName,
+                    courseId: rowObj.courseId,
+                    levelId: rowObj.levelId,
+                    classLabel: getRowShort(rk),
+                    count: Math.max(1, Number(lesCount) || 1),
+                    length: Math.max(1, Math.min(8, Number(lesLength) || 1)),
+                    classroomMode: effectiveRoomMode,
+                    roomId: effectiveRoomMode === 'specific' ? (lesRoomId || undefined) : undefined,
+                    roomName: effectiveRoomMode === 'specific' ? effectiveRoomName : undefined,
+                    week: lesWeek.trim(),
+                    term: lesTerm.trim(),
+                    createdAt: new Date().toISOString(),
+                };
+            });
+            await persistLessons([...created, ...ascLessons], created);
+            if (created[0]) setSelectedLessonId(created[0].id);
+        }
+        setLessonEditorModal(null);
+    };
+
+    const handleRemoveClassLesson = () => {
+        if (!selectedLessonId) return;
+        const target = currentClassLessons.find(l => l.id === selectedLessonId);
+        if (!target) return;
+        const subName = subjects.find(s => s.id === target.subjectId)?.name || target.subjectId;
+        if (!window.confirm(`Remove lesson ${subName} — ${target.teacherName} (${target.classLabel})?`)) return;
+        persistLessons(ascLessons.filter(l => l.id !== selectedLessonId));
+        setSelectedLessonId('');
     };
 
     const openNewModal = () => {
@@ -679,66 +913,339 @@ export const AscClassesManager: React.FC<AscClassesManagerProps> = ({
                 </div>
             )}
 
-            {/* MODAL 2: LESSONS FOR CLASS */}
+            {/* MODAL 2: aSc "LESSONS FOR CLASS" WINDOW */}
             {lessonsModalRow && (() => {
                 const short = (prefsMap[lessonsModalRow.rowKey]?.shortCode || lessonsModalRow.defaultShort).toUpperCase();
-                const classLessons = ascLessons.filter(
-                    l => l.levelId === lessonsModalRow.levelId || (l.courseId === lessonsModalRow.courseId && l.classLabel.toUpperCase() === short)
-                );
+                const activeLesson = currentClassLessons.find(l => l.id === selectedLessonId) || null;
+                const badgeColors = ['#f472b6', '#16a34a', '#a3e635', '#e879f9', '#4ade80', '#fb923c', '#991b1b', '#eab308', '#2563eb', '#ec4899', '#0ea5e9', '#d946ef', '#38bdf8'];
+
                 return (
                     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-                        <div className="bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-400 dark:border-slate-600 w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                        <div className="bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-400 dark:border-slate-600 w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+                            {/* Classic aSc Dialog Title Bar */}
                             <div className="bg-white dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 px-4 py-2 flex items-center justify-between">
-                                <span className="text-xs font-bold">Lessons for class — {lessonsModalRow.fullName} ({short})</span>
-                                <button type="button" onClick={() => setLessonsModalRow(null)} className="font-black text-sm px-2 cursor-pointer">×</button>
+                                <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-white">
+                                    <span>📋</span>
+                                    <span>Lessons for class</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setLessonsModalRow(null)}
+                                    className="px-2 py-0.5 rounded hover:bg-rose-100 text-slate-600 hover:text-rose-600 font-black text-sm cursor-pointer"
+                                >
+                                    ×
+                                </button>
                             </div>
-                            <div className="flex-1 bg-white dark:bg-slate-900 overflow-auto min-h-[260px]">
-                                <table className="w-full text-left border-collapse text-xs">
-                                    <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 text-[11px] font-bold">
+
+                            {/* Class Banner (Students Icon + Full Class Name + Short Code) */}
+                            <div className="bg-slate-100 dark:bg-slate-800/80 px-5 py-3 flex items-center gap-3.5 border-b border-slate-300 dark:border-slate-700">
+                                <div className="w-11 h-11 rounded-lg bg-gradient-to-b from-amber-100 to-emerald-200 border border-slate-300 flex items-center justify-center text-2xl shadow-xs shrink-0">
+                                    👥
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white leading-tight">
+                                        {lessonsModalRow.fullName}
+                                    </h3>
+                                    <div className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                                        {short} • {currentClassLessons.reduce((s, l) => s + l.count * l.length, 0)} total periods / week
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Lessons Table */}
+                            <div className="flex-1 bg-white dark:bg-slate-900 overflow-auto min-h-[300px] border-b border-slate-300 dark:border-slate-700">
+                                <table className="w-full text-left border-collapse text-xs select-none">
+                                    <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-300">
                                         <tr>
-                                            <th className="p-2.5">Subject</th>
-                                            <th className="p-2.5">Teacher</th>
-                                            <th className="p-2.5 text-center">Count</th>
-                                            <th className="p-2.5 text-center">Length</th>
-                                            <th className="p-2.5">Classroom</th>
+                                            <th
+                                                onClick={() => setLessonSortAsc(prev => !prev)}
+                                                className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-44 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700"
+                                            >
+                                                Subject {lessonSortAsc ? '▲' : '▼'}
+                                            </th>
+                                            <th className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-44">Teacher</th>
+                                            <th className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-40">Class</th>
+                                            <th className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-16 text-center">Count</th>
+                                            <th className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-16 text-center">Length</th>
+                                            <th className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-24">Classrooms</th>
+                                            <th className="py-1.5 px-3 border-r border-slate-300 dark:border-slate-700 w-16">Week</th>
+                                            <th className="py-1.5 px-3 w-16">Term</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {classLessons.length === 0 ? (
+                                        {currentClassLessons.length === 0 ? (
                                             <tr>
-                                                <td colSpan={5} className="p-10 text-center text-slate-400">
-                                                    No lessons assigned to <strong>{lessonsModalRow.fullName}</strong> yet. Add lessons from the <strong>Subjects</strong> tab.
+                                                <td colSpan={8} className="p-12 text-center text-slate-400">
+                                                    No lessons assigned to <strong>{lessonsModalRow.fullName}</strong> yet. Click <strong>New lesson</strong> or <strong>Add more</strong> below.
                                                 </td>
                                             </tr>
-                                        ) : classLessons.map(l => {
-                                            const sub = subjects.find(s => s.id === l.subjectId);
+                                        ) : currentClassLessons.map((les, idx) => {
+                                            const sub = subjects.find(s => s.id === les.subjectId);
+                                            const subName = sub?.name || les.subjectId;
+                                            const subCode = (sub?.code || subName.slice(0, 3)).toUpperCase();
+                                            const isSel = selectedLessonId === les.id;
+                                            const badgeBg = badgeColors[idx % badgeColors.length];
+                                            const darkText = ['#a3e635', '#4ade80', '#eab308', '#38bdf8', '#fb923c', '#f472b6'].includes(badgeBg);
+
                                             return (
-                                                <tr key={l.id}>
-                                                    <td className="p-2.5 font-bold uppercase">{sub?.name || l.subjectId}</td>
-                                                    <td className="p-2.5">{l.teacherName}</td>
-                                                    <td className="p-2.5 text-center font-mono">{l.count}</td>
-                                                    <td className="p-2.5 text-center font-mono">{l.length}</td>
-                                                    <td className="p-2.5">{l.classroomMode === 'home' ? '🏠 Home' : (l.roomName || 'Room')}</td>
+                                                <tr
+                                                    key={les.id}
+                                                    onClick={() => setSelectedLessonId(les.id)}
+                                                    onDoubleClick={() => {
+                                                        setSelectedLessonId(les.id);
+                                                        openClassLessonEditor('edit');
+                                                    }}
+                                                    className={`cursor-pointer transition-colors ${
+                                                        isSel
+                                                            ? 'bg-blue-600 text-white font-bold'
+                                                            : idx % 2 === 0
+                                                                ? 'bg-slate-50/70 dark:bg-slate-800/40 hover:bg-blue-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100'
+                                                                : 'bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100'
+                                                    }`}
+                                                >
+                                                    <td className="py-1.5 px-3 flex items-center gap-2.5">
+                                                        <span
+                                                            style={{ backgroundColor: badgeBg, color: darkText ? '#0f172a' : '#ffffff' }}
+                                                            className="w-8 h-6 rounded-xs border border-black/25 flex items-center justify-center font-black text-[9px] shrink-0 shadow-xs"
+                                                        >
+                                                            {subCode}
+                                                        </span>
+                                                        <span className="uppercase truncate">{subName}</span>
+                                                    </td>
+                                                    <td className="py-1.5 px-3 truncate">{les.teacherName}</td>
+                                                    <td className="py-1.5 px-3 font-bold truncate">{les.classLabel}</td>
+                                                    <td className="py-1.5 px-3 text-center font-mono">{les.count}</td>
+                                                    <td className="py-1.5 px-3 text-center font-mono">{les.length}</td>
+                                                    <td className="py-1.5 px-3">
+                                                        {les.classroomMode === 'home' ? (
+                                                            <span title="Home Classroom" className="text-sm">🏠</span>
+                                                        ) : (
+                                                            <span className="truncate">{les.roomName || 'Room'}</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-1.5 px-3 text-[11px]">{les.week}</td>
+                                                    <td className="py-1.5 px-3 text-[11px]">{les.term}</td>
                                                 </tr>
                                             );
                                         })}
                                     </tbody>
                                 </table>
                             </div>
-                            <div className="bg-slate-100 dark:bg-slate-800 border-t border-slate-300 dark:border-slate-700 px-4 py-2.5 flex items-center justify-between">
+
+                            {/* Classic aSc Bottom Action Bar */}
+                            <div className="bg-slate-100 dark:bg-slate-800 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => openClassLessonEditor('new')}
+                                        className="px-4 py-1.5 rounded-md bg-white dark:bg-slate-700 hover:bg-blue-50 border-2 border-blue-500 text-xs font-black text-slate-900 dark:text-white shadow-xs cursor-pointer"
+                                    >
+                                        New lesson
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={!activeLesson}
+                                        onClick={() => openClassLessonEditor('edit')}
+                                        className="px-4 py-1.5 rounded-md bg-white dark:bg-slate-700 hover:bg-slate-50 border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-white shadow-xs disabled:opacity-40 cursor-pointer"
+                                    >
+                                        Edit lesson
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={!activeLesson}
+                                        onClick={handleRemoveClassLesson}
+                                        className="px-4 py-1.5 rounded-md bg-white dark:bg-slate-700 hover:bg-rose-50 border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-white shadow-xs disabled:opacity-40 cursor-pointer"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={!activeLesson}
+                                        onClick={() => openClassLessonEditor('copy_to')}
+                                        className="px-4 py-1.5 rounded-md bg-white dark:bg-slate-700 hover:bg-slate-50 border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-white shadow-xs disabled:opacity-40 cursor-pointer"
+                                    >
+                                        Copy to
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => openClassLessonEditor('add_more')}
+                                        className="px-4 py-1.5 rounded-md bg-white dark:bg-slate-700 hover:bg-slate-50 border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-white shadow-xs cursor-pointer"
+                                    >
+                                        Add more
+                                    </button>
+                                </div>
+
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        setLessonsModalRow(null);
-                                        onSwitchTab?.('subjects');
-                                    }}
-                                    className="px-4 py-1.5 rounded bg-blue-600 text-white text-xs font-bold cursor-pointer"
+                                    onClick={() => setLessonsModalRow(null)}
+                                    className="px-6 py-1.5 rounded-md bg-white dark:bg-slate-700 hover:bg-slate-50 border border-slate-300 dark:border-slate-600 text-xs font-black text-slate-800 dark:text-white shadow-xs cursor-pointer"
                                 >
-                                    Manage Lessons in Subjects →
+                                    Close
                                 </button>
-                                <button type="button" onClick={() => setLessonsModalRow(null)} className="px-5 py-1.5 rounded border border-slate-400 bg-white dark:bg-slate-700 text-xs font-black cursor-pointer">Close</button>
                             </div>
                         </div>
+                    </div>
+                );
+            })()}
+
+            {/* SUB-MODAL: AUTHENTIC aSc "LESSON" DIALOG */}
+            {lessonEditorModal && lessonsModalRow && (() => {
+                const sharedRoomNames = (rooms || [])
+                    .filter(r => /lab|fld|field|hall|comp/i.test(`${r.name} ${(r as any).type || ''}`))
+                    .slice(0, 3)
+                    .map(r => r.name)
+                    .join(', ');
+
+                return (
+                    <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+                        <form
+                            onSubmit={handleSaveClassLessonEditor}
+                            className="bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-400 dark:border-slate-600 w-full max-w-2xl shadow-2xl overflow-hidden"
+                        >
+                            <div className="bg-white dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 px-4 py-2 flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-800 dark:text-white">
+                                    {lessonEditorModal.mode === 'copy_to' ? 'Lesson — Copy to classes' : lessonEditorModal.mode === 'add_more' ? 'Lesson — Add more' : 'Lesson'}
+                                </span>
+                                <button type="button" onClick={() => setLessonEditorModal(null)} className="px-2 py-0.5 rounded hover:bg-rose-100 text-slate-600 hover:text-rose-600 font-black text-sm cursor-pointer">×</button>
+                            </div>
+
+                            <div className="p-3.5 space-y-2.5 max-h-[78vh] overflow-y-auto">
+                                {/* ROW 1: TEACHER */}
+                                <div className="bg-white/80 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg p-3 flex items-start gap-4">
+                                    <div className="w-12 h-12 flex items-center justify-center text-3xl shrink-0">🎓</div>
+                                    <div className="flex-1 space-y-2">
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">Teacher</label>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <select value={lesTeacherId} onChange={e => setLesTeacherId(e.target.value)} className="flex-1 min-w-[200px] px-2.5 py-1.5 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold">
+                                                <option value=""></option>
+                                                {lecturers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                            </select>
+                                            <button type="button" onClick={() => setShowMoreTeachers(p => !p)} className={`px-4 py-1.5 rounded border text-xs font-semibold cursor-pointer ${showMoreTeachers ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-slate-100 dark:bg-slate-700 border-slate-400 dark:border-slate-600'}`}>More teachers</button>
+                                        </div>
+                                        {showMoreTeachers && (
+                                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                                {lecturers.filter(t => t.id !== lesTeacherId).map(t => {
+                                                    const picked = lesExtraTeacherIds.includes(t.id);
+                                                    return (
+                                                        <button key={t.id} type="button" onClick={() => setLesExtraTeacherIds(prev => prev.includes(t.id) ? prev.filter(x => x !== t.id) : [...prev, t.id])} className={`px-2.5 py-1 rounded text-[11px] font-bold cursor-pointer ${picked ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600'}`}>{t.name}</button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* ROW 2: SUBJECT */}
+                                <div className="bg-white/80 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg p-3 flex items-center gap-4">
+                                    <div className="w-12 h-12 flex items-center justify-center text-3xl shrink-0">📘</div>
+                                    <div className="flex-1 space-y-1.5">
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">Subject</label>
+                                        <select value={lesSubjectId} onChange={e => setLesSubjectId(e.target.value)} className="w-full max-w-sm px-2.5 py-1.5 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold uppercase">
+                                            {(subjects || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* ROW 3: CLASS */}
+                                <div className="bg-white/80 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg p-3 flex items-start gap-4">
+                                    <div className="w-12 h-12 flex items-center justify-center text-3xl shrink-0">👥</div>
+                                    <div className="flex-1 space-y-2">
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">Class</label>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            {!showJointClasses ? (
+                                                <select value={lesClassKeys[0] || ''} onChange={e => setLesClassKeys(e.target.value ? [e.target.value] : [])} className="flex-1 min-w-[200px] px-2.5 py-1.5 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold">
+                                                    {flatRows.map(r => (
+                                                        <option key={r.rowKey} value={r.rowKey}>{(prefsMap[r.rowKey]?.shortCode || r.defaultShort).toUpperCase()} — {r.fullName}</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <div className="flex-1 min-w-[200px] flex flex-wrap gap-1.5 p-2 rounded border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 max-h-24 overflow-y-auto">
+                                                    {flatRows.map(r => {
+                                                        const picked = lesClassKeys.includes(r.rowKey);
+                                                        const sh = (prefsMap[r.rowKey]?.shortCode || r.defaultShort).toUpperCase();
+                                                        return (
+                                                            <button key={r.rowKey} type="button" onClick={() => setLesClassKeys(prev => prev.includes(r.rowKey) ? prev.filter(x => x !== r.rowKey) : [...prev, r.rowKey])} className={`px-2.5 py-1 rounded text-[11px] font-bold cursor-pointer ${picked ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600'}`}>{sh}</button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                            <button type="button" onClick={() => setShowJointClasses(p => !p)} className={`px-4 py-1.5 rounded border text-xs font-semibold cursor-pointer ${showJointClasses ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-slate-100 dark:bg-slate-700 border-slate-400 dark:border-slate-600'}`}>Joint classes</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ROW 4: LESSONS/WEEK */}
+                                <div className="bg-white/80 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg p-3 flex items-start gap-4">
+                                    <div className="w-12 h-12 flex items-center justify-center text-3xl shrink-0">📅</div>
+                                    <div className="flex-1 space-y-2">
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">Lessons/week</label>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <select value={lesCount} onChange={e => setLesCount(Number(e.target.value) || 1)} className="w-36 px-2.5 py-1.5 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold">
+                                                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => <option key={n} value={n}>{n}</option>)}
+                                            </select>
+                                            <select value={lesLength} onChange={e => setLesLength(Number(e.target.value) || 1)} className="w-36 px-2.5 py-1.5 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold">
+                                                <option value={1}>Single</option>
+                                                <option value={2}>Double</option>
+                                                <option value={3}>Triple</option>
+                                                <option value={4}>4</option>
+                                                <option value={5}>5</option>
+                                                <option value={6}>6</option>
+                                                <option value={7}>7</option>
+                                                <option value={8}>8</option>
+                                            </select>
+                                            <button type="button" onClick={() => setShowMoreWeeksTerms(p => !p)} className="text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-blue-600 hover:underline ml-auto cursor-pointer">More weeks/terms</button>
+                                        </div>
+                                        {showMoreWeeksTerms && (
+                                            <div className="grid grid-cols-2 gap-3 pt-1">
+                                                <input type="text" value={lesWeek} onChange={e => setLesWeek(e.target.value)} placeholder="Week (e.g. All weeks)" className="px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs" />
+                                                <input type="text" value={lesTerm} onChange={e => setLesTerm(e.target.value)} placeholder="Term (e.g. All terms)" className="px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs" />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* ROW 5: CLASSROOMS */}
+                                <div className="bg-white/80 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg p-3 flex items-start gap-4">
+                                    <div className="w-12 h-12 flex items-center justify-center text-3xl shrink-0">🚪</div>
+                                    <div className="flex-1 space-y-2.5">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-4 text-xs text-slate-800 dark:text-slate-200">
+                                            <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={lesUseHomeRoom} onChange={e => setLesUseHomeRoom(e.target.checked)} className="w-3.5 h-3.5 accent-blue-600" /><span>Home classroom</span></label>
+                                            <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={lesUseTeacherRooms} onChange={e => setLesUseTeacherRooms(e.target.checked)} className="w-3.5 h-3.5 accent-blue-600" /><span>Teacher&apos;s classrooms</span></label>
+                                            <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={lesUseSharedRooms} onChange={e => setLesUseSharedRooms(e.target.checked)} className="w-3.5 h-3.5 accent-blue-600" /><span className="truncate">Shared room {sharedRoomNames || 'LAB 1, FLD, LAB 2'}</span></label>
+                                            <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={lesUseSubjectRooms} onChange={e => setLesUseSubjectRooms(e.target.checked)} className="w-3.5 h-3.5 accent-blue-600" /><span>Subject&apos;s classrooms</span></label>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <select value={lesRoomId} onChange={e => { setLesRoomId(e.target.value); if (e.target.value) setLesUseHomeRoom(false); }} className="flex-1 min-w-[200px] px-2.5 py-1.5 rounded border border-slate-400 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-semibold">
+                                                <option value="">Other available classrooms</option>
+                                                {(rooms || []).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                            </select>
+                                            <button type="button" onClick={() => setShowMoreRooms(p => !p)} className={`px-4 py-1.5 rounded border text-xs font-semibold cursor-pointer ${showMoreRooms ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-slate-100 dark:bg-slate-700 border-slate-400 dark:border-slate-600'}`}>More classrooms</button>
+                                        </div>
+                                        {showMoreRooms && (
+                                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                                {(rooms || []).filter(r => r.id !== lesRoomId).map(r => {
+                                                    const picked = lesExtraRoomIds.includes(r.id);
+                                                    return (
+                                                        <button key={r.id} type="button" onClick={() => setLesExtraRoomIds(prev => prev.includes(r.id) ? prev.filter(x => x !== r.id) : [...prev, r.id])} className={`px-2.5 py-1 rounded text-[11px] font-bold cursor-pointer ${picked ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600'}`}>{r.name}</button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-100 dark:bg-slate-800 border-t border-slate-300 dark:border-slate-700 px-4 py-3 flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <button type="button" onClick={() => setLessonEditorModal(null)} className="px-6 py-1.5 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs font-semibold cursor-pointer">Cancel</button>
+                                    <button type="button" onClick={() => alert('Choose Teacher, Subject, Class (or Joint classes), Lessons/week, and Classroom preferences, then click OK.')} className="px-6 py-1.5 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs font-semibold cursor-pointer">Help</button>
+                                </div>
+                                <button type="submit" className="px-14 py-1.5 rounded border-2 border-blue-500 bg-slate-200 dark:bg-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500 text-xs font-bold text-slate-900 dark:text-white cursor-pointer">OK</button>
+                            </div>
+                        </form>
                     </div>
                 );
             })()}
