@@ -489,7 +489,7 @@ export const AscSubjectsManager: React.FC<AscSubjectsManagerProps> = ({
                 levelId: cls?.levelId || lessonEditorModal.lesson.levelId,
                 classLabel: jointLabels || cls?.label || lessonEditorModal.lesson.classLabel,
                 count: Math.max(1, Number(lesCount) || 1),
-                length: Math.max(1, Math.min(4, Number(lesLength) || 1)),
+                length: Math.max(1, Math.min(8, Number(lesLength) || 1)),
                 classroomMode: effectiveRoomMode,
                 roomId: effectiveRoomMode === 'specific' ? (lesRoomId || undefined) : undefined,
                 roomName: effectiveRoomMode === 'specific' ? effectiveRoomName : undefined,
@@ -513,7 +513,7 @@ export const AscSubjectsManager: React.FC<AscSubjectsManagerProps> = ({
                 levelId: firstCls?.levelId || '',
                 classLabel: jointLabels,
                 count: Math.max(1, Number(lesCount) || 1),
-                length: Math.max(1, Math.min(4, Number(lesLength) || 1)),
+                length: Math.max(1, Math.min(8, Number(lesLength) || 1)),
                 classroomMode: effectiveRoomMode,
                 roomId: effectiveRoomMode === 'specific' ? (lesRoomId || undefined) : undefined,
                 roomName: effectiveRoomMode === 'specific' ? effectiveRoomName : undefined,
@@ -536,7 +536,7 @@ export const AscSubjectsManager: React.FC<AscSubjectsManagerProps> = ({
                     levelId: cls?.levelId || '',
                     classLabel: cls?.label || ck,
                     count: Math.max(1, Number(lesCount) || 1),
-                    length: Math.max(1, Math.min(4, Number(lesLength) || 1)),
+                    length: Math.max(1, Math.min(8, Number(lesLength) || 1)),
                     classroomMode: effectiveRoomMode,
                     roomId: effectiveRoomMode === 'specific' ? (lesRoomId || undefined) : undefined,
                     roomName: effectiveRoomMode === 'specific' ? effectiveRoomName : undefined,
@@ -1265,6 +1265,11 @@ export const AscSubjectsManager: React.FC<AscSubjectsManagerProps> = ({
                                                 <option value={1}>Single</option>
                                                 <option value={2}>Double</option>
                                                 <option value={3}>Triple</option>
+                                                <option value={4}>4</option>
+                                                <option value={5}>5</option>
+                                                <option value={6}>6</option>
+                                                <option value={7}>7</option>
+                                                <option value={8}>8</option>
                                             </select>
                                             <button
                                                 type="button"
