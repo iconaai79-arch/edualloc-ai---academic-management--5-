@@ -500,7 +500,8 @@ export const SuperAdminPocketMoneyManager: React.FC = () => {
                                         <td className="p-3 font-mono text-slate-500">{new Date(req.createdAt).toLocaleString()}</td>
                                         <td className="p-3 font-bold text-slate-900 dark:text-white">{req.institutionName}</td>
                                         <td className="p-3 font-mono font-black text-emerald-700 dark:text-emerald-400">
-                                            {req.destinationPhone} <span className="text-slate-500 font-sans font-normal">({req.custodianName})</span>
+                                            {req.destinationPhone} <span className="text-slate-500 font-sans font-normal">({req.custodianName}{req.className ? ` • ${req.className}` : ''})</span>
+                                            {req.otpVerified && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[9px] font-black">OTP ✓</span>}
                                         </td>
                                         <td className="p-3 font-black">KES {req.amount.toLocaleString()}</td>
                                         <td className="p-3">

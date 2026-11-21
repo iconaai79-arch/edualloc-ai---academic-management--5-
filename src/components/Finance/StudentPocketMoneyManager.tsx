@@ -18,6 +18,14 @@ import {
     type PocketMoneyRevenueLog
 } from '../SuperAdminPocketMoneyManager';
 
+export interface ClassTeacherPocketCustodian {
+    className: string;
+    teacherName: string;
+    phoneNumber: string;
+    verified: boolean;
+    verifiedAt?: string;
+}
+
 export interface PocketMoneyWalletConfig {
     id: string;
     institutionId: string;
@@ -30,6 +38,7 @@ export interface PocketMoneyWalletConfig {
     dedicatedWithdrawalPhone: string;
     dedicatedCustodianName: string;
     dedicatedCustodianRole?: string;
+    classCustodians?: Record<string, ClassTeacherPocketCustodian>;
     ncbaFloatBalance: number;
     totalCollectedViaNcba: number;
     totalWithdrawnToDedicatedNumber: number;
@@ -43,6 +52,8 @@ export interface PocketMoneySettlementRequest {
     amount: number;
     destinationPhone: string;
     custodianName: string;
+    className?: string;
+    otpVerified?: boolean;
     purpose: string;
     requestedBy: string;
     status: 'pending_transfer' | 'completed' | 'rejected';
@@ -153,10 +164,25 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
     const [setupTermsChecked, setSetupTermsChecked] = useState(Boolean(walletConfig?.termsAccepted));
     const [isActivatingWallet, setIsActivatingWallet] = useState(false);
 
-    // School NCBA Float Withdrawal to Dedicated Number State
+    // School NCBA Float Withdrawal to Dedicated Number State (School OR Class Teacher + OTP)
+    const [withdrawTargetType, setWithdrawTargetType] = useState<'school' | 'class_teacher'>('school');
+    const [withdrawTargetClass, setWithdrawTargetClass] = useState<string>('');
     const [floatWithdrawAmount, setFloatWithdrawAmount] = useState('');
     const [floatWithdrawPurpose, setFloatWithdrawPurpose] = useState('Student Pocket Money Cash-Out Float');
     const [isSubmittingFloatWithdrawal, setIsSubmittingFloatWithdrawal] = useState(false);
+
+    // Withdrawal OTP State
+    const [withdrawalOtpChallenge, setWithdrawalOtpChallenge] = useState<{ code: string; phone: string; expiresAt: number } | null>(null);
+    const [withdrawalOtpInput, setWithdrawalOtpInput] = useState('');
+    const [isSendingWithdrawalOtp, setIsSendingWithdrawalOtp] = useState(false);
+
+    // Per-Class Dedicated Teacher Number + OTP Verification State
+    const [ctClassName, setCtClassName] = useState<string>('');
+    const [ctTeacherName, setCtTeacherName] = useState<string>('');
+    const [ctPhone, setCtPhone] = useState<string>('');
+    const [ctOtpChallenge, setCtOtpChallenge] = useState<{ code: string; phone: string; className: string; teacherName: string; expiresAt: number } | null>(null);
+    const [ctOtpInput, setCtOtpInput] = useState<string>('');
+    const [isSendingCtOtp, setIsSendingCtOtp] = useState<boolean>(false);
 
     // Live Super Admin NCBA Collection Modal State
     const [ncbaDepositContext, setNcbaDepositContext] = useState<{
@@ -516,10 +542,191 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
         showBanner('success', `NCBA Deposit of KES ${amount.toLocaleString()} confirmed for ${account.studentName} (Ref: ${tx.referenceNumber}). Credited to student & school NCBA float.`);
     };
 
+    const dispatchOtpSms = async (phone: string, message: string): Promise<boolean> => {
+        if (onSendSms) {
+            try {
+                await onSendSms(phone, message, smsConfig || institution.smsConfig, 1, instId);
+                return true;
+            } catch (_) {}
+        }
+        try {
+            const res = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'sendSms',
+                    recipient: phone,
+                    phone,
+                    message,
+                    institutionId: instId
+                })
+            });
+            return res.ok;
+        } catch (_) {
+            return false;
+        }
+    };
+
+    const handleSendClassTeacherOtp = async () => {
+        if (!ctClassName.trim()) {
+            showBanner('error', 'Select or enter a class name first.');
+            return;
+        }
+        if (!ctTeacherName.trim()) {
+            showBanner('error', 'Enter the class teacher name.');
+            return;
+        }
+        const normalizedPhone = formatPhoneNumber(ctPhone);
+        if (!/^254\d{9}$/.test(normalizedPhone)) {
+            showBanner('error', 'Enter a valid Kenyan phone number for the class teacher (e.g. 0712345678).');
+            return;
+        }
+        setIsSendingCtOtp(true);
+        try {
+            const code = String(Math.floor(100000 + Math.random() * 900000));
+            const msg = `${institution.name}: Your OTP to register ${normalizedPhone} as the dedicated Pocket Money number for ${ctClassName.trim()} is ${code}. Valid for 5 minutes.`;
+            const sent = await dispatchOtpSms(normalizedPhone, msg);
+            setCtOtpChallenge({
+                code,
+                phone: normalizedPhone,
+                className: ctClassName.trim(),
+                teacherName: ctTeacherName.trim(),
+                expiresAt: Date.now() + 5 * 60 * 1000
+            });
+            setCtOtpInput('');
+            showBanner(
+                'success',
+                sent
+                    ? `6-digit verification OTP sent via SMS to ${normalizedPhone}. Enter the code below to verify.`
+                    : `OTP generated for ${normalizedPhone} (SMS gateway not configured — check SMS settings).`
+            );
+        } finally {
+            setIsSendingCtOtp(false);
+        }
+    };
+
+    const handleVerifyAndSaveClassTeacher = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!walletConfig?.isActivated) {
+            showBanner('error', 'Activate the School NCBA Wallet first.');
+            return;
+        }
+        if (!ctOtpChallenge) {
+            showBanner('error', 'Send a verification OTP first.');
+            return;
+        }
+        if (Date.now() > ctOtpChallenge.expiresAt) {
+            showBanner('error', 'OTP has expired. Please request a new OTP.');
+            setCtOtpChallenge(null);
+            return;
+        }
+        if (ctOtpInput.trim() !== ctOtpChallenge.code) {
+            showBanner('error', 'Invalid OTP code. Please check the SMS sent to the class teacher.');
+            return;
+        }
+
+        const nowIso = new Date().toISOString();
+        const nextCustodians: Record<string, ClassTeacherPocketCustodian> = {
+            ...(walletConfig.classCustodians || {}),
+            [ctOtpChallenge.className]: {
+                className: ctOtpChallenge.className,
+                teacherName: ctOtpChallenge.teacherName,
+                phoneNumber: ctOtpChallenge.phone,
+                verified: true,
+                verifiedAt: nowIso
+            }
+        };
+        await persistWalletConfig({
+            ...walletConfig,
+            classCustodians: nextCustodians,
+            updatedAt: nowIso
+        });
+        setCtOtpChallenge(null);
+        setCtOtpInput('');
+        setCtClassName('');
+        setCtTeacherName('');
+        setCtPhone('');
+        onLogAction?.(`Verified & assigned dedicated pocket money teacher ${ctOtpChallenge.teacherName} (${ctOtpChallenge.phone}) for ${ctOtpChallenge.className}`);
+        showBanner('success', `Verified! ${ctOtpChallenge.teacherName} (${ctOtpChallenge.phone}) is now the dedicated Pocket Money custodian for ${ctOtpChallenge.className}.`);
+    };
+
+    const handleRemoveClassTeacher = async (classNameToRemove: string) => {
+        if (!walletConfig) return;
+        const next = { ...(walletConfig.classCustodians || {}) };
+        delete next[classNameToRemove];
+        await persistWalletConfig({
+            ...walletConfig,
+            classCustodians: next,
+            updatedAt: new Date().toISOString()
+        });
+        showBanner('success', `Removed dedicated teacher for ${classNameToRemove}.`);
+    };
+
+    const getResolvedWithdrawalDestination = () => {
+        if (!walletConfig) return null;
+        if (withdrawTargetType === 'class_teacher') {
+            const ct = walletConfig.classCustodians?.[withdrawTargetClass];
+            if (!ct || !ct.verified) return null;
+            return {
+                phone: ct.phoneNumber,
+                custodianName: ct.teacherName,
+                className: ct.className
+            };
+        }
+        return {
+            phone: walletConfig.dedicatedWithdrawalPhone,
+            custodianName: walletConfig.dedicatedCustodianName,
+            className: undefined
+        };
+    };
+
+    const handleSendWithdrawalOtp = async () => {
+        const dest = getResolvedWithdrawalDestination();
+        if (!dest) {
+            showBanner('error', 'Select a verified dedicated destination number first.');
+            return;
+        }
+        const amt = Number(floatWithdrawAmount);
+        const available = Number(walletConfig?.ncbaFloatBalance) || 0;
+        if (Number.isNaN(amt) || amt <= 0) {
+            showBanner('error', 'Enter a valid withdrawal amount first.');
+            return;
+        }
+        if (amt > available) {
+            showBanner('error', `Amount exceeds available NCBA float (KES ${available.toLocaleString()}).`);
+            return;
+        }
+        setIsSendingWithdrawalOtp(true);
+        try {
+            const code = String(Math.floor(100000 + Math.random() * 900000));
+            const msg = `${institution.name}: Your Pocket Money withdrawal OTP for KES ${amt.toLocaleString()}${dest.className ? ` (${dest.className})` : ''} to ${dest.phone} is ${code}. Valid for 5 minutes.`;
+            const sent = await dispatchOtpSms(dest.phone, msg);
+            setWithdrawalOtpChallenge({
+                code,
+                phone: dest.phone,
+                expiresAt: Date.now() + 5 * 60 * 1000
+            });
+            setWithdrawalOtpInput('');
+            showBanner(
+                'success',
+                sent
+                    ? `Withdrawal OTP sent via SMS to ${dest.phone} (${dest.custodianName}). Enter the 6-digit code to authorize transfer.`
+                    : `Withdrawal OTP generated for ${dest.phone} (check SMS gateway configuration).`
+            );
+        } finally {
+            setIsSendingWithdrawalOtp(false);
+        }
+    };
+
     const handleRequestDedicatedWithdrawal = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!walletConfig?.isActivated || !walletConfig.termsAccepted) {
             showBanner('error', 'Activate the School NCBA Pocket Money Wallet and accept the Terms first.');
+            return;
+        }
+        const dest = getResolvedWithdrawalDestination();
+        if (!dest) {
+            showBanner('error', 'Please select a verified dedicated school or class teacher number.');
             return;
         }
         const amt = Number(floatWithdrawAmount);
@@ -532,6 +739,19 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
             showBanner('error', `Amount exceeds available NCBA wallet float (Available: KES ${available.toLocaleString()}).`);
             return;
         }
+        if (!withdrawalOtpChallenge || withdrawalOtpChallenge.phone !== dest.phone) {
+            showBanner('error', `Click "Send Withdrawal OTP" to verify transfer to ${dest.phone} first.`);
+            return;
+        }
+        if (Date.now() > withdrawalOtpChallenge.expiresAt) {
+            showBanner('error', 'Withdrawal OTP expired. Please send a new OTP.');
+            setWithdrawalOtpChallenge(null);
+            return;
+        }
+        if (withdrawalOtpInput.trim() !== withdrawalOtpChallenge.code) {
+            showBanner('error', 'Invalid withdrawal OTP code.');
+            return;
+        }
 
         setIsSubmittingFloatWithdrawal(true);
         try {
@@ -541,10 +761,12 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                 institutionId: instId,
                 institutionName: institution.name,
                 amount: amt,
-                destinationPhone: walletConfig.dedicatedWithdrawalPhone,
-                custodianName: walletConfig.dedicatedCustodianName,
+                destinationPhone: dest.phone,
+                custodianName: dest.custodianName,
+                className: dest.className,
+                otpVerified: true,
                 purpose: floatWithdrawPurpose.trim() || 'Student Pocket Money Cash-Out Float',
-                requestedBy: currentUser?.name || walletConfig.dedicatedCustodianName,
+                requestedBy: currentUser?.name || dest.custodianName,
                 status: 'pending_transfer',
                 referenceNumber: `PMW-${Date.now().toString().slice(-6)}`,
                 createdAt: nowIso
@@ -563,8 +785,10 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
             });
 
             setFloatWithdrawAmount('');
-            onLogAction?.(`Requested Pocket Money Wallet transfer of KES ${amt} to dedicated school number ${walletConfig.dedicatedWithdrawalPhone}`);
-            showBanner('success', `Transfer of KES ${amt.toLocaleString()} queued strictly to dedicated school number ${walletConfig.dedicatedWithdrawalPhone} (${walletConfig.dedicatedCustodianName}). Ref: ${request.referenceNumber}.`);
+            setWithdrawalOtpChallenge(null);
+            setWithdrawalOtpInput('');
+            onLogAction?.(`OTP-verified Pocket Money transfer of KES ${amt} to ${dest.phone} (${dest.custodianName}${dest.className ? ` - ${dest.className}` : ''})`);
+            showBanner('success', `OTP Verified! Transfer of KES ${amt.toLocaleString()} queued strictly to ${dest.phone} (${dest.custodianName}${dest.className ? ` • ${dest.className}` : ''}). Ref: ${request.referenceNumber}.`);
         } finally {
             setIsSubmittingFloatWithdrawal(false);
         }
@@ -1266,23 +1490,72 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                                     <div>
                                         <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
                                             <CreditCardIcon className="w-5 h-5 text-emerald-600" />
-                                            Withdraw Funds to Dedicated School Number
+                                            Withdraw Funds (OTP-Verified Dedicated Number)
                                         </h3>
                                         <p className="text-xs text-slate-500 mt-0.5">
-                                            Transfer collected NCBA pocket money float to your school&apos;s verified dedicated number so you can issue cash to students.
+                                            Transfer collected NCBA float strictly to the verified school number or an OTP-verified class teacher&apos;s number.
                                         </p>
                                     </div>
 
                                     <form onSubmit={handleRequestDedicatedWithdrawal} className="space-y-4">
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Destination Number (Locked)</label>
-                                            <input
-                                                type="text"
-                                                readOnly
-                                                value={`${walletConfig.dedicatedWithdrawalPhone} — ${walletConfig.dedicatedCustodianName}`}
-                                                className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 text-xs font-mono font-black text-emerald-800 dark:text-emerald-300 cursor-not-allowed"
-                                            />
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setWithdrawTargetType('school'); setWithdrawalOtpChallenge(null); }}
+                                                className={`py-2 px-3 rounded-xl text-xs font-black uppercase border-2 cursor-pointer ${
+                                                    withdrawTargetType === 'school'
+                                                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                                                        : 'border-slate-200 text-slate-500'
+                                                }`}
+                                            >
+                                                Main School #
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setWithdrawTargetType('class_teacher');
+                                                    setWithdrawalOtpChallenge(null);
+                                                    const firstClass = Object.keys(walletConfig.classCustodians || {})[0] || '';
+                                                    if (!withdrawTargetClass && firstClass) setWithdrawTargetClass(firstClass);
+                                                }}
+                                                className={`py-2 px-3 rounded-xl text-xs font-black uppercase border-2 cursor-pointer ${
+                                                    withdrawTargetType === 'class_teacher'
+                                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                                                        : 'border-slate-200 text-slate-500'
+                                                }`}
+                                            >
+                                                Class Teacher # ({Object.keys(walletConfig.classCustodians || {}).length})
+                                            </button>
                                         </div>
+
+                                        {withdrawTargetType === 'class_teacher' ? (
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Select Verified Class Teacher *</label>
+                                                <select
+                                                    value={withdrawTargetClass}
+                                                    onChange={e => { setWithdrawTargetClass(e.target.value); setWithdrawalOtpChallenge(null); }}
+                                                    className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 text-xs font-bold"
+                                                >
+                                                    <option value="">-- Select Class Teacher --</option>
+                                                    {Object.values(walletConfig.classCustodians || {}).map(ct => (
+                                                        <option key={ct.className} value={ct.className}>
+                                                            {ct.className} — {ct.teacherName} ({ct.phoneNumber}) ✓
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Destination Number (Locked)</label>
+                                                <input
+                                                    type="text"
+                                                    readOnly
+                                                    value={`${walletConfig.dedicatedWithdrawalPhone} — ${walletConfig.dedicatedCustodianName}`}
+                                                    className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 text-xs font-mono font-black text-emerald-800 dark:text-emerald-300 cursor-not-allowed"
+                                                />
+                                            </div>
+                                        )}
+
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
                                                 Amount to Transfer (KES) * — Max KES {(walletConfig.ncbaFloatBalance || 0).toLocaleString()}
@@ -1308,15 +1581,165 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                                                 className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
                                             />
                                         </div>
+
+                                        {/* OTP Verification Box */}
+                                        <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 space-y-2.5">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-[10px] font-black uppercase text-amber-800 dark:text-amber-300">
+                                                    Mandatory SMS OTP Verification
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    disabled={isSendingWithdrawalOtp}
+                                                    onClick={handleSendWithdrawalOtp}
+                                                    className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-black text-[10px] uppercase disabled:opacity-50 cursor-pointer"
+                                                >
+                                                    {isSendingWithdrawalOtp ? 'Sending...' : withdrawalOtpChallenge ? 'Resend OTP' : 'Send Withdrawal OTP'}
+                                                </button>
+                                            </div>
+                                            {withdrawalOtpChallenge && (
+                                                <input
+                                                    type="text"
+                                                    maxLength={6}
+                                                    value={withdrawalOtpInput}
+                                                    onChange={e => setWithdrawalOtpInput(e.target.value.replace(/\D/g, ''))}
+                                                    placeholder="Enter 6-digit SMS OTP code"
+                                                    className="w-full px-4 py-2 rounded-xl border border-amber-300 bg-white dark:bg-slate-900 text-center text-sm font-mono font-black tracking-[0.35em]"
+                                                />
+                                            )}
+                                        </div>
+
                                         <button
                                             type="submit"
-                                            disabled={isSubmittingFloatWithdrawal || (walletConfig.ncbaFloatBalance || 0) <= 0}
+                                            disabled={isSubmittingFloatWithdrawal || (walletConfig.ncbaFloatBalance || 0) <= 0 || !withdrawalOtpChallenge || withdrawalOtpInput.length < 6}
                                             className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider shadow-lg disabled:opacity-50 cursor-pointer"
                                         >
-                                            {isSubmittingFloatWithdrawal ? 'Submitting Transfer...' : `Transfer to Dedicated Number (${walletConfig.dedicatedWithdrawalPhone})`}
+                                            {isSubmittingFloatWithdrawal ? 'Submitting Transfer...' : 'Verify OTP & Transfer Funds'}
                                         </button>
                                     </form>
                                 </div>
+                            </div>
+
+                            {/* PER-CLASS DEDICATED TEACHER NUMBERS (OTP VERIFIED) */}
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm space-y-4">
+                                <div className="border-b border-slate-100 dark:border-slate-700 pb-3">
+                                    <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                        <ShieldCheckIcon className="w-5 h-5 text-indigo-600" />
+                                        Dedicated Class Teacher Numbers (OTP Verified Per Class)
+                                    </h3>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                        Assign and OTP-verify a dedicated class teacher phone number for each class so pocket money funds can be transferred directly to the responsible class teacher.
+                                    </p>
+                                </div>
+
+                                <form onSubmit={handleVerifyAndSaveClassTeacher} className="space-y-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Class / Grade *</label>
+                                            <select
+                                                value={ctClassName}
+                                                onChange={e => setCtClassName(e.target.value)}
+                                                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                            >
+                                                <option value="">Select Class</option>
+                                                {uniqueClasses.filter(c => c !== 'All').map(c => (
+                                                    <option key={c} value={c}>{c}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Class Teacher Name *</label>
+                                            <input
+                                                type="text"
+                                                value={ctTeacherName}
+                                                onChange={e => setCtTeacherName(e.target.value)}
+                                                placeholder="e.g. Mr. Kamau"
+                                                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Teacher Dedicated Phone *</label>
+                                            <input
+                                                type="tel"
+                                                value={ctPhone}
+                                                onChange={e => setCtPhone(e.target.value)}
+                                                placeholder="07XXXXXXXX"
+                                                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-mono font-bold"
+                                            />
+                                        </div>
+                                        <div className="flex items-end">
+                                            <button
+                                                type="button"
+                                                disabled={isSendingCtOtp}
+                                                onClick={handleSendClassTeacherOtp}
+                                                className="w-full py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase disabled:opacity-50 cursor-pointer"
+                                            >
+                                                {isSendingCtOtp ? 'Sending OTP...' : 'Send Verify OTP'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {ctOtpChallenge && (
+                                        <div className="p-3.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 flex flex-col sm:flex-row items-center gap-3">
+                                            <span className="text-xs font-bold text-indigo-800 dark:text-indigo-300">
+                                                Enter 6-digit OTP sent to <strong className="font-mono">{ctOtpChallenge.phone}</strong> for <strong>{ctOtpChallenge.className}</strong>:
+                                            </span>
+                                            <input
+                                                type="text"
+                                                maxLength={6}
+                                                value={ctOtpInput}
+                                                onChange={e => setCtOtpInput(e.target.value.replace(/\D/g, ''))}
+                                                placeholder="000000"
+                                                className="w-36 px-3 py-2 rounded-xl border border-indigo-300 bg-white dark:bg-slate-900 text-center font-mono font-black tracking-widest text-sm"
+                                            />
+                                            <button
+                                                type="submit"
+                                                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase cursor-pointer"
+                                            >
+                                                Verify &amp; Save Teacher
+                                            </button>
+                                        </div>
+                                    )}
+                                </form>
+
+                                {Object.keys(walletConfig.classCustodians || {}).length > 0 && (
+                                    <div className="overflow-x-auto pt-2">
+                                        <table className="w-full text-left border-collapse text-xs">
+                                            <thead>
+                                                <tr className="bg-slate-50 dark:bg-slate-900/60 text-slate-400 font-black uppercase text-[10px] border-b border-slate-200 dark:border-slate-700">
+                                                    <th className="p-2.5">Class</th>
+                                                    <th className="p-2.5">Class Teacher</th>
+                                                    <th className="p-2.5">Dedicated Number</th>
+                                                    <th className="p-2.5">OTP Status</th>
+                                                    <th className="p-2.5 text-right">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                                {Object.values(walletConfig.classCustodians || {}).map(ct => (
+                                                    <tr key={ct.className}>
+                                                        <td className="p-2.5 font-black text-slate-900 dark:text-white">{ct.className}</td>
+                                                        <td className="p-2.5 font-bold">{ct.teacherName}</td>
+                                                        <td className="p-2.5 font-mono font-bold text-emerald-700 dark:text-emerald-400">{ct.phoneNumber}</td>
+                                                        <td className="p-2.5">
+                                                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase">
+                                                                ✓ OTP Verified
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-2.5 text-right">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveClassTeacher(ct.className)}
+                                                                className="text-rose-600 hover:underline text-[11px] font-bold cursor-pointer"
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Dedicated-Number Withdrawal History */}
