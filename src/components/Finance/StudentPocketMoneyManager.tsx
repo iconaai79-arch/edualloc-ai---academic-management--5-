@@ -1,12 +1,49 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, Institution, SmsConfig } from '../../types';
+import type { User, Institution, SmsConfig, CompanyDetails } from '../../types';
 import { apiService } from '../../services/apiService';
+import { PayNowModal } from '../PayNowModal';
+import { formatPhoneNumber } from '../../utils/stringUtils';
 import { WalletIcon } from '../icons/WalletIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { XIcon } from '../icons/XIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
+import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
+import { CreditCardIcon } from '../icons/CreditCardIcon';
+
+export interface PocketMoneyWalletConfig {
+    id: string;
+    institutionId: string;
+    institutionName: string;
+    isActivated: boolean;
+    termsAccepted: boolean;
+    termsVersion: string;
+    termsAcceptedBy?: string;
+    termsAcceptedAt?: string;
+    dedicatedWithdrawalPhone: string;
+    dedicatedCustodianName: string;
+    dedicatedCustodianRole?: string;
+    ncbaFloatBalance: number;
+    totalCollectedViaNcba: number;
+    totalWithdrawnToDedicatedNumber: number;
+    updatedAt: string;
+}
+
+export interface PocketMoneySettlementRequest {
+    id: string;
+    institutionId: string;
+    institutionName: string;
+    amount: number;
+    destinationPhone: string;
+    custodianName: string;
+    purpose: string;
+    requestedBy: string;
+    status: 'pending_transfer' | 'completed' | 'rejected';
+    referenceNumber?: string;
+    createdAt: string;
+    completedAt?: string;
+}
 
 export interface PocketMoneyAccount {
     id: string;
@@ -36,7 +73,7 @@ export interface PocketMoneyTransaction {
     amount: number;
     balanceBefore: number;
     balanceAfter: number;
-    paymentMode: 'cash' | 'mpesa' | 'bank';
+    paymentMode: 'cash' | 'mpesa' | 'bank' | 'ncba';
     referenceNumber?: string;
     purpose?: string;
     issuedBy: string;
@@ -47,6 +84,7 @@ export interface PocketMoneyTransaction {
 interface StudentPocketMoneyManagerProps {
     institution: Institution;
     currentUser?: User | null;
+    companyDetails?: CompanyDetails;
     students: User[];
     smsConfig?: SmsConfig;
     onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
@@ -68,13 +106,52 @@ const getParentName = (s: any): string =>
 export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps> = ({
     institution,
     currentUser,
+    companyDetails,
     students,
     smsConfig,
     onSendSms,
     onLogAction
 }) => {
     const instId = institution?.id || 'default_inst';
-    const [subTab, setSubTab] = useState<'wallets' | 'bulk' | 'ledger' | 'statement'>('wallets');
+    const [subTab, setSubTab] = useState<'wallets' | 'ncba_wallet' | 'bulk' | 'ledger' | 'statement'>('wallets');
+    const [walletConfig, setWalletConfig] = useState<PocketMoneyWalletConfig | null>(() => {
+        try {
+            const raw = localStorage.getItem(`eduai_pocket_wallet_cfg_${instId}`);
+            if (raw) return JSON.parse(raw);
+        } catch (_) {}
+        return null;
+    });
+    const [settlements, setSettlements] = useState<PocketMoneySettlementRequest[]>(() => {
+        try {
+            const raw = localStorage.getItem(`eduai_pocket_settlements_${instId}`);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch (_) {}
+        return [];
+    });
+
+    // Wallet Activation / Dedicated Number Form State
+    const [isEditingDedicatedNumber, setIsEditingDedicatedNumber] = useState(false);
+    const [setupPhone, setSetupPhone] = useState(walletConfig?.dedicatedWithdrawalPhone || institution?.phoneNumber || '');
+    const [setupCustodianName, setSetupCustodianName] = useState(walletConfig?.dedicatedCustodianName || currentUser?.name || '');
+    const [setupCustodianRole, setSetupCustodianRole] = useState(walletConfig?.dedicatedCustodianRole || 'School Bursar / Matron');
+    const [setupTermsChecked, setSetupTermsChecked] = useState(Boolean(walletConfig?.termsAccepted));
+    const [isActivatingWallet, setIsActivatingWallet] = useState(false);
+
+    // School NCBA Float Withdrawal to Dedicated Number State
+    const [floatWithdrawAmount, setFloatWithdrawAmount] = useState('');
+    const [floatWithdrawPurpose, setFloatWithdrawPurpose] = useState('Student Pocket Money Cash-Out Float');
+    const [isSubmittingFloatWithdrawal, setIsSubmittingFloatWithdrawal] = useState(false);
+
+    // Live Super Admin NCBA Collection Modal State
+    const [ncbaDepositContext, setNcbaDepositContext] = useState<{
+        student: User;
+        account: PocketMoneyAccount;
+        amount: number;
+        purpose: string;
+    } | null>(null);
     const [accounts, setAccounts] = useState<PocketMoneyAccount[]>(() => {
         try {
             const raw = localStorage.getItem(`eduai_pocket_accounts_${instId}`);
@@ -103,13 +180,13 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
     const [classFilter, setClassFilter] = useState('All');
     const [walletFilter, setWalletFilter] = useState<'all' | 'positive' | 'zero' | 'frozen'>('all');
     const [ledgerTypeFilter, setLedgerTypeFilter] = useState<'all' | 'deposit' | 'withdrawal' | 'refund'>('all');
-    const [ledgerModeFilter, setLedgerModeFilter] = useState<'all' | 'cash' | 'mpesa' | 'bank'>('all');
+    const [ledgerModeFilter, setLedgerModeFilter] = useState<'all' | 'cash' | 'mpesa' | 'bank' | 'ncba'>('all');
     const [ledgerSearch, setLedgerSearch] = useState('');
 
     // Single Transaction Modal State
     const [txModal, setTxModal] = useState<{ student: User; account: PocketMoneyAccount; mode: 'deposit' | 'withdrawal' | 'refund' } | null>(null);
     const [txAmount, setTxAmount] = useState<string>('');
-    const [txPaymentMode, setTxPaymentMode] = useState<'cash' | 'mpesa' | 'bank'>('cash');
+    const [txPaymentMode, setTxPaymentMode] = useState<'cash' | 'mpesa' | 'bank' | 'ncba'>('cash');
     const [txRef, setTxRef] = useState('');
     const [txPurpose, setTxPurpose] = useState('');
     const [isProcessingTx, setIsProcessingTx] = useState(false);
@@ -149,6 +226,30 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                     const sorted = [...records].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
                     setTransactions(sorted);
                     try { localStorage.setItem(`eduai_pocket_txns_${instId}`, JSON.stringify(sorted)); } catch (_) {}
+                }
+            })
+            .catch(() => {});
+
+        apiService.fetchModuleRecords<PocketMoneyWalletConfig>('pocket_money_wallet_configs', instId)
+            .then(records => {
+                if (Array.isArray(records) && records.length > 0) {
+                    const cfg = records[0];
+                    setWalletConfig(cfg);
+                    setSetupPhone(cfg.dedicatedWithdrawalPhone || institution?.phoneNumber || '');
+                    setSetupCustodianName(cfg.dedicatedCustodianName || currentUser?.name || '');
+                    setSetupCustodianRole(cfg.dedicatedCustodianRole || 'School Bursar / Matron');
+                    setSetupTermsChecked(Boolean(cfg.termsAccepted));
+                    try { localStorage.setItem(`eduai_pocket_wallet_cfg_${instId}`, JSON.stringify(cfg)); } catch (_) {}
+                }
+            })
+            .catch(() => {});
+
+        apiService.fetchModuleRecords<PocketMoneySettlementRequest>('pocket_money_settlements', instId)
+            .then(records => {
+                if (Array.isArray(records)) {
+                    const sorted = [...records].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                    setSettlements(sorted);
+                    try { localStorage.setItem(`eduai_pocket_settlements_${instId}`, JSON.stringify(sorted)); } catch (_) {}
                 }
             })
             .catch(() => {});
@@ -269,12 +370,185 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
         }
     };
 
+    const persistWalletConfig = async (nextCfg: PocketMoneyWalletConfig) => {
+        setWalletConfig(nextCfg);
+        try { localStorage.setItem(`eduai_pocket_wallet_cfg_${instId}`, JSON.stringify(nextCfg)); } catch (_) {}
+        await apiService.saveModuleRecord('pocket_money_wallet_configs', nextCfg).catch(() => {});
+    };
+
+    const handleActivateOrUpdateWallet = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const normalizedPhone = formatPhoneNumber(setupPhone);
+        if (!/^254\d{9}$/.test(normalizedPhone)) {
+            showBanner('error', 'Enter a valid dedicated Kenyan phone number (e.g. 0712345678 or 254712345678).');
+            return;
+        }
+        if (!setupCustodianName.trim()) {
+            showBanner('error', 'Enter the authorized custodian name (e.g. School Bursar / Matron).');
+            return;
+        }
+        if (!setupTermsChecked) {
+            showBanner('error', 'The school must review and agree to the Pocket Money Custodial Wallet Terms & Conditions to activate.');
+            return;
+        }
+
+        setIsActivatingWallet(true);
+        try {
+            const nowIso = new Date().toISOString();
+            const nextCfg: PocketMoneyWalletConfig = {
+                id: walletConfig?.id || `pm_wcfg_${instId}`,
+                institutionId: instId,
+                institutionName: institution.name,
+                isActivated: true,
+                termsAccepted: true,
+                termsVersion: 'v1.0-NCBA-CUSTODIAL',
+                termsAcceptedBy: currentUser?.name || setupCustodianName.trim(),
+                termsAcceptedAt: nowIso,
+                dedicatedWithdrawalPhone: normalizedPhone,
+                dedicatedCustodianName: setupCustodianName.trim(),
+                dedicatedCustodianRole: setupCustodianRole.trim() || 'School Bursar / Matron',
+                ncbaFloatBalance: walletConfig?.ncbaFloatBalance ?? 0,
+                totalCollectedViaNcba: walletConfig?.totalCollectedViaNcba ?? 0,
+                totalWithdrawnToDedicatedNumber: walletConfig?.totalWithdrawnToDedicatedNumber ?? 0,
+                updatedAt: nowIso
+            };
+            await persistWalletConfig(nextCfg);
+            setIsEditingDedicatedNumber(false);
+            onLogAction?.(`Activated Pocket Money NCBA Custodial Wallet (Dedicated Withdrawal Number: ${normalizedPhone})`);
+            showBanner('success', `Pocket Money NCBA Wallet activated! Withdrawals are locked strictly to ${normalizedPhone} (${nextCfg.dedicatedCustodianName}).`);
+        } finally {
+            setIsActivatingWallet(false);
+        }
+    };
+
+    const handleNcbaDepositSuccess = async (receiptRef?: string) => {
+        if (!ncbaDepositContext) return;
+        const { account, amount, purpose } = ncbaDepositContext;
+        const currentBal = Number(account.balance) || 0;
+        const nextBal = currentBal + amount;
+        const nowIso = new Date().toISOString();
+
+        const nextAccount: PocketMoneyAccount = {
+            ...account,
+            balance: nextBal,
+            updatedAt: nowIso
+        };
+        const tx: PocketMoneyTransaction = {
+            id: `pm_tx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            institutionId: instId,
+            accountId: nextAccount.id,
+            studentId: account.studentId,
+            studentName: account.studentName,
+            admissionNumber: account.admissionNumber,
+            className: account.className,
+            type: 'deposit',
+            amount,
+            balanceBefore: currentBal,
+            balanceAfter: nextBal,
+            paymentMode: 'ncba',
+            referenceNumber: receiptRef || `NCBA-${Date.now().toString().slice(-6)}`,
+            purpose: purpose || 'Super Admin NCBA Pocket Money Top-Up',
+            issuedBy: currentUser?.name || 'NCBA Collection',
+            createdAt: nowIso
+        };
+
+        const notified = await notifyParent(nextAccount, tx);
+        tx.parentNotified = notified;
+        await persistAccountAndTx(nextAccount, tx);
+
+        if (walletConfig) {
+            await persistWalletConfig({
+                ...walletConfig,
+                ncbaFloatBalance: (Number(walletConfig.ncbaFloatBalance) || 0) + amount,
+                totalCollectedViaNcba: (Number(walletConfig.totalCollectedViaNcba) || 0) + amount,
+                updatedAt: nowIso
+            });
+        }
+
+        setNcbaDepositContext(null);
+        setTxModal(null);
+        setTxAmount('');
+        setTxRef('');
+        setTxPurpose('');
+        showBanner('success', `NCBA Deposit of KES ${amount.toLocaleString()} confirmed for ${account.studentName} (Ref: ${tx.referenceNumber}). Credited to student & school NCBA float.`);
+    };
+
+    const handleRequestDedicatedWithdrawal = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!walletConfig?.isActivated || !walletConfig.termsAccepted) {
+            showBanner('error', 'Activate the School NCBA Pocket Money Wallet and accept the Terms first.');
+            return;
+        }
+        const amt = Number(floatWithdrawAmount);
+        const available = Number(walletConfig.ncbaFloatBalance) || 0;
+        if (Number.isNaN(amt) || amt <= 0) {
+            showBanner('error', 'Enter a valid withdrawal amount.');
+            return;
+        }
+        if (amt > available) {
+            showBanner('error', `Amount exceeds available NCBA wallet float (Available: KES ${available.toLocaleString()}).`);
+            return;
+        }
+
+        setIsSubmittingFloatWithdrawal(true);
+        try {
+            const nowIso = new Date().toISOString();
+            const request: PocketMoneySettlementRequest = {
+                id: `pm_settle_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                institutionId: instId,
+                institutionName: institution.name,
+                amount: amt,
+                destinationPhone: walletConfig.dedicatedWithdrawalPhone,
+                custodianName: walletConfig.dedicatedCustodianName,
+                purpose: floatWithdrawPurpose.trim() || 'Student Pocket Money Cash-Out Float',
+                requestedBy: currentUser?.name || walletConfig.dedicatedCustodianName,
+                status: 'pending_transfer',
+                referenceNumber: `PMW-${Date.now().toString().slice(-6)}`,
+                createdAt: nowIso
+            };
+
+            const nextSettlements = [request, ...settlements];
+            setSettlements(nextSettlements);
+            try { localStorage.setItem(`eduai_pocket_settlements_${instId}`, JSON.stringify(nextSettlements)); } catch (_) {}
+            await apiService.saveModuleRecord('pocket_money_settlements', request).catch(() => {});
+
+            await persistWalletConfig({
+                ...walletConfig,
+                ncbaFloatBalance: Math.max(0, available - amt),
+                totalWithdrawnToDedicatedNumber: (Number(walletConfig.totalWithdrawnToDedicatedNumber) || 0) + amt,
+                updatedAt: nowIso
+            });
+
+            setFloatWithdrawAmount('');
+            onLogAction?.(`Requested Pocket Money Wallet transfer of KES ${amt} to dedicated school number ${walletConfig.dedicatedWithdrawalPhone}`);
+            showBanner('success', `Transfer of KES ${amt.toLocaleString()} queued strictly to dedicated school number ${walletConfig.dedicatedWithdrawalPhone} (${walletConfig.dedicatedCustodianName}). Ref: ${request.referenceNumber}.`);
+        } finally {
+            setIsSubmittingFloatWithdrawal(false);
+        }
+    };
+
     const handleSubmitSingleTx = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!txModal) return;
         const amt = Number(txAmount);
         if (Number.isNaN(amt) || amt <= 0) {
             showBanner('error', 'Please enter a valid positive amount.');
+            return;
+        }
+
+        if (txModal.mode === 'deposit' && txPaymentMode === 'ncba') {
+            if (!walletConfig?.isActivated || !walletConfig.termsAccepted) {
+                showBanner('error', 'Please activate the School NCBA Pocket Money Wallet & accept the Terms first (under "School NCBA Wallet").');
+                setTxModal(null);
+                setSubTab('ncba_wallet');
+                return;
+            }
+            setNcbaDepositContext({
+                student: txModal.student,
+                account: txModal.account,
+                amount: amt,
+                purpose: txPurpose.trim() || 'Super Admin NCBA Pocket Money Top-Up'
+            });
             return;
         }
 
@@ -620,6 +894,7 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
             <div className="flex flex-wrap gap-2 bg-white dark:bg-slate-800 p-2 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 {[
                     { id: 'wallets', label: 'Student Wallets' },
+                    { id: 'ncba_wallet', label: walletConfig?.isActivated ? `School NCBA Wallet (KES ${(walletConfig.ncbaFloatBalance || 0).toLocaleString()})` : 'Activate NCBA Wallet' },
                     { id: 'bulk', label: 'Bulk Payout & Sign-Off' },
                     { id: 'ledger', label: `Trust Cashbook (${transactions.length})` },
                     { id: 'statement', label: 'Student Statement' }
@@ -784,6 +1059,266 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                 </div>
             )}
 
+            {/* TAB 1B: SCHOOL NCBA CUSTODIAL WALLET — ACTIVATION, TERMS & DEDICATED-NUMBER WITHDRAWALS */}
+            {subTab === 'ncba_wallet' && (
+                <div className="space-y-6">
+                    {(!walletConfig?.isActivated || isEditingDedicatedNumber) ? (
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm space-y-5">
+                            <div className="flex items-start justify-between gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+                                <div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                        <ShieldCheckIcon className="w-4 h-4" /> Super Admin NCBA Custodial Collection
+                                    </span>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white mt-1">
+                                        {walletConfig?.isActivated ? 'Update Dedicated School Withdrawal Number' : 'Activate School Pocket Money NCBA Wallet'}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                        Collect student pocket money via Super Admin NCBA and withdraw funds strictly to the single dedicated phone number provided by your school.
+                                    </p>
+                                </div>
+                                {walletConfig?.isActivated && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsEditingDedicatedNumber(false)}
+                                        className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                                    >
+                                        <XIcon className="w-5 h-5" />
+                                    </button>
+                                )}
+                            </div>
+
+                            <form onSubmit={handleActivateOrUpdateWallet} className="space-y-5">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
+                                            Dedicated School Withdrawal Number *
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            required
+                                            value={setupPhone}
+                                            onChange={e => setSetupPhone(e.target.value)}
+                                            placeholder="e.g. 0712345678 / 254712345678"
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-mono font-bold"
+                                        />
+                                        <span className="text-[10px] text-amber-600 font-semibold block mt-1">
+                                            Locked for payouts — funds can ONLY be transferred to this number.
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
+                                            Authorized Custodian Name *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={setupCustodianName}
+                                            onChange={e => setSetupCustodianName(e.target.value)}
+                                            placeholder="e.g. Jane Wanjiku (Bursar)"
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
+                                            Custodian Role / Title
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={setupCustodianRole}
+                                            onChange={e => setSetupCustodianRole(e.target.value)}
+                                            placeholder="School Bursar / Boarding Matron"
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Custodial Wallet Terms & Conditions */}
+                                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-2 text-xs text-slate-600 dark:text-slate-300">
+                                    <div className="font-black text-slate-900 dark:text-white uppercase text-[11px] tracking-wider">
+                                        EduAI Student Pocket Money Custodial Wallet — Terms &amp; Conditions (v1.0)
+                                    </div>
+                                    <ul className="list-disc pl-5 space-y-1 text-[11px] leading-relaxed">
+                                        <li><strong>Custodial Trust Funds:</strong> Pocket money collected through Super Admin NCBA is held strictly as student trust funds separate from tuition and school fee income.</li>
+                                        <li><strong>Single Dedicated Payout Destination:</strong> For security and audit compliance, withdrawals from the school&apos;s NCBA pocket money wallet can <strong>only</strong> be transferred to the single dedicated phone number registered above by the school.</li>
+                                        <li><strong>School Disbursement Responsibility:</strong> Upon receiving transferred float on the dedicated number, the school custodian is responsible for issuing cash/allowances to students and recording each student disbursement in the Pocket Money ledger.</li>
+                                        <li><strong>Audit &amp; Settlement:</strong> Every NCBA collection and transfer to the dedicated school number is permanently logged with reference numbers, timestamps, and custodian identity.</li>
+                                    </ul>
+                                    <label className="flex items-start gap-2.5 pt-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={setupTermsChecked}
+                                            onChange={e => setSetupTermsChecked(e.target.checked)}
+                                            className="w-4 h-4 mt-0.5 accent-indigo-600"
+                                        />
+                                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                                            On behalf of <strong>{institution.name}</strong>, I have read and agree to these Custodial Wallet Terms &amp; Conditions and confirm that <strong>{setupPhone || 'the number above'}</strong> is our official dedicated pocket money disbursement number.
+                                        </span>
+                                    </label>
+                                </div>
+
+                                <div className="flex justify-end gap-3">
+                                    <button
+                                        type="submit"
+                                        disabled={isActivatingWallet || !setupTermsChecked}
+                                        className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-lg disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                                    >
+                                        <ShieldCheckIcon className="w-4 h-4" />
+                                        {isActivatingWallet ? 'Activating...' : walletConfig?.isActivated ? 'Save & Re-confirm Terms' : 'Agree & Activate NCBA Wallet'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Activated NCBA Wallet Overview & Dedicated-Number Withdrawal */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-emerald-950 text-white rounded-3xl p-6 shadow-xl space-y-5">
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider">
+                                                ✓ Wallet Active • Terms Accepted
+                                            </span>
+                                            <h3 className="text-lg font-black mt-2">School NCBA Pocket Money Float</h3>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsEditingDedicatedNumber(true)}
+                                            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                                        >
+                                            Change Number
+                                        </button>
+                                    </div>
+
+                                    <div>
+                                        <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Available NCBA Float to Withdraw</span>
+                                        <div className="text-3xl font-black text-emerald-400 mt-1">
+                                            KES {(walletConfig.ncbaFloatBalance || 0).toLocaleString()}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/10 text-xs">
+                                        <div>
+                                            <span className="text-[10px] text-slate-400 uppercase block">Total Collected (NCBA)</span>
+                                            <span className="font-black text-white">KES {(walletConfig.totalCollectedViaNcba || 0).toLocaleString()}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] text-slate-400 uppercase block">Transferred to School</span>
+                                            <span className="font-black text-amber-300">KES {(walletConfig.totalWithdrawnToDedicatedNumber || 0).toLocaleString()}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3.5 rounded-2xl bg-white/10 border border-white/15 text-xs space-y-1">
+                                        <div className="text-[10px] uppercase tracking-wider text-emerald-300 font-black">Locked Dedicated Payout Number</div>
+                                        <div className="font-mono text-base font-black">{walletConfig.dedicatedWithdrawalPhone}</div>
+                                        <div className="text-[11px] text-slate-300">
+                                            Custodian: <strong>{walletConfig.dedicatedCustodianName}</strong> ({walletConfig.dedicatedCustodianRole})
+                                        </div>
+                                        <div className="text-[10px] text-slate-400">
+                                            Terms agreed by {walletConfig.termsAcceptedBy} on {walletConfig.termsAcceptedAt ? new Date(walletConfig.termsAcceptedAt).toLocaleDateString() : '-'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm space-y-4">
+                                    <div>
+                                        <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                            <CreditCardIcon className="w-5 h-5 text-emerald-600" />
+                                            Withdraw Funds to Dedicated School Number
+                                        </h3>
+                                        <p className="text-xs text-slate-500 mt-0.5">
+                                            Transfer collected NCBA pocket money float to your school&apos;s verified dedicated number so you can issue cash to students.
+                                        </p>
+                                    </div>
+
+                                    <form onSubmit={handleRequestDedicatedWithdrawal} className="space-y-4">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Destination Number (Locked)</label>
+                                            <input
+                                                type="text"
+                                                readOnly
+                                                value={`${walletConfig.dedicatedWithdrawalPhone} — ${walletConfig.dedicatedCustodianName}`}
+                                                className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 text-xs font-mono font-black text-emerald-800 dark:text-emerald-300 cursor-not-allowed"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                                                Amount to Transfer (KES) * — Max KES {(walletConfig.ncbaFloatBalance || 0).toLocaleString()}
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={walletConfig.ncbaFloatBalance || 0}
+                                                required
+                                                value={floatWithdrawAmount}
+                                                onChange={e => setFloatWithdrawAmount(e.target.value)}
+                                                placeholder="e.g. 5000"
+                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-base font-black"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Disbursement Batch Note</label>
+                                            <input
+                                                type="text"
+                                                value={floatWithdrawPurpose}
+                                                onChange={e => setFloatWithdrawPurpose(e.target.value)}
+                                                placeholder="e.g. Weekend student pocket money payout"
+                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                            />
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            disabled={isSubmittingFloatWithdrawal || (walletConfig.ncbaFloatBalance || 0) <= 0}
+                                            className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider shadow-lg disabled:opacity-50 cursor-pointer"
+                                        >
+                                            {isSubmittingFloatWithdrawal ? 'Submitting Transfer...' : `Transfer to Dedicated Number (${walletConfig.dedicatedWithdrawalPhone})`}
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            {/* Dedicated-Number Withdrawal History */}
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm space-y-3">
+                                <h3 className="text-sm font-black text-slate-900 dark:text-white">Dedicated-Number Withdrawal Transfers ({settlements.length})</h3>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse text-xs">
+                                        <thead>
+                                            <tr className="bg-slate-50 dark:bg-slate-900/60 text-slate-400 font-black uppercase text-[10px] border-b border-slate-200 dark:border-slate-700">
+                                                <th className="p-3">Date</th>
+                                                <th className="p-3">Ref #</th>
+                                                <th className="p-3">Dedicated Destination</th>
+                                                <th className="p-3">Purpose</th>
+                                                <th className="p-3">Amount (KES)</th>
+                                                <th className="p-3">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                            {settlements.length === 0 ? (
+                                                <tr><td colSpan={6} className="p-8 text-center text-slate-400">No wallet withdrawals to the dedicated number yet.</td></tr>
+                                            ) : settlements.map(s => (
+                                                <tr key={s.id}>
+                                                    <td className="p-3 font-mono text-slate-500">{new Date(s.createdAt).toLocaleString()}</td>
+                                                    <td className="p-3 font-mono font-bold">{s.referenceNumber || '-'}</td>
+                                                    <td className="p-3 font-mono font-bold text-emerald-700 dark:text-emerald-400">{s.destinationPhone} ({s.custodianName})</td>
+                                                    <td className="p-3">{s.purpose}</td>
+                                                    <td className="p-3 font-black">KES {s.amount.toLocaleString()}</td>
+                                                    <td className="p-3">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                                            s.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
+                                                        }`}>
+                                                            {s.status.replace('_', ' ')}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
+
             {/* TAB 2: BULK DISBURSEMENT & SIGN-OFF SHEET */}
             {subTab === 'bulk' && (
                 <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm space-y-5">
@@ -941,6 +1476,7 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                                 className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold"
                             >
                                 <option value="all">All Modes</option>
+                                <option value="ncba">Super Admin NCBA</option>
                                 <option value="cash">Cash</option>
                                 <option value="mpesa">M-Pesa</option>
                                 <option value="bank">Bank</option>
@@ -1128,8 +1664,11 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                                         className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
                                     >
                                         <option value="cash">Cash</option>
-                                        <option value="mpesa">M-Pesa</option>
-                                        <option value="bank">Bank</option>
+                                        {txModal.mode === 'deposit' && (
+                                            <option value="ncba">Super Admin NCBA (STK Push)</option>
+                                        )}
+                                        <option value="mpesa">M-Pesa (Manual Ref)</option>
+                                        <option value="bank">Bank (Manual Ref)</option>
                                     </select>
                                 </div>
                                 <div>
@@ -1164,12 +1703,33 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                                         txModal.mode === 'deposit' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'
                                     }`}
                                 >
-                                    {isProcessingTx ? 'Processing...' : txModal.mode === 'deposit' ? 'Record Deposit' : 'Issue Withdrawal'}
+                                    {isProcessingTx ? 'Processing...' : txModal.mode === 'deposit' ? (txPaymentMode === 'ncba' ? 'Collect via Super Admin NCBA' : 'Record Deposit') : 'Issue Withdrawal'}
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* SUPER ADMIN NCBA LIVE POCKET MONEY COLLECTION MODAL */}
+            {ncbaDepositContext && (
+                <PayNowModal
+                    isOpen={Boolean(ncbaDepositContext)}
+                    onClose={() => setNcbaDepositContext(null)}
+                    institutionId={instId}
+                    institutionName={`${institution.name} — Pocket Money`}
+                    forceAmount={ncbaDepositContext.amount}
+                    forcedItems={[{
+                        description: `Pocket Money Deposit — ${ncbaDepositContext.account.studentName} (${ncbaDepositContext.account.admissionNumber})`,
+                        quantity: 1,
+                        unitPrice: ncbaDepositContext.amount,
+                        amount: ncbaDepositContext.amount
+                    }]}
+                    mpesaConfig={companyDetails?.mpesaConfig!}
+                    ncbaConfig={companyDetails?.ncbaConfig}
+                    onlyProvider="ncba"
+                    onSuccess={(receiptRef) => handleNcbaDepositSuccess(receiptRef)}
+                />
             )}
 
             {/* LIMITS & FREEZE MODAL */}

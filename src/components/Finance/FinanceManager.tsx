@@ -16091,6 +16091,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     <StudentPocketMoneyManager
                         institution={props.institution}
                         currentUser={props.currentUser}
+                        companyDetails={props.companyDetails}
                         students={mergedStudents || props.students || []}
                         smsConfig={props.institution?.smsConfig}
                         onSendSms={props.onSendSms}

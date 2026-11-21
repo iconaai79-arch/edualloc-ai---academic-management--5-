@@ -525,6 +525,7 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = (props) => {
                     <StudentPocketMoneyManager
                         institution={currentInstitution}
                         currentUser={currentUser}
+                        companyDetails={companyDetails}
                         students={users}
                         smsConfig={smsConfig}
                         onSendSms={onSendSms}
