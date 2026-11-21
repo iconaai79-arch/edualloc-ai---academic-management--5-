@@ -24,6 +24,8 @@ import type {
 const UserManager = lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 const TimetableGenerator = lazy(() => import('./TimetableGenerator').then(m => ({ default: m.TimetableGenerator })));
 const AscTimetableCardsDashboard = lazy(() => import('./AscTimetableCardsDashboard').then(m => ({ default: m.AscTimetableCardsDashboard })));
+const TimetableClassroomsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableClassroomsManager })));
+const TimetableRelationsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableRelationsManager })));
 const SettingsManager = lazy(() => import('./SettingsManager').then(m => ({ default: m.SettingsManager })));
 const SubjectManager = lazy(() => import('./SubjectManager').then(m => ({ default: m.SubjectManager })));
 const CourseManager = lazy(() => import('./CourseManager').then(m => ({ default: m.CourseManager })));
@@ -514,7 +516,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     });
     const [projectorElectionId, setProjectorElectionId] = useState<string | null>(null);
 
-    const [timetableSubTab, setTimetableSubTab] = useState<'cards' | 'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('cards');
+    const [timetableSubTab, setTimetableSubTab] = useState<'cards' | 'subjects' | 'classes' | 'classrooms' | 'teachers' | 'relations' | 'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'calendar' | 'students'>('cards');
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
     const [enrollmentSubTab, setEnrollmentSubTab] = useState<'students' | 'teachers' | 'support_staff' | 'broadcaster' | 'calendar' | 'guests' | 'portal_hub'>('students');
     const [timetablePreselectedViewMode, setTimetablePreselectedViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff' | 'subjects' | 'test' | null>(null);
@@ -3298,23 +3300,13 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             </Suspense>
                         ) : (
                             <div className="space-y-6">
-                            <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar max-w-full">
-                                <button onClick={() => setTimetableSubTab('cards')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'cards' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Subject Cards</button>
-                                <button onClick={() => setTimetableSubTab('wizard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'wizard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Wizard</button>
-                                <button onClick={() => setTimetableSubTab('scheduler')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'scheduler' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Lesson Scheduler</button>
-                                <button onClick={() => setTimetableSubTab('teachers')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'teachers' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Teachers</button>
-                                <button onClick={() => setTimetableSubTab('students')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'students' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Students</button>
-                                <button onClick={() => setTimetableSubTab('insights')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'insights' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Exam Insights</button>
-                                <button onClick={() => setTimetableSubTab('intelligence')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'intelligence' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Intelligence Hub</button>
-                                <button onClick={() => setTimetableSubTab('discipline')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'discipline' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Student Discipline</button>
-                                <button onClick={() => setTimetableSubTab('registry')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'registry' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>
-                                    Registry
-                                    {stats.totalActionable > 0 && (
-                                        <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse ml-1">
-                                            {stats.totalActionable}
-                                        </span>
-                                    )}
-                                </button>
+                            <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar max-w-full gap-1">
+                                <button onClick={() => setTimetableSubTab('cards')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'cards' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Subject Cards</button>
+                                <button onClick={() => setTimetableSubTab('subjects')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'subjects' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Subjects</button>
+                                <button onClick={() => setTimetableSubTab('classes')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'classes' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Classes</button>
+                                <button onClick={() => setTimetableSubTab('classrooms')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'classrooms' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Classrooms</button>
+                                <button onClick={() => setTimetableSubTab('teachers')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'teachers' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Teachers</button>
+                                <button onClick={() => setTimetableSubTab('relations')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'relations' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Relations</button>
                             </div>
 
                             <div className="animate-fade-in-up">
@@ -3334,6 +3326,69 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                             onMoveLesson={props.onMoveTimetableEntry}
                                             onOpenWizard={() => setTimetableSubTab('wizard')}
                                             onOpenFullScheduler={() => setTimetableSubTab('scheduler')}
+                                        />
+                                    </Suspense>
+                                ) : timetableSubTab === 'subjects' ? (
+                                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                                        <SubjectManager
+                                            {...props}
+                                            subjects={props.subjects || []}
+                                            courses={props.courses || []}
+                                            departments={props.departments || []}
+                                            buildings={props.buildings || []}
+                                            timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                            onAddSubject={props.onAddSubject}
+                                            onUpdateSubject={props.onUpdateSubject}
+                                            onDeleteSubject={props.onDeleteSubject}
+                                            onEditSubject={props.onEditSubject}
+                                            onSaveTimetableSettings={props.onSaveTimetableSettings!}
+                                            onUpdateCourse={props.onUpdateCourse}
+                                            onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate as any}
+                                            currentUser={props.currentUser!}
+                                            rooms={props.rooms || []}
+                                        />
+                                    </Suspense>
+                                ) : timetableSubTab === 'classes' ? (
+                                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                                        <CourseManager
+                                            {...props as any}
+                                            courses={courses}
+                                            buildings={props.buildings || []}
+                                            rooms={rooms}
+                                            subjects={subjects}
+                                            onAddCourse={props.onAddCourse}
+                                            onUpdateCourse={props.onUpdateCourse}
+                                            onDeleteCourse={props.onDeleteCourse}
+                                            onImportCourses={props.onImportCourses}
+                                            onAddAcademicLevel={props.onAddAcademicLevel}
+                                            onUpdateAcademicLevel={props.onUpdateAcademicLevel}
+                                            onDeleteAcademicLevel={props.onDeleteAcademicLevel}
+                                            academicLevels={props.academicLevels || []}
+                                            onAssociateSubjectToCourseLevel={props.onAssociateSubjectToCourseLevel}
+                                            onDisassociateSubjectFromCourseLevel={props.onDisassociateSubjectFromCourseLevel}
+                                            currentInstitution={currentInstitution}
+                                        />
+                                    </Suspense>
+                                ) : timetableSubTab === 'classrooms' ? (
+                                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                                        <TimetableClassroomsManager
+                                            rooms={props.rooms || []}
+                                            buildings={props.buildings || []}
+                                            courses={props.courses || []}
+                                            onAddRoom={props.onAddRoom}
+                                            onUpdateRoom={props.onUpdateRoom}
+                                            onDeleteRoom={props.onDeleteRoom}
+                                            institutionId={props.currentInstitution?.id || ''}
+                                        />
+                                    </Suspense>
+                                ) : timetableSubTab === 'relations' ? (
+                                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                                        <TimetableRelationsManager
+                                            institutionId={props.currentInstitution?.id || ''}
+                                            subjects={props.subjects || []}
+                                            courses={props.courses || []}
+                                            lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
+                                            onOpenWizard={() => setTimetableSubTab('wizard')}
                                         />
                                     </Suspense>
                                 ) : timetableSubTab === 'wizard' ? (
