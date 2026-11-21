@@ -33,6 +33,7 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { PrinterIcon } from './icons/PrinterIcon';
 import { TagIcon } from './icons/TagIcon';
 import { TrendingUpIcon } from './icons/TrendingUpIcon';
+import { TrashIcon } from './icons/TrashIcon';
 import { CorporateInvoicingManager } from './Invoicing/CorporateInvoicingManager';
 
 import { generateAlphanumericCode } from '../utils/stringUtils';
@@ -136,6 +137,10 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
     const [editQuarterlyPrice, setEditQuarterlyPrice] = useState(0);
     const [editYearlyPrice, setEditYearlyPrice] = useState(0);
     const [isUpdatingPricing, setIsUpdatingPricing] = useState(false);
+
+    // Delete Tenant State
+    const [tenantPendingDelete, setTenantPendingDelete] = useState<Institution | null>(null);
+    const [isDeletingTenant, setIsDeletingTenant] = useState(false);
 
     useEffect(() => {
         const loadData = async () => {
@@ -325,6 +330,41 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
     const openPerspectiveSelection = (tenant: Institution) => {
         setSelectedTenantForPerspective(tenant);
         setIsPerspectiveModalOpen(true);
+    };
+
+    const handleConfirmDeleteTenant = async () => {
+        if (!tenantPendingDelete) return;
+        if (!isClientOfThisReseller(tenantPendingDelete)) {
+            alert('You can only delete client tenants belonging to your reseller portfolio.');
+            setTenantPendingDelete(null);
+            return;
+        }
+        setIsDeletingTenant(true);
+        const targetId = tenantPendingDelete.id;
+        const targetName = tenantPendingDelete.name;
+        try {
+            await apiService.purgeTenant(targetId);
+            setTenants(prev => prev.filter(t => t.id !== targetId));
+            setAllUsers(prev => prev.filter(u => u.institutionId !== targetId && (u as any).institution_id !== targetId));
+            try {
+                for (const key of ['institutions', 'eduai_institutions']) {
+                    const raw = localStorage.getItem(key);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed)) {
+                            localStorage.setItem(key, JSON.stringify(parsed.filter((i: any) => i && i.id !== targetId)));
+                        }
+                    }
+                }
+            } catch (_) {}
+            setTenantPendingDelete(null);
+            alert(`Tenant "${targetName}" and its associated records have been permanently deleted.`);
+        } catch (error: any) {
+            console.error('Delete Tenant Failed:', error);
+            alert(`Failed to delete tenant: ${error?.message || 'Unknown error'}`);
+        } finally {
+            setIsDeletingTenant(false);
+        }
     };
 
     const perspectiveOptions = [
@@ -681,6 +721,14 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                                                         <LockClosedIcon className="w-4 h-4" />
                                                         Access
                                                     </button>
+                                                    <button
+                                                        onClick={() => setTenantPendingDelete(tenant)}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white rounded-lg text-sm font-medium transition-colors shadow-sm cursor-pointer"
+                                                        title="Permanently delete this tenant and its data"
+                                                    >
+                                                        <TrashIcon className="w-4 h-4" />
+                                                        Delete
+                                                    </button>
                                                 </td>
                                             </tr>
                                         );
@@ -817,6 +865,56 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                     }}
                 />
             ) : null}
+
+            {/* Delete Tenant Confirmation Modal */}
+            {tenantPendingDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-md overflow-hidden animate-scale-in">
+                        <div className="p-6 border-b border-rose-100 dark:border-rose-900/50 bg-rose-50/70 dark:bg-rose-950/30 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-xl bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-400">
+                                    <TrashIcon className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black text-slate-900 dark:text-white">Delete Client Tenant</h3>
+                                    <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold">This action cannot be undone</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => !isDeletingTenant && setTenantPendingDelete(null)}
+                                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                                Are you sure you want to permanently delete <strong className="text-slate-900 dark:text-white">{tenantPendingDelete.name}</strong> ({tenantPendingDelete.email})?
+                                All users, records, invoices, and settings belonging to this tenant will be permanently removed.
+                            </p>
+                            <div className="flex items-center justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    disabled={isDeletingTenant}
+                                    onClick={() => setTenantPendingDelete(null)}
+                                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={isDeletingTenant}
+                                    onClick={handleConfirmDeleteTenant}
+                                    className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black uppercase tracking-wider shadow-md disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                                >
+                                    <TrashIcon className="w-4 h-4" />
+                                    {isDeletingTenant ? 'Deleting...' : 'Permanently Delete'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Add Tenant Modal */}
             {
