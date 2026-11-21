@@ -1285,9 +1285,14 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 return allowed.includes(tab.id);
             }
 
-            // In Remedial Manager, hide extraneous global tabs (Invoicing & Billing, WiFi & Devices, etc.)
-            if (activeScope === 'remedials' || activeTab === 'remedials') {
+            // In Remedial Manager or Staff SACCO, hide extraneous global tabs (Invoicing & Billing, WiFi & Devices, etc.)
+            if (activeScope === 'remedials' || activeTab === 'remedials' || activeScope === 'staff_sacco') {
                 return false;
+            }
+
+            // In Smart Timetable, show ONLY the Smart Timetable tab (hide WiFi & Devices, Invoicing & Billing, etc.)
+            if (activeScope === 'smart_timetable') {
+                return tab.id === 'timetable';
             }
 
             if (tab.id === 'network_devices') {
