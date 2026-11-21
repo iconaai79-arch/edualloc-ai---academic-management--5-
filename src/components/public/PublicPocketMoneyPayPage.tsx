@@ -31,6 +31,7 @@ export const PublicPocketMoneyPayPage: React.FC<PublicPocketMoneyPayPageProps> =
     const [loading, setLoading] = useState(true);
     const [phoneInput, setPhoneInput] = useState('');
     const [payerName, setPayerName] = useState('');
+    const [desiredAmountInput, setDesiredAmountInput] = useState<string>('');
     const [payState, setPayState] = useState<'idle' | 'initiating' | 'polling' | 'paid' | 'failed'>('idle');
     const [statusMessage, setStatusMessage] = useState('');
     const [receiptRef, setReceiptRef] = useState('');
@@ -83,6 +84,7 @@ export const PublicPocketMoneyPayPage: React.FC<PublicPocketMoneyPayPageProps> =
                     setRequest(found);
                     setPhoneInput(found.parentPhone || '');
                     setPayerName(found.parentName || 'Parent / Guardian');
+                    setDesiredAmountInput(String(found.netAmount || ''));
                     if (found.status === 'paid') {
                         setPayState('paid');
                         setReceiptRef(found.receiptReference || '');
@@ -95,13 +97,23 @@ export const PublicPocketMoneyPayPage: React.FC<PublicPocketMoneyPayPageProps> =
         loadRequest();
     }, [shortCode]);
 
-    const finalizePaidRequest = async (req: PocketMoneyPaymentRequest, confirmedRef: string) => {
+    const isFlexibleAmount = Boolean(
+        request && (request.allowCustomAmount || request.category === 'Transport Fare' || request.category === 'Pocket Money')
+    );
+
+    const effectiveNetAmount = isFlexibleAmount
+        ? Math.max(0, Number(desiredAmountInput) || 0)
+        : Math.max(0, Number(request?.netAmount) || 0);
+
+    const finalizePaidRequest = async (req: PocketMoneyPaymentRequest, confirmedRef: string, actualNetAmount: number) => {
         const nowIso = new Date().toISOString();
-        const breakdown = calculatePocketMoneyCharges(req.netAmount, feeConfig);
+        const breakdown = calculatePocketMoneyCharges(actualNetAmount, feeConfig);
 
         // 1. Mark request paid
         const paidReq: PocketMoneyPaymentRequest = {
             ...req,
+            netAmount: actualNetAmount,
+            totalPayableByParent: breakdown.totalPayableByParent,
             status: 'paid',
             paidAt: nowIso,
             receiptReference: confirmedRef
@@ -113,7 +125,7 @@ export const PublicPocketMoneyPayPage: React.FC<PublicPocketMoneyPayPageProps> =
         const accounts = await apiService.fetchModuleRecords<PocketMoneyAccount>('pocket_money_accounts', req.institutionId).catch(() => []);
         const existing = Array.isArray(accounts) ? accounts.find(a => a.studentId === req.studentId) : null;
         const currentBal = Number(existing?.balance) || 0;
-        const nextBal = currentBal + req.netAmount;
+        const nextBal = currentBal + actualNetAmount;
 
         const nextAccount: PocketMoneyAccount = {
             id: existing?.id || `pm_acc_${req.studentId}`,
@@ -140,7 +152,7 @@ export const PublicPocketMoneyPayPage: React.FC<PublicPocketMoneyPayPageProps> =
             admissionNumber: req.admissionNumber,
             className: req.className,
             type: 'deposit',
-            amount: req.netAmount,
+            amount: actualNetAmount,
             balanceBefore: currentBal,
             balanceAfter: nextBal,
             paymentMode: 'ncba',
@@ -160,8 +172,8 @@ export const PublicPocketMoneyPayPage: React.FC<PublicPocketMoneyPayPageProps> =
             const cfg = cfgs[0];
             await apiService.saveModuleRecord('pocket_money_wallet_configs', {
                 ...cfg,
-                ncbaFloatBalance: (Number(cfg.ncbaFloatBalance) || 0) + req.netAmount,
-                totalCollectedViaNcba: (Number(cfg.totalCollectedViaNcba) || 0) + req.netAmount,
+                ncbaFloatBalance: (Number(cfg.ncbaFloatBalance) || 0) + actualNetAmount,
+                totalCollectedViaNcba: (Number(cfg.totalCollectedViaNcba) || 0) + actualNetAmount,
                 updatedAt: nowIso
             }).catch(() => {});
         }
@@ -199,7 +211,23 @@ export const PublicPocketMoneyPayPage: React.FC<PublicPocketMoneyPayPageProps> =
             return;
         }
 
-        const breakdown = calculatePocketMoneyCharges(request.netAmount, feeConfig);
+        if (effectiveNetAmount <= 0) {
+            setStatusMessage('Please enter a valid desired amount (KES) before proceeding.');
+            setPayState('failed');
+            return;
+        }
+        if (feeConfig.minDepositAmount && effectiveNetAmount < feeConfig.minDepositAmount) {
+            setStatusMessage(`Minimum amount is KES ${feeConfig.minDepositAmount.toLocaleString()}.`);
+            setPayState('failed');
+            return;
+        }
+        if (feeConfig.maxDepositAmount && effectiveNetAmount > feeConfig.maxDepositAmount) {
+            setStatusMessage(`Maximum amount is KES ${feeConfig.maxDepositAmount.toLocaleString()}.`);
+            setPayState('failed');
+            return;
+        }
+
+        const breakdown = calculatePocketMoneyCharges(effectiveNetAmount, feeConfig);
         const totalToPay = breakdown.totalPayableByParent;
 
         setPayState('initiating');
@@ -248,7 +276,7 @@ export const PublicPocketMoneyPayPage: React.FC<PublicPocketMoneyPayPageProps> =
                         clearInterval(interval);
                         const ref = res?.mpesaReceiptNumber || res?.receiptNumber || res?.transactionId || checkoutId;
                         setReceiptRef(ref);
-                        await finalizePaidRequest(request, ref);
+                        await finalizePaidRequest(request, ref, effectiveNetAmount);
                         setPayState('paid');
                         setStatusMessage('Payment confirmed and credited immediately!');
                     } else if (status === 'failed' || status === 'error' || status === 'rejected' || attempts >= maxAttempts) {
@@ -291,7 +319,7 @@ export const PublicPocketMoneyPayPage: React.FC<PublicPocketMoneyPayPageProps> =
         );
     }
 
-    const breakdown = calculatePocketMoneyCharges(request.netAmount, feeConfig);
+    const breakdown = calculatePocketMoneyCharges(effectiveNetAmount, feeConfig);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-emerald-950 flex items-center justify-center p-4">
@@ -322,6 +350,27 @@ export const PublicPocketMoneyPayPage: React.FC<PublicPocketMoneyPayPageProps> =
                         </div>
                         <Wallet className="w-8 h-8 text-emerald-600 shrink-0" />
                     </div>
+
+                    {/* Editable Desired Amount for Transport Fare / Flexible Requests */}
+                    {isFlexibleAmount && payState !== 'paid' && (
+                        <div className="p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 space-y-2">
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                                Enter Desired {request.category} Amount (KES) *
+                            </label>
+                            <input
+                                type="number"
+                                min={feeConfig.minDepositAmount || 1}
+                                max={feeConfig.maxDepositAmount || 50000}
+                                value={desiredAmountInput}
+                                onChange={e => setDesiredAmountInput(e.target.value)}
+                                placeholder="e.g. 500"
+                                className="w-full px-4 py-2.5 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900 text-lg font-black text-slate-900 dark:text-white"
+                            />
+                            <p className="text-[10px] text-slate-500">
+                                Suggested: KES {request.netAmount.toLocaleString()} — adjust to your desired amount before tapping Pay Now.
+                            </p>
+                        </div>
+                    )}
 
                     {/* Itemized Breakdown */}
                     <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-2 text-xs">

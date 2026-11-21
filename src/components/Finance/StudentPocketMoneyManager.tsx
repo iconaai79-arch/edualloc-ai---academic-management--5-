@@ -74,9 +74,10 @@ export interface PocketMoneyPaymentRequest {
     className: string;
     parentName?: string;
     parentPhone?: string;
-    category: 'Pocket Money' | 'Academic Trip' | 'Sports / Games Tour' | 'Uniform / Stationery' | 'Remedial / Tuition' | 'Other';
+    category: 'Pocket Money' | 'Transport Fare' | 'Academic Trip' | 'Sports / Games Tour' | 'Uniform / Stationery' | 'Remedial / Tuition' | 'Other';
     title: string;
     netAmount: number;
+    allowCustomAmount?: boolean;
     totalPayableByParent: number;
     status: 'pending' | 'paid';
     smsSent?: boolean;
@@ -168,6 +169,7 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
     const [reqCategory, setReqCategory] = useState<PocketMoneyPaymentRequest['category']>('Pocket Money');
     const [reqTitle, setReqTitle] = useState('Termly Pocket Money Top-Up');
     const [reqAmount, setReqAmount] = useState<number>(1000);
+    const [reqAllowCustomAmount, setReqAllowCustomAmount] = useState<boolean>(true);
     const [reqClassFilter, setReqClassFilter] = useState<string>('All');
     const [selectedReqStudentIds, setSelectedReqStudentIds] = useState<Record<string, boolean>>({});
     const [isSendingRequests, setIsSendingRequests] = useState(false);
@@ -653,7 +655,10 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                 const shortCode = generateShortPayCode();
                 const shortUrl = `${origin}/p/${shortCode}`;
                 const cleanTitle = reqTitle.trim() || reqCategory;
-                const smsMsg = `${institution.name}: Dear Parent, please pay KES ${amt.toLocaleString()} for ${account.studentName}'s ${cleanTitle} (Total incl. charges: KES ${breakdown.totalPayableByParent.toLocaleString()}). Click to Pay Now: ${shortUrl}`;
+                const isFlexible = reqAllowCustomAmount || reqCategory === 'Transport Fare';
+                const smsMsg = isFlexible
+                    ? `${institution.name}: Dear Parent, please pay ${cleanTitle} for ${account.studentName} (Suggested: KES ${amt.toLocaleString()} — you may enter your desired amount). Click to Pay Now: ${shortUrl}`
+                    : `${institution.name}: Dear Parent, please pay KES ${amt.toLocaleString()} for ${account.studentName}'s ${cleanTitle} (Total incl. charges: KES ${breakdown.totalPayableByParent.toLocaleString()}). Click to Pay Now: ${shortUrl}`;
                 let smsSent = false;
                 if (account.parentPhone) {
                     const normalizedPhone = formatPhoneNumber(account.parentPhone);
@@ -677,6 +682,7 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                     category: reqCategory,
                     title: cleanTitle,
                     netAmount: amt,
+                    allowCustomAmount: isFlexible,
                     totalPayableByParent: breakdown.totalPayableByParent,
                     status: 'pending',
                     smsSent,
@@ -1479,20 +1485,42 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                                     onChange={e => {
                                         const cat = e.target.value as PocketMoneyPaymentRequest['category'];
                                         setReqCategory(cat);
-                                        if (cat === 'Academic Trip') setReqTitle('Academic Trip / Excursion Fee');
-                                        else if (cat === 'Pocket Money') setReqTitle('Student Pocket Money Top-Up');
-                                        else if (cat === 'Sports / Games Tour') setReqTitle('Sports & Games Tour Allowance');
-                                        else if (cat === 'Uniform / Stationery') setReqTitle('Uniform & Stationery Contribution');
+                                        if (cat === 'Transport Fare') {
+                                            setReqTitle('Student Transport Fare');
+                                            setReqAllowCustomAmount(true);
+                                        } else if (cat === 'Academic Trip') {
+                                            setReqTitle('Academic Trip / Excursion Fee');
+                                            setReqAllowCustomAmount(false);
+                                        } else if (cat === 'Pocket Money') {
+                                            setReqTitle('Student Pocket Money Top-Up');
+                                            setReqAllowCustomAmount(true);
+                                        } else if (cat === 'Sports / Games Tour') {
+                                            setReqTitle('Sports & Games Tour Allowance');
+                                            setReqAllowCustomAmount(false);
+                                        } else if (cat === 'Uniform / Stationery') {
+                                            setReqTitle('Uniform & Stationery Contribution');
+                                            setReqAllowCustomAmount(false);
+                                        }
                                     }}
                                     className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
                                 >
                                     <option value="Pocket Money">Pocket Money</option>
+                                    <option value="Transport Fare">Transport Fare (Parent Enters Amount)</option>
                                     <option value="Academic Trip">Academic Trip / Excursion</option>
                                     <option value="Sports / Games Tour">Sports / Games Tour</option>
                                     <option value="Uniform / Stationery">Uniform / Stationery</option>
                                     <option value="Remedial / Tuition">Remedial / Tuition</option>
                                     <option value="Other">Other Custom Request</option>
                                 </select>
+                                <label className="flex items-center gap-1.5 mt-1.5 text-[10px] font-bold text-slate-500 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={reqAllowCustomAmount || reqCategory === 'Transport Fare'}
+                                        onChange={e => setReqAllowCustomAmount(e.target.checked)}
+                                        className="w-3.5 h-3.5 accent-emerald-600"
+                                    />
+                                    Allow parent to enter desired amount
+                                </label>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Request Title / Purpose *</label>
