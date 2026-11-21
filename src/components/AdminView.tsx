@@ -23,6 +23,7 @@ import type {
 } from '../types';
 const UserManager = lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 const TimetableGenerator = lazy(() => import('./TimetableGenerator').then(m => ({ default: m.TimetableGenerator })));
+const AscTimetableCardsDashboard = lazy(() => import('./AscTimetableCardsDashboard').then(m => ({ default: m.AscTimetableCardsDashboard })));
 const SettingsManager = lazy(() => import('./SettingsManager').then(m => ({ default: m.SettingsManager })));
 const SubjectManager = lazy(() => import('./SubjectManager').then(m => ({ default: m.SubjectManager })));
 const CourseManager = lazy(() => import('./CourseManager').then(m => ({ default: m.CourseManager })));
@@ -513,7 +514,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     });
     const [projectorElectionId, setProjectorElectionId] = useState<string | null>(null);
 
-    const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('wizard');
+    const [timetableSubTab, setTimetableSubTab] = useState<'cards' | 'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('cards');
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
     const [enrollmentSubTab, setEnrollmentSubTab] = useState<'students' | 'teachers' | 'support_staff' | 'broadcaster' | 'calendar' | 'guests' | 'portal_hub'>('students');
     const [timetablePreselectedViewMode, setTimetablePreselectedViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff' | 'subjects' | 'test' | null>(null);
@@ -1770,7 +1771,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                             }
                                             setActiveScope('smart_timetable');
                                             setActiveTab('timetable');
-                                            setTimetableSubTab('wizard');
+                                            setTimetableSubTab('cards');
                                         }}
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-cyan-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
                                     >
@@ -3298,6 +3299,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         ) : (
                             <div className="space-y-6">
                             <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar max-w-full">
+                                <button onClick={() => setTimetableSubTab('cards')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'cards' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Subject Cards</button>
                                 <button onClick={() => setTimetableSubTab('wizard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'wizard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Wizard</button>
                                 <button onClick={() => setTimetableSubTab('scheduler')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'scheduler' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Lesson Scheduler</button>
                                 <button onClick={() => setTimetableSubTab('teachers')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'teachers' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Teachers</button>
@@ -3316,7 +3318,25 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             </div>
 
                             <div className="animate-fade-in-up">
-                                {timetableSubTab === 'wizard' ? (
+                                {timetableSubTab === 'cards' ? (
+                                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                                        <AscTimetableCardsDashboard
+                                            entries={props.generatedTimetable || []}
+                                            courses={props.courses || []}
+                                            subjects={props.subjects || []}
+                                            lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
+                                            rooms={props.rooms || []}
+                                            timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                            institutionName={props.currentInstitution?.name}
+                                            getSubjectById={props.getSubjectById || ((id: string) => props.subjects?.find(s => s && s.id === id))}
+                                            getLecturerById={props.getLecturerById || ((id: string) => props.users?.find(u => u && u.id === id))}
+                                            getRoomById={props.getRoomById || ((id: string) => props.rooms?.find(r => r && r.id === id))}
+                                            onMoveLesson={props.onMoveTimetableEntry}
+                                            onOpenWizard={() => setTimetableSubTab('wizard')}
+                                            onOpenFullScheduler={() => setTimetableSubTab('scheduler')}
+                                        />
+                                    </Suspense>
+                                ) : timetableSubTab === 'wizard' ? (
                                     <TimetableWizard
                                         isInline={true}
                                         allocations={(requests || []).filter(r => r.status === 'approved')}
