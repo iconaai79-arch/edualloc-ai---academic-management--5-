@@ -1067,7 +1067,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const tabs = useMemo(() => {
         const baseTabs = [
             { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
-            { id: 'timetable', label: isEdu ? 'Academics' : 'Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
+            { id: 'timetable', label: activeScope === 'smart_timetable' ? 'Smart Timetable' : (isEdu ? 'Academics' : 'Timetable'), icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
             { id: 'users', label: isHeritage ? 'Family Members' : isCommunity ? 'Community Members' : 'Members', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'courses', label: isSchool ? 'Courses' : isChurch ? 'Departments' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'boarding', label: 'Boarding System', icon: <BedIcon className="w-5 h-5 mr-2" /> },
@@ -1121,6 +1121,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         if (isDos) {
             if (activeScope === 'console_hub') {
                 return [];
+            }
+            if (activeScope === 'smart_timetable') {
+                return [
+                    { id: 'timetable', label: 'Smart Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> }
+                ];
             }
             return [
                 { id: 'timetable', label: 'Academics', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
