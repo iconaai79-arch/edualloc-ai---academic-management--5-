@@ -12045,6 +12045,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 <SubscriptionExpiryBanner
                     institution={props.institution}
                     isCollapsed={!isSidebarOpen}
+                    moduleContext="finance"
+                    users={mergedStudents || props.students}
+                    companyDetails={props.companyDetails}
                 />
 
                 <nav className="space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 custom-scrollbar">

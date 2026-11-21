@@ -435,6 +435,9 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 <SubscriptionExpiryBanner
                     institution={currentInstitution}
                     isCollapsed={!isSidebarOpen}
+                    moduleContext="academics"
+                    users={users}
+                    companyDetails={companyDetails}
                 />
 
                 <nav className="space-y-1.5 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 custom-scrollbar">

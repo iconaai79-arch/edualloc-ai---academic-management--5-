@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Institution } from '../../types';
+import { createPortal } from 'react-dom';
+import type { Institution, User, CompanyDetails } from '../../types';
 import { PayNowModal } from '../PayNowModal';
 import { BuySMSModal } from '../BuySMSModal';
+import { StudentSubscriptionPlanManager } from './StudentSubscriptionPlanManager';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { ClockIcon } from '../icons/ClockIcon';
 import { CreditCardIcon } from '../icons/CreditCardIcon';
@@ -23,6 +25,9 @@ export interface SubscriptionExpiryBannerProps {
     customTitle?: string;
     subscriptionLabel?: string;
     renewButtonText?: string;
+    moduleContext?: 'academics' | 'finance';
+    users?: User[];
+    companyDetails?: CompanyDetails;
 }
 
 export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> = ({
@@ -37,10 +42,14 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
     className = '',
     customTitle,
     subscriptionLabel,
-    renewButtonText
+    renewButtonText,
+    moduleContext,
+    users,
+    companyDetails
 }) => {
     const [activeTab, setActiveTab] = useState<'subscription' | 'sms'>('subscription');
     const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+    const [isGlobalPackagesModalOpen, setIsGlobalPackagesModalOpen] = useState(false);
     const [isSmsModalOpen, setIsSmsModalOpen] = useState(false);
     const [isDismissed, setIsDismissed] = useState(false);
 
@@ -122,8 +131,8 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
 
     const isEducation = useMemo(() => {
         if (!institution) return true;
-        const type = institution.institutionType;
-        if (!type || type === 'Education' || type === 'University' || type === 'Secondary' || type === 'Primary' || type === 'ECDE') return true;
+        const type = String(institution.institutionType || '').toLowerCase();
+        if (!type || ['education', 'university', 'secondary', 'primary', 'ecde', 'school', 'high school', 'college', 'tvet', 'polytechnic', 'kindergarten', 'junior secondary', 'primary school', 'secondary school'].some(k => type.includes(k))) return true;
         if (subscriptionLabel?.toLowerCase().includes('student')) return true;
         return false;
     }, [institution, subscriptionLabel]);
@@ -135,6 +144,8 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
     const handleRenewClick = () => {
         if (onRenew) {
             onRenew();
+        } else if (isEducation && (moduleContext === 'finance' || moduleContext === 'academics')) {
+            setIsGlobalPackagesModalOpen(true);
         } else {
             setIsPayModalOpen(true);
         }
@@ -407,7 +418,49 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
                 )}
             </div>
 
-            {/* Embedded Subscription Payment Modal */}
+            {/* Global Student Subscription Packages Modal (Educational Finance & Academics) */}
+            {isGlobalPackagesModalOpen && typeof document !== 'undefined' && createPortal(
+                <div
+                    className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+                    onClick={() => setIsGlobalPackagesModalOpen(false)}
+                >
+                    <div
+                        className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tight">
+                                    {moduleContext === 'finance' ? 'Educational Finance — Global Subscription Packages' : 'Academics — Global Subscription Packages'}
+                                </h3>
+                                <p className="text-[11px] text-indigo-100 font-semibold">
+                                    Select a global subscription package configured for {institution?.name || 'your institution'} to renew
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsGlobalPackagesModalOpen(false)}
+                                className="p-2 rounded-full bg-white/15 hover:bg-white/25 text-white transition-colors cursor-pointer"
+                                title="Close"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto flex-1 min-h-0">
+                            <StudentSubscriptionPlanManager
+                                currentInstitution={institution}
+                                users={users}
+                                companyDetails={companyDetails}
+                                moduleContext={moduleContext || 'academics'}
+                                isSuperAdmin={false}
+                            />
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Embedded Subscription Payment Modal (Non-Educational / Custom fallback) */}
             {isPayModalOpen && (
                 <PayNowModal
                     isOpen={isPayModalOpen}
@@ -415,11 +468,11 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
                     institutionId={institution?.id}
                     institutionCode={institution?.institutionCode}
                     institutionName={institution?.name}
-                    mpesaConfig={institution?.mpesaConfig || { paybillNumber: '247247', accountNumber: 'SUBSCRIPTION', consumerKey: '', consumerSecret: '', passkey: '' }}
-                    ncbaConfig={institution?.ncbaConfig}
-                    monthlyPrice={Number(institution?.customSubscriptionPrice?.monthly) || 4999}
-                    quarterlyPrice={Number(institution?.customSubscriptionPrice?.quarterly) || 13500}
-                    yearlyPrice={Number(institution?.customSubscriptionPrice?.yearly) || 49999}
+                    mpesaConfig={institution?.mpesaConfig || companyDetails?.mpesaConfig || { paybillNumber: '247247', accountNumber: 'SUBSCRIPTION', consumerKey: '', consumerSecret: '', passkey: '' }}
+                    ncbaConfig={institution?.ncbaConfig || companyDetails?.ncbaConfig}
+                    monthlyPrice={Number(institution?.customSubscriptionPrice?.monthly) || Number(companyDetails?.subscriptionConfig?.defaultMonthlyPrice) || 4999}
+                    quarterlyPrice={Number(institution?.customSubscriptionPrice?.quarterly) || (Number(companyDetails?.subscriptionConfig?.defaultMonthlyPrice) ? Number(companyDetails?.subscriptionConfig?.defaultMonthlyPrice) * 4 : 13500)}
+                    yearlyPrice={Number(institution?.customSubscriptionPrice?.yearly) || Number(companyDetails?.subscriptionConfig?.defaultYearlyPrice) || 49999}
                     onSuccess={() => {
                         setIsPayModalOpen(false);
                         alert('Payment processed successfully! Your subscription has been extended.');
