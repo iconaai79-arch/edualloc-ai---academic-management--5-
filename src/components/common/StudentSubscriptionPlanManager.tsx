@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { Institution, User, Course, CompanyDetails } from '../../types';
+import type { Institution, User, Course, CompanyDetails, ResellerPackageConfig, ResellerSubscriptionOrder } from '../../types';
 import { apiService } from '../../services/apiService';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { PlusIcon } from '../icons/PlusIcon';
@@ -17,7 +17,10 @@ export interface StudentSubscriptionPlan {
     name: string;
     description: string;
     billingCycle: 'per_term' | 'per_year' | 'monthly';
-    amount: number; // Rate per student
+    amount: number; // Rate per student (effective client rate)
+    baseAmount?: number; // Super Admin base rate per student (when overlaid by reseller)
+    isNegotiated?: boolean;
+    resellerAdjustment?: number;
     smsAllocatedPerStudent: number;
     smsUsageType: 'academic_results_only' | 'finance_receipts_only' | 'all';
     features: string[];
@@ -51,7 +54,7 @@ interface StudentSubscriptionPlanManagerProps {
     isSuperAdmin?: boolean;
 }
 
-const GLOBAL_DEFAULT_PLANS: StudentSubscriptionPlan[] = [
+export const GLOBAL_DEFAULT_PLANS: StudentSubscriptionPlan[] = [
     {
         id: 'plan_basic_academic_term',
         name: 'CBC Academic & Report Cards Plan (Per Term)',
@@ -129,6 +132,22 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
 }) => {
     const isSuperAdminMode = isSuperAdmin || currentUser?.role === 'super_admin';
     const instId = isSuperAdminMode ? 'SYSTEM' : (currentInstitution?.id || 'default_inst');
+    const resellerId = !isSuperAdminMode
+        ? (currentInstitution?.resellerId || (currentInstitution as any)?.reseller_id || '')
+        : '';
+
+    const [resellerConfig, setResellerConfig] = useState<ResellerPackageConfig | null>(() => {
+        if (!resellerId) return null;
+        try {
+            const raw = localStorage.getItem(`eduai_reseller_pkg_cfg_${resellerId}`);
+            if (raw) return JSON.parse(raw);
+        } catch (_) {}
+        return null;
+    });
+    const [directPaymentRef, setDirectPaymentRef] = useState('');
+    const [directPayerName, setDirectPayerName] = useState(currentUser?.name || currentInstitution?.name || '');
+    const [directPayerPhone, setDirectPayerPhone] = useState((currentUser as any)?.phoneNumber || currentInstitution?.phoneNumber || '');
+    const [isSubmittingDirectOrder, setIsSubmittingDirectOrder] = useState(false);
 
     // Global & Tenant Plans State
     const [plans, setPlans] = useState<StudentSubscriptionPlan[]>(() => {
@@ -147,6 +166,33 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
         return GLOBAL_DEFAULT_PLANS;
     });
 
+    // Apply reseller package adjustments & per-institution negotiated rate overrides when applicable
+    const effectivePlans = useMemo(() => {
+        if (isSuperAdminMode || !resellerId || !resellerConfig) return plans;
+        const instOverrides = (currentInstitution?.id && resellerConfig.institutionOverrides?.[currentInstitution.id]) || {};
+        return plans.map(plan => {
+            const baseAmount = Number(plan.amount) || 0;
+            const adj = resellerConfig.packageAdjustments?.[plan.id];
+            const adjustmentAmount = Math.max(0, Number(adj?.adjustmentAmount) || 0);
+            const negotiatedRaw = instOverrides[plan.id];
+            const hasNegotiated = negotiatedRaw !== undefined && !Number.isNaN(Number(negotiatedRaw));
+            const effectiveAmount = hasNegotiated
+                ? Math.max(baseAmount, Number(negotiatedRaw))
+                : baseAmount + adjustmentAmount;
+
+            return {
+                ...plan,
+                name: adj?.customName?.trim() ? adj.customName.trim() : plan.name,
+                description: adj?.customDescription?.trim() ? adj.customDescription.trim() : plan.description,
+                amount: effectiveAmount,
+                baseAmount,
+                isNegotiated: hasNegotiated,
+                resellerAdjustment: Math.max(0, effectiveAmount - baseAmount),
+                isActive: plan.isActive && (adj?.isActive !== false)
+            };
+        });
+    }, [plans, isSuperAdminMode, resellerId, resellerConfig, currentInstitution?.id]);
+
     const [superAdminFilter, setSuperAdminFilter] = useState<'all' | 'academic' | 'finance' | 'combo'>('all');
 
     // Service-specific Plan Filtering:
@@ -154,20 +200,21 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
     // - In Academics module: Only show packages with academic results SMS or all-access
     // - In Super Admin mode: Allow tabbed filtering across All / Academic / Finance / Combo
     const filteredPlans = useMemo(() => {
+        const source = effectivePlans;
         if (isSuperAdminMode || moduleContext === 'superadmin') {
-            if (superAdminFilter === 'academic') return plans.filter(p => p.smsUsageType === 'academic_results_only');
-            if (superAdminFilter === 'finance') return plans.filter(p => p.smsUsageType === 'finance_receipts_only');
-            if (superAdminFilter === 'combo') return plans.filter(p => p.smsUsageType === 'all');
-            return plans;
+            if (superAdminFilter === 'academic') return source.filter(p => p.smsUsageType === 'academic_results_only');
+            if (superAdminFilter === 'finance') return source.filter(p => p.smsUsageType === 'finance_receipts_only');
+            if (superAdminFilter === 'combo') return source.filter(p => p.smsUsageType === 'all');
+            return source;
         }
         if (moduleContext === 'finance') {
-            return plans.filter(p => p.isActive && (p.smsUsageType === 'finance_receipts_only' || p.smsUsageType === 'all'));
+            return source.filter(p => p.isActive && (p.smsUsageType === 'finance_receipts_only' || p.smsUsageType === 'all'));
         }
         if (moduleContext === 'academics') {
-            return plans.filter(p => p.isActive && (p.smsUsageType === 'academic_results_only' || p.smsUsageType === 'all'));
+            return source.filter(p => p.isActive && (p.smsUsageType === 'academic_results_only' || p.smsUsageType === 'all'));
         }
-        return plans.filter(p => p.isActive);
-    }, [plans, moduleContext, isSuperAdminMode, superAdminFilter]);
+        return source.filter(p => p.isActive);
+    }, [effectivePlans, moduleContext, isSuperAdminMode, superAdminFilter]);
 
     const [subscriptions, setSubscriptions] = useState<StudentSubscriptionRecord[]>(() => {
         try {
@@ -199,7 +246,17 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                     }
                 }).catch(() => { });
         }
-    }, [isSuperAdminMode, currentInstitution]);
+
+        if (!isSuperAdminMode && resellerId) {
+            apiService.fetchModuleRecords<ResellerPackageConfig>('reseller_package_configs', resellerId)
+                .then(records => {
+                    if (Array.isArray(records) && records.length > 0) {
+                        setResellerConfig(records[0]);
+                        try { localStorage.setItem(`eduai_reseller_pkg_cfg_${resellerId}`, JSON.stringify(records[0])); } catch (_) {}
+                    }
+                }).catch(() => { });
+        }
+    }, [isSuperAdminMode, currentInstitution, resellerId]);
 
     const [activeTab, setActiveTab] = useState<'plans' | 'roster'>('plans');
     const [isAddPlanModalOpen, setIsAddPlanModalOpen] = useState(false);
@@ -409,6 +466,39 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
 
         // 2. Assign plan to all active students in roster
         await handleApplyPlanToAllStudents();
+
+        // 2b. If this institution belongs to a reseller using Super Admin NCBA, record reseller profit order
+        if (resellerId && selectedPackage) {
+            const baseRate = selectedPackage.baseAmount ?? selectedPackage.amount;
+            const clientRate = selectedPackage.amount;
+            const baseTotal = baseRate * customStudentCount;
+            const clientTotal = clientRate * customStudentCount;
+            const order: ResellerSubscriptionOrder = {
+                id: `rso_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                institutionId: resellerId,
+                resellerId,
+                clientInstitutionId: currentInstitution.id,
+                clientInstitutionName: currentInstitution.name,
+                planId: selectedPackage.id,
+                planName: selectedPackage.name,
+                billingCycle: selectedPackage.billingCycle,
+                studentCount: customStudentCount,
+                baseRatePerStudent: baseRate,
+                clientRatePerStudent: clientRate,
+                baseTotalAmount: baseTotal,
+                clientTotalAmount: clientTotal,
+                resellerProfit: Math.max(0, clientTotal - baseTotal),
+                smsAllocated: autoAllocatedSmsPool,
+                collectionMode: 'platform_ncba',
+                clientPaymentReference: result.receipt?.receiptNumber || `TXN_${Date.now()}`,
+                clientPayerName: currentUser?.name || currentInstitution.name,
+                clientPayerPhone: (currentUser as any)?.phoneNumber || currentInstitution.phoneNumber || '',
+                status: 'completed',
+                createdAt: new Date().toISOString(),
+                completedAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('reseller_subscription_orders', order).catch(() => {});
+        }
 
         // 3. Auto-download PDF Receipt for the client
         if (result.receiptPdfUri) {
@@ -802,21 +892,145 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                         </div>
 
                         {/* Actions */}
-                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                            <button
-                                onClick={() => setIsPayNowModalOpen(true)}
-                                className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                            >
-                                <CreditCardIcon className="w-5 h-5" /> Pay KES {autoCalculatedTotal.toLocaleString()} Now (M-Pesa / Bank)
-                            </button>
+                        {resellerId && resellerConfig?.collectionMode === 'reseller_direct' ? (
+                            <div className="space-y-4 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-2">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">
+                                        Direct Reseller Payment Instructions
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-700 dark:text-slate-200">
+                                        {resellerConfig.directPaymentInstructions?.paybill && (
+                                            <div>Paybill: <strong className="font-mono">{resellerConfig.directPaymentInstructions.paybill}</strong></div>
+                                        )}
+                                        {resellerConfig.directPaymentInstructions?.accountNumber && (
+                                            <div>Account: <strong className="font-mono">{resellerConfig.directPaymentInstructions.accountNumber}</strong></div>
+                                        )}
+                                        {resellerConfig.directPaymentInstructions?.tillNumber && (
+                                            <div>Buy Goods Till: <strong className="font-mono">{resellerConfig.directPaymentInstructions.tillNumber}</strong></div>
+                                        )}
+                                        {resellerConfig.directPaymentInstructions?.phoneNumber && (
+                                            <div>Direct Phone: <strong className="font-mono">{resellerConfig.directPaymentInstructions.phoneNumber}</strong></div>
+                                        )}
+                                        {resellerConfig.directPaymentInstructions?.bankDetails && (
+                                            <div className="sm:col-span-2">Bank: <strong>{resellerConfig.directPaymentInstructions.bankDetails}</strong></div>
+                                        )}
+                                    </div>
+                                    {resellerConfig.directPaymentInstructions?.notes && (
+                                        <p className="text-[11px] text-slate-600 dark:text-slate-400">{resellerConfig.directPaymentInstructions.notes}</p>
+                                    )}
+                                </div>
 
-                            <button
-                                onClick={handleApplyPlanToAllStudents}
-                                className="px-5 py-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 font-black text-xs uppercase tracking-wider rounded-2xl transition-all cursor-pointer"
-                            >
-                                Assign To Learners Only
-                            </button>
-                        </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">M-Pesa / Bank Reference *</label>
+                                        <input
+                                            type="text"
+                                            value={directPaymentRef}
+                                            onChange={e => setDirectPaymentRef(e.target.value)}
+                                            placeholder="e.g. UKH4928X1"
+                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold uppercase"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Payer Name</label>
+                                        <input
+                                            type="text"
+                                            value={directPayerName}
+                                            onChange={e => setDirectPayerName(e.target.value)}
+                                            placeholder="School Bursar / Admin"
+                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Payer Phone</label>
+                                        <input
+                                            type="text"
+                                            value={directPayerPhone}
+                                            onChange={e => setDirectPayerPhone(e.target.value)}
+                                            placeholder="0712345678"
+                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold"
+                                        />
+                                    </div>
+                                </div>
+
+                                <button
+                                    disabled={isSubmittingDirectOrder}
+                                    onClick={async () => {
+                                        if (!currentInstitution) return;
+                                        if (!directPaymentRef.trim()) {
+                                            alert('Please enter your M-Pesa or Bank payment reference number.');
+                                            return;
+                                        }
+                                        setIsSubmittingDirectOrder(true);
+                                        try {
+                                            const baseRate = selectedPackage.baseAmount ?? selectedPackage.amount;
+                                            const clientRate = selectedPackage.amount;
+                                            const baseTotal = baseRate * customStudentCount;
+                                            const clientTotal = clientRate * customStudentCount;
+                                            const order: ResellerSubscriptionOrder = {
+                                                id: `rso_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                                                institutionId: resellerId,
+                                                resellerId,
+                                                clientInstitutionId: currentInstitution.id,
+                                                clientInstitutionName: currentInstitution.name,
+                                                planId: selectedPackage.id,
+                                                planName: selectedPackage.name,
+                                                billingCycle: selectedPackage.billingCycle,
+                                                studentCount: customStudentCount,
+                                                baseRatePerStudent: baseRate,
+                                                clientRatePerStudent: clientRate,
+                                                baseTotalAmount: baseTotal,
+                                                clientTotalAmount: clientTotal,
+                                                resellerProfit: Math.max(0, clientTotal - baseTotal),
+                                                smsAllocated: autoAllocatedSmsPool,
+                                                collectionMode: 'reseller_direct',
+                                                clientPaymentReference: directPaymentRef.trim().toUpperCase(),
+                                                clientPayerName: directPayerName.trim() || currentInstitution.name,
+                                                clientPayerPhone: directPayerPhone.trim() || currentInstitution.phoneNumber || '',
+                                                status: 'pending_reseller_settlement',
+                                                createdAt: new Date().toISOString()
+                                            };
+                                            await apiService.saveModuleRecord('reseller_subscription_orders', order);
+                                            try {
+                                                const existingRaw = localStorage.getItem(`eduai_reseller_sub_orders_${resellerId}`);
+                                                const existingArr = existingRaw ? JSON.parse(existingRaw) : [];
+                                                localStorage.setItem(`eduai_reseller_sub_orders_${resellerId}`, JSON.stringify([order, ...(Array.isArray(existingArr) ? existingArr : [])]));
+                                            } catch (_) {}
+                                            setDirectPaymentRef('');
+                                            setIsCalculatorModalOpen(false);
+                                            alert(
+                                                `Renewal payment (KES ${clientTotal.toLocaleString()}, Ref: ${order.clientPaymentReference}) submitted to your reseller! ` +
+                                                `Once your reseller completes settlement with Super Admin, your subscription and ${autoAllocatedSmsPool.toLocaleString()} SMS will activate automatically.`
+                                            );
+                                        } catch (err: any) {
+                                            alert(`Failed to submit renewal request: ${err?.message || 'Unknown error'}`);
+                                        } finally {
+                                            setIsSubmittingDirectOrder(false);
+                                        }
+                                    }}
+                                    className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                                >
+                                    <CreditCardIcon className="w-5 h-5" />
+                                    {isSubmittingDirectOrder ? 'Submitting...' : `Submit Direct Payment (KES ${autoCalculatedTotal.toLocaleString()}) to Reseller`}
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                                <button
+                                    onClick={() => setIsPayNowModalOpen(true)}
+                                    className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    <CreditCardIcon className="w-5 h-5" /> Pay KES {autoCalculatedTotal.toLocaleString()} Now (M-Pesa / NCBA)
+                                </button>
+
+                                <button
+                                    onClick={handleApplyPlanToAllStudents}
+                                    className="px-5 py-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 font-black text-xs uppercase tracking-wider rounded-2xl transition-all cursor-pointer"
+                                >
+                                    Assign To Learners Only
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -960,10 +1174,10 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                         unitPrice: selectedPackage.amount,
                         amount: autoCalculatedTotal
                     }]}
-                    mpesaConfig={currentInstitution.mpesaConfig || companyDetails?.mpesaConfig!}
-                    airtelMoneyConfig={currentInstitution.airtelMoneyConfig || (companyDetails as any)?.airtelMoneyConfig}
-                    intasendConfig={currentInstitution.intasendConfig || (companyDetails as any)?.intasendConfig}
-                    ncbaConfig={currentInstitution.ncbaConfig || companyDetails?.ncbaConfig}
+                    mpesaConfig={companyDetails?.mpesaConfig || currentInstitution.mpesaConfig!}
+                    airtelMoneyConfig={(companyDetails as any)?.airtelMoneyConfig || currentInstitution.airtelMoneyConfig}
+                    intasendConfig={(companyDetails as any)?.intasendConfig || currentInstitution.intasendConfig}
+                    ncbaConfig={companyDetails?.ncbaConfig || currentInstitution.ncbaConfig}
                     onSuccess={() => {
                         handlePaymentSuccess();
                     }}

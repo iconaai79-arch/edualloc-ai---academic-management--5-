@@ -1165,6 +1165,58 @@ export interface ResellerSmsTransaction {
     timestamp: string;
 }
 
+export interface ResellerPackageAdjustment {
+    basePlanId: string;
+    adjustmentAmount: number; // Markup added on top of Super Admin base rate per student (>= 0)
+    customName?: string;
+    customDescription?: string;
+    isActive?: boolean;
+}
+
+export interface ResellerPackageConfig {
+    id: string;
+    institutionId: string; // resellerId
+    resellerId: string;
+    collectionMode: 'platform_ncba' | 'reseller_direct';
+    directPaymentInstructions?: {
+        paybill?: string;
+        accountNumber?: string;
+        tillNumber?: string;
+        bankDetails?: string;
+        phoneNumber?: string;
+        notes?: string;
+    };
+    packageAdjustments: Record<string, ResellerPackageAdjustment>;
+    institutionOverrides: Record<string, Record<string, number>>; // [clientInstitutionId][planId] = negotiated rate/student
+    updatedAt?: string;
+}
+
+export interface ResellerSubscriptionOrder {
+    id: string;
+    institutionId: string; // resellerId
+    resellerId: string;
+    clientInstitutionId: string;
+    clientInstitutionName: string;
+    planId: string;
+    planName: string;
+    billingCycle: 'per_term' | 'per_year' | 'monthly';
+    studentCount: number;
+    baseRatePerStudent: number;
+    clientRatePerStudent: number;
+    baseTotalAmount: number;
+    clientTotalAmount: number;
+    resellerProfit: number;
+    smsAllocated: number;
+    collectionMode: 'platform_ncba' | 'reseller_direct';
+    clientPaymentReference?: string;
+    clientPayerName?: string;
+    clientPayerPhone?: string;
+    superAdminPaymentReference?: string;
+    status: 'pending_reseller_settlement' | 'completed' | 'cancelled';
+    createdAt: string;
+    completedAt?: string;
+}
+
 export interface TimetableEntry {
     id: string;
     day: string;

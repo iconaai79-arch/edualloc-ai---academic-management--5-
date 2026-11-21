@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice, Role, CommissionWithdrawalRequest, ResellerSmsTransaction } from '../types';
+import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice, Role, CommissionWithdrawalRequest, ResellerSmsTransaction, ResellerSubscriptionOrder } from '../types';
+import { ResellerSubscriptionPackagesManager } from './ResellerSubscriptionPackagesManager';
 import { apiService } from '../services/apiService';
 import { BuySMSModal } from './BuySMSModal';
 import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
@@ -85,7 +86,18 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState<'clients' | 'commissions' | 'invoicing'>('clients');
+    const [activeTab, setActiveTab] = useState<'clients' | 'packages' | 'commissions' | 'invoicing'>('clients');
+    const [resellerSubOrders, setResellerSubOrders] = useState<ResellerSubscriptionOrder[]>(() => {
+        if (!targetResellerId) return [];
+        try {
+            const raw = localStorage.getItem(`eduai_reseller_sub_orders_${targetResellerId}`);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch (_) {}
+        return [];
+    });
     const [isAddTenantModalOpen, setIsAddTenantModalOpen] = useState(false);
     const [isPerspectiveModalOpen, setIsPerspectiveModalOpen] = useState(false);
     const [selectedTenantForPerspective, setSelectedTenantForPerspective] = useState<Institution | null>(null);
@@ -164,6 +176,15 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                     accountDetails: r.accountDetails || (r as any).account_details,
                 }));
                 setWithdrawalRequests(normalized.filter(r => r.resellerId === targetResellerId || (normTarget && cleanId(r.resellerId) === normTarget)));
+
+                if (targetResellerId) {
+                    const fetchedOrders = await apiService.fetchModuleRecords<ResellerSubscriptionOrder>('reseller_subscription_orders', targetResellerId).catch(() => []);
+                    if (Array.isArray(fetchedOrders)) {
+                        const sorted = [...fetchedOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                        setResellerSubOrders(sorted);
+                        try { localStorage.setItem(`eduai_reseller_sub_orders_${targetResellerId}`, JSON.stringify(sorted)); } catch (_) {}
+                    }
+                }
             } catch (error) {
                 console.error("Error loading reseller data:", error);
             } finally {
@@ -381,7 +402,12 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
         return monthsCovered * monthlyCommission;
     };
 
-    const totalCommissions = commissionTransactions.reduce((acc, tx) => acc + calculateCommission(tx), 0);
+    const platformPackageCommissions = resellerSubOrders
+        .filter(o => o.status === 'completed' && o.collectionMode === 'platform_ncba')
+        .reduce((acc, o) => acc + (Number(o.resellerProfit) || 0), 0);
+    const pendingSettlementCount = resellerSubOrders.filter(o => o.status === 'pending_reseller_settlement').length;
+
+    const totalCommissions = commissionTransactions.reduce((acc, tx) => acc + calculateCommission(tx), 0) + platformPackageCommissions;
     // We assume any transaction with "Payout" in metadata or role specific is a disbursed amount
     const disbursedCommissions = transactions.filter(tx => (tx.institutionId === targetResellerId || (normTarget && cleanId(tx.institutionId) === normTarget)) && tx.metadata?.type === 'commission_payout').reduce((acc, tx) => acc + tx.amount, 0);
     const pendingPayout = Math.max(0, totalCommissions - disbursedCommissions);
@@ -403,6 +429,17 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                     className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'clients' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     Client Portfolio
+                </button>
+                <button
+                    onClick={() => setActiveTab('packages')}
+                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'packages' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    <span>Subscription Packages</span>
+                    {pendingSettlementCount > 0 && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-black">
+                            {pendingSettlementCount}
+                        </span>
+                    )}
                 </button>
                 <button
                     onClick={() => setActiveTab('commissions')}
@@ -727,6 +764,15 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                         </div>
                     )}
                 </div>
+            ) : activeTab === 'packages' ? (
+                <ResellerSubscriptionPackagesManager
+                    resellerId={targetResellerId}
+                    resellerInstitution={currentInstitution}
+                    tenants={tenants}
+                    companyDetails={companyDetails}
+                    orders={resellerSubOrders}
+                    onOrdersChange={setResellerSubOrders}
+                />
             ) : activeTab === 'invoicing' ? (
                 <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden animate-fade-in">
                     <CorporateInvoicingManager
