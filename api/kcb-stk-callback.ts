@@ -1228,32 +1228,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 }
 
                                 // Create Invoice & Receipt
-                                const invoiceId = `inv_sms_${Date.now()}`;
-                                await supabase.from('invoices').insert({
-                                    id: invoiceId,
-                                    invoice_number: `${invoicePrefix}SMS-${Date.now().toString().slice(-6)}`,
+                                // Record SMS purchase as school expenditure (NOT income receipt)
+                                await supabase.from('expenses').insert({
+                                    id: `exp_sms_${Date.now()}`,
                                     institution_id: instId || 'SYSTEM',
-                                    issue_date: new Date().toISOString().split('T')[0],
-                                    due_date: new Date().toISOString().split('T')[0],
-                                    total_amount: amt,
-                                    status: 'paid',
-                                    items: JSON.stringify([{
-                                        description: `SMS Units Purchase - ${unitsToCredit} units (KCB)`,
-                                        quantity: 1,
-                                        unitPrice: amt / (unitsToCredit || 1),
-                                        amount: amt
-                                    }])
-                                });
-
-                                await supabase.from('receipts').insert({
-                                    id: `rec_sms_${Date.now()}`,
-                                    receipt_number: mpesaReceiptNumber || `${receiptPrefix}SMS-${Date.now().toString().slice(-6)}`,
-                                    institution_id: instId || 'SYSTEM',
-                                    invoice_id: invoiceId,
-                                    amount_paid: amt,
-                                    payment_date: new Date().toISOString().split('T')[0],
+                                    category: 'SMS & Communications',
+                                    description: `SMS Units Purchase - ${unitsToCredit} units (KCB)`,
+                                    amount: amt,
+                                    expense_date: new Date().toISOString().split('T')[0],
                                     payment_method: 'KCB STK',
-                                    related_transaction_id: mpesaReceiptNumber || transaction.transaction_id || transaction.id
+                                    reference_number: mpesaReceiptNumber || transaction.transaction_id || transaction.id,
+                                    status: 'Approved',
+                                    created_at: new Date().toISOString()
                                 });
 
                                 // Create Notification
@@ -1278,32 +1264,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     status: 'active'
                                 }).eq('id', instId);
 
-                                const invoiceId = `inv_sub_${Date.now()}`;
-                                await supabase.from('invoices').insert({
-                                    id: invoiceId,
-                                    invoice_number: `${invoicePrefix}SUB-${Date.now().toString().slice(-6)}`,
+                                // Record Subscription purchase as school expenditure (NOT income receipt)
+                                await supabase.from('expenses').insert({
+                                    id: `exp_sub_${Date.now()}`,
                                     institution_id: instId,
-                                    issue_date: new Date().toISOString().split('T')[0],
-                                    due_date: new Date().toISOString().split('T')[0],
-                                    total_amount: amt,
-                                    status: 'paid',
-                                    items: JSON.stringify([{
-                                        description: `${metadata.plan === 'yearly' ? 'Yearly' : 'Monthly'} Subscription (KCB)`,
-                                        quantity: 1,
-                                        unitPrice: amt,
-                                        amount: amt
-                                    }])
-                                });
-
-                                await supabase.from('receipts').insert({
-                                    id: `rec_sub_${Date.now()}`,
-                                    receipt_number: mpesaReceiptNumber || `${receiptPrefix}SUB-${Date.now().toString().slice(-6)}`,
-                                    institution_id: instId,
-                                    invoice_id: invoiceId,
-                                    amount_paid: amt,
-                                    payment_date: new Date().toISOString().split('T')[0],
+                                    category: 'Software & Subscriptions',
+                                    description: `${metadata.plan === 'yearly' ? 'Yearly' : 'Monthly'} Subscription (KCB)`,
+                                    amount: amt,
+                                    expense_date: new Date().toISOString().split('T')[0],
                                     payment_method: 'KCB STK',
-                                    related_transaction_id: mpesaReceiptNumber || transaction.transaction_id || transaction.id
+                                    reference_number: mpesaReceiptNumber || transaction.transaction_id || transaction.id,
+                                    status: 'Approved',
+                                    created_at: new Date().toISOString()
                                 });
 
                             } else if (type === 'student_admission' && metadata.student_id) {

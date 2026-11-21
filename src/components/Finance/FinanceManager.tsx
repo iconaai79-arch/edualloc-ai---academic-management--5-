@@ -1893,7 +1893,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         const baseInvoices = mergedInvoices.filter((inv: any) => {
             const invNo = inv.invoiceNumber || inv.invoice_number;
             const branchMatches = matchesSelectedBranch(inv);
-            return !invNo?.startsWith('REMEDIAL-') && branchMatches;
+            // Exclude platform expenditure bills (SMS Top-Up / Subscription / License) from student fee invoices
+            const invIdStr = String(inv.id || '').toLowerCase();
+            const invNoUpper = String(invNo || '').toUpperCase();
+            const invItemsStr = Array.isArray(inv.items)
+                ? inv.items.map((it: any) => String(it?.description || it?.name || '')).join(' ').toLowerCase()
+                : String(inv.items || '').toLowerCase();
+            const invMetaType = String(inv.metadata?.type || inv.metadata?.purpose || '').toLowerCase();
+            const isPlatformExpenseInv =
+                invIdStr.startsWith('inv_sms_') ||
+                invIdStr.startsWith('inv_sub_') ||
+                invNoUpper.includes('SMS-') ||
+                invNoUpper.includes('SUB-') ||
+                ['sms', 'sms_topup', 'subscription', 'license'].includes(invMetaType) ||
+                (!inv.studentId && !inv.student_id && /sms\s*top[\s-]*up|sms\s*units\s*purchase|monthly\s*subscription|yearly\s*subscription|termly\s*subscription|platform\s*license/i.test(invItemsStr));
+            return !invNo?.startsWith('REMEDIAL-') && !isPlatformExpenseInv && branchMatches;
         });
         if (!isDrivingSchool) {
             return baseInvoices.map((inv: any) => ({
@@ -1929,10 +1943,42 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         const baseReceipts = mergedReceipts.filter((r: any) => {
             const invId = r.invoiceId || r.invoice_id;
             const branchMatches = matchesSelectedBranch(r);
+            const recIdStr = String(r.id || '').toLowerCase();
+            const recNoUpper = String(r.receiptNumber || r.receipt_number || '').toUpperCase();
+            const paidForStr = String(r.paidFor || r.paid_for || r.description || '').toLowerCase();
+            const recMetaType = String(r.metadata?.type || r.metadata?.purpose || '').toLowerCase();
+
+            // Exclude SMS top-up & platform subscription purchases from Income/Fee Receipts (they are expenditures, not school income)
+            if (
+                recIdStr.startsWith('rec_sms_') ||
+                recIdStr.startsWith('rec_sub_') ||
+                recNoUpper.includes('SMS-') ||
+                recNoUpper.includes('SUB-') ||
+                ['sms', 'sms_topup', 'subscription', 'license'].includes(recMetaType) ||
+                /sms\s*top[\s-]*up|sms\s*units\s*purchase|monthly\s*subscription|yearly\s*subscription|termly\s*subscription|platform\s*license/i.test(paidForStr)
+            ) {
+                return false;
+            }
+
             if (invId) {
+                const invIdLower = String(invId).toLowerCase();
+                if (invIdLower.startsWith('inv_sms_') || invIdLower.startsWith('inv_sub_')) return false;
                 const targetInvoice = mergedInvoices.find((i: any) => i.id === invId);
                 const invNo = (targetInvoice as any)?.invoiceNumber || (targetInvoice as any)?.invoice_number;
                 if (invNo?.startsWith('REMEDIAL-')) return false;
+                if (targetInvoice) {
+                    const invNoUp = String(invNo || '').toUpperCase();
+                    const invItemsTxt = Array.isArray((targetInvoice as any).items)
+                        ? (targetInvoice as any).items.map((it: any) => String(it?.description || it?.name || '')).join(' ').toLowerCase()
+                        : String((targetInvoice as any).items || '').toLowerCase();
+                    if (
+                        invNoUp.includes('SMS-') ||
+                        invNoUp.includes('SUB-') ||
+                        (!(targetInvoice as any).studentId && !(targetInvoice as any).student_id && /sms\s*top[\s-]*up|sms\s*units\s*purchase|subscription|platform\s*license/i.test(invItemsTxt))
+                    ) {
+                        return false;
+                    }
+                }
             }
             return branchMatches;
         });

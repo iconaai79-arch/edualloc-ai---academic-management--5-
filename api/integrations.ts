@@ -4808,8 +4808,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
-            // 5. Create Receipt
-            if (invId) {
+            // 5. Create Receipt (ONLY for actual fee/customer income — NOT for school SMS top-ups or platform subscriptions, which are expenditures)
+            const isPlatformExpenditureTxn = ['sms', 'sms_topup', 'subscription', 'license'].includes(String(meta.type || meta.purpose || '').toLowerCase());
+            if (invId && !isPlatformExpenditureTxn) {
                 const recId = `rec_${Date.now()}`;
                 const recNum = `${receiptPrefix}${Date.now().toString().slice(-6)}`;
                 const recInstId = resolvedInstId || instId || 'SYSTEM';

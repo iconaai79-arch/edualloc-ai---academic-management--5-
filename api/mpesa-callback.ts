@@ -1249,35 +1249,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 } catch (_) {}
 
-                // Create invoice & receipt for SMS
-                const invoiceId = `inv_sms_${Date.now()}`;
-                await supabase.from('invoices').insert({
-                    id: invoiceId,
-                    invoice_number: `${invoicePrefix}SMS-${Date.now().toString().slice(-6)}`,
-                    institution_id: transaction.institution_id,
-                    issue_date: new Date().toISOString().split('T')[0],
-                    due_date: new Date().toISOString().split('T')[0],
-                    total_amount: transaction.amount,
-                    status: 'paid',
-                    items: JSON.stringify([{
-                        description: `SMS Units Purchase - ${unitsToCredit} units`,
-                        quantity: 1,
-                        unitPrice: transaction.amount,
-                        amount: transaction.amount
-                    }])
-                });
-
-                await supabase.from('receipts').insert({
-                    id: `rec_sms_${Date.now()}`,
-                    receipt_number: mpesaReceiptNumber || `${receiptPrefix}SMS-${Date.now().toString().slice(-6)}`,
-                    institution_id: transaction.institution_id,
-                    invoice_id: invoiceId,
-                    amount_paid: transaction.amount,
-                    payment_date: new Date().toISOString().split('T')[0],
-                    payment_method: 'M-Pesa',
-                    related_transaction_id: mpesaReceiptNumber || transaction.transaction_id || transaction.id
-                });
-
+                // SMS purchases are school expenditures (recorded in expenses/ds_expenditures below), NOT school fee income receipts.
                 // Record expense in expenses (and ds_expenditures if Driving School)
                 await recordExpenseOnPlatform({
                     pool: await getPgPool(),
