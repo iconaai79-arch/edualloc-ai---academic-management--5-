@@ -11,6 +11,12 @@ import { XIcon } from '../icons/XIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
 import { CreditCardIcon } from '../icons/CreditCardIcon';
+import {
+    DEFAULT_POCKET_MONEY_FEE_CONFIG,
+    calculatePocketMoneyCharges,
+    type PocketMoneyFeeConfig,
+    type PocketMoneyRevenueLog
+} from '../SuperAdminPocketMoneyManager';
 
 export interface PocketMoneyWalletConfig {
     id: string;
@@ -120,6 +126,13 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
             if (raw) return JSON.parse(raw);
         } catch (_) {}
         return null;
+    });
+    const [feeConfig, setFeeConfig] = useState<PocketMoneyFeeConfig>(() => {
+        try {
+            const raw = localStorage.getItem('eduai_pocket_money_fee_config');
+            if (raw) return { ...DEFAULT_POCKET_MONEY_FEE_CONFIG, ...JSON.parse(raw) };
+        } catch (_) {}
+        return DEFAULT_POCKET_MONEY_FEE_CONFIG;
     });
     const [settlements, setSettlements] = useState<PocketMoneySettlementRequest[]>(() => {
         try {
@@ -250,6 +263,16 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                     const sorted = [...records].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
                     setSettlements(sorted);
                     try { localStorage.setItem(`eduai_pocket_settlements_${instId}`, JSON.stringify(sorted)); } catch (_) {}
+                }
+            })
+            .catch(() => {});
+
+        apiService.fetchModuleRecords<PocketMoneyFeeConfig>('pocket_money_fee_config', 'SYSTEM')
+            .then(records => {
+                if (Array.isArray(records) && records.length > 0) {
+                    const merged = { ...DEFAULT_POCKET_MONEY_FEE_CONFIG, ...records[0] };
+                    setFeeConfig(merged);
+                    try { localStorage.setItem('eduai_pocket_money_fee_config', JSON.stringify(merged)); } catch (_) {}
                 }
             })
             .catch(() => {});
@@ -463,6 +486,26 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                 totalCollectedViaNcba: (Number(walletConfig.totalCollectedViaNcba) || 0) + amount,
                 updatedAt: nowIso
             });
+        }
+
+        const breakdown = calculatePocketMoneyCharges(amount, feeConfig);
+        if (breakdown.totalExtraCharges > 0) {
+            const revLog: PocketMoneyRevenueLog = {
+                id: `pm_rev_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                institutionId: 'SYSTEM',
+                schoolInstitutionId: instId,
+                schoolName: institution.name,
+                studentName: account.studentName,
+                netPocketMoney: breakdown.netPocketMoney,
+                processingFee: breakdown.processingFee,
+                transferCharge: breakdown.transferCharge,
+                smsCharge: breakdown.smsCharge,
+                totalExtraCharges: breakdown.totalExtraCharges,
+                totalPaidByParent: breakdown.totalPayableByParent,
+                referenceNumber: tx.referenceNumber || '',
+                createdAt: nowIso
+            };
+            await apiService.saveModuleRecord('pocket_money_revenue_logs', revLog).catch(() => {});
         }
 
         setNcbaDepositContext(null);
@@ -1712,25 +1755,28 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
             )}
 
             {/* SUPER ADMIN NCBA LIVE POCKET MONEY COLLECTION MODAL */}
-            {ncbaDepositContext && (
-                <PayNowModal
-                    isOpen={Boolean(ncbaDepositContext)}
-                    onClose={() => setNcbaDepositContext(null)}
-                    institutionId={instId}
-                    institutionName={`${institution.name} — Pocket Money`}
-                    forceAmount={ncbaDepositContext.amount}
-                    forcedItems={[{
-                        description: `Pocket Money Deposit — ${ncbaDepositContext.account.studentName} (${ncbaDepositContext.account.admissionNumber})`,
-                        quantity: 1,
-                        unitPrice: ncbaDepositContext.amount,
-                        amount: ncbaDepositContext.amount
-                    }]}
-                    mpesaConfig={companyDetails?.mpesaConfig!}
-                    ncbaConfig={companyDetails?.ncbaConfig}
-                    onlyProvider="ncba"
-                    onSuccess={(receiptRef) => handleNcbaDepositSuccess(receiptRef)}
-                />
-            )}
+            {ncbaDepositContext && (() => {
+                const breakdown = calculatePocketMoneyCharges(ncbaDepositContext.amount, feeConfig);
+                return (
+                    <PayNowModal
+                        isOpen={Boolean(ncbaDepositContext)}
+                        onClose={() => setNcbaDepositContext(null)}
+                        institutionId={instId}
+                        institutionName={`${institution.name} — Pocket Money`}
+                        forceAmount={breakdown.totalPayableByParent}
+                        forcedItems={[{
+                            description: `Pocket Money Deposit — ${ncbaDepositContext.account.studentName} (Net KES ${breakdown.netPocketMoney.toLocaleString()} + Parent Charges KES ${breakdown.totalExtraCharges.toLocaleString()})`,
+                            quantity: 1,
+                            unitPrice: breakdown.totalPayableByParent,
+                            amount: breakdown.totalPayableByParent
+                        }]}
+                        mpesaConfig={companyDetails?.mpesaConfig!}
+                        ncbaConfig={companyDetails?.ncbaConfig}
+                        onlyProvider="ncba"
+                        onSuccess={(receiptRef) => handleNcbaDepositSuccess(receiptRef)}
+                    />
+                );
+            })()}
 
             {/* LIMITS & FREEZE MODAL */}
             {limitsModal && (

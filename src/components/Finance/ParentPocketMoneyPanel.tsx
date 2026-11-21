@@ -7,6 +7,12 @@ import type {
     PocketMoneyTransaction,
     PocketMoneyWalletConfig
 } from './StudentPocketMoneyManager';
+import {
+    DEFAULT_POCKET_MONEY_FEE_CONFIG,
+    calculatePocketMoneyCharges,
+    type PocketMoneyFeeConfig,
+    type PocketMoneyRevenueLog
+} from '../SuperAdminPocketMoneyManager';
 import { Wallet, CreditCard, ShieldCheck, Printer, Lock, Unlock, CheckCircle, AlertCircle, X } from 'lucide-react';
 
 interface ParentPocketMoneyPanelProps {
@@ -47,6 +53,13 @@ export const ParentPocketMoneyPanel: React.FC<ParentPocketMoneyPanelProps> = ({
             if (raw) return JSON.parse(raw);
         } catch (_) {}
         return null;
+    });
+    const [feeConfig, setFeeConfig] = useState<PocketMoneyFeeConfig>(() => {
+        try {
+            const raw = localStorage.getItem('eduai_pocket_money_fee_config');
+            if (raw) return { ...DEFAULT_POCKET_MONEY_FEE_CONFIG, ...JSON.parse(raw) };
+        } catch (_) {}
+        return DEFAULT_POCKET_MONEY_FEE_CONFIG;
     });
 
     const [selectedChildId, setSelectedChildId] = useState<string>(childrenList[0]?.id || '');
@@ -92,6 +105,16 @@ export const ParentPocketMoneyPanel: React.FC<ParentPocketMoneyPanelProps> = ({
                 if (Array.isArray(records) && records.length > 0) {
                     setWalletConfig(records[0]);
                     try { localStorage.setItem(`eduai_pocket_wallet_cfg_${institutionId}`, JSON.stringify(records[0])); } catch (_) {}
+                }
+            })
+            .catch(() => {});
+
+        apiService.fetchModuleRecords<PocketMoneyFeeConfig>('pocket_money_fee_config', 'SYSTEM')
+            .then(records => {
+                if (Array.isArray(records) && records.length > 0) {
+                    const merged = { ...DEFAULT_POCKET_MONEY_FEE_CONFIG, ...records[0] };
+                    setFeeConfig(merged);
+                    try { localStorage.setItem('eduai_pocket_money_fee_config', JSON.stringify(merged)); } catch (_) {}
                 }
             })
             .catch(() => {});
@@ -192,6 +215,32 @@ export const ParentPocketMoneyPanel: React.FC<ParentPocketMoneyPanelProps> = ({
             setWalletConfig(nextCfg);
             try { localStorage.setItem(`eduai_pocket_wallet_cfg_${institutionId}`, JSON.stringify(nextCfg)); } catch (_) {}
             await apiService.saveModuleRecord('pocket_money_wallet_configs', nextCfg).catch(() => {});
+        }
+
+        // Log Super Admin platform revenue from parent-paid charges
+        const breakdown = calculatePocketMoneyCharges(amount, feeConfig);
+        if (breakdown.totalExtraCharges > 0) {
+            const revLog: PocketMoneyRevenueLog = {
+                id: `pm_rev_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                institutionId: 'SYSTEM',
+                schoolInstitutionId: institutionId,
+                schoolName: institutionName,
+                studentName: account.studentName,
+                netPocketMoney: breakdown.netPocketMoney,
+                processingFee: breakdown.processingFee,
+                transferCharge: breakdown.transferCharge,
+                smsCharge: breakdown.smsCharge,
+                totalExtraCharges: breakdown.totalExtraCharges,
+                totalPaidByParent: breakdown.totalPayableByParent,
+                referenceNumber: tx.referenceNumber || '',
+                createdAt: nowIso
+            };
+            await apiService.saveModuleRecord('pocket_money_revenue_logs', revLog).catch(() => {});
+            try {
+                const rawRev = localStorage.getItem('eduai_pocket_money_revenue_logs');
+                const arr = rawRev ? JSON.parse(rawRev) : [];
+                localStorage.setItem('eduai_pocket_money_revenue_logs', JSON.stringify([revLog, ...(Array.isArray(arr) ? arr : [])]));
+            } catch (_) {}
         }
 
         setNcbaPayContext(null);
@@ -480,21 +529,63 @@ export const ParentPocketMoneyPanel: React.FC<ParentPocketMoneyPanelProps> = ({
                                 e.preventDefault();
                                 const amt = Number(topUpAmount);
                                 if (Number.isNaN(amt) || amt <= 0) return;
+                                if (feeConfig.minDepositAmount && amt < feeConfig.minDepositAmount) {
+                                    showBanner('error', `Minimum pocket money deposit is KES ${feeConfig.minDepositAmount.toLocaleString()}.`);
+                                    return;
+                                }
+                                if (feeConfig.maxDepositAmount && amt > feeConfig.maxDepositAmount) {
+                                    showBanner('error', `Maximum pocket money deposit is KES ${feeConfig.maxDepositAmount.toLocaleString()}.`);
+                                    return;
+                                }
                                 setNcbaPayContext({ child: topUpModal.child, account: topUpModal.account, amount: amt, note: topUpNote });
                             }}
                             className="p-5 space-y-4"
                         >
                             <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Top-Up Amount (KES) *</label>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Student Pocket Money Amount (KES) *</label>
                                 <input
                                     type="number"
-                                    min={1}
+                                    min={feeConfig.minDepositAmount || 1}
+                                    max={feeConfig.maxDepositAmount || 50000}
                                     required
                                     value={topUpAmount}
                                     onChange={e => setTopUpAmount(e.target.value)}
                                     className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-base font-black"
                                 />
                             </div>
+                            {(() => {
+                                const b = calculatePocketMoneyCharges(Number(topUpAmount) || 0, feeConfig);
+                                return (
+                                    <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700 space-y-1.5 text-xs">
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-500">Student Receives (100%)</span>
+                                            <span className="font-bold text-slate-900 dark:text-white">KES {b.netPocketMoney.toLocaleString()}</span>
+                                        </div>
+                                        {b.processingFee > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">Processing Fee</span>
+                                                <span className="font-bold text-amber-600">+ KES {b.processingFee.toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                        {b.transferCharge > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">Transfer Charge</span>
+                                                <span className="font-bold text-amber-600">+ KES {b.transferCharge.toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                        {b.smsCharge > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">SMS Notification Fee</span>
+                                                <span className="font-bold text-amber-600">+ KES {b.smsCharge.toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-slate-700 text-sm">
+                                            <span className="font-black text-slate-900 dark:text-white">Total You Pay</span>
+                                            <span className="font-black text-emerald-600">KES {b.totalPayableByParent.toLocaleString()}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Note / Purpose</label>
                                 <input
@@ -509,7 +600,7 @@ export const ParentPocketMoneyPanel: React.FC<ParentPocketMoneyPanelProps> = ({
                                     Cancel
                                 </button>
                                 <button type="submit" className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase cursor-pointer">
-                                    Proceed to NCBA Pay
+                                    Pay KES {calculatePocketMoneyCharges(Number(topUpAmount) || 0, feeConfig).totalPayableByParent.toLocaleString()} (NCBA)
                                 </button>
                             </div>
                         </form>
@@ -518,25 +609,28 @@ export const ParentPocketMoneyPanel: React.FC<ParentPocketMoneyPanelProps> = ({
             )}
 
             {/* SUPER ADMIN NCBA CHECKOUT MODAL */}
-            {ncbaPayContext && (
-                <PayNowModal
-                    isOpen={Boolean(ncbaPayContext)}
-                    onClose={() => setNcbaPayContext(null)}
-                    institutionId={institutionId}
-                    institutionName={`${institutionName} — Pocket Money`}
-                    forceAmount={ncbaPayContext.amount}
-                    forcedItems={[{
-                        description: `Pocket Money Top-Up — ${ncbaPayContext.account.studentName} (${ncbaPayContext.account.admissionNumber})`,
-                        quantity: 1,
-                        unitPrice: ncbaPayContext.amount,
-                        amount: ncbaPayContext.amount
-                    }]}
-                    mpesaConfig={companyDetails?.mpesaConfig!}
-                    ncbaConfig={companyDetails?.ncbaConfig}
-                    onlyProvider="ncba"
-                    onSuccess={(receiptRef) => handleNcbaTopUpSuccess(receiptRef)}
-                />
-            )}
+            {ncbaPayContext && (() => {
+                const breakdown = calculatePocketMoneyCharges(ncbaPayContext.amount, feeConfig);
+                return (
+                    <PayNowModal
+                        isOpen={Boolean(ncbaPayContext)}
+                        onClose={() => setNcbaPayContext(null)}
+                        institutionId={institutionId}
+                        institutionName={`${institutionName} — Pocket Money`}
+                        forceAmount={breakdown.totalPayableByParent}
+                        forcedItems={[{
+                            description: `Pocket Money Top-Up — ${ncbaPayContext.account.studentName} (Net KES ${breakdown.netPocketMoney.toLocaleString()} + Charges KES ${breakdown.totalExtraCharges.toLocaleString()})`,
+                            quantity: 1,
+                            unitPrice: breakdown.totalPayableByParent,
+                            amount: breakdown.totalPayableByParent
+                        }]}
+                        mpesaConfig={companyDetails?.mpesaConfig!}
+                        ncbaConfig={companyDetails?.ncbaConfig}
+                        onlyProvider="ncba"
+                        onSuccess={(receiptRef) => handleNcbaTopUpSuccess(receiptRef)}
+                    />
+                );
+            })()}
 
             {/* PARENT SPENDING LIMITS MODAL */}
             {limitsModal && (
