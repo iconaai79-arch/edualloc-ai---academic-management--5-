@@ -86,6 +86,18 @@ export const ResellerConfigurationManager: React.FC<ResellerConfigurationManager
     const [mpesaPasskey, setMpesaPasskey] = useState((resellerInstitution?.mpesaConfig as any)?.passkey || '');
     const [mpesaEnv, setMpesaEnv] = useState<'sandbox' | 'production'>((resellerInstitution?.mpesaConfig as any)?.environment || 'production');
 
+    // Reseller KCB Buni Gateway State
+    const initialKcb = (resellerInstitution?.kcbConfig || pkgConfig.kcbConfig || {}) as any;
+    const [kcbAppKey, setKcbAppKey] = useState(initialKcb.appKey || '');
+    const [kcbAppSecret, setKcbAppSecret] = useState(initialKcb.appSecret || '');
+    const [kcbShortCode, setKcbShortCode] = useState(initialKcb.shortCode || '522522');
+    const [kcbTillNumber, setKcbTillNumber] = useState(initialKcb.tillNumber || '');
+    const [kcbCreditAccount, setKcbCreditAccount] = useState(initialKcb.creditAccountIdentifier || '');
+    const [kcbOrgShortCode, setKcbOrgShortCode] = useState(initialKcb.organizationShortCode || '');
+    const [kcbPasskey, setKcbPasskey] = useState(initialKcb.passkey || '');
+    const [kcbSharedShortCode, setKcbSharedShortCode] = useState(initialKcb.sharedShortCode !== false);
+    const [kcbEnv, setKcbEnv] = useState<'sandbox' | 'production'>(initialKcb.environment || 'production');
+
     // 3. SMS & Email State
     const [smsProvider, setSmsProvider] = useState((resellerInstitution?.smsConfig as any)?.provider || 'talksasa');
     const [smsSenderId, setSmsSenderId] = useState((resellerInstitution?.smsConfig as any)?.senderId || '');
@@ -194,6 +206,18 @@ export const ResellerConfigurationManager: React.FC<ResellerConfigurationManager
                     passkey: mpesaPasskey.trim(),
                     environment: mpesaEnv
                 } as any,
+                kcbConfig: {
+                    ...(resellerInstitution.kcbConfig || {}),
+                    appKey: kcbAppKey.trim(),
+                    appSecret: kcbAppSecret.trim(),
+                    shortCode: kcbShortCode.trim() || '522522',
+                    tillNumber: kcbTillNumber.trim(),
+                    creditAccountIdentifier: kcbCreditAccount.trim(),
+                    organizationShortCode: kcbOrgShortCode.trim(),
+                    passkey: kcbPasskey.trim(),
+                    sharedShortCode: kcbSharedShortCode,
+                    environment: kcbEnv
+                } as any,
                 smsConfig: {
                     ...(resellerInstitution.smsConfig || {}),
                     provider: smsProvider,
@@ -225,11 +249,24 @@ export const ResellerConfigurationManager: React.FC<ResellerConfigurationManager
     const handleSavePaymentAndPayoutConfig = async () => {
         setIsSaving(true);
         try {
+            const builtKcbConfig = {
+                ...(resellerInstitution.kcbConfig || pkgConfig.kcbConfig || {}),
+                appKey: kcbAppKey.trim(),
+                appSecret: kcbAppSecret.trim(),
+                shortCode: kcbShortCode.trim() || '522522',
+                tillNumber: kcbTillNumber.trim(),
+                creditAccountIdentifier: kcbCreditAccount.trim(),
+                organizationShortCode: kcbOrgShortCode.trim(),
+                passkey: kcbPasskey.trim(),
+                sharedShortCode: kcbSharedShortCode,
+                environment: kcbEnv
+            };
             const nextPkgConfig: ResellerPackageConfig = {
                 ...pkgConfig,
                 id: pkgConfig.id || `reseller_pkg_cfg_${resellerId}`,
                 institutionId: resellerId,
                 resellerId,
+                kcbConfig: builtKcbConfig,
                 updatedAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('reseller_package_configs', nextPkgConfig).catch(() => {});
@@ -461,7 +498,8 @@ export const ResellerConfigurationManager: React.FC<ResellerConfigurationManager
                                 className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
                             >
                                 <option value="platform_ncba">Use Super Admin NCBA / M-Pesa (Auto-Commission)</option>
-                                <option value="reseller_direct">Collect Direct from School &amp; Settle Super Admin</option>
+                                <option value="reseller_kcb">Receive via Reseller KCB STK Push &amp; Settle Super Admin</option>
+                                <option value="reseller_direct">Collect Direct (Manual Paybill/Till/Bank) &amp; Settle Super Admin</option>
                             </select>
                         </div>
                         <div>
@@ -514,6 +552,88 @@ export const ResellerConfigurationManager: React.FC<ResellerConfigurationManager
                                 placeholder="Bank Name, Account & Branch"
                                 className="sm:col-span-2 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold"
                             />
+                        </div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 space-y-3">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div>
+                                <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+                                    <span className="px-2 py-0.5 rounded bg-[#006837] text-white text-[10px]">KCB</span>
+                                    Reseller KCB Buni Payment Gateway (Receive Payments via KCB STK Push)
+                                </h4>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Configure your KCB Buni credentials so client schools can pay directly into your KCB account via STK Push.
+                                </p>
+                            </div>
+                            <label className="flex items-center gap-2 text-[11px] font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={kcbSharedShortCode}
+                                    onChange={e => setKcbSharedShortCode(e.target.checked)}
+                                    className="w-4 h-4 accent-emerald-600"
+                                />
+                                Shared KCB Paybill (522522)
+                            </label>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <input
+                                type="text"
+                                value={kcbAppKey}
+                                onChange={e => setKcbAppKey(e.target.value)}
+                                placeholder="KCB Buni App Key / Consumer Key"
+                                className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold"
+                            />
+                            <input
+                                type="password"
+                                value={kcbAppSecret}
+                                onChange={e => setKcbAppSecret(e.target.value)}
+                                placeholder="KCB Buni App Secret / Consumer Secret"
+                                className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold"
+                            />
+                            <input
+                                type="text"
+                                value={kcbShortCode}
+                                onChange={e => setKcbShortCode(e.target.value)}
+                                placeholder="KCB Paybill / Shortcode (e.g. 522522)"
+                                className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold"
+                            />
+                            <input
+                                type="text"
+                                value={kcbCreditAccount}
+                                onChange={e => setKcbCreditAccount(e.target.value)}
+                                placeholder="KCB Account / Credit Account Identifier"
+                                className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold"
+                            />
+                            <input
+                                type="text"
+                                value={kcbTillNumber}
+                                onChange={e => setKcbTillNumber(e.target.value)}
+                                placeholder="KCB Till Number (Optional)"
+                                className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold"
+                            />
+                            <input
+                                type="text"
+                                value={kcbOrgShortCode}
+                                onChange={e => setKcbOrgShortCode(e.target.value)}
+                                placeholder="Organization Shortcode (Optional)"
+                                className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold"
+                            />
+                            <input
+                                type="password"
+                                value={kcbPasskey}
+                                onChange={e => setKcbPasskey(e.target.value)}
+                                placeholder="KCB STK Passkey (Optional)"
+                                className="sm:col-span-2 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold"
+                            />
+                            <select
+                                value={kcbEnv}
+                                onChange={e => setKcbEnv(e.target.value as any)}
+                                className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold"
+                            >
+                                <option value="production">Production</option>
+                                <option value="sandbox">Sandbox</option>
+                            </select>
                         </div>
                     </div>
 

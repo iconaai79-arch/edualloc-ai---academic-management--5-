@@ -368,7 +368,7 @@ export const ResellerSubscriptionPackagesManager: React.FC<ResellerSubscriptionP
                     </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <button
                         type="button"
                         onClick={() => setConfig(prev => ({ ...prev, collectionMode: 'platform_ncba' }))}
@@ -379,13 +379,36 @@ export const ResellerSubscriptionPackagesManager: React.FC<ResellerSubscriptionP
                         }`}
                     >
                         <div className="flex items-center justify-between mb-1">
-                            <span className="font-black text-sm text-slate-900 dark:text-white">Use Super Admin NCBA / M-Pesa</span>
+                            <span className="font-black text-sm text-slate-900 dark:text-white">Super Admin NCBA / M-Pesa</span>
                             {config.collectionMode === 'platform_ncba' && (
                                 <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-black uppercase">Active</span>
                             )}
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Schools pay your retail/negotiated amount directly via Super Admin&apos;s NCBA / M-Pesa checkout. Schools activate instantly and your markup is credited to your Commissions wallet.
+                            Schools pay via Super Admin&apos;s NCBA / M-Pesa checkout. Schools activate instantly and your markup is credited to your Commissions wallet.
+                        </p>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setConfig(prev => ({ ...prev, collectionMode: 'reseller_kcb' }))}
+                        className={`text-left p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                            config.collectionMode === 'reseller_kcb'
+                                ? 'border-green-700 bg-green-50/60 dark:bg-green-950/30'
+                                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                        }`}
+                    >
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                                <span className="px-1.5 py-0.5 rounded bg-[#006837] text-white text-[9px] font-black">KCB</span>
+                                Reseller KCB STK Push
+                            </span>
+                            {config.collectionMode === 'reseller_kcb' && (
+                                <span className="px-2 py-0.5 rounded-full bg-[#006837] text-white text-[10px] font-black uppercase">Active</span>
+                            )}
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Schools pay directly into your KCB Buni account via instant STK Push. Once paid, settle only the Super Admin base cost here to activate the school.
                         </p>
                     </button>
 
@@ -399,16 +422,40 @@ export const ResellerSubscriptionPackagesManager: React.FC<ResellerSubscriptionP
                         }`}
                     >
                         <div className="flex items-center justify-between mb-1">
-                            <span className="font-black text-sm text-slate-900 dark:text-white">Collect Direct &amp; Settle Super Admin</span>
+                            <span className="font-black text-sm text-slate-900 dark:text-white">Collect Direct (Manual)</span>
                             {config.collectionMode === 'reseller_direct' && (
                                 <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase">Active</span>
                             )}
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Schools pay directly to your Paybill/Till/Bank/Phone and submit their payment reference. You keep your margin upfront and pay only the Super Admin base cost to activate the school.
+                            Schools pay manually to your Paybill/Till/Bank and submit their reference. You settle only the Super Admin base cost here to activate the school.
                         </p>
                     </button>
                 </div>
+
+                {config.collectionMode === 'reseller_kcb' && (
+                    <div className="p-4 rounded-2xl bg-green-50/60 dark:bg-green-950/20 border border-green-200 dark:border-green-800 space-y-2">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                            <span className="text-xs font-black uppercase tracking-wider text-green-800 dark:text-green-300">
+                                KCB Buni Gateway Status
+                            </span>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                (config.kcbConfig?.appKey || resellerInstitution?.kcbConfig?.appKey)
+                                    ? 'bg-green-600 text-white'
+                                    : 'bg-amber-500 text-white'
+                            }`}>
+                                {(config.kcbConfig?.appKey || resellerInstitution?.kcbConfig?.appKey) ? 'Configured' : 'Configure in Configuration → Payments'}
+                            </span>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-300">
+                            Paybill/Shortcode: <strong className="font-mono">{config.kcbConfig?.shortCode || resellerInstitution?.kcbConfig?.shortCode || '522522'}</strong>
+                            {(config.kcbConfig?.creditAccountIdentifier || resellerInstitution?.kcbConfig?.creditAccountIdentifier) && (
+                                <> • Account: <strong className="font-mono">{config.kcbConfig?.creditAccountIdentifier || resellerInstitution?.kcbConfig?.creditAccountIdentifier}</strong></>
+                            )}
+                            . Update full KCB Buni API keys anytime under the <strong>Configuration → Payments &amp; Payouts</strong> tab.
+                        </p>
+                    </div>
+                )}
 
                 {config.collectionMode === 'reseller_direct' && (
                     <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
@@ -726,11 +773,13 @@ export const ResellerSubscriptionPackagesManager: React.FC<ResellerSubscriptionP
                                         <td className="p-3">{order.planName} ({order.studentCount})</td>
                                         <td className="p-3">
                                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                                                order.collectionMode === 'reseller_direct'
+                                                order.collectionMode === 'reseller_kcb'
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : order.collectionMode === 'reseller_direct'
                                                     ? 'bg-emerald-100 text-emerald-700'
                                                     : 'bg-indigo-100 text-indigo-700'
                                             }`}>
-                                                {order.collectionMode === 'reseller_direct' ? 'Direct Settled' : 'Super Admin NCBA'}
+                                                {order.collectionMode === 'reseller_kcb' ? 'Reseller KCB' : order.collectionMode === 'reseller_direct' ? 'Direct Settled' : 'Super Admin NCBA'}
                                             </span>
                                         </td>
                                         <td className="p-3 font-bold">KES {order.clientTotalAmount.toLocaleString()}</td>

@@ -439,8 +439,53 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
     };
 
     // Automated Post-Payment Execution: Invoice + Receipt + PDF Download + Auto Email
-    const handlePaymentSuccess = async () => {
+    const handlePaymentSuccess = async (receiptRef?: string) => {
         if (!currentInstitution) return;
+
+        // If this school paid into its Reseller's KCB account, log a pending settlement order for the Reseller
+        if (resellerId && resellerConfig?.collectionMode === 'reseller_kcb' && selectedPackage) {
+            const baseRate = selectedPackage.baseAmount ?? selectedPackage.amount;
+            const clientRate = selectedPackage.amount;
+            const baseTotal = baseRate * customStudentCount;
+            const clientTotal = clientRate * customStudentCount;
+            const order: ResellerSubscriptionOrder = {
+                id: `rso_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                institutionId: resellerId,
+                resellerId,
+                clientInstitutionId: currentInstitution.id,
+                clientInstitutionName: currentInstitution.name,
+                planId: selectedPackage.id,
+                planName: selectedPackage.name,
+                billingCycle: selectedPackage.billingCycle,
+                studentCount: customStudentCount,
+                baseRatePerStudent: baseRate,
+                clientRatePerStudent: clientRate,
+                baseTotalAmount: baseTotal,
+                clientTotalAmount: clientTotal,
+                resellerProfit: Math.max(0, clientTotal - baseTotal),
+                smsAllocated: autoAllocatedSmsPool,
+                collectionMode: 'reseller_kcb',
+                clientPaymentReference: receiptRef || `KCB_${Date.now()}`,
+                clientPayerName: currentUser?.name || currentInstitution.name,
+                clientPayerPhone: (currentUser as any)?.phoneNumber || currentInstitution.phoneNumber || '',
+                status: 'pending_reseller_settlement',
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('reseller_subscription_orders', order).catch(() => {});
+            try {
+                const existingRaw = localStorage.getItem(`eduai_reseller_sub_orders_${resellerId}`);
+                const existingArr = existingRaw ? JSON.parse(existingRaw) : [];
+                localStorage.setItem(`eduai_reseller_sub_orders_${resellerId}`, JSON.stringify([order, ...(Array.isArray(existingArr) ? existingArr : [])]));
+            } catch (_) {}
+
+            setIsPayNowModalOpen(false);
+            setIsCalculatorModalOpen(false);
+            alert(
+                `KCB payment of KES ${clientTotal.toLocaleString()} confirmed (Ref: ${order.clientPaymentReference})! ` +
+                `Your reseller has been notified to complete Super Admin settlement and activate your subscription.`
+            );
+            return;
+        }
 
         // 1. Process Invoice, Receipt, PDF generation & Auto Emailing
         const result = await billingService.processSuccessfulPaymentAndAutoEmail({
@@ -1018,9 +1063,16 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                             <div className="flex flex-col sm:flex-row gap-3 pt-2">
                                 <button
                                     onClick={() => setIsPayNowModalOpen(true)}
-                                    className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                    className={`flex-1 py-4 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                        resellerId && resellerConfig?.collectionMode === 'reseller_kcb'
+                                            ? 'bg-[#006837] hover:bg-green-700 text-white shadow-green-600/20'
+                                            : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
+                                    }`}
                                 >
-                                    <CreditCardIcon className="w-5 h-5" /> Pay KES {autoCalculatedTotal.toLocaleString()} Now (M-Pesa / NCBA)
+                                    <CreditCardIcon className="w-5 h-5" />
+                                    {resellerId && resellerConfig?.collectionMode === 'reseller_kcb'
+                                        ? `Pay KES ${autoCalculatedTotal.toLocaleString()} via KCB STK Push`
+                                        : `Pay KES ${autoCalculatedTotal.toLocaleString()} Now (M-Pesa / NCBA)`}
                                 </button>
 
                                 <button
@@ -1178,8 +1230,10 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                     airtelMoneyConfig={(companyDetails as any)?.airtelMoneyConfig || currentInstitution.airtelMoneyConfig}
                     intasendConfig={(companyDetails as any)?.intasendConfig || currentInstitution.intasendConfig}
                     ncbaConfig={companyDetails?.ncbaConfig || currentInstitution.ncbaConfig}
-                    onSuccess={() => {
-                        handlePaymentSuccess();
+                    kcbConfig={resellerId && resellerConfig?.collectionMode === 'reseller_kcb' ? resellerConfig.kcbConfig : (companyDetails as any)?.kcbConfig}
+                    onlyProvider={resellerId && resellerConfig?.collectionMode === 'reseller_kcb' ? 'kcb' : undefined}
+                    onSuccess={(receiptRef) => {
+                        handlePaymentSuccess(receiptRef);
                     }}
                 />
             )}

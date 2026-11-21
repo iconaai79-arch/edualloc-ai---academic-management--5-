@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MpesaIcon } from './icons/MpesaIcon';
 import { NcbaIcon } from './icons/NcbaIcon';
-import type { TransactionStatus, InvoiceItem, MpesaConfig, NcbaConfig } from '../types';
+import type { TransactionStatus, InvoiceItem, MpesaConfig, NcbaConfig, KcbConfig } from '../types';
 import { apiService } from '../services/apiService';
 import { formatPhoneNumber } from '../utils/stringUtils';
 
@@ -10,7 +10,7 @@ interface PayNowModalProps {
     onClose: () => void;
     onPay?: (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]) => Promise<TransactionStatus>;
     onSubmit?: (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]) => Promise<TransactionStatus>;
-    onSuccess?: () => void;
+    onSuccess?: (receiptRef?: string) => void;
     monthlyPrice?: number;
     quarterlyPrice?: number;
     yearlyPrice?: number;
@@ -18,6 +18,9 @@ interface PayNowModalProps {
     airtelMoneyConfig?: any;
     intasendConfig?: any;
     ncbaConfig?: NcbaConfig;
+    kcbConfig?: KcbConfig;
+    defaultProvider?: 'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'kcb' | 'equity' | 'im';
+    onlyProvider?: 'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'kcb' | 'equity' | 'im';
     institutionId?: string;
     institutionCode?: string;
     institutionName?: string;
@@ -27,14 +30,14 @@ interface PayNowModalProps {
 
 export const PayNowModal: React.FC<PayNowModalProps> = ({
     isOpen = true, onClose, onPay, onSubmit, onSuccess, monthlyPrice = 0, quarterlyPrice = 0, yearlyPrice = 0,
-    mpesaConfig, airtelMoneyConfig, intasendConfig, ncbaConfig, institutionId, institutionCode, institutionName,
+    mpesaConfig, airtelMoneyConfig, intasendConfig, ncbaConfig, kcbConfig, defaultProvider, onlyProvider, institutionId, institutionCode, institutionName,
     forceAmount, forcedItems
 }) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [payerName, setPayerName] = useState('');
     const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'quarterly' | 'yearly' | 'forced'>(forceAmount !== undefined ? 'forced' : 'monthly');
-    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'equity' | 'im'>('mpesa');
-    const [enabledGateways, setEnabledGateways] = useState<string[]>(['mpesa', 'ncba']);
+    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'kcb' | 'equity' | 'im'>(onlyProvider || defaultProvider || 'mpesa');
+    const [enabledGateways, setEnabledGateways] = useState<string[]>(onlyProvider ? [onlyProvider] : ['mpesa', 'ncba']);
     const [systemSettings, setSystemSettings] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
@@ -55,8 +58,25 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
         return sysCfg || ncbaConfig || undefined;
     }, [systemSettings, ncbaConfig]);
 
+    const hasValidKcb = (cfg: any): boolean => {
+        if (!cfg || typeof cfg !== 'object') return false;
+        return Boolean(cfg.appKey || cfg.app_key || cfg.shortCode || cfg.tillNumber || cfg.creditAccountIdentifier);
+    };
+
+    const resolvedKcbConfig = React.useMemo(() => {
+        if (hasValidKcb(kcbConfig)) return kcbConfig;
+        const sysKcb = systemSettings?.kcbConfig || (systemSettings as any)?.kcb_config;
+        if (hasValidKcb(sysKcb)) return sysKcb;
+        return kcbConfig || sysKcb || undefined;
+    }, [systemSettings, kcbConfig]);
+
     React.useEffect(() => {
         const fetchGateways = async () => {
+            if (onlyProvider) {
+                setEnabledGateways([onlyProvider]);
+                setProvider(onlyProvider);
+                return;
+            }
             const { data: sData } = await apiService.getSystemSettings();
             if (sData) {
                 setSystemSettings(sData);
@@ -68,13 +88,19 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
             if ((hasValidNcba(sysNcba) || hasValidNcba(ncbaConfig)) && !rawGateways.includes('ncba')) {
                 rawGateways.push('ncba');
             }
+            const sysKcb = sData?.kcbConfig || (sData as any)?.kcb_config;
+            if ((hasValidKcb(sysKcb) || hasValidKcb(kcbConfig)) && !rawGateways.includes('kcb')) {
+                rawGateways.push('kcb');
+            }
             setEnabledGateways(rawGateways);
-            if (!rawGateways.includes(provider)) {
+            if (defaultProvider && rawGateways.includes(defaultProvider)) {
+                setProvider(defaultProvider);
+            } else if (!rawGateways.includes(provider)) {
                 setProvider(rawGateways[0] as any || 'mpesa');
             }
         };
         if (isOpen) fetchGateways();
-    }, [isOpen, ncbaConfig]);
+    }, [isOpen, ncbaConfig, kcbConfig, defaultProvider, onlyProvider]);
 
     const isCompletedRef = React.useRef(false);
     const handleSubmit = async (e: React.FormEvent) => {
@@ -107,13 +133,37 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                 institutionName: institutionName || 'Eduai Automation Hub'
             };
 
-            let initiateResult;
+            let initiateResult: any;
             if (provider === 'mpesa') {
                 initiateResult = await apiService.initiateMpesaPayment(amount, formattedPhone, metadata, mpesaConfig || systemSettings?.mpesaConfig);
             } else if (provider === 'airtel') {
                 initiateResult = await apiService.initiatePayment('airtel', amount, formattedPhone, metadata, airtelMoneyConfig || systemSettings?.airtelMoneyConfig);
             } else if (provider === 'ncba') {
                 initiateResult = await apiService.initiateNcbaPayment(amount, formattedPhone, metadata, resolvedNcbaConfig);
+            } else if (provider === 'kcb') {
+                const kcbRes = await fetch('/api/payments/kcb-stk-push', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phoneNumber: formattedPhone,
+                        customerMobileNumber: formattedPhone,
+                        amount,
+                        transactionAmount: amount,
+                        institutionId: institutionId || 'SYSTEM',
+                        customerReference: institutionCode || institutionId || `SUB_${Date.now()}`,
+                        customerName: payerName || institutionName || 'EduAI Client',
+                        narration: activeItems[0]?.description || 'Subscription Payment',
+                        creditAccountIdentifier: resolvedKcbConfig?.creditAccountIdentifier || institutionId || 'SYSTEM',
+                        kcbConfig: resolvedKcbConfig
+                    })
+                });
+                const kcbJson = await kcbRes.json().catch(() => ({}));
+                initiateResult = {
+                    success: Boolean(kcbRes.ok && kcbJson?.success !== false && (kcbJson?.CheckoutRequestID || kcbJson?.checkoutRequestId || kcbJson?.data?.CheckoutRequestID)),
+                    checkoutRequestId: kcbJson?.CheckoutRequestID || kcbJson?.checkoutRequestId || kcbJson?.data?.CheckoutRequestID,
+                    data: kcbJson?.data || kcbJson,
+                    message: kcbJson?.message || kcbJson?.error || 'KCB STK push initiated.'
+                };
             } else {
                 initiateResult = await apiService.initiatePayment('intasend', amount, formattedPhone, metadata, intasendConfig || systemSettings?.intasendConfig);
             }
@@ -133,10 +183,25 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
 
                 const pollInterval = setInterval(async () => {
                     attempts++;
-                    const result = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
-                        provider === 'mpesa' ? (mpesaConfig || systemSettings?.mpesaConfig) : 
-                        (provider === 'airtel' ? (airtelMoneyConfig || systemSettings?.airtelMoneyConfig) : 
-                         provider === 'ncba' ? resolvedNcbaConfig : (intasendConfig || systemSettings?.intasendConfig)));
+                    let result: any;
+                    if (provider === 'kcb') {
+                        const qRes = await fetch('/api/payments/kcb-query', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                checkoutRequestId,
+                                CheckoutRequestID: checkoutRequestId,
+                                institutionId: institutionId || 'SYSTEM',
+                                kcbConfig: resolvedKcbConfig
+                            })
+                        }).catch(() => null);
+                        result = qRes ? await qRes.json().catch(() => ({})) : {};
+                    } else {
+                        result = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
+                            provider === 'mpesa' ? (mpesaConfig || systemSettings?.mpesaConfig) : 
+                            (provider === 'airtel' ? (airtelMoneyConfig || systemSettings?.airtelMoneyConfig) : 
+                             provider === 'ncba' ? resolvedNcbaConfig : (intasendConfig || systemSettings?.intasendConfig)));
+                    }
 
                     const status = (result?.status || '').toLowerCase();
                     const isCompleted = status === 'completed' || status === 'success' || status === 'successful';
@@ -151,9 +216,10 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                             await paymentExecutor({ amount, phoneNumber, payerName }, activeItems);
                         }
 
+                        const receiptRef = result?.mpesaReceiptNumber || result?.receiptNumber || result?.transactionId || checkoutRequestId;
                         setFinalStatus('completed');
                         setStatusMessage('Payment Confirmed!');
-                        if (onSuccess) onSuccess();
+                        if (onSuccess) onSuccess(receiptRef);
                         setIsLoading(false);
                     } else if ((isFailed || attempts >= maxAttempts) && !isCompletedRef.current) {
                         isCompletedRef.current = true;
@@ -278,6 +344,16 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                                     >
                                         <NcbaIcon className="w-6 h-6 text-blue-600" />
                                         <span className="text-[10px] font-black uppercase">NCBA Bank</span>
+                                    </button>
+                                )}
+                                {enabledGateways.includes('kcb') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setProvider('kcb')}
+                                        className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${provider === 'kcb' ? 'border-green-700 bg-green-50/60 dark:bg-green-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                    >
+                                        <div className="w-8 h-8 bg-[#006837] rounded flex items-center justify-center text-white text-[9px] font-black shadow-lg">KCB</div>
+                                        <span className="text-[10px] font-black uppercase">KCB Bank</span>
                                     </button>
                                 )}
                                 {enabledGateways.includes('equity') && (

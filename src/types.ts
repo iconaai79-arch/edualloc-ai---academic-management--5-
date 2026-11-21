@@ -1177,7 +1177,8 @@ export interface ResellerPackageConfig {
     id: string;
     institutionId: string; // resellerId
     resellerId: string;
-    collectionMode: 'platform_ncba' | 'reseller_direct';
+    collectionMode: 'platform_ncba' | 'reseller_direct' | 'reseller_kcb';
+    kcbConfig?: KcbConfig;
     directPaymentInstructions?: {
         paybill?: string;
         accountNumber?: string;
@@ -1207,7 +1208,7 @@ export interface ResellerSubscriptionOrder {
     clientTotalAmount: number;
     resellerProfit: number;
     smsAllocated: number;
-    collectionMode: 'platform_ncba' | 'reseller_direct';
+    collectionMode: 'platform_ncba' | 'reseller_direct' | 'reseller_kcb';
     clientPaymentReference?: string;
     clientPayerName?: string;
     clientPayerPhone?: string;
