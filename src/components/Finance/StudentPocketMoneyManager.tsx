@@ -525,6 +525,7 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                 netPocketMoney: breakdown.netPocketMoney,
                 processingFee: breakdown.processingFee,
                 transferCharge: breakdown.transferCharge,
+                mpesaAgentWithdrawalCharge: breakdown.mpesaAgentWithdrawalCharge,
                 smsCharge: breakdown.smsCharge,
                 totalExtraCharges: breakdown.totalExtraCharges,
                 totalPaidByParent: breakdown.totalPayableByParent,

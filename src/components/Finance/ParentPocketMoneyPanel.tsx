@@ -229,6 +229,7 @@ export const ParentPocketMoneyPanel: React.FC<ParentPocketMoneyPanelProps> = ({
                 netPocketMoney: breakdown.netPocketMoney,
                 processingFee: breakdown.processingFee,
                 transferCharge: breakdown.transferCharge,
+                mpesaAgentWithdrawalCharge: breakdown.mpesaAgentWithdrawalCharge,
                 smsCharge: breakdown.smsCharge,
                 totalExtraCharges: breakdown.totalExtraCharges,
                 totalPaidByParent: breakdown.totalPayableByParent,
@@ -571,6 +572,12 @@ export const ParentPocketMoneyPanel: React.FC<ParentPocketMoneyPanelProps> = ({
                                             <div className="flex justify-between">
                                                 <span className="text-slate-500">Transfer Charge</span>
                                                 <span className="font-bold text-amber-600">+ KES {b.transferCharge.toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                        {b.mpesaAgentWithdrawalCharge > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">M-Pesa Agent Withdrawal Charge</span>
+                                                <span className="font-bold text-amber-600">+ KES {b.mpesaAgentWithdrawalCharge.toLocaleString()}</span>
                                             </div>
                                         )}
                                         {b.smsCharge > 0 && (

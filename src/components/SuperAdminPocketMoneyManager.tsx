@@ -10,6 +10,30 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { CreditCardIcon } from './icons/CreditCardIcon';
 
+export interface MpesaAgentWithdrawalBand {
+    min: number;
+    max: number;
+    charge: number;
+}
+
+export const DEFAULT_MPESA_AGENT_WITHDRAWAL_BANDS: MpesaAgentWithdrawalBand[] = [
+    { min: 1, max: 49, charge: 0 },
+    { min: 50, max: 100, charge: 11 },
+    { min: 101, max: 500, charge: 29 },
+    { min: 501, max: 1000, charge: 29 },
+    { min: 1001, max: 1500, charge: 29 },
+    { min: 1501, max: 2500, charge: 29 },
+    { min: 2501, max: 3500, charge: 52 },
+    { min: 3501, max: 5000, charge: 69 },
+    { min: 5001, max: 7500, charge: 87 },
+    { min: 7501, max: 10000, charge: 115 },
+    { min: 10001, max: 15000, charge: 167 },
+    { min: 15001, max: 20000, charge: 185 },
+    { min: 20001, max: 35000, charge: 197 },
+    { min: 35001, max: 50000, charge: 278 },
+    { min: 50001, max: 250000, charge: 309 }
+];
+
 export interface PocketMoneyFeeConfig {
     id: string;
     institutionId: string; // 'SYSTEM'
@@ -18,6 +42,8 @@ export interface PocketMoneyFeeConfig {
     processingFeePercent: number; // % of pocket money amount
     transferChargeFixed: number; // KES transfer/disbursement charge paid upfront by parent
     smsCharge: number; // KES parent SMS alert fee
+    includeMpesaAgentWithdrawalCharge: boolean;
+    mpesaAgentWithdrawalBands: MpesaAgentWithdrawalBand[];
     minDepositAmount: number;
     maxDepositAmount: number;
     passChargesToParent: boolean; // Always true: parent pays all extra charges
@@ -33,6 +59,7 @@ export interface PocketMoneyRevenueLog {
     netPocketMoney: number;
     processingFee: number;
     transferCharge: number;
+    mpesaAgentWithdrawalCharge?: number;
     smsCharge: number;
     totalExtraCharges: number;
     totalPaidByParent: number;
@@ -48,6 +75,8 @@ export const DEFAULT_POCKET_MONEY_FEE_CONFIG: PocketMoneyFeeConfig = {
     processingFeePercent: 1.5,
     transferChargeFixed: 30,
     smsCharge: 5,
+    includeMpesaAgentWithdrawalCharge: true,
+    mpesaAgentWithdrawalBands: DEFAULT_MPESA_AGENT_WITHDRAWAL_BANDS,
     minDepositAmount: 100,
     maxDepositAmount: 50000,
     passChargesToParent: true
@@ -57,10 +86,26 @@ export interface PocketMoneyChargeBreakdown {
     netPocketMoney: number;
     processingFee: number;
     transferCharge: number;
+    mpesaAgentWithdrawalCharge: number;
     smsCharge: number;
     totalExtraCharges: number;
     totalPayableByParent: number;
 }
+
+export const lookupMpesaAgentWithdrawalCharge = (
+    amount: number,
+    bands?: MpesaAgentWithdrawalBand[]
+): number => {
+    const amt = Math.max(0, Number(amount) || 0);
+    if (amt <= 0) return 0;
+    const list = Array.isArray(bands) && bands.length > 0 ? bands : DEFAULT_MPESA_AGENT_WITHDRAWAL_BANDS;
+    const sorted = [...list].sort((a, b) => a.min - b.min);
+    const matched = sorted.find(b => amt >= b.min && amt <= b.max);
+    if (matched) return Math.max(0, Number(matched.charge) || 0);
+    const highest = sorted[sorted.length - 1];
+    if (highest && amt > highest.max) return Math.max(0, Number(highest.charge) || 0);
+    return 0;
+};
 
 export const calculatePocketMoneyCharges = (
     netAmount: number,
@@ -73,6 +118,7 @@ export const calculatePocketMoneyCharges = (
             netPocketMoney: 0,
             processingFee: 0,
             transferCharge: 0,
+            mpesaAgentWithdrawalCharge: 0,
             smsCharge: 0,
             totalExtraCharges: 0,
             totalPayableByParent: 0
@@ -91,13 +137,17 @@ export const calculatePocketMoneyCharges = (
     }
 
     const transferCharge = Math.max(0, Number(cfg.transferChargeFixed) || 0);
+    const mpesaAgentWithdrawalCharge = cfg.includeMpesaAgentWithdrawalCharge !== false
+        ? lookupMpesaAgentWithdrawalCharge(net, cfg.mpesaAgentWithdrawalBands)
+        : 0;
     const smsCharge = Math.max(0, Number(cfg.smsCharge) || 0);
-    const totalExtraCharges = processingFee + transferCharge + smsCharge;
+    const totalExtraCharges = processingFee + transferCharge + mpesaAgentWithdrawalCharge + smsCharge;
 
     return {
         netPocketMoney: net,
         processingFee,
         transferCharge,
+        mpesaAgentWithdrawalCharge,
         smsCharge,
         totalExtraCharges,
         totalPayableByParent: net + totalExtraCharges
@@ -411,6 +461,124 @@ export const SuperAdminPocketMoneyManager: React.FC = () => {
                             </div>
                         </div>
 
+                        {/* M-Pesa Agent Withdrawal Tariff Table */}
+                        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <label className="flex items-center gap-2 text-xs font-black uppercase text-slate-800 dark:text-white cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={feeConfig.includeMpesaAgentWithdrawalCharge !== false}
+                                        onChange={e => setFeeConfig(prev => ({ ...prev, includeMpesaAgentWithdrawalCharge: e.target.checked }))}
+                                        className="w-4 h-4 accent-emerald-600"
+                                    />
+                                    Include M-Pesa Agent Withdrawal Charge (Paid by Parent)
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFeeConfig(prev => ({
+                                            ...prev,
+                                            mpesaAgentWithdrawalBands: [
+                                                ...(prev.mpesaAgentWithdrawalBands || DEFAULT_MPESA_AGENT_WITHDRAWAL_BANDS),
+                                                { min: 0, max: 0, charge: 0 }
+                                            ]
+                                        }))}
+                                        className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase cursor-pointer"
+                                    >
+                                        + Add Range
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFeeConfig(prev => ({ ...prev, mpesaAgentWithdrawalBands: DEFAULT_MPESA_AGENT_WITHDRAWAL_BANDS }))}
+                                        className="px-3 py-1 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[10px] uppercase cursor-pointer"
+                                    >
+                                        Reset Tariff
+                                    </button>
+                                </div>
+                            </div>
+
+                            {feeConfig.includeMpesaAgentWithdrawalCharge !== false && (
+                                <div className="max-h-64 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800">
+                                    <table className="w-full text-left border-collapse text-xs">
+                                        <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900 text-slate-500 font-black uppercase text-[10px]">
+                                            <tr>
+                                                <th className="p-2">Min (KES)</th>
+                                                <th className="p-2">Max (KES)</th>
+                                                <th className="p-2">Agent Withdrawal Fee (KES)</th>
+                                                <th className="p-2 text-right">Remove</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                            {(feeConfig.mpesaAgentWithdrawalBands || DEFAULT_MPESA_AGENT_WITHDRAWAL_BANDS).map((band, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="p-1.5">
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={band.min}
+                                                            onChange={e => {
+                                                                const val = Math.max(0, Number(e.target.value) || 0);
+                                                                setFeeConfig(prev => {
+                                                                    const copy = [...(prev.mpesaAgentWithdrawalBands || DEFAULT_MPESA_AGENT_WITHDRAWAL_BANDS)];
+                                                                    copy[idx] = { ...copy[idx], min: val };
+                                                                    return { ...prev, mpesaAgentWithdrawalBands: copy };
+                                                                });
+                                                            }}
+                                                            className="w-24 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-mono font-bold"
+                                                        />
+                                                    </td>
+                                                    <td className="p-1.5">
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={band.max}
+                                                            onChange={e => {
+                                                                const val = Math.max(0, Number(e.target.value) || 0);
+                                                                setFeeConfig(prev => {
+                                                                    const copy = [...(prev.mpesaAgentWithdrawalBands || DEFAULT_MPESA_AGENT_WITHDRAWAL_BANDS)];
+                                                                    copy[idx] = { ...copy[idx], max: val };
+                                                                    return { ...prev, mpesaAgentWithdrawalBands: copy };
+                                                                });
+                                                            }}
+                                                            className="w-28 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-mono font-bold"
+                                                        />
+                                                    </td>
+                                                    <td className="p-1.5">
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={band.charge}
+                                                            onChange={e => {
+                                                                const val = Math.max(0, Number(e.target.value) || 0);
+                                                                setFeeConfig(prev => {
+                                                                    const copy = [...(prev.mpesaAgentWithdrawalBands || DEFAULT_MPESA_AGENT_WITHDRAWAL_BANDS)];
+                                                                    copy[idx] = { ...copy[idx], charge: val };
+                                                                    return { ...prev, mpesaAgentWithdrawalBands: copy };
+                                                                });
+                                                            }}
+                                                            className="w-24 px-2 py-1 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/30 text-xs font-mono font-black text-emerald-700 dark:text-emerald-300"
+                                                        />
+                                                    </td>
+                                                    <td className="p-1.5 text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFeeConfig(prev => ({
+                                                                ...prev,
+                                                                mpesaAgentWithdrawalBands: (prev.mpesaAgentWithdrawalBands || []).filter((_, i) => i !== idx)
+                                                            }))}
+                                                            className="text-rose-500 hover:underline text-[10px] font-bold cursor-pointer"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
                             <ShieldCheckIcon className="w-4 h-4 shrink-0" />
                             <span>Parent-Pays-All Policy Active: Extra charges are added on top of the student&apos;s pocket money so neither the student nor school loses a cent.</span>
@@ -455,6 +623,10 @@ export const SuperAdminPocketMoneyManager: React.FC = () => {
                             <div className="flex justify-between">
                                 <span className="text-slate-300">Transfer Charge</span>
                                 <span className="font-bold text-amber-300">+ KES {preview.transferCharge.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-slate-300">M-Pesa Agent Withdrawal Fee</span>
+                                <span className="font-bold text-amber-300">+ KES {preview.mpesaAgentWithdrawalCharge.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-slate-300">SMS Alert Fee</span>
@@ -587,6 +759,7 @@ export const SuperAdminPocketMoneyManager: React.FC = () => {
                                         <th className="p-3">Student Net</th>
                                         <th className="p-3">Processing</th>
                                         <th className="p-3">Transfer</th>
+                                        <th className="p-3">Agent Fee</th>
                                         <th className="p-3">SMS</th>
                                         <th className="p-3">Parent Paid</th>
                                         <th className="p-3">Platform Revenue</th>
@@ -602,6 +775,7 @@ export const SuperAdminPocketMoneyManager: React.FC = () => {
                                             <td className="p-3">KES {r.netPocketMoney.toLocaleString()}</td>
                                             <td className="p-3">KES {r.processingFee.toLocaleString()}</td>
                                             <td className="p-3">KES {r.transferCharge.toLocaleString()}</td>
+                                            <td className="p-3">KES {(r.mpesaAgentWithdrawalCharge || 0).toLocaleString()}</td>
                                             <td className="p-3">KES {r.smsCharge.toLocaleString()}</td>
                                             <td className="p-3 font-bold">KES {r.totalPaidByParent.toLocaleString()}</td>
                                             <td className="p-3 font-black text-emerald-600">+KES {r.totalExtraCharges.toLocaleString()}</td>
