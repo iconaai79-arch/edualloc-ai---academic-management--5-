@@ -698,6 +698,19 @@ export interface Branch {
     updated_at?: string;
 }
 
+export interface TrialExtensionLog {
+    id: string;
+    institutionId: string;
+    institutionName?: string;
+    resellerId: string;
+    extendedBy: string;
+    extendedAt: string;
+    daysAdded: number;
+    previousEnd: string;
+    newEnd: string;
+    reason: string;
+}
+
 export interface Institution {
     id: string;
     name: string;
@@ -715,6 +728,10 @@ export interface Institution {
     itaxEnabled?: boolean;
     subscriptionEndsAt?: string;
     trialEndsAt?: string;
+    trialExtensionsUsed?: number;
+    maxTrialExtensions?: number;
+    maxTrialExtensionDays?: number;
+    trialExtensionHistory?: TrialExtensionLog[];
     billingModel?: 'fixed' | 'prepaid_student' | 'postpaid_student';
     ratePerStudent?: number;
     billingCycleAnchor?: string;
@@ -1429,6 +1446,8 @@ export interface SubscriptionConfig {
     boardingCostPerStudent?: number;
     transportCostPerStudent?: number;
     propertyCostPerTenant?: number;
+    resellerMaxTrialExtensions?: number;
+    resellerMaxTrialExtensionDays?: number;
 }
 
 export interface DatabaseConfig {

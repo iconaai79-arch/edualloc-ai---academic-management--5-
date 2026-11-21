@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice, Role, CommissionWithdrawalRequest, ResellerSmsTransaction, ResellerSubscriptionOrder } from '../types';
+import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice, Role, CommissionWithdrawalRequest, ResellerSmsTransaction, ResellerSubscriptionOrder, TrialExtensionLog } from '../types';
 import { ResellerSubscriptionPackagesManager } from './ResellerSubscriptionPackagesManager';
 import { ResellerConfigurationManager, type ResellerOnboardingDefaults } from './ResellerConfigurationManager';
 import { apiService } from '../services/apiService';
@@ -141,6 +141,22 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
     // Delete Tenant State
     const [tenantPendingDelete, setTenantPendingDelete] = useState<Institution | null>(null);
     const [isDeletingTenant, setIsDeletingTenant] = useState(false);
+
+    // Trial Extension State (limited per client by Super Admin policy)
+    const maxTrialExtensionsPerClient = Number(
+        resellerInstState?.maxTrialExtensions ??
+        companyDetails?.subscriptionConfig?.resellerMaxTrialExtensions ??
+        2
+    );
+    const maxTrialExtensionDays = Number(
+        resellerInstState?.maxTrialExtensionDays ??
+        companyDetails?.subscriptionConfig?.resellerMaxTrialExtensionDays ??
+        14
+    );
+    const [tenantForTrialExtend, setTenantForTrialExtend] = useState<Institution | null>(null);
+    const [extendDays, setExtendDays] = useState<number>(Math.min(7, maxTrialExtensionDays));
+    const [extendReason, setExtendReason] = useState<string>('');
+    const [isExtendingTrial, setIsExtendingTrial] = useState<boolean>(false);
 
     useEffect(() => {
         const loadData = async () => {
@@ -330,6 +346,110 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
     const openPerspectiveSelection = (tenant: Institution) => {
         setSelectedTenantForPerspective(tenant);
         setIsPerspectiveModalOpen(true);
+    };
+
+    const getTrialExtensionsUsed = (tenant: Institution): number => {
+        const explicitCount = Number(tenant.trialExtensionsUsed ?? (tenant as any).trial_extensions_used ?? 0);
+        const historyCount = Array.isArray(tenant.trialExtensionHistory) ? tenant.trialExtensionHistory.length : 0;
+        return Math.max(explicitCount, historyCount);
+    };
+
+    const getTenantExtensionLimit = (tenant: Institution): number => {
+        const tenantOverride = tenant.maxTrialExtensions ?? (tenant as any).max_trial_extensions;
+        return tenantOverride !== undefined && !Number.isNaN(Number(tenantOverride))
+            ? Number(tenantOverride)
+            : maxTrialExtensionsPerClient;
+    };
+
+    const openExtendTrialModal = (tenant: Institution) => {
+        setTenantForTrialExtend(tenant);
+        setExtendDays(Math.min(7, maxTrialExtensionDays));
+        setExtendReason('');
+    };
+
+    const handleExtendClientTrial = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!tenantForTrialExtend) return;
+        if (!isClientOfThisReseller(tenantForTrialExtend)) {
+            alert('You can only extend trials for tenants belonging to your reseller portfolio.');
+            return;
+        }
+        const used = getTrialExtensionsUsed(tenantForTrialExtend);
+        const limit = getTenantExtensionLimit(tenantForTrialExtend);
+        if (used >= limit) {
+            alert(`Trial extension limit reached (${used}/${limit}). Please contact Super Admin for additional extensions.`);
+            return;
+        }
+        const daysToAdd = Math.max(1, Math.min(maxTrialExtensionDays, Math.floor(Number(extendDays) || 0)));
+        if (daysToAdd < 1 || daysToAdd > maxTrialExtensionDays) {
+            alert(`Extension days must be between 1 and ${maxTrialExtensionDays}.`);
+            return;
+        }
+        if (!extendReason.trim()) {
+            alert('Please enter a brief reason for extending this trial.');
+            return;
+        }
+
+        setIsExtendingTrial(true);
+        try {
+            const nowMs = Date.now();
+            const currentEndStr = tenantForTrialExtend.trialEndsAt || new Date(nowMs).toISOString();
+            const currentEndMs = new Date(currentEndStr).getTime();
+            const baseMs = !Number.isNaN(currentEndMs) && currentEndMs > nowMs ? currentEndMs : nowMs;
+            const newEndIso = new Date(baseMs + daysToAdd * 24 * 60 * 60 * 1000).toISOString();
+
+            const logEntry: TrialExtensionLog = {
+                id: `trext_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                institutionId: tenantForTrialExtend.id,
+                institutionName: tenantForTrialExtend.name,
+                resellerId: targetResellerId,
+                extendedBy: currentUser?.name || currentInstitution?.name || 'Reseller',
+                extendedAt: new Date().toISOString(),
+                daysAdded: daysToAdd,
+                previousEnd: currentEndStr,
+                newEnd: newEndIso,
+                reason: extendReason.trim()
+            };
+
+            const nextHistory = [logEntry, ...(Array.isArray(tenantForTrialExtend.trialExtensionHistory) ? tenantForTrialExtend.trialExtensionHistory : [])];
+            const updatedTenant: Institution = {
+                ...tenantForTrialExtend,
+                status: 'trial',
+                isSuspendedForBilling: false,
+                trialEndsAt: newEndIso,
+                trialExtensionsUsed: used + 1,
+                trialExtensionHistory: nextHistory
+            };
+
+            await apiService.saveInstitution(updatedTenant);
+            await apiService.saveModuleRecord('trial_extension_logs', logEntry).catch(() => {});
+
+            setTenants(prev => prev.map(t => (t.id === updatedTenant.id ? updatedTenant : t)));
+            try {
+                for (const key of ['institutions', 'eduai_institutions']) {
+                    const raw = localStorage.getItem(key);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed)) {
+                            localStorage.setItem(key, JSON.stringify(parsed.map((i: any) => (i && i.id === updatedTenant.id ? updatedTenant : i))));
+                        }
+                    }
+                }
+            } catch (_) {}
+
+            setTenantForTrialExtend(null);
+            setExtendReason('');
+            alert(
+                `Trial extended by ${daysToAdd} day(s) for ${updatedTenant.name}. ` +
+                `New expiry: ${new Date(newEndIso).toLocaleDateString()}. ` +
+                `Extensions used: ${used + 1}/${limit}.`
+            );
+        } catch (err: any) {
+            console.error('Trial Extension Failed:', err);
+            alert(`Failed to extend trial: ${err?.message || 'Unknown error'}`);
+        } finally {
+            setIsExtendingTrial(false);
+        }
     };
 
     const handleConfirmDeleteTenant = async () => {
@@ -671,6 +791,9 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                                 <tbody className="divide-y divide-slate-100">
                                     {filteredTenants.map(tenant => {
                                         const tenantUsers = allUsers.filter(u => u.institutionId === tenant.id).length;
+                                        const extUsed = getTrialExtensionsUsed(tenant);
+                                        const extLimit = getTenantExtensionLimit(tenant);
+                                        const canExtendTrial = tenant.status === 'trial' && extUsed < extLimit;
                                         return (
                                             <tr key={tenant.id} className="hover:bg-slate-50/50 transition-colors">
                                                 <td className="py-4 px-6">
@@ -683,12 +806,22 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                                                     </span>
                                                 </td>
                                                 <td className="py-4 px-6">
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${tenant.status === 'active' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                                                        tenant.status === 'trial' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
-                                                            'bg-red-100 text-red-800 border border-red-200'
-                                                        }`}>
-                                                        {tenant.status.toUpperCase()}
-                                                    </span>
+                                                    <div className="flex flex-col items-start gap-1">
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${tenant.status === 'active' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                                            tenant.status === 'trial' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                                                                'bg-red-100 text-red-800 border border-red-200'
+                                                            }`}>
+                                                            {tenant.status.toUpperCase()}
+                                                        </span>
+                                                        {tenant.status === 'trial' && (
+                                                            <span className="text-[10px] font-bold text-slate-500">
+                                                                {tenant.trialEndsAt ? `Ends ${new Date(tenant.trialEndsAt).toLocaleDateString()} • ` : ''}
+                                                                <span className={extUsed >= extLimit ? 'text-rose-600' : 'text-amber-700'}>
+                                                                    {extUsed}/{extLimit} ext
+                                                                </span>
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="py-4 px-6">
                                                     <div className="flex items-center gap-1 text-slate-600">
@@ -696,7 +829,26 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                                                         <span className="font-medium">{tenantUsers}</span>
                                                     </div>
                                                 </td>
-                                                <td className="py-4 px-6 text-right flex justify-end gap-2">
+                                                <td className="py-4 px-6 text-right flex flex-wrap justify-end gap-2">
+                                                    {tenant.status === 'trial' && (
+                                                        <button
+                                                            onClick={() => openExtendTrialModal(tenant)}
+                                                            disabled={!canExtendTrial}
+                                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm ${
+                                                                canExtendTrial
+                                                                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-600 hover:text-white cursor-pointer'
+                                                                    : 'bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed'
+                                                            }`}
+                                                            title={
+                                                                canExtendTrial
+                                                                    ? `Extend trial (${extLimit - extUsed} of ${extLimit} extension(s) remaining)`
+                                                                    : `Trial extension limit reached (${extUsed}/${extLimit}) — contact Super Admin`
+                                                            }
+                                                        >
+                                                            <ArrowPathIcon className="w-4 h-4" />
+                                                            {canExtendTrial ? 'Extend Trial' : `Limit (${extUsed}/${extLimit})`}
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={() => openEditPricing(tenant)}
                                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors shadow-sm"
@@ -865,6 +1017,131 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                     }}
                 />
             ) : null}
+
+            {/* Extend Client Trial Modal */}
+            {tenantForTrialExtend && (() => {
+                const used = getTrialExtensionsUsed(tenantForTrialExtend);
+                const limit = getTenantExtensionLimit(tenantForTrialExtend);
+                const remaining = Math.max(0, limit - used);
+                const nowMs = Date.now();
+                const currentEndMs = tenantForTrialExtend.trialEndsAt ? new Date(tenantForTrialExtend.trialEndsAt).getTime() : nowMs;
+                const baseMs = !Number.isNaN(currentEndMs) && currentEndMs > nowMs ? currentEndMs : nowMs;
+                const previewNewEnd = new Date(baseMs + Math.max(1, Math.min(maxTrialExtensionDays, extendDays || 1)) * 24 * 60 * 60 * 1000);
+                const presets = [3, 7, 14].filter(d => d <= maxTrialExtensionDays);
+
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-md overflow-hidden animate-scale-in">
+                            <div className="p-6 border-b border-emerald-100 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/30 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-base font-black text-slate-900 dark:text-white">Extend Client Trial</h3>
+                                    <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold">{tenantForTrialExtend.name}</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => !isExtendingTrial && setTenantForTrialExtend(null)}
+                                    className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                                >
+                                    <XIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <form onSubmit={handleExtendClientTrial} className="p-6 space-y-4">
+                                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 text-xs">
+                                    <div>
+                                        <span className="text-slate-400 block text-[10px] font-black uppercase">Current Trial Expiry</span>
+                                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                                            {tenantForTrialExtend.trialEndsAt ? new Date(tenantForTrialExtend.trialEndsAt).toLocaleDateString() : 'Expired'}
+                                        </span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-slate-400 block text-[10px] font-black uppercase">Extensions Remaining</span>
+                                        <span className={`font-black ${remaining > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                            {remaining} of {limit} left
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">
+                                        Days to Add (Max {maxTrialExtensionDays} days)
+                                    </label>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        {presets.map(d => (
+                                            <button
+                                                key={d}
+                                                type="button"
+                                                onClick={() => setExtendDays(d)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                                                    extendDays === d
+                                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200'
+                                                }`}
+                                            >
+                                                +{d} Days
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={maxTrialExtensionDays}
+                                        required
+                                        value={extendDays}
+                                        onChange={e => setExtendDays(Math.max(1, Math.min(maxTrialExtensionDays, Number(e.target.value) || 1)))}
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm font-black"
+                                    />
+                                    <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-bold mt-1">
+                                        New Trial Expiry Preview: {previewNewEnd.toLocaleDateString()}
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                                        Reason for Extension *
+                                    </label>
+                                    <textarea
+                                        required
+                                        rows={2}
+                                        value={extendReason}
+                                        onChange={e => setExtendReason(e.target.value)}
+                                        placeholder="e.g. Board payment approval scheduled for Friday"
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-medium"
+                                    />
+                                </div>
+
+                                {Array.isArray(tenantForTrialExtend.trialExtensionHistory) && tenantForTrialExtend.trialExtensionHistory.length > 0 && (
+                                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700 space-y-1.5 max-h-28 overflow-y-auto">
+                                        <span className="text-[10px] font-black uppercase text-slate-400 block">Previous Extensions</span>
+                                        {tenantForTrialExtend.trialExtensionHistory.map(h => (
+                                            <div key={h.id} className="text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/40 px-2.5 py-1.5 rounded-lg">
+                                                <strong>+{h.daysAdded}d</strong> on {new Date(h.extendedAt).toLocaleDateString()} — {h.reason}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="flex items-center justify-end gap-3 pt-2">
+                                    <button
+                                        type="button"
+                                        disabled={isExtendingTrial}
+                                        onClick={() => setTenantForTrialExtend(null)}
+                                        className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isExtendingTrial || remaining <= 0}
+                                        className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider shadow-md disabled:opacity-50 cursor-pointer"
+                                    >
+                                        {isExtendingTrial ? 'Extending...' : `Extend by +${extendDays}d`}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Delete Tenant Confirmation Modal */}
             {tenantPendingDelete && (
