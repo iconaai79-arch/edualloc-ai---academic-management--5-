@@ -62,6 +62,30 @@ export interface PocketMoneySettlementRequest {
     completedAt?: string;
 }
 
+export interface PocketMoneyPaymentRequest {
+    id: string; // shortCode
+    shortCode: string;
+    shortUrl: string;
+    institutionId: string;
+    institutionName: string;
+    studentId: string;
+    studentName: string;
+    admissionNumber: string;
+    className: string;
+    parentName?: string;
+    parentPhone?: string;
+    category: 'Pocket Money' | 'Academic Trip' | 'Sports / Games Tour' | 'Uniform / Stationery' | 'Remedial / Tuition' | 'Other';
+    title: string;
+    netAmount: number;
+    totalPayableByParent: number;
+    status: 'pending' | 'paid';
+    smsSent?: boolean;
+    receiptReference?: string;
+    createdBy: string;
+    createdAt: string;
+    paidAt?: string;
+}
+
 export interface PocketMoneyAccount {
     id: string;
     institutionId: string;
@@ -130,7 +154,23 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
     onLogAction
 }) => {
     const instId = institution?.id || 'default_inst';
-    const [subTab, setSubTab] = useState<'wallets' | 'ncba_wallet' | 'bulk' | 'ledger' | 'statement'>('wallets');
+    const [subTab, setSubTab] = useState<'wallets' | 'requests' | 'ncba_wallet' | 'bulk' | 'ledger' | 'statement'>('wallets');
+    const [paymentRequests, setPaymentRequests] = useState<PocketMoneyPaymentRequest[]>(() => {
+        try {
+            const raw = localStorage.getItem(`eduai_pocket_pay_reqs_${instId}`);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch (_) {}
+        return [];
+    });
+    const [reqCategory, setReqCategory] = useState<PocketMoneyPaymentRequest['category']>('Pocket Money');
+    const [reqTitle, setReqTitle] = useState('Termly Pocket Money Top-Up');
+    const [reqAmount, setReqAmount] = useState<number>(1000);
+    const [reqClassFilter, setReqClassFilter] = useState<string>('All');
+    const [selectedReqStudentIds, setSelectedReqStudentIds] = useState<Record<string, boolean>>({});
+    const [isSendingRequests, setIsSendingRequests] = useState(false);
     const [walletConfig, setWalletConfig] = useState<PocketMoneyWalletConfig | null>(() => {
         try {
             const raw = localStorage.getItem(`eduai_pocket_wallet_cfg_${instId}`);
@@ -299,6 +339,16 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                     const merged = { ...DEFAULT_POCKET_MONEY_FEE_CONFIG, ...records[0] };
                     setFeeConfig(merged);
                     try { localStorage.setItem('eduai_pocket_money_fee_config', JSON.stringify(merged)); } catch (_) {}
+                }
+            })
+            .catch(() => {});
+
+        apiService.fetchModuleRecords<PocketMoneyPaymentRequest>('pocket_money_payment_requests', instId)
+            .then(records => {
+                if (Array.isArray(records)) {
+                    const sorted = [...records].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                    setPaymentRequests(sorted);
+                    try { localStorage.setItem(`eduai_pocket_pay_reqs_${instId}`, JSON.stringify(sorted)); } catch (_) {}
                 }
             })
             .catch(() => {});
@@ -565,6 +615,86 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
             return res.ok;
         } catch (_) {
             return false;
+        }
+    };
+
+    const generateShortPayCode = (): string => {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let out = 'P';
+        for (let i = 0; i < 7; i++) out += chars[Math.floor(Math.random() * chars.length)];
+        return out;
+    };
+
+    const reqCandidates = useMemo(() => {
+        return mergedWallets.filter(({ account }) => reqClassFilter === 'All' || account.className === reqClassFilter);
+    }, [mergedWallets, reqClassFilter]);
+
+    const handleSendParentPaymentRequests = async () => {
+        const amt = Number(reqAmount) || 0;
+        if (amt <= 0) {
+            showBanner('error', 'Enter a valid requested amount (KES).');
+            return;
+        }
+        const targets = reqCandidates.filter(({ account }) => selectedReqStudentIds[account.studentId]);
+        if (targets.length === 0) {
+            showBanner('error', 'Select at least one student to send payment requests to.');
+            return;
+        }
+
+        setIsSendingRequests(true);
+        try {
+            const breakdown = calculatePocketMoneyCharges(amt, feeConfig);
+            const origin = typeof window !== 'undefined' ? window.location.origin : 'https://portal.eduai.co.ke';
+            const nowIso = new Date().toISOString();
+            const created: PocketMoneyPaymentRequest[] = [];
+            let smsCount = 0;
+
+            for (const { account } of targets) {
+                const shortCode = generateShortPayCode();
+                const shortUrl = `${origin}/p/${shortCode}`;
+                const cleanTitle = reqTitle.trim() || reqCategory;
+                const smsMsg = `${institution.name}: Dear Parent, please pay KES ${amt.toLocaleString()} for ${account.studentName}'s ${cleanTitle} (Total incl. charges: KES ${breakdown.totalPayableByParent.toLocaleString()}). Click to Pay Now: ${shortUrl}`;
+                let smsSent = false;
+                if (account.parentPhone) {
+                    const normalizedPhone = formatPhoneNumber(account.parentPhone);
+                    if (/^254\d{9}$/.test(normalizedPhone)) {
+                        smsSent = await dispatchOtpSms(normalizedPhone, smsMsg);
+                        if (smsSent) smsCount++;
+                    }
+                }
+                const record: PocketMoneyPaymentRequest = {
+                    id: shortCode,
+                    shortCode,
+                    shortUrl,
+                    institutionId: instId,
+                    institutionName: institution.name,
+                    studentId: account.studentId,
+                    studentName: account.studentName,
+                    admissionNumber: account.admissionNumber,
+                    className: account.className,
+                    parentName: account.parentName,
+                    parentPhone: account.parentPhone,
+                    category: reqCategory,
+                    title: cleanTitle,
+                    netAmount: amt,
+                    totalPayableByParent: breakdown.totalPayableByParent,
+                    status: 'pending',
+                    smsSent,
+                    createdBy: currentUser?.name || 'Bursar / Class Teacher',
+                    createdAt: nowIso
+                };
+                created.push(record);
+                await apiService.saveModuleRecord('pocket_money_payment_requests', record).catch(() => {});
+            }
+
+            const nextReqs = [...created, ...paymentRequests];
+            setPaymentRequests(nextReqs);
+            setSelectedReqStudentIds({});
+            try { localStorage.setItem(`eduai_pocket_pay_reqs_${instId}`, JSON.stringify(nextReqs)); } catch (_) {}
+            onLogAction?.(`Sent ${created.length} parent payment request link(s) for ${reqCategory} (${reqTitle}) — KES ${amt}`);
+            showBanner('success', `Generated ${created.length} unique short payment link(s) and sent ${smsCount} parent SMS alert(s)!`);
+        } finally {
+            setIsSendingRequests(false);
         }
     };
 
@@ -1162,6 +1292,7 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
             <div className="flex flex-wrap gap-2 bg-white dark:bg-slate-800 p-2 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 {[
                     { id: 'wallets', label: 'Student Wallets' },
+                    { id: 'requests', label: `Parent Pay Requests (${paymentRequests.length})` },
                     { id: 'ncba_wallet', label: walletConfig?.isActivated ? `School NCBA Wallet (KES ${(walletConfig.ncbaFloatBalance || 0).toLocaleString()})` : 'Activate NCBA Wallet' },
                     { id: 'bulk', label: 'Bulk Payout & Sign-Off' },
                     { id: 'ledger', label: `Trust Cashbook (${transactions.length})` },
@@ -1323,6 +1454,208 @@ export const StudentPocketMoneyManager: React.FC<StudentPocketMoneyManagerProps>
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {/* TAB 1A: SEND PARENT PAYMENT REQUESTS WITH UNIQUE SHORT URLS */}
+            {subTab === 'requests' && (
+                <div className="space-y-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm space-y-5">
+                        <div className="border-b border-slate-100 dark:border-slate-700 pb-4">
+                            <h3 className="text-base font-black text-slate-900 dark:text-white">
+                                Send Parent Payment Request (Unique Short URL → Instant STK Push)
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                Send customized SMS requests for Pocket Money, Academic Trips, Sports Tours, or Uniforms. Each student gets a unique short link that opens a 1-tap Pay Now STK Push page.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Request Category</label>
+                                <select
+                                    value={reqCategory}
+                                    onChange={e => {
+                                        const cat = e.target.value as PocketMoneyPaymentRequest['category'];
+                                        setReqCategory(cat);
+                                        if (cat === 'Academic Trip') setReqTitle('Academic Trip / Excursion Fee');
+                                        else if (cat === 'Pocket Money') setReqTitle('Student Pocket Money Top-Up');
+                                        else if (cat === 'Sports / Games Tour') setReqTitle('Sports & Games Tour Allowance');
+                                        else if (cat === 'Uniform / Stationery') setReqTitle('Uniform & Stationery Contribution');
+                                    }}
+                                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                >
+                                    <option value="Pocket Money">Pocket Money</option>
+                                    <option value="Academic Trip">Academic Trip / Excursion</option>
+                                    <option value="Sports / Games Tour">Sports / Games Tour</option>
+                                    <option value="Uniform / Stationery">Uniform / Stationery</option>
+                                    <option value="Remedial / Tuition">Remedial / Tuition</option>
+                                    <option value="Other">Other Custom Request</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Request Title / Purpose *</label>
+                                <input
+                                    type="text"
+                                    value={reqTitle}
+                                    onChange={e => setReqTitle(e.target.value)}
+                                    placeholder="e.g. Term 3 Science Trip to Nakuru"
+                                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Amount Per Student (KES) *</label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    value={reqAmount}
+                                    onChange={e => setReqAmount(Math.max(1, Number(e.target.value) || 0))}
+                                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-black text-emerald-600"
+                                />
+                                <span className="text-[10px] text-slate-400">
+                                    Parent pays KES {calculatePocketMoneyCharges(reqAmount, feeConfig).totalPayableByParent.toLocaleString()} (incl. charges)
+                                </span>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Filter Class</label>
+                                <select
+                                    value={reqClassFilter}
+                                    onChange={e => setReqClassFilter(e.target.value)}
+                                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                >
+                                    {uniqueClasses.map(c => <option key={c} value={c}>{c === 'All' ? 'All Classes' : c}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const next: Record<string, boolean> = {};
+                                    reqCandidates.forEach(({ account }) => { next[account.studentId] = true; });
+                                    setSelectedReqStudentIds(next);
+                                }}
+                                className="text-xs font-black text-indigo-600 hover:underline cursor-pointer"
+                            >
+                                Select All Shown ({reqCandidates.length})
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isSendingRequests}
+                                onClick={handleSendParentPaymentRequests}
+                                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider shadow-md disabled:opacity-50 cursor-pointer"
+                            >
+                                {isSendingRequests
+                                    ? 'Generating Links & Sending SMS...'
+                                    : `Send Request Links (${Object.values(selectedReqStudentIds).filter(Boolean).length} Selected)`}
+                            </button>
+                        </div>
+
+                        <div className="overflow-x-auto max-h-72 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-2xl">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 text-slate-400 font-black uppercase text-[10px]">
+                                    <tr>
+                                        <th className="p-3 w-10">Pick</th>
+                                        <th className="p-3">Student</th>
+                                        <th className="p-3">Class</th>
+                                        <th className="p-3">Parent Phone</th>
+                                        <th className="p-3">Current Pocket Bal</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                    {reqCandidates.map(({ account }) => (
+                                        <tr key={account.studentId}>
+                                            <td className="p-3">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={Boolean(selectedReqStudentIds[account.studentId])}
+                                                    onChange={e => setSelectedReqStudentIds(prev => ({ ...prev, [account.studentId]: e.target.checked }))}
+                                                    className="w-4 h-4 accent-emerald-600"
+                                                />
+                                            </td>
+                                            <td className="p-3 font-bold text-slate-900 dark:text-white">
+                                                {account.studentName} <span className="text-[10px] font-mono text-slate-400">({account.admissionNumber})</span>
+                                            </td>
+                                            <td className="p-3">{account.className}</td>
+                                            <td className="p-3 font-mono">{account.parentPhone || <span className="text-rose-500">No phone</span>}</td>
+                                            <td className="p-3 font-bold text-emerald-600">KES {account.balance.toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Sent Payment Requests History */}
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm space-y-3">
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                            Sent Payment Links &amp; Status ({paymentRequests.length})
+                        </h3>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-900/60 text-slate-400 font-black uppercase text-[10px] border-b border-slate-200 dark:border-slate-700">
+                                        <th className="p-3">Student</th>
+                                        <th className="p-3">Category / Title</th>
+                                        <th className="p-3">Amount</th>
+                                        <th className="p-3">Unique Short URL</th>
+                                        <th className="p-3">Status</th>
+                                        <th className="p-3 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                    {paymentRequests.length === 0 ? (
+                                        <tr><td colSpan={6} className="p-8 text-center text-slate-400">No parent payment requests sent yet.</td></tr>
+                                    ) : paymentRequests.map(req => (
+                                        <tr key={req.id}>
+                                            <td className="p-3">
+                                                <div className="font-bold text-slate-900 dark:text-white">{req.studentName}</div>
+                                                <div className="text-[10px] text-slate-500 font-mono">{req.className} • {req.parentPhone || 'No phone'}</div>
+                                            </td>
+                                            <td className="p-3">
+                                                <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-black uppercase block w-fit">{req.category}</span>
+                                                <span className="text-slate-600 dark:text-slate-300">{req.title}</span>
+                                            </td>
+                                            <td className="p-3">
+                                                <div className="font-black text-slate-900 dark:text-white">KES {req.netAmount.toLocaleString()}</div>
+                                                <div className="text-[10px] text-slate-400">Parent pays KES {req.totalPayableByParent.toLocaleString()}</div>
+                                            </td>
+                                            <td className="p-3">
+                                                <a
+                                                    href={req.shortUrl}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="font-mono text-[11px] text-indigo-600 hover:underline font-bold"
+                                                >
+                                                    {req.shortUrl}
+                                                </a>
+                                            </td>
+                                            <td className="p-3">
+                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                                    req.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
+                                                }`}>
+                                                    {req.status}
+                                                </span>
+                                            </td>
+                                            <td className="p-3 text-right">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        navigator.clipboard?.writeText(req.shortUrl);
+                                                        showBanner('success', `Copied link: ${req.shortUrl}`);
+                                                    }}
+                                                    className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[10px] uppercase cursor-pointer"
+                                                >
+                                                    Copy Link
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}

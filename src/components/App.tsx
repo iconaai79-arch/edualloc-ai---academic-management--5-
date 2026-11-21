@@ -141,6 +141,7 @@ const TermsOfService = safeLazy(() => import('../pages/TermsOfService'));
 const SpeechBuddyPortal = safeLazy(() => import('./SpeechBuddyPortal').then(m => ({ default: m?.SpeechBuddyPortal || m?.default || m })));
 const KidsCodingRoboticsStudio = safeLazy(() => import('./STEM/KidsCodingRoboticsStudio').then(m => ({ default: m?.KidsCodingRoboticsStudio || m?.default || m })));
 const IELTSPrepSuite = safeLazy(() => import('./IELTS/IELTSPrepSuite').then(m => ({ default: m?.IELTSPrepSuite || m?.default || m })));
+const PublicPocketMoneyPayPage = safeLazy(() => import('./public/PublicPocketMoneyPayPage').then(m => ({ default: m?.PublicPocketMoneyPayPage || m?.default || m })));
 const SpeechTherapyReportGenerator = safeLazy(() => import('./SpeechTherapyReportGenerator').then((m: any) => ({ default: m?.SpeechTherapyReportGenerator || m?.default || m })));
 const AIExamGenerator = safeLazy(() => import('./AIExamGenerator').then((m: any) => ({ default: m?.AIExamGenerator || m?.default || m })));
 const NTSADrivingSimulator = safeLazy(() => import('./NTSADrivingSimulator').then((m: any) => ({ default: m?.NTSADrivingSimulator || m?.default || m })));
@@ -8446,6 +8447,17 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             return await apiService.sendBulkCredentials(usersToSend, method, effectiveSmsConfig, activeInstitution?.id);
         }
     }), [currentUser, activeInstitution, handleLogAction, companyDetails]);
+
+    // ── EARLY ESCAPE: Public Parent Short-URL Pocket Money / Trip STK Pay Page (/p/:shortCode) ──
+    const pocketPayMatch = window.location.pathname.match(/^\/p\/([A-Za-z0-9_-]+)/);
+    const pocketPayCode = pocketPayMatch?.[1] || new URLSearchParams(window.location.search).get('p');
+    if (pocketPayCode) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <PublicPocketMoneyPayPage shortCode={pocketPayCode} companyDetails={companyDetails} />
+            </Suspense>
+        );
+    }
 
     // â”€â”€ EARLY ESCAPE: Public SpeechBuddy AI standalone portal â€” skip auth & institution boot entirely â”€â”€
     if (window.location.search.includes('view=speechbuddy') || window.location.search.includes('view=speech-buddy') || window.location.pathname.startsWith('/speechbuddy')) {
