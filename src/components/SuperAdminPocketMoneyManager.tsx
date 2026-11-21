@@ -34,13 +34,28 @@ export const DEFAULT_MPESA_AGENT_WITHDRAWAL_BANDS: MpesaAgentWithdrawalBand[] = 
     { min: 50001, max: 250000, charge: 309 }
 ];
 
+export const DEFAULT_NCBA_TRANSFER_BANDS: MpesaAgentWithdrawalBand[] = [
+    { min: 1, max: 100, charge: 0 },
+    { min: 101, max: 500, charge: 11 },
+    { min: 501, max: 1000, charge: 15 },
+    { min: 1001, max: 1500, charge: 18 },
+    { min: 1501, max: 2500, charge: 25 },
+    { min: 2501, max: 3500, charge: 35 },
+    { min: 3501, max: 5000, charge: 47 },
+    { min: 5001, max: 7500, charge: 57 },
+    { min: 7501, max: 20000, charge: 67 },
+    { min: 20001, max: 150000, charge: 70 }
+];
+
 export interface PocketMoneyFeeConfig {
     id: string;
     institutionId: string; // 'SYSTEM'
     processingFeeType: 'fixed' | 'percentage' | 'both';
     processingFeeFixed: number; // KES flat processing fee
     processingFeePercent: number; // % of pocket money amount
-    transferChargeFixed: number; // KES transfer/disbursement charge paid upfront by parent
+    transferChargeMode?: 'ncba_bands' | 'fixed';
+    transferChargeFixed: number; // KES flat transfer charge when mode === 'fixed'
+    ncbaTransferBands?: MpesaAgentWithdrawalBand[];
     smsCharge: number; // KES parent SMS alert fee
     includeMpesaAgentWithdrawalCharge: boolean;
     mpesaAgentWithdrawalBands: MpesaAgentWithdrawalBand[];
@@ -73,7 +88,9 @@ export const DEFAULT_POCKET_MONEY_FEE_CONFIG: PocketMoneyFeeConfig = {
     processingFeeType: 'both',
     processingFeeFixed: 20,
     processingFeePercent: 1.5,
+    transferChargeMode: 'ncba_bands',
     transferChargeFixed: 30,
+    ncbaTransferBands: DEFAULT_NCBA_TRANSFER_BANDS,
     smsCharge: 5,
     includeMpesaAgentWithdrawalCharge: true,
     mpesaAgentWithdrawalBands: DEFAULT_MPESA_AGENT_WITHDRAWAL_BANDS,
@@ -136,7 +153,9 @@ export const calculatePocketMoneyCharges = (
             Math.ceil((net * Math.max(0, Number(cfg.processingFeePercent) || 0)) / 100);
     }
 
-    const transferCharge = Math.max(0, Number(cfg.transferChargeFixed) || 0);
+    const transferCharge = (cfg.transferChargeMode || 'ncba_bands') === 'ncba_bands'
+        ? lookupMpesaAgentWithdrawalCharge(net, cfg.ncbaTransferBands || DEFAULT_NCBA_TRANSFER_BANDS)
+        : Math.max(0, Number(cfg.transferChargeFixed) || 0);
     const mpesaAgentWithdrawalCharge = cfg.includeMpesaAgentWithdrawalCharge !== false
         ? lookupMpesaAgentWithdrawalCharge(net, cfg.mpesaAgentWithdrawalBands)
         : 0;
@@ -419,16 +438,28 @@ export const SuperAdminPocketMoneyManager: React.FC = () => {
                                 </div>
                             )}
                             <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Transfer / Disbursement Charge (KES)</label>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    value={feeConfig.transferChargeFixed}
-                                    onChange={e => setFeeConfig(prev => ({ ...prev, transferChargeFixed: Math.max(0, Number(e.target.value) || 0) }))}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-black"
-                                />
-                                <span className="text-[10px] text-slate-400">Covers NCBA-to-School dedicated number transfer cost</span>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">NCBA Transfer Charge Mode</label>
+                                <select
+                                    value={feeConfig.transferChargeMode || 'ncba_bands'}
+                                    onChange={e => setFeeConfig(prev => ({ ...prev, transferChargeMode: e.target.value as any }))}
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                >
+                                    <option value="ncba_bands">NCBA Mobile Money Range Tariff (Table Below)</option>
+                                    <option value="fixed">Flat Fixed Transfer Charge (KES)</option>
+                                </select>
                             </div>
+                            {(feeConfig.transferChargeMode === 'fixed') && (
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Flat Transfer Charge (KES)</label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        value={feeConfig.transferChargeFixed}
+                                        onChange={e => setFeeConfig(prev => ({ ...prev, transferChargeFixed: Math.max(0, Number(e.target.value) || 0) }))}
+                                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-black"
+                                    />
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Parent SMS Notification Fee (KES)</label>
                                 <input
@@ -460,6 +491,117 @@ export const SuperAdminPocketMoneyManager: React.FC = () => {
                                 />
                             </div>
                         </div>
+
+                        {/* NCBA Mobile Money Transfer Tariff Table */}
+                        {(feeConfig.transferChargeMode || 'ncba_bands') === 'ncba_bands' && (
+                            <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800 space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <span className="text-xs font-black uppercase text-indigo-900 dark:text-indigo-200">
+                                        NCBA Mobile Money Transfer Rate (MPESA / Airtel)
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setFeeConfig(prev => ({
+                                                ...prev,
+                                                ncbaTransferBands: [
+                                                    ...(prev.ncbaTransferBands || DEFAULT_NCBA_TRANSFER_BANDS),
+                                                    { min: 0, max: 0, charge: 0 }
+                                                ]
+                                            }))}
+                                            className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase cursor-pointer"
+                                        >
+                                            + Add Range
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFeeConfig(prev => ({ ...prev, ncbaTransferBands: DEFAULT_NCBA_TRANSFER_BANDS }))}
+                                            className="px-3 py-1 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[10px] uppercase cursor-pointer"
+                                        >
+                                            Reset NCBA Tariff
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="max-h-56 overflow-y-auto border border-indigo-200 dark:border-indigo-800 rounded-xl bg-white dark:bg-slate-800">
+                                    <table className="w-full text-left border-collapse text-xs">
+                                        <thead className="sticky top-0 bg-indigo-100/70 dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 font-black uppercase text-[10px]">
+                                            <tr>
+                                                <th className="p-2">Min (KES)</th>
+                                                <th className="p-2">Max (KES)</th>
+                                                <th className="p-2">NCBA Transfer Charge (KES)</th>
+                                                <th className="p-2 text-right">Remove</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                            {(feeConfig.ncbaTransferBands || DEFAULT_NCBA_TRANSFER_BANDS).map((band, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="p-1.5">
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={band.min}
+                                                            onChange={e => {
+                                                                const val = Math.max(0, Number(e.target.value) || 0);
+                                                                setFeeConfig(prev => {
+                                                                    const copy = [...(prev.ncbaTransferBands || DEFAULT_NCBA_TRANSFER_BANDS)];
+                                                                    copy[idx] = { ...copy[idx], min: val };
+                                                                    return { ...prev, ncbaTransferBands: copy };
+                                                                });
+                                                            }}
+                                                            className="w-24 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-mono font-bold"
+                                                        />
+                                                    </td>
+                                                    <td className="p-1.5">
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={band.max}
+                                                            onChange={e => {
+                                                                const val = Math.max(0, Number(e.target.value) || 0);
+                                                                setFeeConfig(prev => {
+                                                                    const copy = [...(prev.ncbaTransferBands || DEFAULT_NCBA_TRANSFER_BANDS)];
+                                                                    copy[idx] = { ...copy[idx], max: val };
+                                                                    return { ...prev, ncbaTransferBands: copy };
+                                                                });
+                                                            }}
+                                                            className="w-28 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-mono font-bold"
+                                                        />
+                                                    </td>
+                                                    <td className="p-1.5">
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={band.charge}
+                                                            onChange={e => {
+                                                                const val = Math.max(0, Number(e.target.value) || 0);
+                                                                setFeeConfig(prev => {
+                                                                    const copy = [...(prev.ncbaTransferBands || DEFAULT_NCBA_TRANSFER_BANDS)];
+                                                                    copy[idx] = { ...copy[idx], charge: val };
+                                                                    return { ...prev, ncbaTransferBands: copy };
+                                                                });
+                                                            }}
+                                                            className="w-24 px-2 py-1 rounded-lg border border-indigo-300 dark:border-indigo-700 bg-indigo-50/40 dark:bg-indigo-950/30 text-xs font-mono font-black text-indigo-700 dark:text-indigo-300"
+                                                        />
+                                                    </td>
+                                                    <td className="p-1.5 text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFeeConfig(prev => ({
+                                                                ...prev,
+                                                                ncbaTransferBands: (prev.ncbaTransferBands || []).filter((_, i) => i !== idx)
+                                                            }))}
+                                                            className="text-rose-500 hover:underline text-[10px] font-bold cursor-pointer"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
 
                         {/* M-Pesa Agent Withdrawal Tariff Table */}
                         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
