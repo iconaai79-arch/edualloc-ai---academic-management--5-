@@ -583,7 +583,7 @@ export const ResellerSubscriptionPackagesManager: React.FC<ResellerSubscriptionP
                                         </td>
                                         <td className="p-3">
                                             <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold uppercase">
-                                                {plan.smsUsageType === 'finance_receipts_only' ? 'Finance' : plan.smsUsageType === 'academic_results_only' ? 'Academics' : plan.smsUsageType === 'library_only' ? 'Library' : 'All-Access'}
+                                                {plan.smsUsageType === 'finance_receipts_only' ? 'Finance' : plan.smsUsageType === 'academic_results_only' ? 'Academics' : plan.smsUsageType === 'library_only' ? 'Library' : plan.smsUsageType === 'hr_payroll_only' ? 'HR & Payroll' : 'All-Access'}
                                             </span>
                                         </td>
                                         <td className="p-3 font-mono font-bold text-slate-600 dark:text-slate-300">
@@ -602,7 +602,9 @@ export const ResellerSubscriptionPackagesManager: React.FC<ResellerSubscriptionP
                                             <span className="font-black text-slate-900 dark:text-white text-sm">
                                                 KES {retailAmount.toLocaleString()}
                                             </span>
-                                            <span className="text-[10px] text-slate-400 block">/ student</span>
+                                            <span className="text-[10px] text-slate-400 block">
+                                                / {plan.pricingUnit === 'employee' || plan.smsUsageType === 'hr_payroll_only' ? 'employee' : 'student'}
+                                            </span>
                                         </td>
                                         <td className="p-3">
                                             <input

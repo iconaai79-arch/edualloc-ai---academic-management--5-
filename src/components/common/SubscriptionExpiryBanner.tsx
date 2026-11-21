@@ -25,7 +25,7 @@ export interface SubscriptionExpiryBannerProps {
     customTitle?: string;
     subscriptionLabel?: string;
     renewButtonText?: string;
-    moduleContext?: 'academics' | 'finance' | 'library';
+    moduleContext?: 'academics' | 'finance' | 'library' | 'hr_payroll';
     users?: User[];
     companyDetails?: CompanyDetails;
 }
@@ -144,7 +144,7 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
     const handleRenewClick = () => {
         if (onRenew) {
             onRenew();
-        } else if (isEducation && (moduleContext === 'finance' || moduleContext === 'academics' || moduleContext === 'library')) {
+        } else if (isEducation && (moduleContext === 'finance' || moduleContext === 'academics' || moduleContext === 'library' || moduleContext === 'hr_payroll')) {
             setIsGlobalPackagesModalOpen(true);
         } else {
             setIsPayModalOpen(true);

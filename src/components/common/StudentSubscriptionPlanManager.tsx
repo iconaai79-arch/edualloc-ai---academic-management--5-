@@ -22,7 +22,8 @@ export interface StudentSubscriptionPlan {
     isNegotiated?: boolean;
     resellerAdjustment?: number;
     smsAllocatedPerStudent: number;
-    smsUsageType: 'academic_results_only' | 'finance_receipts_only' | 'library_only' | 'all';
+    smsUsageType: 'academic_results_only' | 'finance_receipts_only' | 'library_only' | 'hr_payroll_only' | 'all';
+    pricingUnit?: 'student' | 'employee';
     features: string[];
     applicableClasses: string[];
     isActive: boolean;
@@ -50,7 +51,7 @@ interface StudentSubscriptionPlanManagerProps {
     users?: User[];
     courses?: Course[];
     companyDetails?: CompanyDetails;
-    moduleContext?: 'academics' | 'finance' | 'library' | 'superadmin';
+    moduleContext?: 'academics' | 'finance' | 'library' | 'hr_payroll' | 'superadmin';
     isSuperAdmin?: boolean;
 }
 
@@ -115,8 +116,37 @@ export const GLOBAL_DEFAULT_PLANS: StudentSubscriptionPlan[] = [
         amount: 1000,
         smsAllocatedPerStudent: 60,
         smsUsageType: 'all',
+        pricingUnit: 'student',
         features: ['Full Year Unlimited Platform Access', 'All Academic & Broadsheet Tools', 'Complete Financial Ledger & Receipts', 'SpeechBuddy AI Revision Marketplace', '60 Results & Finance SMS / Student'],
         applicableClasses: ['All Classes'],
+        isActive: true,
+        institutionId: 'SYSTEM'
+    },
+    {
+        id: 'plan_hr_payroll_term',
+        name: 'HR & Payroll Suite (Per Term)',
+        description: 'Termly HR management, automated KRA/SHIF/NSSF/Housing Levy payroll computation, payslip dispatch, and staff attendance.',
+        billingCycle: 'per_term',
+        amount: 250,
+        smsAllocatedPerStudent: 10,
+        smsUsageType: 'hr_payroll_only',
+        pricingUnit: 'employee',
+        features: ['Automated Payslips & Statutory Deductions (PAYE/SHIF/NSSF)', 'Staff Leave & Attendance Management', 'P9 Tax Cards & Bank EFT Export', '10 Payroll & HR SMS / Employee'],
+        applicableClasses: ['All Staff'],
+        isActive: true,
+        institutionId: 'SYSTEM'
+    },
+    {
+        id: 'plan_hr_payroll_year',
+        name: 'HR & Payroll Enterprise Suite (Per Year)',
+        description: 'Full-year HR & Payroll automation per employee including statutory returns, loan tracking, appraisals, and payslip alerts.',
+        billingCycle: 'per_year',
+        amount: 650,
+        smsAllocatedPerStudent: 36,
+        smsUsageType: 'hr_payroll_only',
+        pricingUnit: 'employee',
+        features: ['Full Year Payroll & Statutory Compliance', 'Staff Loans, Advances & Deductions Ledger', 'Digital Payslips & Annual P9 Generation', '36 Payroll & HR SMS / Employee'],
+        applicableClasses: ['All Staff'],
         isActive: true,
         institutionId: 'SYSTEM'
     }
@@ -193,19 +223,21 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
         });
     }, [plans, isSuperAdminMode, resellerId, resellerConfig, currentInstitution?.id]);
 
-    const [superAdminFilter, setSuperAdminFilter] = useState<'all' | 'academic' | 'finance' | 'library' | 'combo'>('all');
+    const [superAdminFilter, setSuperAdminFilter] = useState<'all' | 'academic' | 'finance' | 'library' | 'hr_payroll' | 'combo'>('all');
 
     // Service-specific Plan Filtering:
     // - In Finance module: Only show packages with finance SMS or all-access
     // - In Academics module: Only show packages with academic results SMS or all-access
     // - In Library module: Only show packages with library SMS or all-access
-    // - In Super Admin mode: Allow tabbed filtering across All / Academic / Finance / Library / Combo
+    // - In HR & Payroll module: Only show packages with HR & Payroll (per employee) or all-access
+    // - In Super Admin mode: Allow tabbed filtering across All / Academic / Finance / Library / HR & Payroll / Combo
     const filteredPlans = useMemo(() => {
         const source = effectivePlans;
         if (isSuperAdminMode || moduleContext === 'superadmin') {
             if (superAdminFilter === 'academic') return source.filter(p => p.smsUsageType === 'academic_results_only');
             if (superAdminFilter === 'finance') return source.filter(p => p.smsUsageType === 'finance_receipts_only');
             if (superAdminFilter === 'library') return source.filter(p => p.smsUsageType === 'library_only');
+            if (superAdminFilter === 'hr_payroll') return source.filter(p => p.smsUsageType === 'hr_payroll_only');
             if (superAdminFilter === 'combo') return source.filter(p => p.smsUsageType === 'all');
             return source;
         }
@@ -217,6 +249,9 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
         }
         if (moduleContext === 'library') {
             return source.filter(p => p.isActive && (p.smsUsageType === 'library_only' || p.smsUsageType === 'all'));
+        }
+        if (moduleContext === 'hr_payroll') {
+            return source.filter(p => p.isActive && (p.smsUsageType === 'hr_payroll_only' || p.smsUsageType === 'all'));
         }
         return source.filter(p => p.isActive);
     }, [effectivePlans, moduleContext, isSuperAdminMode, superAdminFilter]);
@@ -276,8 +311,8 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
     const [newPlanCycle, setNewPlanCycle] = useState<'per_term' | 'per_year' | 'monthly'>('per_term');
     const [newPlanAmount, setNewPlanAmount] = useState<number>(150);
     const [newPlanSms, setNewPlanSms] = useState<number>(10);
-    const [newPlanSmsType, setNewPlanSmsType] = useState<'academic_results_only' | 'finance_receipts_only' | 'library_only' | 'all'>(
-        moduleContext === 'finance' ? 'finance_receipts_only' : moduleContext === 'library' ? 'library_only' : 'academic_results_only'
+    const [newPlanSmsType, setNewPlanSmsType] = useState<'academic_results_only' | 'finance_receipts_only' | 'library_only' | 'hr_payroll_only' | 'all'>(
+        moduleContext === 'finance' ? 'finance_receipts_only' : moduleContext === 'library' ? 'library_only' : moduleContext === 'hr_payroll' ? 'hr_payroll_only' : 'academic_results_only'
     );
     const [newPlanFeatures, setNewPlanFeatures] = useState<string>('Report Cards & Transcripts\nAttendance Tracking\nBasic Subject Mark Entry');
 
@@ -286,14 +321,12 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
         return users.filter(u => u.role === 'student');
     }, [users]);
 
+    const employeesList = useMemo(() => {
+        return users.filter(u => u.role !== 'student' && u.role !== 'parent');
+    }, [users]);
+
     const [selectedPackageId, setSelectedPackageId] = useState<string>(() => filteredPlans[0]?.id || plans[0]?.id || 'plan_basic_academic_term');
     const [customStudentCount, setCustomStudentCount] = useState<number>(studentsList.length || 100);
-
-    useEffect(() => {
-        if (studentsList.length > 0) {
-            setCustomStudentCount(studentsList.length);
-        }
-    }, [studentsList.length]);
 
     // Keep selectedPackageId synchronized when filteredPlans change
     useEffect(() => {
@@ -305,6 +338,16 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
     const selectedPackage = useMemo(() => {
         return filteredPlans.find(p => p.id === selectedPackageId) || plans.find(p => p.id === selectedPackageId) || filteredPlans[0] || plans[0] || GLOBAL_DEFAULT_PLANS[0];
     }, [filteredPlans, plans, selectedPackageId]);
+
+    const isSelectedEmployeePlan = selectedPackage?.pricingUnit === 'employee' || selectedPackage?.smsUsageType === 'hr_payroll_only';
+
+    useEffect(() => {
+        if (isSelectedEmployeePlan) {
+            if (employeesList.length > 0) setCustomStudentCount(employeesList.length);
+        } else if (studentsList.length > 0) {
+            setCustomStudentCount(studentsList.length);
+        }
+    }, [isSelectedEmployeePlan, employeesList.length, studentsList.length]);
 
     // Live Auto-Calculation
     const autoCalculatedTotal = useMemo(() => {
@@ -353,8 +396,9 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
             amount: Number(newPlanAmount) || 0,
             smsAllocatedPerStudent: Number(newPlanSms) || 0,
             smsUsageType: newPlanSmsType,
-            features: featureArray.length > 0 ? featureArray : ['Academic Records Access', 'Student Attendance Tracking'],
-            applicableClasses: ['All Classes'],
+            pricingUnit: newPlanSmsType === 'hr_payroll_only' ? 'employee' : 'student',
+            features: featureArray.length > 0 ? featureArray : (newPlanSmsType === 'hr_payroll_only' ? ['Automated Payroll & Payslips', 'Statutory Returns (PAYE/SHIF/NSSF)', 'Staff Leave & Attendance'] : ['Academic Records Access', 'Student Attendance Tracking']),
+            applicableClasses: newPlanSmsType === 'hr_payroll_only' ? ['All Staff'] : ['All Classes'],
             isActive: true,
             institutionId: 'SYSTEM'
         };
@@ -665,6 +709,7 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                             { id: 'academic', label: '📚 Academic SMS' },
                             { id: 'finance', label: '💼 Finance SMS' },
                             { id: 'library', label: '📖 Library' },
+                            { id: 'hr_payroll', label: '👥 HR & Payroll' },
                             { id: 'combo', label: '🌟 All-Access' }
                         ].map(f => (
                             <button
@@ -687,6 +732,8 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                             ? '💼 Showing Packages with Finance & Fee Receipts SMS'
                             : moduleContext === 'library'
                             ? '📖 Showing Packages with Library & Book Circulation Access'
+                            : moduleContext === 'hr_payroll'
+                            ? '👥 Showing HR & Payroll Packages (Per Employee — Termly / Annual)'
                             : '📚 Showing Packages with Academic CBC & Results SMS'}
                     </div>
                 )}
@@ -731,6 +778,8 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                             ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40'
                                             : plan.smsUsageType === 'library_only'
                                             ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40'
+                                            : plan.smsUsageType === 'hr_payroll_only'
+                                            ? 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/40'
                                             : 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40'
                                     }`}>
                                         {plan.smsUsageType === 'finance_receipts_only'
@@ -739,6 +788,8 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                             ? '📚 Academic Results SMS Only'
                                             : plan.smsUsageType === 'library_only'
                                             ? '📖 Library & Book Circulation'
+                                            : plan.smsUsageType === 'hr_payroll_only'
+                                            ? '👥 HR & Payroll (Per Employee)'
                                             : '🌟 All-Access (Academic + Finance + Library)'}
                                     </span>
                                 </div>
@@ -751,11 +802,11 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                             KES {plan.amount.toLocaleString()}
                                         </span>
                                         <span className="text-[10px] text-slate-400 font-mono">
-                                            / student / {plan.billingCycle === 'per_term' ? 'term' : plan.billingCycle === 'per_year' ? 'year' : 'month'}
+                                            / {plan.pricingUnit === 'employee' || plan.smsUsageType === 'hr_payroll_only' ? 'employee' : 'student'} / {plan.billingCycle === 'per_term' ? 'term' : plan.billingCycle === 'per_year' ? 'year' : 'month'}
                                         </span>
                                     </div>
                                     <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block mt-1">
-                                        ⚡ Includes {plan.smsAllocatedPerStudent} SMS / Student
+                                        ⚡ Includes {plan.smsAllocatedPerStudent} SMS / {plan.pricingUnit === 'employee' || plan.smsUsageType === 'hr_payroll_only' ? 'Employee' : 'Student'}
                                     </span>
                                 </div>
 
@@ -876,7 +927,7 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                         <div>
                                             <span className="text-xs font-black text-slate-900 dark:text-white block">{p.name}</span>
                                             <span className="text-[9px] font-black uppercase tracking-wider text-indigo-500 block mt-0.5">
-                                                {p.smsUsageType === 'finance_receipts_only' ? '💼 Finance SMS' : p.smsUsageType === 'academic_results_only' ? '📚 Academic SMS' : '🌟 All-Access SMS'}
+                                                {p.smsUsageType === 'finance_receipts_only' ? '💼 Finance SMS' : p.smsUsageType === 'academic_results_only' ? '📚 Academic SMS' : p.smsUsageType === 'library_only' ? '📖 Library' : p.smsUsageType === 'hr_payroll_only' ? '👥 HR & Payroll' : '🌟 All-Access SMS'}
                                             </span>
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
                                                 {p.billingCycle.replace('_', ' ')}
@@ -886,21 +937,25 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                                             <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
                                                 KES {p.amount}
                                             </span>
-                                            <span className="text-[9px] text-slate-400 block font-medium">per student</span>
+                                            <span className="text-[9px] text-slate-400 block font-medium">
+                                                per {p.pricingUnit === 'employee' || p.smsUsageType === 'hr_payroll_only' ? 'employee' : 'student'}
+                                            </span>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        {/* Step 2: Enrolled Student Count Verification */}
+                        {/* Step 2: Enrolled Student / Employee Count Verification */}
                         <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-800">
                             <div className="flex justify-between items-center">
                                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                    2. Confirm Enrolled Student Count
+                                    {isSelectedEmployeePlan ? '2. Confirm Employee Count' : '2. Confirm Enrolled Student Count'}
                                 </label>
                                 <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-full">
-                                    Auto-Detected: {studentsList.length} Learners
+                                    {isSelectedEmployeePlan
+                                        ? `Auto-Detected: ${employeesList.length} Employees`
+                                        : `Auto-Detected: ${studentsList.length} Learners`}
                                 </span>
                             </div>
                             <input
@@ -926,12 +981,18 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
 
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                                 <div>
-                                    <span className="text-[9px] text-slate-400 uppercase block">Rate / Student</span>
+                                    <span className="text-[9px] text-slate-400 uppercase block">
+                                        {isSelectedEmployeePlan ? 'Rate / Employee' : 'Rate / Student'}
+                                    </span>
                                     <span className="font-bold text-white">KES {selectedPackage.amount}</span>
                                 </div>
                                 <div>
-                                    <span className="text-[9px] text-slate-400 uppercase block">Total Students</span>
-                                    <span className="font-bold text-white">{customStudentCount} Learners</span>
+                                    <span className="text-[9px] text-slate-400 uppercase block">
+                                        {isSelectedEmployeePlan ? 'Total Employees' : 'Total Students'}
+                                    </span>
+                                    <span className="font-bold text-white">
+                                        {customStudentCount} {isSelectedEmployeePlan ? 'Employees' : 'Learners'}
+                                    </span>
                                 </div>
                                 <div>
                                     <span className="text-[9px] text-slate-400 uppercase block">Allocated SMS Pool</span>
@@ -1161,7 +1222,7 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
 
                                 <div>
                                     <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                                        Rate Per Student (KES) *
+                                        {newPlanSmsType === 'hr_payroll_only' ? 'Rate Per Employee (KES) *' : 'Rate Per Student (KES) *'}
                                     </label>
                                     <input
                                         type="number"
@@ -1176,7 +1237,7 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
                             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-700">
                                 <div>
                                     <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                                        SMS Allocated / Student *
+                                        {newPlanSmsType === 'hr_payroll_only' ? 'SMS Allocated / Employee *' : 'SMS Allocated / Student *'}
                                     </label>
                                     <input
                                         type="number"
@@ -1190,17 +1251,18 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
 
                                 <div>
                                     <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                                        SMS Usage Scope
+                                        Module / SMS Scope
                                     </label>
                                     <select
                                         value={newPlanSmsType}
                                         onChange={e => setNewPlanSmsType(e.target.value as any)}
                                         className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
                                     >
-                                        <option value="academic_results_only">Academic Results Only</option>
-                                        <option value="finance_receipts_only">Finance Receipts Only</option>
-                                        <option value="library_only">Library &amp; Book Circulation</option>
-                                        <option value="all">All SMS Alerts (Academic + Finance + Library)</option>
+                                        <option value="academic_results_only">Academic Results Only (Per Student)</option>
+                                        <option value="finance_receipts_only">Finance Receipts Only (Per Student)</option>
+                                        <option value="library_only">Library &amp; Book Circulation (Per Student)</option>
+                                        <option value="hr_payroll_only">HR &amp; Payroll (Per Employee — Termly / Annual)</option>
+                                        <option value="all">All-Access (Academic + Finance + Library)</option>
                                     </select>
                                 </div>
                             </div>
