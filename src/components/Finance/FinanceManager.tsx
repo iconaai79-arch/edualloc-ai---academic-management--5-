@@ -311,7 +311,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'uninvoiced' | 'history' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'dashboard' | 'communication' | 'reports'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories'>('roster');
-    const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'activity_logs' | 'household_balances' | 'promissory_commitments' | 'revenue_warroom' | 'exam_permits' | 'annual_wizard'>('collection');
+    const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'invoices' | 'activity_logs' | 'household_balances' | 'promissory_commitments' | 'revenue_warroom' | 'exam_permits' | 'annual_wizard'>('collection');
+    const [invoicesReportSubTab, setInvoicesReportSubTab] = useState<'all_invoices' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'voteheads_distribution'>('all_invoices');
+    const [invRepYear, setInvRepYear] = useState<string>('All');
+    const [invRepSearch, setInvRepSearch] = useState<string>('');
+    const [invRepStatus, setInvRepStatus] = useState<string>('All');
+    const [invRepClass, setInvRepClass] = useState<string>('All');
+    const [invRepTerm, setInvRepTerm] = useState<string>('All');
+    const [invRepShowFilters, setInvRepShowFilters] = useState<boolean>(false);
+    const [invRepPage, setInvRepPage] = useState<number>(1);
+    const [invRepPerPage, setInvRepPerPage] = useState<number>(25);
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'transport_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution' | 'household_balances' | 'promissory_commitments'>('all_balances');
     const [transBalRouteFilter, setTransBalRouteFilter] = useState('ALL');
     const [transBalVehicleFilter, setTransBalVehicleFilter] = useState('ALL');
@@ -21895,6 +21904,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         { id: 'ledger', label: 'Receipts Ledger', icon: '🧾' },
                         { id: 'expenses', label: 'Expense Summary', icon: '💸' },
                         { id: 'student_statement', label: 'Student Statement', icon: '🎓' },
+                        { id: 'invoices', label: 'Invoices', icon: '🧾' },
                         { id: 'payroll_summary', label: 'Payroll Summary', icon: '👥' },
                         { id: 'annual', label: 'Annual Financial Overview', icon: '📊' },
                         { id: 'household_balances', label: 'Household Fee Balances', icon: '🏡' },
@@ -27719,6 +27729,576 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 </div>
                                             </div>
                                         )}
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Invoices Report Subtab (with vertical menu starting with All Invoices) */}
+                            {reportsSubTab === 'invoices' && (() => {
+                                const fmtMoney2 = (n: number) => (Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                                // Build student lookup map for fast ID/Adm/Name/Class resolution
+                                const stLookup = new Map<string, any>();
+                                (mergedStudents || props.students || []).forEach((st: any) => {
+                                    if (!st) return;
+                                    if (st.id) {
+                                        stLookup.set(String(st.id).trim().toLowerCase(), st);
+                                        stLookup.set(cleanId(String(st.id)).toLowerCase(), st);
+                                    }
+                                    if (st.userId) {
+                                        stLookup.set(String(st.userId).trim().toLowerCase(), st);
+                                        stLookup.set(cleanId(String(st.userId)).toLowerCase(), st);
+                                    }
+                                });
+
+                                // Enrich all fee invoices
+                                const enrichedInvoices = (mappedInvoices || []).map((inv: any) => {
+                                    const rawSid = String(inv.studentId || inv.student_id || '').trim();
+                                    const matchedSt = (rawSid ? (stLookup.get(rawSid.toLowerCase()) || stLookup.get(cleanId(rawSid).toLowerCase())) : null);
+                                    const invNum = String(inv.invoiceNumber || inv.invoice_number || inv.id || '—');
+                                    const admId = String(
+                                        inv.admissionNumber || inv.admission_number ||
+                                        (matchedSt ? (getStudentAdmNumber(matchedSt) || matchedSt.admissionNumber || matchedSt.admNo) : '') ||
+                                        '—'
+                                    ).trim() || '—';
+                                    const stName = String(
+                                        inv.studentName || inv.student_name ||
+                                        matchedSt?.name ||
+                                        inv.clientName || inv.client_name ||
+                                        'Student'
+                                    ).trim();
+                                    const stClass = String(
+                                        inv.className || inv.class_name || inv.gradeLevel || inv.grade_level ||
+                                        (matchedSt ? (getStudentClassName(matchedSt) || matchedSt.className || studentClassGroup(matchedSt)) : '') ||
+                                        'Unassigned'
+                                    ).trim();
+
+                                    const rawIssueDate = String(inv.issueDate || inv.issue_date || inv.createdAt || inv.created_at || '');
+                                    const derivedYear = (() => {
+                                        const explicitYr = inv.academicYear || inv.academic_year || inv.metadata?.academicYear || inv.metadata?.year;
+                                        if (explicitYr) {
+                                            const m = String(explicitYr).match(/\d{4}/);
+                                            if (m) return m[0];
+                                        }
+                                        const mTerm = String(inv.term || inv.academicTerm || inv.academic_term || inv.metadata?.term || '').match(/\d{4}/);
+                                        if (mTerm) return mTerm[0];
+                                        const mDate = rawIssueDate.match(/\d{4}/);
+                                        return mDate ? mDate[0] : String(new Date().getFullYear());
+                                    })();
+
+                                    const rawTerm = String(inv.term || inv.academicTerm || inv.academic_term || inv.semester || inv.metadata?.term || '').trim();
+                                    const termLabel = rawTerm
+                                        ? (rawTerm.includes(derivedYear) ? rawTerm : `${rawTerm} ${derivedYear}`)
+                                        : `Term ${derivedYear}`;
+
+                                    const billed = parseMoneyAmount(inv.totalAmount ?? inv.total_amount ?? inv.amount ?? 0);
+                                    const paidFromMap = invoicePaidAmountMap.get(inv.id);
+                                    const paid = paidFromMap !== undefined
+                                        ? parseMoneyAmount(paidFromMap)
+                                        : parseMoneyAmount(inv.paidAmount ?? inv.paid_amount ?? inv.amountPaid ?? inv.amount_paid ?? (String(inv.status || '').toLowerCase() === 'paid' ? billed : 0));
+                                    const balance = Math.max(0, billed - paid);
+
+                                    const rawStatus = String(inv.status || '').toLowerCase().trim();
+                                    const displayStatus = balance <= 0 && billed > 0
+                                        ? 'Paid'
+                                        : paid > 0 && balance > 0
+                                            ? 'Partial'
+                                            : rawStatus === 'overdue'
+                                                ? 'Overdue'
+                                                : rawStatus === 'draft'
+                                                    ? 'Draft'
+                                                    : 'Sent';
+
+                                    const rawDue = String(inv.dueDate || inv.due_date || '').trim();
+                                    const dueOn = rawDue && rawDue !== 'null' && rawDue !== 'undefined'
+                                        ? rawDue.split('T')[0]
+                                        : '-';
+
+                                    const itemsArr = Array.isArray(inv.items)
+                                        ? inv.items
+                                        : (typeof inv.items === 'string' ? (() => { try { const p = JSON.parse(inv.items); return Array.isArray(p) ? p : []; } catch { return []; } })() : []);
+
+                                    return {
+                                        id: inv.id,
+                                        invoiceNumber: invNum,
+                                        admId,
+                                        studentName: stName,
+                                        className: stClass,
+                                        term: termLabel,
+                                        year: derivedYear,
+                                        billed,
+                                        paid,
+                                        balance,
+                                        status: displayStatus,
+                                        dueOn,
+                                        issueDate: rawIssueDate,
+                                        items: itemsArr
+                                    };
+                                }).sort((a: any, b: any) => {
+                                    // Sort newest invoice number / date first (e.g. INV-1708, INV-1707...)
+                                    const numA = parseInt(a.invoiceNumber.replace(/\D/g, ''), 10);
+                                    const numB = parseInt(b.invoiceNumber.replace(/\D/g, ''), 10);
+                                    if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numB - numA;
+                                    return String(b.issueDate || '').localeCompare(String(a.issueDate || ''));
+                                });
+
+                                const availYears = Array.from(new Set([
+                                    ...enrichedInvoices.map((i: any) => i.year).filter(Boolean),
+                                    ...(props.academicYears || []).map((ay: any) => String(ay.name || ay.year || '').match(/\d{4}/)?.[0]).filter(Boolean) as string[]
+                                ])).sort((a, b) => b.localeCompare(a));
+
+                                const availClasses = Array.from(new Set(enrichedInvoices.map((i: any) => i.className).filter(Boolean))).sort();
+                                const availTerms = Array.from(new Set(enrichedInvoices.map((i: any) => i.term).filter(Boolean))).sort();
+
+                                const filteredInvList = enrichedInvoices.filter((inv: any) => {
+                                    if (invRepYear !== 'All' && inv.year !== invRepYear) return false;
+                                    if (invRepStatus !== 'All' && inv.status.toLowerCase() !== invRepStatus.toLowerCase()) return false;
+                                    if (invRepClass !== 'All' && inv.className !== invRepClass) return false;
+                                    if (invRepTerm !== 'All' && inv.term !== invRepTerm) return false;
+                                    if (invRepSearch.trim()) {
+                                        const q = invRepSearch.toLowerCase().trim();
+                                        const hay = `${inv.invoiceNumber} ${inv.admId} ${inv.studentName} ${inv.className} ${inv.term} ${inv.status}`.toLowerCase();
+                                        if (!hay.includes(q)) return false;
+                                    }
+                                    return true;
+                                });
+
+                                const totInvBilled = filteredInvList.reduce((s: number, i: any) => s + i.billed, 0);
+                                const totInvPaid = filteredInvList.reduce((s: number, i: any) => s + i.paid, 0);
+                                const totInvBal = filteredInvList.reduce((s: number, i: any) => s + i.balance, 0);
+
+                                const isInvAll = invRepPerPage === 0;
+                                const totalInvPages = isInvAll ? 1 : Math.max(1, Math.ceil(filteredInvList.length / invRepPerPage));
+                                const safeInvPage = Math.min(invRepPage, totalInvPages);
+                                const paginatedInvList = isInvAll
+                                    ? filteredInvList
+                                    : filteredInvList.slice((safeInvPage - 1) * invRepPerPage, safeInvPage * invRepPerPage);
+
+                                // Aggregations for Class Summary, Term Summary, Voteheads Summary, Voteheads Distribution
+                                const classSumMap = new Map<string, { name: string; count: number; billed: number; paid: number; balance: number }>();
+                                const termSumMap = new Map<string, { name: string; count: number; billed: number; paid: number; balance: number }>();
+                                const vhSumMap = new Map<string, { name: string; count: number; billed: number }>();
+                                const vhDistMap = new Map<string, Record<string, number>>();
+                                const allVhNamesSet = new Set<string>();
+
+                                filteredInvList.forEach((inv: any) => {
+                                    const cEntry = classSumMap.get(inv.className) || { name: inv.className, count: 0, billed: 0, paid: 0, balance: 0 };
+                                    cEntry.count += 1; cEntry.billed += inv.billed; cEntry.paid += inv.paid; cEntry.balance += inv.balance;
+                                    classSumMap.set(inv.className, cEntry);
+
+                                    const tEntry = termSumMap.get(inv.term) || { name: inv.term, count: 0, billed: 0, paid: 0, balance: 0 };
+                                    tEntry.count += 1; tEntry.billed += inv.billed; tEntry.paid += inv.paid; tEntry.balance += inv.balance;
+                                    termSumMap.set(inv.term, tEntry);
+
+                                    if (!vhDistMap.has(inv.className)) vhDistMap.set(inv.className, {});
+                                    const distRow = vhDistMap.get(inv.className)!;
+
+                                    if (inv.items && inv.items.length > 0) {
+                                        inv.items.forEach((it: any) => {
+                                            const vName = String(it?.description || it?.name || it?.voteHead || it?.votehead || 'General Fee').trim() || 'General Fee';
+                                            const vAmt = parseMoneyAmount(it?.amount ?? it?.unitPrice ?? 0);
+                                            if (vAmt <= 0) return;
+                                            allVhNamesSet.add(vName);
+                                            const ve = vhSumMap.get(vName) || { name: vName, count: 0, billed: 0 };
+                                            ve.count += 1; ve.billed += vAmt;
+                                            vhSumMap.set(vName, ve);
+                                            distRow[vName] = (distRow[vName] || 0) + vAmt;
+                                        });
+                                    } else if (inv.billed > 0) {
+                                        const vName = 'General Tuition / Fees';
+                                        allVhNamesSet.add(vName);
+                                        const ve = vhSumMap.get(vName) || { name: vName, count: 0, billed: 0 };
+                                        ve.count += 1; ve.billed += inv.billed;
+                                        vhSumMap.set(vName, ve);
+                                        distRow[vName] = (distRow[vName] || 0) + inv.billed;
+                                    }
+                                });
+
+                                const classSummaryRows = Array.from(classSumMap.values()).sort((a, b) => b.billed - a.billed);
+                                const termSummaryRows = Array.from(termSumMap.values()).sort((a, b) => b.billed - a.billed);
+                                const vhSummaryRows = Array.from(vhSumMap.values()).sort((a, b) => b.billed - a.billed);
+                                const allVhNames = Array.from(allVhNamesSet).sort();
+
+                                const invoiceVerticalTabs = [
+                                    { id: 'all_invoices', label: 'All Invoices', icon: '🧾', desc: 'Complete billed register' },
+                                    { id: 'class_summary', label: 'Class Summary', icon: '🏫', desc: 'Totals per grade/class' },
+                                    { id: 'term_summary', label: 'Term Summary', icon: '📅', desc: 'Totals per academic term' },
+                                    { id: 'voteheads_summary', label: 'Voteheads Summary', icon: '🏷️', desc: 'Billed per fee votehead' },
+                                    { id: 'voteheads_distribution', label: 'Voteheads Distribution', icon: '📊', desc: 'Class × Votehead matrix' },
+                                ] as const;
+
+                                const handleDownloadInvoicesCsv = () => {
+                                    if (invoicesReportSubTab === 'all_invoices') {
+                                        exportCSV('all_invoices_report', ['Invoice #', 'ID', 'Name', 'Class', 'Term', 'Billed', 'Paid', 'Balance', 'Status', 'Due On'], filteredInvList.map((i: any) => [
+                                            i.invoiceNumber, i.admId, i.studentName, i.className, i.term, i.billed.toFixed(2), i.paid.toFixed(2), i.balance.toFixed(2), i.status, i.dueOn
+                                        ]));
+                                    } else if (invoicesReportSubTab === 'class_summary') {
+                                        exportCSV('invoices_class_summary', ['Class', 'Invoices', 'Billed', 'Paid', 'Balance'], classSummaryRows.map(r => [r.name, r.count, r.billed.toFixed(2), r.paid.toFixed(2), r.balance.toFixed(2)]));
+                                    } else if (invoicesReportSubTab === 'term_summary') {
+                                        exportCSV('invoices_term_summary', ['Term', 'Invoices', 'Billed', 'Paid', 'Balance'], termSummaryRows.map(r => [r.name, r.count, r.billed.toFixed(2), r.paid.toFixed(2), r.balance.toFixed(2)]));
+                                    } else if (invoicesReportSubTab === 'voteheads_summary') {
+                                        exportCSV('invoices_voteheads_summary', ['Votehead', 'Line Items', 'Total Billed'], vhSummaryRows.map(r => [r.name, r.count, r.billed.toFixed(2)]));
+                                    } else {
+                                        exportCSV('invoices_voteheads_distribution', ['Class', ...allVhNames, 'Total'], classSummaryRows.map(c => {
+                                            const d = vhDistMap.get(c.name) || {};
+                                            return [c.name, ...allVhNames.map(v => (d[v] || 0).toFixed(2)), c.billed.toFixed(2)];
+                                        }));
+                                    }
+                                };
+
+                                return (
+                                    <div className="flex flex-col lg:flex-row gap-6 items-start text-left">
+                                        {/* Left Vertical Menu */}
+                                        <div className="w-full lg:w-64 shrink-0 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-4 space-y-2 print:hidden">
+                                            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-2">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Invoices Reports</span>
+                                                <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full text-[9px] font-black">{filteredInvList.length}</span>
+                                            </div>
+                                            {invoiceVerticalTabs.map(t => {
+                                                const active = invoicesReportSubTab === t.id;
+                                                return (
+                                                    <button
+                                                        key={t.id}
+                                                        type="button"
+                                                        onClick={() => { setInvoicesReportSubTab(t.id); setInvRepPage(1); }}
+                                                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition-all ${
+                                                            active
+                                                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                                                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                                                        }`}
+                                                    >
+                                                        <span className="text-base shrink-0">{t.icon}</span>
+                                                        <div className="min-w-0">
+                                                            <div className={`text-xs font-black tracking-tight truncate ${active ? 'text-white' : 'text-slate-800 dark:text-slate-200'}`}>{t.label}</div>
+                                                            <div className={`text-[9px] font-semibold truncate ${active ? 'text-indigo-100' : 'text-slate-400'}`}>{t.desc}</div>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Right Main Panel */}
+                                        <div className="flex-1 min-w-0 w-full bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden">
+                                            {/* Top Filter & Action Toolbar (matching reference layout) */}
+                                            <div className="p-5 border-b border-slate-100 dark:border-slate-800 space-y-4 print:hidden">
+                                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                                    {/* Academic Year Dropdown */}
+                                                    <div className="flex items-center gap-2.5">
+                                                        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">Academic year:</label>
+                                                        <select
+                                                            value={invRepYear}
+                                                            onChange={(e) => { setInvRepYear(e.target.value); setInvRepPage(1); }}
+                                                            className="px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 min-w-[110px]"
+                                                        >
+                                                            <option value="All">All Years</option>
+                                                            {availYears.map(yr => <option key={yr} value={yr}>{yr}</option>)}
+                                                        </select>
+                                                    </div>
+
+                                                    {/* Right Actions: Download, Print, PDF Preview, Filter, Search */}
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleDownloadInvoicesCsv}
+                                                            className="px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 transition-all cursor-pointer"
+                                                        >
+                                                            Download
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setPdfPreviewModal({
+                                                                title: `INVOICES REGISTER — ${invoiceVerticalTabs.find(t => t.id === invoicesReportSubTab)?.label.toUpperCase()}`,
+                                                                subtitle: `${props.institution.name} · Academic Year: ${invRepYear} · ${filteredInvList.length} invoices`,
+                                                                studentName: `Invoices Report (${invRepYear})`,
+                                                                admNo: `${filteredInvList.length} Invoices`,
+                                                                className: invRepClass !== 'All' ? invRepClass : 'All Classes',
+                                                                invoiced: totInvBilled,
+                                                                paid: totInvPaid,
+                                                                balance: totInvBal,
+                                                                items: filteredInvList.map((i: any) => ({
+                                                                    name: `${i.invoiceNumber} — ${i.studentName}`,
+                                                                    adm: i.admId,
+                                                                    cls: `${i.className} (${i.term})`,
+                                                                    inv: i.billed,
+                                                                    pd: i.paid,
+                                                                    bal: i.balance
+                                                                }))
+                                                            })}
+                                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
+                                                        >
+                                                            PDF Preview
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => window.print()}
+                                                            className="px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 transition-all cursor-pointer"
+                                                        >
+                                                            Print
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setInvRepShowFilters(prev => !prev)}
+                                                            className={`px-4 py-2 border rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                                                invRepShowFilters || invRepStatus !== 'All' || invRepClass !== 'All' || invRepTerm !== 'All'
+                                                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 text-indigo-700 dark:text-indigo-300'
+                                                                    : 'bg-white dark:bg-slate-800 hover:bg-slate-50 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                                                            }`}
+                                                        >
+                                                            Filter
+                                                        </button>
+                                                        <div className="relative">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Search invoices"
+                                                                value={invRepSearch}
+                                                                onChange={(e) => { setInvRepSearch(e.target.value); setInvRepPage(1); }}
+                                                                className="pl-8 pr-4 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-full text-xs font-semibold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 w-52"
+                                                            />
+                                                            <span className="absolute left-3 top-2 text-slate-400 text-xs">🔍</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Expandable Filter Row */}
+                                                {invRepShowFilters && (
+                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                                        <div>
+                                                            <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Status</label>
+                                                            <select value={invRepStatus} onChange={(e) => { setInvRepStatus(e.target.value); setInvRepPage(1); }} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white">
+                                                                <option value="All">All Statuses</option>
+                                                                <option value="Sent">Sent</option>
+                                                                <option value="Paid">Paid</option>
+                                                                <option value="Partial">Partial</option>
+                                                                <option value="Overdue">Overdue</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Class</label>
+                                                            <select value={invRepClass} onChange={(e) => { setInvRepClass(e.target.value); setInvRepPage(1); }} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white">
+                                                                <option value="All">All Classes</option>
+                                                                {availClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Term</label>
+                                                            <select value={invRepTerm} onChange={(e) => { setInvRepTerm(e.target.value); setInvRepPage(1); }} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white">
+                                                                <option value="All">All Terms</option>
+                                                                {availTerms.map(t => <option key={t} value={t}>{t}</option>)}
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* TAB 1: ALL INVOICES (Exact table matching reference screenshot) */}
+                                            {invoicesReportSubTab === 'all_invoices' && (
+                                                <div>
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full border-collapse text-xs">
+                                                            <thead>
+                                                                <tr className="bg-[#547284] text-white">
+                                                                    <th className="px-4 py-3 text-left font-bold border-r border-white/15 whitespace-nowrap">Invoice #</th>
+                                                                    <th className="px-4 py-3 text-left font-bold border-r border-white/15 whitespace-nowrap">ID</th>
+                                                                    <th className="px-4 py-3 text-left font-bold border-r border-white/15 whitespace-nowrap">Name</th>
+                                                                    <th className="px-4 py-3 text-left font-bold border-r border-white/15 whitespace-nowrap">Class</th>
+                                                                    <th className="px-4 py-3 text-left font-bold border-r border-white/15 whitespace-nowrap">Term</th>
+                                                                    <th className="px-4 py-3 text-right font-bold border-r border-white/15 whitespace-nowrap">Billed</th>
+                                                                    <th className="px-4 py-3 text-right font-bold border-r border-white/15 whitespace-nowrap">Paid</th>
+                                                                    <th className="px-4 py-3 text-right font-bold border-r border-white/15 whitespace-nowrap">Balance</th>
+                                                                    <th className="px-4 py-3 text-left font-bold border-r border-white/15 whitespace-nowrap">Status</th>
+                                                                    <th className="px-4 py-3 text-left font-bold whitespace-nowrap">Due On</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                                                {paginatedInvList.map((inv: any) => (
+                                                                    <tr key={inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                                        <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">{inv.invoiceNumber}</td>
+                                                                        <td className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">{inv.admId}</td>
+                                                                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white whitespace-nowrap">{inv.studentName}</td>
+                                                                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">{inv.className}</td>
+                                                                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">{inv.term}</td>
+                                                                        <td className="px-4 py-3 text-right font-mono font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">{fmtMoney2(inv.billed)}</td>
+                                                                        <td className="px-4 py-3 text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{fmtMoney2(inv.paid)}</td>
+                                                                        <td className="px-4 py-3 text-right font-mono font-semibold text-slate-900 dark:text-white whitespace-nowrap">{fmtMoney2(inv.balance)}</td>
+                                                                        <td className="px-4 py-3 whitespace-nowrap">
+                                                                            <span className={`font-semibold ${
+                                                                                inv.status === 'Paid' ? 'text-emerald-600 dark:text-emerald-400'
+                                                                                : inv.status === 'Partial' ? 'text-amber-600 dark:text-amber-400'
+                                                                                : inv.status === 'Overdue' ? 'text-rose-600 dark:text-rose-400'
+                                                                                : 'text-slate-600 dark:text-slate-300'
+                                                                            }`}>{inv.status}</span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{inv.dueOn}</td>
+                                                                    </tr>
+                                                                ))}
+                                                                {paginatedInvList.length === 0 && (
+                                                                    <tr>
+                                                                        <td colSpan={10} className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">
+                                                                            No invoices match the selected filters.
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </tbody>
+                                                            {filteredInvList.length > 0 && (
+                                                                <tfoot>
+                                                                    <tr className="bg-slate-100 dark:bg-slate-800/80 font-black text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-700">
+                                                                        <td colSpan={5} className="px-4 py-3 uppercase tracking-wider text-[10px]">Totals ({filteredInvList.length} invoices)</td>
+                                                                        <td className="px-4 py-3 text-right font-mono">{fmtMoney2(totInvBilled)}</td>
+                                                                        <td className="px-4 py-3 text-right font-mono text-emerald-600 dark:text-emerald-400">{fmtMoney2(totInvPaid)}</td>
+                                                                        <td className="px-4 py-3 text-right font-mono text-rose-600 dark:text-rose-400">{fmtMoney2(totInvBal)}</td>
+                                                                        <td colSpan={2} />
+                                                                    </tr>
+                                                                </tfoot>
+                                                            )}
+                                                        </table>
+                                                    </div>
+
+                                                    {/* Pagination bar */}
+                                                    <div className="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs print:hidden">
+                                                        <div className="text-slate-500 font-semibold">
+                                                            Showing <span className="font-black text-slate-800 dark:text-white">{filteredInvList.length === 0 ? 0 : (isInvAll ? 1 : (safeInvPage - 1) * invRepPerPage + 1)}</span> to <span className="font-black text-slate-800 dark:text-white">{isInvAll ? filteredInvList.length : Math.min(safeInvPage * invRepPerPage, filteredInvList.length)}</span> of <span className="font-black text-slate-800 dark:text-white">{filteredInvList.length}</span> invoices
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Rows:</span>
+                                                            {[10, 25, 50, 100, 0].map(sz => (
+                                                                <button
+                                                                    key={sz}
+                                                                    type="button"
+                                                                    onClick={() => { setInvRepPerPage(sz); setInvRepPage(1); }}
+                                                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${invRepPerPage === sz ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}
+                                                                >
+                                                                    {sz === 0 ? 'All' : sz}
+                                                                </button>
+                                                            ))}
+                                                            {!isInvAll && totalInvPages > 1 && (
+                                                                <div className="flex items-center gap-1 ml-2">
+                                                                    <button type="button" disabled={safeInvPage <= 1} onClick={() => setInvRepPage(p => Math.max(1, p - 1))} className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 disabled:opacity-40 font-bold">Prev</button>
+                                                                    <span className="px-2 font-bold text-slate-600 dark:text-slate-300">{safeInvPage} / {totalInvPages}</span>
+                                                                    <button type="button" disabled={safeInvPage >= totalInvPages} onClick={() => setInvRepPage(p => Math.min(totalInvPages, p + 1))} className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 disabled:opacity-40 font-bold">Next</button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* TAB 2: CLASS SUMMARY */}
+                                            {invoicesReportSubTab === 'class_summary' && (
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full border-collapse text-xs">
+                                                        <thead>
+                                                            <tr className="bg-[#547284] text-white">
+                                                                <th className="px-5 py-3 text-left font-bold border-r border-white/15">Class</th>
+                                                                <th className="px-5 py-3 text-right font-bold border-r border-white/15">Invoices</th>
+                                                                <th className="px-5 py-3 text-right font-bold border-r border-white/15">Billed</th>
+                                                                <th className="px-5 py-3 text-right font-bold border-r border-white/15">Paid</th>
+                                                                <th className="px-5 py-3 text-right font-bold border-r border-white/15">Balance</th>
+                                                                <th className="px-5 py-3 text-right font-bold">Collection %</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                                            {classSummaryRows.map(r => (
+                                                                <tr key={r.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                                    <td className="px-5 py-3 font-bold text-slate-900 dark:text-white">{r.name}</td>
+                                                                    <td className="px-5 py-3 text-right font-semibold text-slate-600 dark:text-slate-300">{r.count}</td>
+                                                                    <td className="px-5 py-3 text-right font-mono font-semibold">{fmtMoney2(r.billed)}</td>
+                                                                    <td className="px-5 py-3 text-right font-mono font-semibold text-emerald-600">{fmtMoney2(r.paid)}</td>
+                                                                    <td className="px-5 py-3 text-right font-mono font-semibold text-rose-600">{fmtMoney2(r.balance)}</td>
+                                                                    <td className="px-5 py-3 text-right font-bold">{r.billed > 0 ? `${((r.paid / r.billed) * 100).toFixed(1)}%` : '0.0%'}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+
+                                            {/* TAB 3: TERM SUMMARY */}
+                                            {invoicesReportSubTab === 'term_summary' && (
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full border-collapse text-xs">
+                                                        <thead>
+                                                            <tr className="bg-[#547284] text-white">
+                                                                <th className="px-5 py-3 text-left font-bold border-r border-white/15">Term</th>
+                                                                <th className="px-5 py-3 text-right font-bold border-r border-white/15">Invoices</th>
+                                                                <th className="px-5 py-3 text-right font-bold border-r border-white/15">Billed</th>
+                                                                <th className="px-5 py-3 text-right font-bold border-r border-white/15">Paid</th>
+                                                                <th className="px-5 py-3 text-right font-bold border-r border-white/15">Balance</th>
+                                                                <th className="px-5 py-3 text-right font-bold">Collection %</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                                            {termSummaryRows.map(r => (
+                                                                <tr key={r.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                                    <td className="px-5 py-3 font-bold text-slate-900 dark:text-white">{r.name}</td>
+                                                                    <td className="px-5 py-3 text-right font-semibold text-slate-600 dark:text-slate-300">{r.count}</td>
+                                                                    <td className="px-5 py-3 text-right font-mono font-semibold">{fmtMoney2(r.billed)}</td>
+                                                                    <td className="px-5 py-3 text-right font-mono font-semibold text-emerald-600">{fmtMoney2(r.paid)}</td>
+                                                                    <td className="px-5 py-3 text-right font-mono font-semibold text-rose-600">{fmtMoney2(r.balance)}</td>
+                                                                    <td className="px-5 py-3 text-right font-bold">{r.billed > 0 ? `${((r.paid / r.billed) * 100).toFixed(1)}%` : '0.0%'}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+
+                                            {/* TAB 4: VOTEHEADS SUMMARY */}
+                                            {invoicesReportSubTab === 'voteheads_summary' && (
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full border-collapse text-xs">
+                                                        <thead>
+                                                            <tr className="bg-[#547284] text-white">
+                                                                <th className="px-5 py-3 text-left font-bold border-r border-white/15">Votehead</th>
+                                                                <th className="px-5 py-3 text-right font-bold border-r border-white/15">Billed Items</th>
+                                                                <th className="px-5 py-3 text-right font-bold border-r border-white/15">Total Billed</th>
+                                                                <th className="px-5 py-3 text-right font-bold">Share %</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                                            {vhSummaryRows.map(r => (
+                                                                <tr key={r.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                                    <td className="px-5 py-3 font-bold text-slate-900 dark:text-white">{r.name}</td>
+                                                                    <td className="px-5 py-3 text-right font-semibold text-slate-600 dark:text-slate-300">{r.count}</td>
+                                                                    <td className="px-5 py-3 text-right font-mono font-semibold">{fmtMoney2(r.billed)}</td>
+                                                                    <td className="px-5 py-3 text-right font-bold">{totInvBilled > 0 ? `${((r.billed / totInvBilled) * 100).toFixed(1)}%` : '0.0%'}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+
+                                            {/* TAB 5: VOTEHEADS DISTRIBUTION */}
+                                            {invoicesReportSubTab === 'voteheads_distribution' && (
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full border-collapse text-xs">
+                                                        <thead>
+                                                            <tr className="bg-[#547284] text-white">
+                                                                <th className="px-4 py-3 text-left font-bold border-r border-white/15 whitespace-nowrap">Class</th>
+                                                                {allVhNames.map(v => (
+                                                                    <th key={v} className="px-4 py-3 text-right font-bold border-r border-white/15 whitespace-nowrap">{v}</th>
+                                                                ))}
+                                                                <th className="px-4 py-3 text-right font-bold whitespace-nowrap">Total Billed</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                                            {classSummaryRows.map(c => {
+                                                                const d = vhDistMap.get(c.name) || {};
+                                                                return (
+                                                                    <tr key={c.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                                                        <td className="px-4 py-3 font-bold text-slate-900 dark:text-white whitespace-nowrap">{c.name}</td>
+                                                                        {allVhNames.map(v => (
+                                                                            <td key={v} className="px-4 py-3 text-right font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">{fmtMoney2(d[v] || 0)}</td>
+                                                                        ))}
+                                                                        <td className="px-4 py-3 text-right font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">{fmtMoney2(c.billed)}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 );
                             })()}
