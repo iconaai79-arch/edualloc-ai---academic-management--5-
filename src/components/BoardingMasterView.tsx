@@ -22,6 +22,8 @@ import CheckInOutManager from './CheckInOutManager';
 import BoardingReports from './BoardingReports';
 import BoardingMaintenanceManager from './BoardingMaintenanceManager';
 import { StudentLeaveOutManager } from './StudentLeaveOutManager';
+import { StudentPocketMoneyManager } from './Finance/StudentPocketMoneyManager';
+import { WalletIcon } from './icons/WalletIcon';
 import { UserManager } from './UserManager';
 import { SmsConfig, Subject, LetterheadConfig } from '../types';
 
@@ -58,7 +60,7 @@ interface BoardingMasterViewProps {
 }
 
 
-type BoardingTab = 'dashboard' | 'houses' | 'rooms' | 'allocations' | 'checkin' | 'leaveout' | 'maintenance' | 'reports' | 'students';
+type BoardingTab = 'dashboard' | 'houses' | 'rooms' | 'allocations' | 'checkin' | 'leaveout' | 'pocket_money' | 'maintenance' | 'reports' | 'students';
 
 
 const BoardingMasterView: React.FC<BoardingMasterViewProps> = (props) => {
@@ -438,6 +440,16 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = (props) => {
                             Leave Out Requests
                         </button>
                         <button
+                            onClick={() => setActiveTab('pocket_money')}
+                            className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'pocket_money'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                        >
+                            <WalletIcon className="w-4 h-4" />
+                            Pocket Money
+                        </button>
+                        <button
                             onClick={() => setActiveTab('students')}
                             className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'students'
                                 ? 'border-blue-500 text-blue-600'
@@ -506,6 +518,17 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = (props) => {
                         departments={departments}
                         onLogAction={onLogAction}
                         onDataChange={loadDashboardData}
+                    />
+                )}
+
+                {activeTab === 'pocket_money' && (
+                    <StudentPocketMoneyManager
+                        institution={currentInstitution}
+                        currentUser={currentUser}
+                        students={users}
+                        smsConfig={smsConfig}
+                        onSendSms={onSendSms}
+                        onLogAction={onLogAction}
                     />
                 )}
 

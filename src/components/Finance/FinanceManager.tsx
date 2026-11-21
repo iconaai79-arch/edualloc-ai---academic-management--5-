@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails, NGCdfBursary, FeePromise, StudentEnrollment } from '../../types';
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
+import { StudentPocketMoneyManager } from './StudentPocketMoneyManager';
 import { ExcelStudentInvoiceModal } from './ExcelStudentInvoiceModal';
 import { EditStudentInvoiceModal } from './EditStudentInvoiceModal';
 import { InvoiceHistoryManager } from './InvoiceHistoryManager';
@@ -307,7 +308,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     
     // Dynamic Tabs based on Institution Type
     const isProcurementOfficer = props.currentUser?.role === 'procurement_officer' || (props.currentUser?.roles || []).includes('procurement_officer');
-    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'parent_portal' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics'>(isProcurementOfficer ? 'requisitions' : 'home');
+    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'pocket_money' | 'parent_portal' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics'>(isProcurementOfficer ? 'requisitions' : 'home');
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'uninvoiced' | 'history' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'dashboard' | 'communication' | 'reports'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories'>('roster');
@@ -12056,6 +12057,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         { id: 'billing', label: 'Automated Billing', icon: ZapIcon },
                         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
                         { id: 'receipts', label: 'Receipts & Income', icon: BanknotesIcon },
+                        { id: 'pocket_money', label: 'Pocket Money', icon: WalletIcon },
                         { id: 'student_invoices', label: 'Student Invoices', icon: ClipboardListIcon },
                         { id: 'gok_capitation', label: 'GoK Capitation', icon: ScaleIcon },
                         { id: 'bursaries', label: 'Bursaries & Grants', icon: CreditCardIcon },
@@ -12071,6 +12073,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         const isEdu = isEduInstitution(props.institution);
                         if (item.id === 'gok_capitation') return isEdu;
                         if (item.id === 'bursaries') return isEdu;
+                        if (item.id === 'pocket_money') return isEdu;
                         if (item.id === 'wizard') return false;
                         if (item.id === 'billing') return isDrivingSchool;
                         return true;
@@ -16081,6 +16084,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         onGenerateInvoices={props.onGenerateInvoices}
                         companyDetails={props.companyDetails}
                         courses={props.courses || []}
+                    />
+                )}
+
+                {activeTab === 'pocket_money' && (
+                    <StudentPocketMoneyManager
+                        institution={props.institution}
+                        currentUser={props.currentUser}
+                        students={mergedStudents || props.students || []}
+                        smsConfig={props.institution?.smsConfig}
+                        onSendSms={props.onSendSms}
+                        onLogAction={props.onLogAction}
                     />
                 )}
 
