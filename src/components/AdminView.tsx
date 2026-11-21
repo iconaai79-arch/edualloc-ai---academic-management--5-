@@ -495,7 +495,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'deliveries' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'enrollment_portal_hub' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials' | 'beauty_college' | 'fiscal_guard' | 'milling' | 'corporate_invoices' | 'network_devices'>('dashboard');
-    const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds' | 'bc' | 'eduvote' | 'remedials'>(() => {
+    const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'smart_timetable' | 'inventory' | 'boarding' | 'logistics' | 'ds' | 'bc' | 'eduvote' | 'remedials'>(() => {
         const isDSInst = props.currentInstitution && (
             isDSInstitution(props.currentInstitution) || 
             props.currentInstitution.institutionType === 'Driving School' || 
@@ -968,15 +968,15 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         };
     }, []);
 
-    // Strict Scope & Tab Guard: DOS can ONLY access academics and remedials
+    // Strict Scope & Tab Guard: DOS can ONLY access academics, smart_timetable, and remedials
     useEffect(() => {
         if (isDos) {
-            if (activeScope !== 'console_hub' && activeScope !== 'academics' && activeScope !== 'remedials') {
+            if (activeScope !== 'console_hub' && activeScope !== 'academics' && activeScope !== 'smart_timetable' && activeScope !== 'remedials') {
                 setActiveScope('console_hub');
             }
             if (activeScope === 'console_hub' && activeTab !== 'dashboard') {
                 setActiveTab('dashboard');
-            } else if (activeScope === 'academics' && activeTab !== 'timetable') {
+            } else if ((activeScope === 'academics' || activeScope === 'smart_timetable') && activeTab !== 'timetable') {
                 setActiveTab('timetable');
             } else if (activeScope === 'remedials' && activeTab !== 'remedials') {
                 setActiveTab('remedials');
@@ -1326,6 +1326,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 if (activeScope === 'academics') {
                     const academicsTabs = ['timetable', 'reports', 'settings'];
                     return academicsTabs.includes(tab.id);
+                }
+                if (activeScope === 'smart_timetable') {
+                    const smartTimetableTabs = ['timetable', 'courses', 'reports', 'settings'];
+                    return smartTimetableTabs.includes(tab.id);
                 }
                 if (activeScope === 'inventory') {
                     return false; // Handled separately
@@ -1735,6 +1739,59 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                             }
                                                         }}
                                                         className="bg-indigo-600 hover:bg-indigo-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Card 1B: Smart Timetable (AI Wizard & Master Lesson Scheduler) */}
+                            {(() => {
+                                const isActive = isModuleActive('timetable') || isModuleActive('academics');
+                                return (
+                                    <div
+                                        onClick={() => {
+                                            if (!isActive) {
+                                                alert("The Smart Timetable module is currently inactive. Please activate it under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            setActiveScope('smart_timetable');
+                                            setActiveTab('timetable');
+                                            setTimetableSubTab('wizard');
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-cyan-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 dark:bg-cyan-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-gradient-to-br from-cyan-600 to-indigo-600 text-white rounded-2xl w-fit shadow-lg shadow-cyan-100 dark:shadow-none">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">Smart Timetable</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Automated conflict-free timetable wizard, master class &amp; teacher lesson scheduler, room allocations, and workload grids.
+                                                </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('timetable');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate timetable trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-cyan-600 hover:bg-cyan-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
                                                     >
                                                         Activate Trial
                                                     </button>
@@ -3129,7 +3186,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         institution={props.currentInstitution}
                         onActivateTrial={onActivateModuleTrial}
                     >
-                        {isEdu ? (
+                        {isEdu && activeScope !== 'smart_timetable' ? (
                             <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
                                 <AcademicsOfficerView
                                     currentUser={props.currentUser}
