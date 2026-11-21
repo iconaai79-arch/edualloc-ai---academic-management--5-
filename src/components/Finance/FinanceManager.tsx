@@ -25004,22 +25004,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             // Compute Cash Book entries only when Cash Book tab is active
                                             const allCashEntries = [
                                                 ...mappedReceipts.map((r: any) => ({
-                                                    date: r.paymentDate || r.createdAt || '',
+                                                    date: String(r.paymentDate || r.payment_date || r.createdAt || r.created_at || ''),
                                                     particulars: `Fee Collection — ${r.studentName || r.payerName || 'Student'}`,
                                                     ref: r.receiptNumber || r.id?.slice(-8),
-                                                    debit: r.amountPaid || 0,
+                                                    debit: parseMoneyAmount(r.amountPaid ?? r.amount_paid ?? r.amount ?? 0),
                                                     credit: 0,
                                                     method: r.paymentMethod || r.method || 'Cash'
                                                 })),
                                                 ...(props.expenses || []).map((e: any) => ({
-                                                    date: e.date || '',
+                                                    date: String(e.date || e.expenseDate || e.expense_date || e.paymentDate || e.payment_date || e.createdAt || e.created_at || ''),
                                                     particulars: `Expense — ${e.description || 'General Expenditure'} (${e.category || 'General'})`,
-                                                    ref: e.id?.slice(-8) || 'EXP',
+                                                    ref: e.referenceNumber || e.reference_number || e.id?.slice(-8) || 'EXP',
                                                     debit: 0,
-                                                    credit: e.amount || 0,
-                                                    method: 'Expense'
+                                                    credit: parseMoneyAmount(e.amount ?? 0),
+                                                    method: e.paymentMethod || e.payment_method || 'Expense'
                                                 }))
-                                            ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                                            ].sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
 
                                             // Calculate bf balance before start of period
                                             let bfBalance = 0;
