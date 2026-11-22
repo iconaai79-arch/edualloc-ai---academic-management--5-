@@ -28,6 +28,7 @@ const AscSubjectsManager = lazy(() => import('./AscSubjectsManager').then(m => (
 const AscClassesManager = lazy(() => import('./AscClassesManager').then(m => ({ default: m.AscClassesManager })));
 const AscClassroomsManager = lazy(() => import('./AscClassroomsManager').then(m => ({ default: m.AscClassroomsManager })));
 const AscTeachersManager = lazy(() => import('./AscTeachersManager').then(m => ({ default: m.AscTeachersManager })));
+const AscCardRelationshipsManager = lazy(() => import('./AscCardRelationshipsManager').then(m => ({ default: m.AscCardRelationshipsManager })));
 const TimetableClassroomsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableClassroomsManager })));
 const TimetableRelationsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableRelationsManager })));
 const SettingsManager = lazy(() => import('./SettingsManager').then(m => ({ default: m.SettingsManager })));
@@ -3393,11 +3394,13 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     </Suspense>
                                 ) : timetableSubTab === 'relations' ? (
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
-                                        <TimetableRelationsManager
+                                        <AscCardRelationshipsManager
                                             institutionId={props.currentInstitution?.id || ''}
                                             subjects={props.subjects || []}
                                             courses={props.courses || []}
                                             lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
+                                            timetableEntries={props.generatedTimetable || []}
+                                            onClose={() => setTimetableSubTab('cards')}
                                             onOpenWizard={() => setTimetableSubTab('wizard')}
                                         />
                                     </Suspense>
