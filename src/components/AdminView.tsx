@@ -32,6 +32,7 @@ const AscCardRelationshipsManager = lazy(() => import('./AscCardRelationshipsMan
 const AscInputtedConstraintsList = lazy(() => import('./AscInputtedConstraintsList').then(m => ({ default: m.AscInputtedConstraintsList })));
 const AscSchoolSettingsPanel = lazy(() => import('./AscSchoolSettingsPanel').then(m => ({ default: m.AscSchoolSettingsPanel })));
 const AscTimetableOperationsHub = lazy(() => import('./AscTimetableOperationsHub').then(m => ({ default: m.AscTimetableOperationsHub })));
+const AscTimetablePrintPreviewReports = lazy(() => import('./AscTimetablePrintPreviewReports').then(m => ({ default: m.AscTimetablePrintPreviewReports })));
 const TimetableClassroomsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableClassroomsManager })));
 const TimetableRelationsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableRelationsManager })));
 const SettingsManager = lazy(() => import('./SettingsManager').then(m => ({ default: m.SettingsManager })));
@@ -4604,6 +4605,22 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     ⛔ Access Denied: Only the Director and Finance Manager are authorized to view financial reports and analysis.
                                 </div>
                             )
+                        ) : activeScope === 'smart_timetable' ? (
+                            <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                                <AscTimetablePrintPreviewReports
+                                    institution={props.currentInstitution}
+                                    activeAcademicYear={props.activeAcademicYear || null}
+                                    entries={props.generatedTimetable || props.allTimetableEntries || []}
+                                    courses={props.courses || []}
+                                    subjects={props.subjects || []}
+                                    lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
+                                    rooms={props.rooms || []}
+                                    timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                    getSubjectById={props.getSubjectById || ((id: string) => (props.subjects || []).find(s => s && s.id === id))}
+                                    getLecturerById={props.getLecturerById || ((id: string) => (props.users || []).find(u => u && u.id === id))}
+                                    getRoomById={props.getRoomById || ((id: string) => (props.rooms || []).find(r => r && r.id === id))}
+                                />
+                            </Suspense>
                         ) : (
                             <ReportsDashboard
                                 activeScope={activeScope}
