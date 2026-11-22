@@ -17,6 +17,7 @@ import { AiSalesAgentWidget } from './AiSalesAgentWidget';
 import { KenyanOfficialStamp } from '../common/KenyanOfficialStamp';
 import { generateStampDataUri, formatStampDate } from '../../utils/stampGenerator';
 import { PublicStampPaymentModal } from './PublicStampPaymentModal';
+import { PublicSmartTimetableSimulator } from './PublicSmartTimetableSimulator';
 
 const copyToClipboard = async (text: string): Promise<boolean> => {
   try {
@@ -290,7 +291,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // ── LIVE AUTOMATION PLAYGROUND STATES ──
-  const [playgroundTab, setPlaygroundTab] = useState<'stamp' | 'mpesa'>('stamp');
+  const [playgroundTab, setPlaygroundTab] = useState<'timetable' | 'stamp' | 'mpesa'>('timetable');
 
   // Stamp Playground
   const [stampShape, setStampShape] = useState<'circle' | 'oval'>('circle');
@@ -492,10 +493,11 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
         <div className="mt-10 flex flex-wrap justify-center items-center gap-4">
           <a
             href="#playground"
+            onClick={() => setPlaygroundTab('timetable')}
             className="px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm uppercase tracking-widest shadow-2xl shadow-indigo-600/40 flex items-center gap-3 transition-all cursor-pointer hover:scale-105"
           >
             <Sparkles className="w-4 h-4 text-indigo-200" />
-            <span>Test Drive Live Sandbox</span>
+            <span>Try Smart Timetable Simulator</span>
           </a>
 
           <button
@@ -677,13 +679,14 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
             Live Automation Sandbox
           </h2>
           <p className="text-slate-400 text-sm sm:text-base max-w-2xl mx-auto mt-3 font-medium">
-            Test real automated engines right in your browser. Customize an official Kenyan rubber stamp or simulate an instant M-Pesa fee receipt webhook.
+            Test real automated engines right in your browser. Run the interactive Smart Timetable demo simulator, customize an official Kenyan rubber stamp, or simulate an instant M-Pesa fee receipt webhook.
           </p>
         </div>
 
         {/* Playground Sub-Tabs */}
-        <div className="flex justify-center gap-3 mb-10">
+        <div className="flex flex-wrap justify-center gap-3 mb-10">
           {[
+            { id: 'timetable', label: '🗂️ Smart Timetable Simulator (aSc Demo)', icon: Calendar },
             { id: 'stamp', label: '⭕ Kenyan Official Stamp & Dater Generator', icon: Palette },
             { id: 'mpesa', label: '💳 M-Pesa STK & Instant Receipt Simulator', icon: CreditCard },
           ].map(tab => (
@@ -701,6 +704,13 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
             </button>
           ))}
         </div>
+
+        {/* ── PLAYGROUND 0: SMART TIMETABLE INTERACTIVE SIMULATOR ── */}
+        {playgroundTab === 'timetable' && (
+          <div className="animate-fade-in">
+            <PublicSmartTimetableSimulator onRegister={onRegister} onBookDemo={onBookDemo} />
+          </div>
+        )}
 
         {/* ── PLAYGROUND 1: LIVE STAMP GENERATOR ── */}
         {playgroundTab === 'stamp' && (
