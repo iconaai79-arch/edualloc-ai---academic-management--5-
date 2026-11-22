@@ -184,8 +184,6 @@ export const EmployeeDocumentsModal: React.FC<EmployeeDocumentsModalProps> = ({
         }
     }, [isOpen, staffMember]);
 
-    if (!isOpen || !staffMember) return null;
-
     const resetForm = () => {
         setUploadTitle('');
         setUploadCategory('contract');
@@ -417,6 +415,8 @@ export const EmployeeDocumentsModal: React.FC<EmployeeDocumentsModalProps> = ({
             return matchesCat && matchesQuery;
         });
     }, [documents, selectedCategoryFilter, searchQuery]);
+
+    if (!isOpen || !staffMember) return null;
 
     const staffIdCode = staffMember.staffId || staffMember.teacherCode || staffMember.code || `ID-${staffMember.id.substring(0, 6).toUpperCase()}`;
 

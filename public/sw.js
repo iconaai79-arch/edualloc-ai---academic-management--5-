@@ -1,6 +1,6 @@
 // EduAI OS Service Worker — Network First with Stale Chunk Protection
 
-const CACHE_NAME = 'eduai-cache-v6';
+const CACHE_NAME = 'eduai-cache-v7';
 
 // Install Event
 self.addEventListener('install', (event) => {
@@ -37,8 +37,12 @@ self.addEventListener('fetch', (event) => {
   // Only intercept same-origin requests; never intercept third-party APIs, gateways, or cross-domain endpoints
   if (!url.startsWith(self.location.origin)) return;
 
-  // Let browser natively handle JS/CSS bundle chunks, assets & API calls to prevent MIME type & stale chunk errors
-  if (url.includes('/api/') || url.includes('.js') || url.includes('.css') || url.includes('/assets/')) return;
+  // Let browser natively handle JS/CSS bundle chunks, static media/images & API calls to prevent MIME type, corrupt image & stale chunk errors
+  if (
+    url.includes('/api/') ||
+    url.includes('/assets/') ||
+    /\.(js|css|png|jpg|jpeg|webp|svg|ico|gif|mp4|webm|woff2?)(\?|$)/i.test(url)
+  ) return;
 
   // For HTML navigation requests, ALWAYS fetch fresh from network to guarantee latest script bundle hashes
   if (event.request.mode === 'navigate') {
