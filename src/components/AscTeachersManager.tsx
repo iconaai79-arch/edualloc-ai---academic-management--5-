@@ -4,6 +4,26 @@ import type { AscLessonRow } from './AscSubjectsManager';
 import { generatePeriodLabels } from '../utils/timeUtils';
 import { apiService } from '../services/apiService';
 
+interface AscTeacherConstraints {
+    limitWindowsWeek?: boolean;
+    maxWindowsWeek?: number;
+    limitDays?: boolean;
+    maxDays?: number;
+    noThreeWindowsInDay?: boolean;
+    limitBuildingTransits?: boolean;
+    maxTransitsPerDay?: string;
+    maxTransitsPerWeek?: string;
+    limitMinMaxPerDay?: boolean;
+    minLessonsPerDay?: number;
+    maxLessonsPerDay?: number;
+    ignoreWeekendMinMax?: boolean;
+    limitConsecutive?: boolean;
+    maxConsecutive?: number;
+    ignoreWeekendExhaustion?: boolean;
+    maxQuestionMarked?: string;
+    questionMarkedPerDay?: boolean;
+}
+
 interface AscTeacherPrefs {
     shortCode?: string;
     color?: string;
@@ -12,6 +32,7 @@ interface AscTeacherPrefs {
     maxPerDay?: number;
     maxConsecutive?: number;
     maxGapsPerDay?: number;
+    constraints?: AscTeacherConstraints;
 }
 
 interface AscTeachersManagerProps {
@@ -86,10 +107,26 @@ export const AscTeachersManager: React.FC<AscTeachersManagerProps> = ({
 
     const [timeOffModalTeacher, setTimeOffModalTeacher] = useState<User | null>(null);
     const [constraintsModalTeacher, setConstraintsModalTeacher] = useState<User | null>(null);
-    const [cMaxPerDay, setCMaxPerDay] = useState<number>(6);
-    const [cMaxConsecutive, setCMaxConsecutive] = useState<number>(3);
-    const [cMaxGaps, setCMaxGaps] = useState<number>(2);
-    const [cClassTeacherOf, setCClassTeacherOf] = useState<string>('');
+    const [tcForm, setTcForm] = useState<AscTeacherConstraints>({
+        limitWindowsWeek: false,
+        maxWindowsWeek: 10,
+        limitDays: false,
+        maxDays: 5,
+        noThreeWindowsInDay: false,
+        limitBuildingTransits: false,
+        maxTransitsPerDay: 'Arbitrary',
+        maxTransitsPerWeek: 'Arbitrary',
+        limitMinMaxPerDay: false,
+        minLessonsPerDay: 0,
+        maxLessonsPerDay: 8,
+        ignoreWeekendMinMax: false,
+        limitConsecutive: false,
+        maxConsecutive: 5,
+        ignoreWeekendExhaustion: false,
+        maxQuestionMarked: 'Arbitrary',
+        questionMarkedPerDay: false,
+    });
+    const [setForMoreMsg, setSetForMoreMsg] = useState<string>('');
 
     // Lessons for Teacher Modal + 5-row aSc Lesson Editor
     const [lessonsModalTeacher, setLessonsModalTeacher] = useState<User | null>(null);
@@ -324,10 +361,27 @@ export const AscTeachersManager: React.FC<AscTeachersManagerProps> = ({
     const openConstraints = () => {
         if (!selectedTeacher) return;
         const p = prefsMap[selectedTeacher.id] || {};
-        setCMaxPerDay(p.maxPerDay ?? 6);
-        setCMaxConsecutive(p.maxConsecutive ?? 3);
-        setCMaxGaps(p.maxGapsPerDay ?? 2);
-        setCClassTeacherOf(p.classTeacherOf || '');
+        const c = p.constraints || {};
+        setTcForm({
+            limitWindowsWeek: Boolean(c.limitWindowsWeek),
+            maxWindowsWeek: c.maxWindowsWeek ?? 10,
+            limitDays: Boolean(c.limitDays),
+            maxDays: c.maxDays ?? 5,
+            noThreeWindowsInDay: Boolean(c.noThreeWindowsInDay),
+            limitBuildingTransits: Boolean(c.limitBuildingTransits),
+            maxTransitsPerDay: c.maxTransitsPerDay || 'Arbitrary',
+            maxTransitsPerWeek: c.maxTransitsPerWeek || 'Arbitrary',
+            limitMinMaxPerDay: Boolean(c.limitMinMaxPerDay),
+            minLessonsPerDay: c.minLessonsPerDay ?? 0,
+            maxLessonsPerDay: c.maxLessonsPerDay ?? p.maxPerDay ?? 8,
+            ignoreWeekendMinMax: Boolean(c.ignoreWeekendMinMax),
+            limitConsecutive: Boolean(c.limitConsecutive),
+            maxConsecutive: c.maxConsecutive ?? p.maxConsecutive ?? 5,
+            ignoreWeekendExhaustion: Boolean(c.ignoreWeekendExhaustion),
+            maxQuestionMarked: c.maxQuestionMarked || 'Arbitrary',
+            questionMarkedPerDay: Boolean(c.questionMarkedPerDay),
+        });
+        setSetForMoreMsg('');
         setConstraintsModalTeacher(selectedTeacher);
     };
 
@@ -338,13 +392,27 @@ export const AscTeachersManager: React.FC<AscTeachersManagerProps> = ({
             ...prefsMap,
             [constraintsModalTeacher.id]: {
                 ...(prefsMap[constraintsModalTeacher.id] || {}),
-                maxPerDay: cMaxPerDay,
-                maxConsecutive: cMaxConsecutive,
-                maxGapsPerDay: cMaxGaps,
-                classTeacherOf: cClassTeacherOf.trim() || undefined,
+                maxPerDay: tcForm.maxLessonsPerDay,
+                maxConsecutive: tcForm.maxConsecutive,
+                constraints: { ...tcForm },
             }
         });
         setConstraintsModalTeacher(null);
+    };
+
+    const applyConstraintToAllTeachers = async (label: string, patch: Partial<AscTeacherConstraints>) => {
+        if (!window.confirm(`Apply "${label}" setting to all ${lecturers.length} teacher(s)?`)) return;
+        const nextMap = { ...prefsMap };
+        lecturers.forEach(t => {
+            const existing = nextMap[t.id] || {};
+            nextMap[t.id] = {
+                ...existing,
+                constraints: { ...(existing.constraints || {}), ...patch },
+            };
+        });
+        await savePrefs(nextMap);
+        setSetForMoreMsg(`Applied "${label}" to all ${lecturers.length} teachers.`);
+        setTimeout(() => setSetForMoreMsg(''), 3000);
     };
 
     const openTeacherLessonEditor = (mode: 'new' | 'edit' | 'add_more' | 'copy_to') => {
@@ -1052,35 +1120,338 @@ export const AscTeachersManager: React.FC<AscTeachersManagerProps> = ({
                 </div>
             )}
 
-            {/* MODAL 4: TEACHER CONSTRAINTS */}
+            {/* MODAL 4: AUTHENTIC aSc "TEACHER / CONSTRAINTS" DIALOG */}
             {constraintsModalTeacher && (
                 <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-                    <form onSubmit={handleSaveConstraints} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 w-full max-w-md shadow-2xl space-y-4">
-                        <h3 className="text-sm font-black uppercase text-slate-900 dark:text-white">Constraints — {constraintsModalTeacher.name}</h3>
-                        <div className="grid grid-cols-3 gap-3">
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Max / Day</label>
-                                <input type="number" min={1} max={10} value={cMaxPerDay} onChange={e => setCMaxPerDay(Math.max(1, Number(e.target.value) || 6))} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-black text-center" />
+                    <form
+                        onSubmit={handleSaveConstraints}
+                        className="bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-400 dark:border-slate-600 w-full max-w-4xl shadow-2xl overflow-hidden"
+                    >
+                        {/* Title Bar */}
+                        <div className="bg-white dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 px-4 py-2 flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-800 dark:text-white">
+                                Teacher / Constraints - {constraintsModalTeacher.name}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setConstraintsModalTeacher(null)}
+                                className="px-2 py-0.5 rounded hover:bg-rose-100 text-slate-600 hover:text-rose-600 font-black text-sm cursor-pointer"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="p-4 space-y-3 max-h-[80vh] overflow-y-auto text-xs text-slate-800 dark:text-slate-200">
+                            {/* Teacher Name & Contract Summary */}
+                            <div className="grid grid-cols-[120px_1fr] gap-y-0.5 text-xs">
+                                <span className="font-semibold text-slate-600 dark:text-slate-400">Name of teacher :</span>
+                                <span className="font-bold text-slate-900 dark:text-white">{constraintsModalTeacher.name}</span>
+                                <span className="font-semibold text-slate-600 dark:text-slate-400">Contract :</span>
+                                <span className="font-mono font-bold text-slate-900 dark:text-white">{getTeacherLessonCount(constraintsModalTeacher)}</span>
                             </div>
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Max Consec.</label>
-                                <input type="number" min={1} max={6} value={cMaxConsecutive} onChange={e => setCMaxConsecutive(Math.max(1, Number(e.target.value) || 3))} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-black text-center" />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Max Gaps/Day</label>
-                                <input type="number" min={0} max={6} value={cMaxGaps} onChange={e => setCMaxGaps(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-black text-center" />
+
+                            {setForMoreMsg && (
+                                <div className="px-3 py-1.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 text-[11px] font-bold">
+                                    ✓ {setForMoreMsg}
+                                </div>
+                            )}
+
+                            {/* 2-Column aSc Constraint Boxes */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                {/* LEFT COLUMN */}
+                                <div className="space-y-3">
+                                    {/* Box 1: Limit number of windows in timetable per week */}
+                                    <div className="border border-slate-300 dark:border-slate-700 rounded-md p-3 bg-white/70 dark:bg-slate-800/60 space-y-2">
+                                        <label className="flex items-center gap-2 font-semibold cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(tcForm.limitWindowsWeek)}
+                                                onChange={e => setTcForm(p => ({ ...p, limitWindowsWeek: e.target.checked }))}
+                                                className="w-3.5 h-3.5 accent-blue-600"
+                                            />
+                                            <span>Limit number of windows in timetable per week</span>
+                                        </label>
+                                        <div className={`flex flex-wrap items-center gap-2 ${tcForm.limitWindowsWeek ? '' : 'opacity-50'}`}>
+                                            <span>Maximum number of windows in</span>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                max={30}
+                                                disabled={!tcForm.limitWindowsWeek}
+                                                value={tcForm.maxWindowsWeek ?? 10}
+                                                onChange={e => setTcForm(p => ({ ...p, maxWindowsWeek: Math.max(0, Number(e.target.value) || 0) }))}
+                                                className="w-16 px-2 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 font-mono text-xs"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => applyConstraintToAllTeachers('Max windows/week', { limitWindowsWeek: tcForm.limitWindowsWeek, maxWindowsWeek: tcForm.maxWindowsWeek })}
+                                                className="ml-auto px-3.5 py-1 rounded border border-slate-400 dark:border-slate-600 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-[11px] font-semibold cursor-pointer"
+                                            >
+                                                Set for more
+                                            </button>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400 leading-snug">
+                                            E.g. The teacher has three windows in the timetable if he has a 2nd and then 6th lesson.
+                                        </p>
+                                    </div>
+
+                                    {/* Box 2: Limit number of days */}
+                                    <div className="border border-slate-300 dark:border-slate-700 rounded-md p-3 bg-white/70 dark:bg-slate-800/60 space-y-2">
+                                        <label className="flex items-center gap-2 font-semibold cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(tcForm.limitDays)}
+                                                onChange={e => setTcForm(p => ({ ...p, limitDays: e.target.checked }))}
+                                                className="w-3.5 h-3.5 accent-blue-600"
+                                            />
+                                            <span>Limit number of days</span>
+                                        </label>
+                                        <div className={`flex flex-wrap items-center gap-2 ${tcForm.limitDays ? '' : 'opacity-50'}`}>
+                                            <span>Number of days taught by teacher :</span>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={7}
+                                                disabled={!tcForm.limitDays}
+                                                value={tcForm.maxDays ?? 5}
+                                                onChange={e => setTcForm(p => ({ ...p, maxDays: Math.max(1, Number(e.target.value) || 1) }))}
+                                                className="w-16 px-2 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 font-mono text-xs"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => applyConstraintToAllTeachers('Limit number of days', { limitDays: tcForm.limitDays, maxDays: tcForm.maxDays })}
+                                                className="ml-auto px-3.5 py-1 rounded border border-slate-400 dark:border-slate-600 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-[11px] font-semibold cursor-pointer"
+                                            >
+                                                Set for more
+                                            </button>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400 leading-snug">
+                                            Here you can limit number of days, when the teacher should teach. Generator finds the days in the given number.
+                                        </p>
+                                    </div>
+
+                                    {/* Box 3: Cannot have 3 windows in one day */}
+                                    <div className="border border-slate-300 dark:border-slate-700 rounded-md p-3 bg-white/70 dark:bg-slate-800/60 flex items-center justify-between gap-3">
+                                        <label className="flex items-center gap-2 font-semibold cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(tcForm.noThreeWindowsInDay)}
+                                                onChange={e => setTcForm(p => ({ ...p, noThreeWindowsInDay: e.target.checked }))}
+                                                className="w-3.5 h-3.5 accent-blue-600 shrink-0"
+                                            />
+                                            <span>The teacher cannot have a 3 windows in one day.</span>
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => applyConstraintToAllTeachers('No 3 windows in one day', { noThreeWindowsInDay: tcForm.noThreeWindowsInDay })}
+                                            className="px-3.5 py-1 rounded border border-slate-400 dark:border-slate-600 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-[11px] font-semibold shrink-0 cursor-pointer"
+                                        >
+                                            Set for more
+                                        </button>
+                                    </div>
+
+                                    {/* Box 4: Maximum number of transits between buildings */}
+                                    <div className="border border-slate-300 dark:border-slate-700 rounded-md p-3 bg-white/70 dark:bg-slate-800/60 space-y-2">
+                                        <label className="flex items-center gap-2 font-semibold cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(tcForm.limitBuildingTransits)}
+                                                onChange={e => setTcForm(p => ({ ...p, limitBuildingTransits: e.target.checked }))}
+                                                className="w-3.5 h-3.5 accent-blue-600"
+                                            />
+                                            <span>Maximum number of transits between the buildings per day</span>
+                                        </label>
+                                        <div className={`space-y-2 ${tcForm.limitBuildingTransits ? '' : 'opacity-50'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <span className="w-16">Per day</span>
+                                                <select
+                                                    disabled={!tcForm.limitBuildingTransits}
+                                                    value={tcForm.maxTransitsPerDay || 'Arbitrary'}
+                                                    onChange={e => setTcForm(p => ({ ...p, maxTransitsPerDay: e.target.value }))}
+                                                    className="w-28 px-2 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs"
+                                                >
+                                                    <option value="Arbitrary">Arbitrary</option>
+                                                    <option value="0">0</option>
+                                                    <option value="1">1</option>
+                                                    <option value="2">2</option>
+                                                    <option value="3">3</option>
+                                                </select>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => applyConstraintToAllTeachers('Building transits', { limitBuildingTransits: tcForm.limitBuildingTransits, maxTransitsPerDay: tcForm.maxTransitsPerDay, maxTransitsPerWeek: tcForm.maxTransitsPerWeek })}
+                                                    className="ml-auto px-3.5 py-1 rounded border border-slate-400 dark:border-slate-600 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-[11px] font-semibold cursor-pointer"
+                                                >
+                                                    Set for more
+                                                </button>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="w-16">Per week</span>
+                                                <select
+                                                    disabled={!tcForm.limitBuildingTransits}
+                                                    value={tcForm.maxTransitsPerWeek || 'Arbitrary'}
+                                                    onChange={e => setTcForm(p => ({ ...p, maxTransitsPerWeek: e.target.value }))}
+                                                    className="w-28 px-2 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs"
+                                                >
+                                                    <option value="Arbitrary">Arbitrary</option>
+                                                    <option value="0">0</option>
+                                                    <option value="1">1</option>
+                                                    <option value="2">2</option>
+                                                    <option value="3">3</option>
+                                                    <option value="5">5</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* RIGHT COLUMN */}
+                                <div className="space-y-3">
+                                    {/* Box 5: Set min./max. number of lessons per day */}
+                                    <div className="border border-slate-300 dark:border-slate-700 rounded-md p-3 bg-white/70 dark:bg-slate-800/60 space-y-2">
+                                        <label className="flex items-center gap-2 font-semibold cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(tcForm.limitMinMaxPerDay)}
+                                                onChange={e => setTcForm(p => ({ ...p, limitMinMaxPerDay: e.target.checked }))}
+                                                className="w-3.5 h-3.5 accent-blue-600"
+                                            />
+                                            <span>Set min./max. number of lessons per day</span>
+                                        </label>
+                                        <div className={`space-y-2 ${tcForm.limitMinMaxPerDay ? '' : 'opacity-50'}`}>
+                                            <p className="text-[11px] text-slate-500">Number of lessons per day must be in this interval:</p>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    max={15}
+                                                    disabled={!tcForm.limitMinMaxPerDay}
+                                                    value={tcForm.minLessonsPerDay ?? 0}
+                                                    onChange={e => setTcForm(p => ({ ...p, minLessonsPerDay: Math.max(0, Number(e.target.value) || 0) }))}
+                                                    className="w-16 px-2 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 font-mono text-xs"
+                                                />
+                                                <span>-</span>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={20}
+                                                    disabled={!tcForm.limitMinMaxPerDay}
+                                                    value={tcForm.maxLessonsPerDay ?? 8}
+                                                    onChange={e => setTcForm(p => ({ ...p, maxLessonsPerDay: Math.max(1, Number(e.target.value) || 1) }))}
+                                                    className="w-16 px-2 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 font-mono text-xs"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => applyConstraintToAllTeachers('Min/Max lessons per day', { limitMinMaxPerDay: tcForm.limitMinMaxPerDay, minLessonsPerDay: tcForm.minLessonsPerDay, maxLessonsPerDay: tcForm.maxLessonsPerDay, ignoreWeekendMinMax: tcForm.ignoreWeekendMinMax })}
+                                                    className="ml-auto px-3.5 py-1 rounded border border-slate-400 dark:border-slate-600 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-[11px] font-semibold cursor-pointer"
+                                                >
+                                                    Set for more
+                                                </button>
+                                            </div>
+                                            <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    disabled={!tcForm.limitMinMaxPerDay}
+                                                    checked={Boolean(tcForm.ignoreWeekendMinMax)}
+                                                    onChange={e => setTcForm(p => ({ ...p, ignoreWeekendMinMax: e.target.checked }))}
+                                                    className="w-3.5 h-3.5 accent-blue-600"
+                                                />
+                                                <span>Do not check min and max during weekend.</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Box 6: Limit number of consecutive lessons */}
+                                    <div className="border border-slate-300 dark:border-slate-700 rounded-md p-3 bg-white/70 dark:bg-slate-800/60 space-y-2">
+                                        <label className="flex items-center gap-2 font-semibold cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(tcForm.limitConsecutive)}
+                                                onChange={e => setTcForm(p => ({ ...p, limitConsecutive: e.target.checked }))}
+                                                className="w-3.5 h-3.5 accent-blue-600"
+                                            />
+                                            <span>Limit number of consecutive lessons</span>
+                                        </label>
+                                        <div className={`space-y-2 ${tcForm.limitConsecutive ? '' : 'opacity-50'}`}>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span>Max. number of consecutive</span>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={10}
+                                                    disabled={!tcForm.limitConsecutive}
+                                                    value={tcForm.maxConsecutive ?? 5}
+                                                    onChange={e => setTcForm(p => ({ ...p, maxConsecutive: Math.max(1, Number(e.target.value) || 1) }))}
+                                                    className="w-16 px-2 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 font-mono text-xs"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => applyConstraintToAllTeachers('Max consecutive lessons', { limitConsecutive: tcForm.limitConsecutive, maxConsecutive: tcForm.maxConsecutive, ignoreWeekendExhaustion: tcForm.ignoreWeekendExhaustion })}
+                                                    className="ml-auto px-3.5 py-1 rounded border border-slate-400 dark:border-slate-600 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-[11px] font-semibold cursor-pointer"
+                                                >
+                                                    Set for more
+                                                </button>
+                                            </div>
+                                            <p className="text-[11px] text-slate-400 leading-snug">
+                                                This parameter limits the number of consecutive periods taught by the teacher.
+                                            </p>
+                                            <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    disabled={!tcForm.limitConsecutive}
+                                                    checked={Boolean(tcForm.ignoreWeekendExhaustion)}
+                                                    onChange={e => setTcForm(p => ({ ...p, ignoreWeekendExhaustion: e.target.checked }))}
+                                                    className="w-3.5 h-3.5 accent-blue-600"
+                                                />
+                                                <span>Do not check exhaustion on Saturday and Sunday</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Box 7: Max on question marked */}
+                                    <div className="border border-slate-300 dark:border-slate-700 rounded-md p-3 bg-white/70 dark:bg-slate-800/60 space-y-2.5">
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-semibold">Max. on the question marked :</span>
+                                            <select
+                                                value={tcForm.maxQuestionMarked || 'Arbitrary'}
+                                                onChange={e => setTcForm(p => ({ ...p, maxQuestionMarked: e.target.value }))}
+                                                className="w-28 px-2 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-semibold"
+                                            >
+                                                <option value="Arbitrary">Arbitrary</option>
+                                                <option value="0">0</option>
+                                                <option value="1">1</option>
+                                                <option value="2">2</option>
+                                                <option value="3">3</option>
+                                            </select>
+                                        </div>
+                                        <label className="flex items-center gap-2 font-semibold cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(tcForm.questionMarkedPerDay)}
+                                                onChange={e => setTcForm(p => ({ ...p, questionMarkedPerDay: e.target.checked }))}
+                                                className="w-3.5 h-3.5 accent-blue-600"
+                                            />
+                                            <span>Max. number on questionmarked consider per day.</span>
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div>
-                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Class Teacher Of</label>
-                            <select value={cClassTeacherOf} onChange={e => setCClassTeacherOf(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs font-bold">
-                                <option value="">None</option>
-                                {classOptions.map(c => <option key={c.key} value={c.label}>{c.label}</option>)}
-                            </select>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setConstraintsModalTeacher(null)} className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-xs font-bold cursor-pointer">Cancel</button>
-                            <button type="submit" className="px-5 py-2 rounded-xl bg-blue-600 text-white text-xs font-black uppercase cursor-pointer">Save</button>
+
+                        {/* Footer: Centered OK & Cancel */}
+                        <div className="bg-slate-100 dark:bg-slate-800 border-t border-slate-300 dark:border-slate-700 px-4 py-3 flex items-center justify-center gap-3">
+                            <button
+                                type="submit"
+                                className="px-10 py-1.5 rounded border-2 border-blue-500 bg-slate-200 dark:bg-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500 text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
+                            >
+                                OK
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setConstraintsModalTeacher(null)}
+                                className="px-8 py-1.5 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-700 hover:bg-slate-50 text-xs font-semibold text-slate-800 dark:text-white cursor-pointer"
+                            >
+                                Cancel
+                            </button>
                         </div>
                     </form>
                 </div>
