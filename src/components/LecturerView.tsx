@@ -62,6 +62,7 @@ import { AscScannerPanel } from './AscScannerPanel';
 import { ClassSupervisorAttendanceManager } from './common/ClassSupervisorAttendanceManager';
 import { TeacherLessonPlanManager } from './Academics/TeacherLessonPlanManager';
 import { StaffSaccoSelfServicePanel } from './Finance/StaffSaccoSelfServicePanel';
+import { AscTimetableLessonAttendanceManager } from './AscTimetableLessonAttendanceManager';
 
 const EduFlowManager = lazy(() => import('./common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
 const StudentLeaveOutManager = lazy(() => import('./StudentLeaveOutManager').then(m => ({ default: m.StudentLeaveOutManager })));
@@ -237,7 +238,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     } = props;
 
     const [activeTab, setActiveTab] = useState('dashboard');
-    const [timetableSubTab, setTimetableSubTab] = useState<'regular' | 'remedials'>('regular');
+    const [timetableSubTab, setTimetableSubTab] = useState<'regular' | 'lesson_qr' | 'remedials'>('regular');
     const [showMoreDrawer, setShowMoreDrawer] = useState(false);
 
     // Remedial States
@@ -1904,6 +1905,18 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     </button>
 
                                     <button
+                                        onClick={() => setTimetableSubTab('lesson_qr')}
+                                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                                            timetableSubTab === 'lesson_qr'
+                                                ? 'bg-gradient-to-r from-cyan-600 to-indigo-600 text-white shadow-md shadow-cyan-500/20'
+                                                : 'text-slate-500 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-800/40'
+                                        }`}
+                                    >
+                                        <QrCodeIcon className="w-4 h-4" />
+                                        <span>Lesson QR &amp; Topics</span>
+                                    </button>
+
+                                    <button
                                         onClick={() => setTimetableSubTab('remedials')}
                                         className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 relative ${
                                             timetableSubTab === 'remedials'
@@ -1943,6 +1956,21 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                         timetableSettings={timetableSettings}
                                     />
                                 </div>
+                            )}
+
+                            {timetableSubTab === 'lesson_qr' && (
+                                <AscTimetableLessonAttendanceManager
+                                    institutionId={currentInstitution?.id || user?.institutionId || ''}
+                                    institutionName={currentInstitution?.name}
+                                    currentUser={user}
+                                    mode="teacher"
+                                    entries={lecturerTimetable}
+                                    courses={courses || []}
+                                    subjects={subjects || []}
+                                    lecturers={props.users ? props.users.filter(u => u && (u.id === user?.id || u.role === 'lecturer' || u.role === 'teacher')) : [user]}
+                                    rooms={props.rooms || []}
+                                    timetableSettings={timetableSettings}
+                                />
                             )}
                         </div>
                     )}

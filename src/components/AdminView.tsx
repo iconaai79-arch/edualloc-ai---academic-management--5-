@@ -88,6 +88,7 @@ const CdfManager = lazy(() => import('./CdfManager').then(m => ({ default: m.Cdf
 const EduAiHub = lazy(() => import('./common/EduAiHub').then(m => ({ default: m.EduAiHub })));
 const GrainMillerManager = lazy(() => import('./milling/GrainMillerManager').then(m => ({ default: m.GrainMillerManager })));
 const SchoolDeviceAccessManager = lazy(() => import('./Network/SchoolDeviceAccessManager').then(m => ({ default: m.SchoolDeviceAccessManager })));
+const AscTimetableLessonAttendanceManager = lazy(() => import('./AscTimetableLessonAttendanceManager').then(m => ({ default: m.AscTimetableLessonAttendanceManager })));
 
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
@@ -526,7 +527,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     });
     const [projectorElectionId, setProjectorElectionId] = useState<string | null>(null);
 
-    const [timetableSubTab, setTimetableSubTab] = useState<'cards' | 'subjects' | 'classes' | 'classrooms' | 'teachers' | 'relations' | 'constraints_list' | 'school' | 'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'calendar' | 'students'>('cards');
+    const [timetableSubTab, setTimetableSubTab] = useState<'cards' | 'subjects' | 'classes' | 'classrooms' | 'teachers' | 'relations' | 'constraints_list' | 'school' | 'lesson_attendance' | 'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'calendar' | 'students'>('cards');
     const [smartTimetableDemo, setSmartTimetableDemo] = useState<SmartTimetableDemoBundle | null>(() => {
         try {
             const instId = props.currentInstitution?.id || 'default';
@@ -3550,6 +3551,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         { id: 'relations', label: 'Relations', icon: '🕸️' },
                                         { id: 'constraints_list', label: 'List of Inputed Constraints', icon: '💡' },
                                         { id: 'school', label: 'School', icon: '🏛️' },
+                                        { id: 'lesson_attendance', label: 'Lesson Attendance QR', icon: '✅' },
                                     ].map(tab => (
                                         <button
                                             key={tab.id}
@@ -3681,6 +3683,21 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                             timetableSettings={ttSettings}
                                             onSaveTimetableSettings={props.onSaveTimetableSettings}
                                             onClose={() => setTimetableSubTab('cards')}
+                                        />
+                                    </Suspense>
+                                ) : timetableSubTab === 'lesson_attendance' ? (
+                                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                                        <AscTimetableLessonAttendanceManager
+                                            institutionId={props.currentInstitution?.id || ''}
+                                            institutionName={props.currentInstitution?.name}
+                                            currentUser={props.currentUser}
+                                            mode="admin"
+                                            entries={ttEntries}
+                                            courses={ttCourses}
+                                            subjects={ttSubjects}
+                                            lecturers={ttLecturers}
+                                            rooms={ttRooms}
+                                            timetableSettings={ttSettings}
                                         />
                                     </Suspense>
                                 ) : timetableSubTab === 'wizard' ? (
