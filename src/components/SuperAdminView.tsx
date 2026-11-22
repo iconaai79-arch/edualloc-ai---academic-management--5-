@@ -62,6 +62,7 @@ import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { CommandLineIcon } from './icons/CommandLineIcon';
 import { StudentSubscriptionPlanManager } from './common/StudentSubscriptionPlanManager';
 import { SuperAdminPocketMoneyManager } from './SuperAdminPocketMoneyManager';
+import { SuperAdminRenewalAutomationPanel } from './SuperAdminRenewalAutomationPanel';
 import { ScanToPayQrModal } from './common/ScanToPayQrModal';
 import { QrCodeIcon } from './icons/QrCodeIcon';
 import { MpesaIcon } from './icons/MpesaIcon';
@@ -598,7 +599,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         return 'dashboard';
     });
     const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'grouped' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political' | 'medical' | 'business_profile' | 'invoices' | 'constituencies' | 'student_packages'>('list');
-    const [invoicingMode, setInvoicingMode] = useState<'corporate' | 'tenant_subscriptions'>('corporate');
+    const [invoicingMode, setInvoicingMode] = useState<'corporate' | 'tenant_subscriptions' | 'auto_renewals'>('corporate');
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry' | 'calendar' | 'timetable' | 'discipline' | 'insights' | 'reports'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
 
@@ -2912,10 +2913,26 @@ Please change it after login.`;
                                         >
                                             <span>🏫</span> Tenant Subscriptions
                                         </button>
+                                        <button
+                                            onClick={() => setInvoicingMode('auto_renewals')}
+                                            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${invoicingMode === 'auto_renewals' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' : 'text-slate-400 hover:text-white'}`}
+                                        >
+                                            <span>🔄</span> Auto-Renewals (7d / 3d)
+                                        </button>
                                     </div>
                                 </div>
 
-                                {invoicingMode === 'corporate' ? (
+                                {invoicingMode === 'auto_renewals' ? (
+                                    <SuperAdminRenewalAutomationPanel
+                                        institutions={institutions}
+                                        users={users}
+                                        companyDetails={companyDetails}
+                                        smsConfig={smsConfig}
+                                        currentUser={currentUser}
+                                        onSendSms={onSendSms}
+                                        onLogAction={props.onLogAction}
+                                    />
+                                ) : invoicingMode === 'corporate' ? (
                                     <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                                         <CorporateInvoicingManager
                                             currentUser={currentUser}
