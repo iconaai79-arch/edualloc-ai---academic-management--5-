@@ -537,6 +537,101 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         return null;
     });
     const [demoVersionTick, setDemoVersionTick] = useState(0);
+    const [demoTourStep, setDemoTourStep] = useState<number | null>(null);
+    const [demoTourAutoPlay, setDemoTourAutoPlay] = useState<boolean>(true);
+
+    const DEMO_TOUR_STEPS: Array<{
+        phase: string;
+        icon: string;
+        title: string;
+        insight: string;
+        topTab: 'timetable' | 'timetable_ops' | 'reports';
+        subTab?: 'school' | 'subjects' | 'classes' | 'classrooms' | 'teachers' | 'relations' | 'constraints_list' | 'cards';
+    }> = [
+        {
+            phase: '1. School Setup',
+            icon: '🏛️',
+            title: 'School Profile, Periods & Bell Times',
+            insight: 'Configured 5 teaching days × 10 periods/day plus SHORT BREAK, LONG BREAK, and LUNCH BREAK in Bell Times.',
+            topTab: 'timetable',
+            subTab: 'school',
+        },
+        {
+            phase: '2. Data Entry',
+            icon: '📘',
+            title: 'Subjects & Weekly Lesson Counts',
+            insight: 'Loaded 13 subjects (ENG, KIS, MAT, BIO, CHE, PHY, HIST, GEO, CRE, AGRI, HS, CS, BST) with weekly lesson structures.',
+            topTab: 'timetable',
+            subTab: 'subjects',
+        },
+        {
+            phase: '2. Data Entry',
+            icon: '👥',
+            title: 'Classes, Time-Off & Elective Divisions',
+            insight: 'Created 4 streams (4N, 4C, 4S, 4E), blocked Friday periods 9–10 on Time-Off, and set elective Divisions (HIST/GEO, PHY/CRE, AGRI/HS/CS/BST).',
+            topTab: 'timetable',
+            subTab: 'classes',
+        },
+        {
+            phase: '2. Data Entry',
+            icon: '🚪',
+            title: 'Classrooms & Shared Laboratories',
+            insight: 'Registered 4 home classrooms plus shared special rooms (LAB 1, LAB 2, COMPUTER LAB, FIELD) for practicals.',
+            topTab: 'timetable',
+            subTab: 'classrooms',
+        },
+        {
+            phase: '2. Data Entry',
+            icon: '🎓',
+            title: 'Teachers, Color Swatches & Constraints',
+            insight: 'Added 16 teachers with aSc short codes (01–28), card colors, max lessons/day, and consecutive-period limits.',
+            topTab: 'timetable',
+            subTab: 'teachers',
+        },
+        {
+            phase: '3. Rules & Checks',
+            icon: '🕸️',
+            title: 'Card Relationships & Constraints',
+            insight: 'Applied card relationships (BIO/PHY/CHE/MAT cannot follow, Parallel Electives) — all verified with zero clashes.',
+            topTab: 'timetable',
+            subTab: 'relations',
+        },
+        {
+            phase: '4. Generation',
+            icon: '🗂️',
+            title: 'Master Subject Cards Board (aSc Grid)',
+            insight: 'Placed 240+ subject cards across Mon–Fri with diagonal 2-subject splits and stacked 4-subject elective bands. Drag any card to adjust!',
+            topTab: 'timetable',
+            subTab: 'cards',
+        },
+        {
+            phase: '5. Print & PDF',
+            icon: '🖨️',
+            title: 'Print Preview & Landscape PDF Reports',
+            insight: 'Preview individual Class, Teacher, Classroom, or Wall Poster sheets with vertical breaks — click Print or Download PDF anytime!',
+            topTab: 'reports',
+        },
+    ];
+
+    const goToDemoTourStep = (stepIdx: number) => {
+        const clamped = Math.max(0, Math.min(DEMO_TOUR_STEPS.length - 1, stepIdx));
+        const cfg = DEMO_TOUR_STEPS[clamped];
+        setDemoTourStep(clamped);
+        setActiveTab(cfg.topTab);
+        if (cfg.subTab) setTimetableSubTab(cfg.subTab);
+    };
+
+    useEffect(() => {
+        if (demoTourStep === null || !demoTourAutoPlay || !smartTimetableDemo || activeScope !== 'smart_timetable') return;
+        if (demoTourStep >= DEMO_TOUR_STEPS.length - 1) {
+            setDemoTourAutoPlay(false);
+            return;
+        }
+        const timer = window.setTimeout(() => {
+            goToDemoTourStep(demoTourStep + 1);
+        }, 4500);
+        return () => window.clearTimeout(timer);
+    }, [demoTourStep, demoTourAutoPlay, smartTimetableDemo, activeScope]);
 
     const handleLoadSmartTimetableDemo = () => {
         const instId = props.currentInstitution?.id || 'default';
@@ -565,7 +660,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         } catch (_) {}
         setSmartTimetableDemo(bundle);
         setDemoVersionTick(t => t + 1);
-        setTimetableSubTab('cards');
+        setDemoTourAutoPlay(true);
+        setDemoTourStep(0);
+        setActiveTab('timetable');
+        setTimetableSubTab('school');
     };
 
     const handleClearSmartTimetableDemo = () => {
@@ -597,7 +695,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             localStorage.removeItem(`eduai_asc_demo_active_${instId}`);
         } catch (_) {}
         setSmartTimetableDemo(null);
+        setDemoTourStep(null);
+        setDemoTourAutoPlay(false);
         setDemoVersionTick(t => t + 1);
+        setActiveTab('timetable');
+        setTimetableSubTab('cards');
     };
 
     // Effective Smart Timetable Data (reads Demo Bundle while Demo Mode is active, otherwise real school data)
@@ -4962,6 +5064,76 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 />
             )}
 
+            {/* Floating Step-by-Step Guided Demo Simulation Card */}
+            {smartTimetableDemo && activeScope === 'smart_timetable' && demoTourStep !== null && (() => {
+                const currentStep = DEMO_TOUR_STEPS[demoTourStep];
+                const pct = Math.round(((demoTourStep + 1) / DEMO_TOUR_STEPS.length) * 100);
+                return (
+                    <div className="fixed bottom-16 right-4 z-[125] w-[360px] max-w-[calc(100vw-2rem)] bg-slate-900 text-white rounded-2xl border-2 border-indigo-400 shadow-2xl p-4 space-y-3 no-print">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-[9px] font-black uppercase tracking-widest">
+                                {currentStep.phase} • Step {demoTourStep + 1} / {DEMO_TOUR_STEPS.length}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => { setDemoTourStep(null); setDemoTourAutoPlay(false); }}
+                                className="text-[10px] font-bold text-slate-400 hover:text-white cursor-pointer"
+                            >
+                                Skip Tour ×
+                            </button>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="w-full h-1.5 rounded-full bg-slate-700 overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all duration-300" style={{ width: `${pct}%` }} />
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                            <span className="text-2xl leading-none shrink-0 mt-0.5">{currentStep.icon}</span>
+                            <div>
+                                <h4 className="text-xs font-black text-white leading-snug">{currentStep.title}</h4>
+                                <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">{currentStep.insight}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/10">
+                            <button
+                                type="button"
+                                disabled={demoTourStep <= 0}
+                                onClick={() => { setDemoTourAutoPlay(false); goToDemoTourStep(demoTourStep - 1); }}
+                                className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-black uppercase disabled:opacity-35 cursor-pointer"
+                            >
+                                ◀ Back
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setDemoTourAutoPlay(p => !p)}
+                                className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-black uppercase cursor-pointer"
+                            >
+                                {demoTourAutoPlay ? '⏸ Pause' : '▶ Auto-Play'}
+                            </button>
+                            {demoTourStep < DEMO_TOUR_STEPS.length - 1 ? (
+                                <button
+                                    type="button"
+                                    onClick={() => { setDemoTourAutoPlay(false); goToDemoTourStep(demoTourStep + 1); }}
+                                    className="px-3.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black uppercase cursor-pointer"
+                                >
+                                    Next →
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => { setDemoTourStep(null); setDemoTourAutoPlay(false); }}
+                                    className="px-3.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black uppercase cursor-pointer"
+                                >
+                                    Finish ✓
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                );
+            })()}
+
             {/* Sticky Bottom Banner when Smart Timetable Complete Demo Mode is Active */}
             {smartTimetableDemo && activeScope === 'smart_timetable' && (
                 <div className="fixed bottom-0 left-0 right-0 z-[120] bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white px-4 py-3 shadow-2xl border-t-2 border-amber-300 no-print">
@@ -4974,13 +5146,24 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 You are testing a complete sample Smart Timetable ({smartTimetableDemo.courses.length} classes, {smartTimetableDemo.subjects.length} subjects, {smartTimetableDemo.lecturers.length} teachers, {smartTimetableDemo.rooms.length} rooms, {smartTimetableDemo.entries.length} placed cards). Your real school records are untouched.
                             </span>
                         </div>
-                        <button
-                            type="button"
-                            onClick={handleClearSmartTimetableDemo}
-                            className="px-4 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider shadow-lg border border-white/25 cursor-pointer shrink-0"
-                        >
-                            🗑️ Clear Demo &amp; Start Fresh
-                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                            {demoTourStep === null && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setDemoTourAutoPlay(true); goToDemoTourStep(0); }}
+                                    className="px-3.5 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-black uppercase tracking-wider border border-white/30 cursor-pointer"
+                                >
+                                    ▶ Replay Walkthrough
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={handleClearSmartTimetableDemo}
+                                className="px-4 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider shadow-lg border border-white/25 cursor-pointer"
+                            >
+                                🗑️ Clear Demo &amp; Start Fresh
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
