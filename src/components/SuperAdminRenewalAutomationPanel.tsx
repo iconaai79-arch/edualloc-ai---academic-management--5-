@@ -110,8 +110,7 @@ export const SuperAdminRenewalAutomationPanel: React.FC<SuperAdminRenewalAutomat
   // Sync logs from Supabase on mount
   useEffect(() => {
     let mounted = true;
-    apiService
-      .getModuleRecords('subscription_renewal_dispatches', 'GLOBAL')
+    (apiService.fetchModuleRecords ? apiService.fetchModuleRecords<any>('subscription_renewal_dispatches', 'GLOBAL') : Promise.resolve([]))
       .then((rows: any) => {
         if (mounted && Array.isArray(rows) && rows.length > 0) {
           setLogs(prev => {

@@ -119,7 +119,9 @@ export const getLocalStaffSaccoAdmins = (institutionId: string): EduSaccoAdminAs
 export const fetchStaffSaccoAdmins = async (institutionId: string): Promise<EduSaccoAdminAssignment[]> => {
     if (!institutionId) return [];
     try {
-        const rows = await apiService.getModuleRecords('edu_sacco_access_admins', institutionId);
+        const rows = apiService.fetchModuleRecords
+            ? await apiService.fetchModuleRecords<any>('edu_sacco_access_admins', institutionId)
+            : [];
         const rec = Array.isArray(rows) ? rows.find((r: any) => r?.id === `sacco_access_${institutionId}` || r?.institutionId === institutionId) : null;
         if (rec && Array.isArray(rec.admins)) {
             try {
