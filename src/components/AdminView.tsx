@@ -1986,7 +1986,15 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         }}
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-cyan-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
                                     >
-                                        {!isActive && (
+                                        {isActive ? (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-500 text-white text-[9px] font-black uppercase tracking-widest rounded-full flex items-center gap-1.5 z-20 shadow-lg shadow-cyan-500/40 animate-pulse">
+                                                <span className="relative flex h-2 w-2">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-90" />
+                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-300" />
+                                                </span>
+                                                NEW
+                                            </div>
+                                        ) : (
                                             <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
                                                 <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                                 Locked
@@ -2033,6 +2041,13 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         }}
                                         className="group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-teal-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px]"
                                     >
+                                        <div className="absolute top-6 right-6 px-3 py-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white text-[9px] font-black uppercase tracking-widest rounded-full flex items-center gap-1.5 z-20 shadow-lg shadow-teal-500/40 animate-pulse">
+                                            <span className="relative flex h-2 w-2">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-90" />
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-300" />
+                                            </span>
+                                            NEW
+                                        </div>
                                         <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 dark:bg-teal-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
                                         <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
                                             <div className="p-4 bg-gradient-to-br from-teal-600 to-emerald-600 text-white rounded-2xl w-fit shadow-lg shadow-teal-100 dark:shadow-none">
