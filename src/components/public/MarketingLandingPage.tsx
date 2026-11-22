@@ -19,6 +19,7 @@ import { generateStampDataUri, formatStampDate } from '../../utils/stampGenerato
 import { PublicStampPaymentModal } from './PublicStampPaymentModal';
 import { PublicSmartTimetableSimulator } from './PublicSmartTimetableSimulator';
 import { EduAiAvatar } from '../common/EduAiAvatar';
+import { EduAiPromoVideoPlayer } from './EduAiPromoVideoPlayer';
 
 const copyToClipboard = async (text: string): Promise<boolean> => {
   try {
@@ -515,6 +516,14 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
             <span>Try Smart Timetable Simulator</span>
           </a>
 
+          <a
+            href="#promo-video"
+            className="px-7 py-4 rounded-2xl bg-emerald-600/90 hover:bg-emerald-500 text-white font-black text-sm uppercase tracking-widest shadow-xl shadow-emerald-600/25 flex items-center gap-2.5 transition-all cursor-pointer hover:scale-105"
+          >
+            <Play className="w-4 h-4 fill-white" />
+            <span>Watch 54s Launch Film</span>
+          </a>
+
           <button
             onClick={onBookDemo}
             className="px-8 py-4 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white font-black text-sm uppercase tracking-widest transition-all cursor-pointer flex items-center gap-2 hover:border-slate-500"
@@ -523,6 +532,15 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
             <span>Book Custom Enterprise Demo</span>
           </button>
         </div>
+
+        {/* Official EduAI 1080p Launch Promo Video Player */}
+        <EduAiPromoVideoPlayer
+          onRegister={onRegister}
+          onJumpToSimulator={() => {
+            setPlaygroundTab('timetable');
+            document.getElementById('playground')?.scrollIntoView({ behavior: 'smooth' });
+          }}
+        />
 
         {/* Live Simulation Pulse Stream */}
         <div className="mt-16 max-w-4xl mx-auto p-4 rounded-3xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl shadow-2xl">
