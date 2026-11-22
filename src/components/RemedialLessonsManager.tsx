@@ -4893,7 +4893,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 }
             }
 
-            const totalReleasedKsh = batchesToRelease.reduce((sum, b) => sum + b.totalAmount, 0);
+            const totalReleasedKsh = batchesToRelease.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
             const teacherCount = batchesToRelease.length;
 
             onLogAction?.(`[Stage 4] Bursar/Operations bulk released cash KES ${totalReleasedKsh.toLocaleString()} to DOS ${dosName} (Voucher #${voucherRef}) confirmed by DOS signature covering ${teacherCount} instructor(s) (${uniqueSessionIds.length} lessons)`);
@@ -8568,7 +8568,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     }, [filteredPendingOpsBatches, selectedOpsTeacherIds]);
 
     const selectedOpsTotalAmount = useMemo(() => {
-        return selectedOpsBatches.reduce((sum, b) => sum + b.totalAmount, 0);
+        return selectedOpsBatches.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
     }, [selectedOpsBatches]);
 
     const selectedOpsTotalHours = useMemo(() => {
@@ -16549,10 +16549,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
             {/* TAB: PAYOUTS */}
             {activeTab === 'payouts' && (() => {
-                const totalAccruedKsh = filteredAccruedPayouts.reduce((sum, a) => sum + a.totalAmount, 0);
-                const totalOpsKsh = filteredPendingOpsBatches.reduce((sum, b) => sum + b.totalAmount, 0);
-                const totalDosKsh = filteredCashIssuedToDosBatches.reduce((sum, b) => sum + b.totalAmount, 0);
-                const totalPaidKsh = filteredLedgerPayouts.filter(p => p.status === 'Paid').reduce((sum, p) => sum + p.totalAmount, 0);
+                const totalAccruedKsh = filteredAccruedPayouts.reduce((sum, a) => sum + (Number(a.totalAmount) || 0), 0);
+                const totalOpsKsh = filteredPendingOpsBatches.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+                const totalDosKsh = filteredCashIssuedToDosBatches.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+                const totalPaidKsh = filteredLedgerPayouts.filter(p => p.status === 'Paid').reduce((sum, p) => sum + (Number((p as any).totalAmount ?? (p as any).amount ?? 0) || 0), 0);
                 const totalApprovedKsh = totalAccruedKsh + totalOpsKsh + totalDosKsh;
 
                 const approvedTeachersSet = new Set([
@@ -23008,7 +23008,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     const batchesToRelease = opsBulkDisburseBatches.length > 0 
                         ? opsBulkDisburseBatches 
                         : (opsDisburseBatch ? [opsDisburseBatch] : []);
-                    const totalBulkAmount = batchesToRelease.reduce((sum, b) => sum + b.totalAmount, 0);
+                    const totalBulkAmount = batchesToRelease.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
                     const totalBulkHours = Number(batchesToRelease.reduce((sum, b) => sum + b.totalHours, 0).toFixed(2));
                     const totalBulkLessons = batchesToRelease.reduce((sum, b) => sum + b.sessionIds.length, 0);
 
