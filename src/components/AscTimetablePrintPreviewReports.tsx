@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import type { TimetableEntry, Subject, User, Room, Course, TimetableSettings, Institution, AcademicYear } from '../types';
 import type { AscSchoolSettings, AscBellPeriodRow } from './AscSchoolSettingsPanel';
 import { generatePeriodLabels, timeToMinutes } from '../utils/timeUtils';
@@ -120,6 +122,7 @@ export const AscTimetablePrintPreviewReports: React.FC<AscTimetablePrintPreviewR
     const [showBreaks, setShowBreaks] = useState(true);
     const [showSignatures, setShowSignatures] = useState(true);
     const [zoomPct, setZoomPct] = useState<number>(100);
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
     const previewContainerRef = useRef<HTMLDivElement>(null);
 
@@ -290,6 +293,191 @@ export const AscTimetablePrintPreviewReports: React.FC<AscTimetablePrintPreviewR
         }
         return (subjects || []).map(s => ({ id: s.id, label: `${getShortCode(s)} — ${s.name}` }));
     }, [reportKind, flatClasses, lecturers, rooms, subjects]);
+
+    const hexToRgb = (hex: string): [number, number, number] => {
+        const clean = hex.replace('#', '');
+        const n = parseInt(clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean, 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    };
+
+    const handleDownloadPdf = () => {
+        setIsDownloadingPdf(true);
+        try {
+            const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            const pageW = doc.internal.pageSize.getWidth();
+            const pageH = doc.internal.pageSize.getHeight();
+            const regOrSchool = (schoolCfg.registrationName || schoolHeaderName).toUpperCase();
+            const todayStr = new Date().toLocaleDateString('en-GB');
+
+            if (isIndividual) {
+                const pagesToExport = showAllPages ? individualPages : (individualPages[safePageIndex] ? [individualPages[safePageIndex]] : []);
+                if (pagesToExport.length === 0) {
+                    alert('No timetable pages available to download.');
+                    return;
+                }
+                pagesToExport.forEach((page, pIdx) => {
+                    if (pIdx > 0) doc.addPage();
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(18);
+                    doc.setTextColor(0, 0, 0);
+                    doc.text(page.title, pageW / 2, 13, { align: 'center' });
+
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(8);
+                    doc.setTextColor(60, 60, 60);
+                    doc.text(regOrSchool, 10, 18);
+                    doc.text(activeReportMeta.label, pageW - 10, 18, { align: 'right' });
+
+                    const headRow = [
+                        '',
+                        ...periodCols.map(c => showBellTimes ? `${c.name}\n${c.start}-${c.end}` : c.name),
+                    ];
+
+                    const bodyRows: any[] = operatingDays.map((day, dIdx) => {
+                        const rowCells: any[] = [{ content: getDayAbbr(day), styles: { fontStyle: 'bold', fontSize: 12, fillColor: [255, 255, 255] } }];
+                        periodCols.forEach(col => {
+                            if (col.isBreak) {
+                                if (dIdx === 0) {
+                                    const breakText = col.name.toUpperCase() === 'BREAK' ? 'SHORT\nBREAK' : col.name.toUpperCase().replace('LUNCH BREAK', 'LUNCH');
+                                    rowCells.push({
+                                        content: breakText,
+                                        rowSpan: operatingDays.length,
+                                        styles: { fillColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8, halign: 'center', valign: 'middle' },
+                                    });
+                                }
+                                return;
+                            }
+                            const slotEntries = page.entries.filter(e => e.day === day && matchesCol(e, col));
+                            if (slotEntries.length === 0) {
+                                rowCells.push({ content: '', styles: { fillColor: [255, 255, 255] } });
+                            } else {
+                                const first = slotEntries[0];
+                                const firstCode = getShortCode(getSubjectById(first.subjectId));
+                                const fill = showColors ? hexToRgb(getCardTint(firstCode)) : [255, 255, 255];
+                                const textLines = slotEntries.slice(0, 4).map(entry => {
+                                    const sub = getSubjectById(entry.subjectId);
+                                    const lec = getLecturerById(entry.lecturerId);
+                                    const cls = flatClasses.find(c => c.levelId === String(entry.levelId || '') || c.courseId === entry.courseId);
+                                    const code = reportKind === 'each_subject' ? (cls?.short || getShortCode(sub)) : getShortCode(sub);
+                                    const tCode = getTeacherShortCode(entry.lecturerId, lec);
+                                    if (reportKind === 'each_teacher') return `${code}${cls ? `\n${cls.short}` : ''}`;
+                                    return showTeacherNames && tCode ? `${code} (${tCode})` : code;
+                                });
+                                rowCells.push({
+                                    content: textLines.join('\n'),
+                                    styles: {
+                                        fillColor: fill,
+                                        textColor: [0, 0, 0],
+                                        fontStyle: 'bold',
+                                        fontSize: slotEntries.length >= 3 ? 6.5 : slotEntries.length === 2 ? 7.5 : 9.5,
+                                        halign: 'center',
+                                        valign: 'middle',
+                                    },
+                                });
+                            }
+                        });
+                        return rowCells;
+                    });
+
+                    autoTable(doc, {
+                        startY: 20,
+                        margin: { left: 10, right: 10 },
+                        head: [headRow],
+                        body: bodyRows,
+                        theme: 'grid',
+                        styles: {
+                            lineColor: [0, 0, 0],
+                            lineWidth: 0.35,
+                            cellPadding: 1.5,
+                            minCellHeight: 28,
+                            halign: 'center',
+                            valign: 'middle',
+                        },
+                        headStyles: {
+                            fillColor: [255, 255, 255],
+                            textColor: [0, 0, 0],
+                            fontStyle: 'bold',
+                            fontSize: 7.5,
+                            minCellHeight: 11,
+                        },
+                    });
+
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(8);
+                    doc.setTextColor(50, 50, 50);
+                    doc.text(`Timetable generated: ${todayStr}`, 10, pageH - 8);
+                    doc.text(schoolCfg.customFields?.footerNote || `${schoolHeaderName} • EduAI Timetables`, pageW - 10, pageH - 8, { align: 'right' });
+                });
+            } else {
+                // Summary / Wall Poster PDF
+                const entityType = reportKind.includes('teacher') ? 'teacher' : reportKind.includes('classroom') ? 'classroom' : 'class';
+                const rows = entityType === 'class'
+                    ? (selectedFilterId === 'all' ? flatClasses : flatClasses.filter(c => c.id === selectedFilterId)).map(c => ({
+                        label: c.short,
+                        entries: (entries || []).filter(e => String(e.levelId || '') === c.levelId || (c.levelId === c.courseId && e.courseId === c.courseId)),
+                    }))
+                    : entityType === 'teacher'
+                        ? (selectedFilterId === 'all' ? lecturers : lecturers.filter(t => t.id === selectedFilterId)).map(t => ({
+                            label: t.name,
+                            entries: (entries || []).filter(e => e.lecturerId === t.id),
+                        }))
+                        : (selectedFilterId === 'all' ? rooms : rooms.filter(r => r.id === selectedFilterId)).map(r => ({
+                            label: r.name,
+                            entries: (entries || []).filter(e => e.roomId === r.id),
+                        }));
+
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(14);
+                doc.text(`${schoolHeaderName} — ${activeReportMeta.label.toUpperCase()}`, pageW / 2, 12, { align: 'center' });
+
+                const head1: any[] = [{ content: entityType.toUpperCase(), rowSpan: 2 }];
+                operatingDays.forEach(d => head1.push({ content: d, colSpan: teachingCols.length }));
+                const head2: any[] = [];
+                operatingDays.forEach(() => teachingCols.forEach(c => head2.push(c.short)));
+
+                const bodyRows = rows.map(r => {
+                    const cells: any[] = [{ content: r.label, styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } }];
+                    operatingDays.forEach(day => {
+                        teachingCols.forEach(col => {
+                            const slotEntries = r.entries.filter(e => e.day === day && matchesCol(e, col));
+                            if (slotEntries.length === 0) {
+                                cells.push({ content: '×', styles: { textColor: [180, 180, 180] } });
+                            } else {
+                                const code = getShortCode(getSubjectById(slotEntries[0].subjectId));
+                                cells.push({
+                                    content: slotEntries.map(e => getShortCode(getSubjectById(e.subjectId))).join('/'),
+                                    styles: {
+                                        fillColor: showColors || isPoster ? hexToRgb(getCardTint(code)) : [255, 255, 255],
+                                        textColor: [0, 0, 0],
+                                        fontStyle: 'bold',
+                                    },
+                                });
+                            }
+                        });
+                    });
+                    return cells;
+                });
+
+                autoTable(doc, {
+                    startY: 17,
+                    margin: { left: 6, right: 6 },
+                    head: [head1, head2],
+                    body: bodyRows,
+                    theme: 'grid',
+                    styles: { fontSize: 6, cellPadding: 0.8, lineColor: [0, 0, 0], lineWidth: 0.2, halign: 'center', valign: 'middle' },
+                    headStyles: { fillColor: [226, 232, 240], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 6.5 },
+                });
+            }
+
+            const safeName = `${(schoolHeaderName || 'Timetable').replace(/[^A-Za-z0-9]+/g, '_')}_${reportKind}_${new Date().toISOString().split('T')[0]}.pdf`;
+            doc.save(safeName);
+        } catch (err) {
+            console.error('PDF download error:', err);
+            handlePrintPreview();
+        } finally {
+            setIsDownloadingPdf(false);
+        }
+    };
 
     const handlePrintPreview = () => {
         const html = previewContainerRef.current?.innerHTML;
@@ -728,6 +916,17 @@ export const AscTimetablePrintPreviewReports: React.FC<AscTimetablePrintPreviewR
                         </div>
                     )}
                 </div>
+
+                {/* Download PDF Button right next to Modify */}
+                <button
+                    type="button"
+                    disabled={isDownloadingPdf}
+                    onClick={handleDownloadPdf}
+                    className="flex flex-col items-center justify-center px-3 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-slate-700 text-rose-700 dark:text-rose-300 cursor-pointer disabled:opacity-50"
+                >
+                    <span className="text-xl leading-none">📄</span>
+                    <span className="text-[11px] font-bold mt-0.5">{isDownloadingPdf ? 'Saving...' : 'Download PDF'}</span>
+                </button>
 
                 {/* Right: Page Navigation & Zoom */}
                 <div className="ml-auto flex flex-wrap items-center gap-2 text-xs">
