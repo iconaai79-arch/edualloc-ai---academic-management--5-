@@ -31,6 +31,7 @@ const AscTeachersManager = lazy(() => import('./AscTeachersManager').then(m => (
 const AscCardRelationshipsManager = lazy(() => import('./AscCardRelationshipsManager').then(m => ({ default: m.AscCardRelationshipsManager })));
 const AscInputtedConstraintsList = lazy(() => import('./AscInputtedConstraintsList').then(m => ({ default: m.AscInputtedConstraintsList })));
 const AscSchoolSettingsPanel = lazy(() => import('./AscSchoolSettingsPanel').then(m => ({ default: m.AscSchoolSettingsPanel })));
+const AscTimetableOperationsHub = lazy(() => import('./AscTimetableOperationsHub').then(m => ({ default: m.AscTimetableOperationsHub })));
 const TimetableClassroomsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableClassroomsManager })));
 const TimetableRelationsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableRelationsManager })));
 const SettingsManager = lazy(() => import('./SettingsManager').then(m => ({ default: m.SettingsManager })));
@@ -505,7 +506,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'staff_sacco' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'deliveries' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'enrollment_portal_hub' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials' | 'beauty_college' | 'fiscal_guard' | 'milling' | 'corporate_invoices' | 'network_devices'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'timetable_ops' | 'staff_sacco' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'deliveries' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'enrollment_portal_hub' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials' | 'beauty_college' | 'fiscal_guard' | 'milling' | 'corporate_invoices' | 'network_devices'>('dashboard');
     const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'smart_timetable' | 'staff_sacco' | 'inventory' | 'boarding' | 'logistics' | 'ds' | 'bc' | 'eduvote' | 'remedials'>(() => {
         const isDSInst = props.currentInstitution && (
             isDSInstitution(props.currentInstitution) || 
@@ -989,7 +990,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 setActiveTab('dashboard');
             } else if (activeScope === 'academics' && activeTab !== 'timetable') {
                 setActiveTab('timetable');
-            } else if (activeScope === 'smart_timetable' && activeTab !== 'timetable' && activeTab !== 'reports') {
+            } else if (activeScope === 'smart_timetable' && activeTab !== 'timetable' && activeTab !== 'timetable_ops' && activeTab !== 'reports') {
                 setActiveTab('timetable');
             } else if (activeScope === 'remedials' && activeTab !== 'remedials') {
                 setActiveTab('remedials');
@@ -1080,6 +1081,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         const baseTabs = [
             { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
             { id: 'timetable', label: activeScope === 'smart_timetable' ? 'Smart Timetable' : (isEdu ? 'Academics' : 'Timetable'), icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
+            { id: 'timetable_ops', label: 'Timetable', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
             { id: 'users', label: isHeritage ? 'Family Members' : isCommunity ? 'Community Members' : 'Members', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'courses', label: isSchool ? 'Courses' : isChurch ? 'Departments' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'boarding', label: 'Boarding System', icon: <BedIcon className="w-5 h-5 mr-2" /> },
@@ -1137,6 +1139,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (activeScope === 'smart_timetable') {
                 return [
                     { id: 'timetable', label: 'Smart Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
+                    { id: 'timetable_ops', label: 'Timetable', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
                     { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> }
                 ];
             }
@@ -1300,9 +1303,12 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 return false;
             }
 
-            // In Smart Timetable, show ONLY Smart Timetable & Timetable Reports (hide WiFi & Devices, Invoicing & Billing, etc.)
+            // In Smart Timetable, show ONLY Smart Timetable, Timetable, & Reports (hide WiFi & Devices, Invoicing & Billing, etc.)
             if (activeScope === 'smart_timetable') {
-                return tab.id === 'timetable' || tab.id === 'reports';
+                return tab.id === 'timetable' || tab.id === 'timetable_ops' || tab.id === 'reports';
+            }
+            if (tab.id === 'timetable_ops') {
+                return false;
             }
 
             if (tab.id === 'network_devices') {
@@ -3237,6 +3243,37 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             onSendSms={props.onSendSms as any}
                             onLogAction={props.onLogAction}
                         />
+                    </div>
+                )}
+
+                {activeTab === 'timetable_ops' && (
+                    <div className="animate-fade-in-up">
+                        <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                            <AscTimetableOperationsHub
+                                institution={props.currentInstitution}
+                                entries={props.generatedTimetable || []}
+                                courses={props.courses || []}
+                                subjects={props.subjects || []}
+                                lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
+                                rooms={props.rooms || []}
+                                allocations={(props.requests || []).filter((r: any) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
+                                timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                activeAcademicYear={props.activeAcademicYear || null}
+                                activeSemester={activeSemester || null}
+                                courseSizes={props.courseSizes || new Map<string, number>()}
+                                timeOffRequests={props.timeOffRequests || []}
+                                onTimetableGenerated={props.onTimetableGenerated as any}
+                                onLogAction={props.onLogAction}
+                                onNavigateToSettings={(tab) => {
+                                    setActiveTab('timetable');
+                                    setTimetableSubTab('school');
+                                }}
+                                onOpenSubjectCards={() => {
+                                    setActiveTab('timetable');
+                                    setTimetableSubTab('cards');
+                                }}
+                            />
+                        </Suspense>
                     </div>
                 )}
 
