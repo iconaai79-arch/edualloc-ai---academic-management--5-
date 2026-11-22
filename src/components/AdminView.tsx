@@ -93,7 +93,7 @@ const AscTimetableLessonAttendanceManager = lazy(() => import('./AscTimetableLes
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { RemedialLessonsManager } from './RemedialLessonsManager';
-import { EduStaffSaccoManager } from './Finance/EduStaffSaccoManager';
+import { EduStaffSaccoManager, getLocalStaffSaccoAdmins, fetchStaffSaccoAdmins, EduSaccoAdminAssignment } from './Finance/EduStaffSaccoManager';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 
 import { DocumentTextIcon } from './icons/DocumentTextIcon';
@@ -918,6 +918,29 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                          isSuperAdminUser(props.currentUser) || 
                          isSuperAdminUser(roleToUse) || 
                          !!localStorage.getItem('eduai_super_admin_session');
+
+    // Independent Staff SACCO Governance: ONLY Super Admin or Super-Admin-assigned SACCO Admins may access Staff SACCO
+    const [staffSaccoAdmins, setStaffSaccoAdmins] = useState<EduSaccoAdminAssignment[]>(() =>
+        getLocalStaffSaccoAdmins(props.currentInstitution?.id || '')
+    );
+
+    useEffect(() => {
+        const instId = props.currentInstitution?.id;
+        if (!instId) return;
+        let active = true;
+        fetchStaffSaccoAdmins(instId).then(list => {
+            if (active) setStaffSaccoAdmins(list);
+        });
+        return () => { active = false; };
+    }, [props.currentInstitution?.id]);
+
+    const hasStaffSaccoAccess = useMemo(() => {
+        if (isSuperAdmin) return true;
+        const uid = props.currentUser?.id;
+        if (!uid) return false;
+        if (props.currentUser?.role === 'sacco_admin') return true;
+        return staffSaccoAdmins.some(a => a.userId === uid);
+    }, [isSuperAdmin, props.currentUser?.id, props.currentUser?.role, staffSaccoAdmins]);
 
     const isDS = useMemo(() => {
         return isDSInstitution(props.currentInstitution) || 
@@ -2033,21 +2056,32 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
                             {!isDos && (
                                 <>
-                                    {/* Card: Staff SACCO Savings & Loans (Teachers & Staff Only) */}
+                                    {/* Card: Staff SACCO Savings & Loans (Independent — Super Admin Assigned Admins Only) */}
                                     <div
                                         onClick={() => {
+                                            if (!hasStaffSaccoAccess) {
+                                                alert("Staff SACCO operates independently of School Administration. Only Super Admin can assign authorized Staff SACCO Admins to access this module.");
+                                                return;
+                                            }
                                             setActiveScope('staff_sacco');
                                             setActiveTab('staff_sacco');
                                         }}
-                                        className="group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-teal-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px]"
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-teal-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!hasStaffSaccoAccess ? 'opacity-65 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
                                     >
-                                        <div className="absolute top-6 right-6 px-3 py-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white text-[9px] font-black uppercase tracking-widest rounded-full flex items-center gap-1.5 z-20 shadow-lg shadow-teal-500/40 animate-pulse">
-                                            <span className="relative flex h-2 w-2">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-90" />
-                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-300" />
-                                            </span>
-                                            NEW
-                                        </div>
+                                        {hasStaffSaccoAccess ? (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white text-[9px] font-black uppercase tracking-widest rounded-full flex items-center gap-1.5 z-20 shadow-lg shadow-teal-500/40 animate-pulse">
+                                                <span className="relative flex h-2 w-2">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-90" />
+                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-300" />
+                                                </span>
+                                                NEW
+                                            </div>
+                                        ) : (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/85 backdrop-blur-md border border-slate-700 text-amber-300 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Super Admin Assigned
+                                            </div>
+                                        )}
                                         <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 dark:bg-teal-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
                                         <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
                                             <div className="p-4 bg-gradient-to-br from-teal-600 to-emerald-600 text-white rounded-2xl w-fit shadow-lg shadow-teal-100 dark:shadow-none">
@@ -3438,14 +3472,40 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
                 {activeTab === 'staff_sacco' && props.currentInstitution && (
                     <div className="animate-fade-in-up">
-                        <EduStaffSaccoManager
-                            institution={props.currentInstitution}
-                            currentUser={props.currentUser}
-                            users={props.users || []}
-                            smsConfig={props.smsConfig as any}
-                            onSendSms={props.onSendSms as any}
-                            onLogAction={props.onLogAction}
-                        />
+                        {hasStaffSaccoAccess ? (
+                            <EduStaffSaccoManager
+                                institution={props.currentInstitution}
+                                currentUser={props.currentUser}
+                                users={props.users || []}
+                                isSuperAdmin={isSuperAdmin}
+                                onAdminsUpdated={setStaffSaccoAdmins}
+                                smsConfig={props.smsConfig as any}
+                                onSendSms={props.onSendSms as any}
+                                onLogAction={props.onLogAction}
+                            />
+                        ) : (
+                            <div className="max-w-xl mx-auto my-12 p-8 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl text-center space-y-4">
+                                <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 flex items-center justify-center text-2xl">
+                                    🔒
+                                </div>
+                                <h3 className="text-lg font-black uppercase text-slate-900 dark:text-white">
+                                    Independent Staff SACCO — Restricted Access
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-300 leading-relaxed">
+                                    Staff SACCO operates independently of School Administration to protect staff welfare funds. School Admins do not receive automatic access — only <strong>Super Admin</strong> can assign authorized SACCO Admins (Chairperson, Treasurer, Secretary).
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setActiveScope('console_hub');
+                                        setActiveTab('dashboard');
+                                    }}
+                                    className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black uppercase tracking-wider cursor-pointer"
+                                >
+                                    Return to Educational Console
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 

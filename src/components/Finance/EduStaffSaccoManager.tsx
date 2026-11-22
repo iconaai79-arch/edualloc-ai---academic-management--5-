@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import type { User, Institution, SmsConfig } from '../../types';
 import { apiService } from '../../services/apiService';
 import { WalletIcon } from '../icons/WalletIcon';
@@ -14,7 +15,7 @@ export interface EduSaccoMember {
     id: string;
     institutionId: string;
     userId: string;
-    memberNumber: string;
+    mem43berNumber: string;
     name: string;
     role: string;
     phoneNumber: string;
@@ -94,10 +95,48 @@ export interface EduSaccoTransaction {
     createdAt: string;
 }
 
+export interface EduSaccoAdminAssignment {
+    userId: string;
+    name: string;
+    email?: string;
+    roleTitle: 'SACCO Chairperson' | 'SACCO Treasurer' | 'SACCO Secretary' | 'SACCO Admin';
+    assignedBy: string;
+    assignedAt: string;
+}
+
+export const getLocalStaffSaccoAdmins = (institutionId: string): EduSaccoAdminAssignment[] => {
+    if (!institutionId) return [];
+    try {
+        const raw = localStorage.getItem(`eduai_sacco_access_admins_${institutionId}`);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed;
+        }
+    } catch (_) {}
+    return [];
+};
+
+export const fetchStaffSaccoAdmins = async (institutionId: string): Promise<EduSaccoAdminAssignment[]> => {
+    if (!institutionId) return [];
+    try {
+        const rows = await apiService.getModuleRecords('edu_sacco_access_admins', institutionId);
+        const rec = Array.isArray(rows) ? rows.find((r: any) => r?.id === `sacco_access_${institutionId}` || r?.institutionId === institutionId) : null;
+        if (rec && Array.isArray(rec.admins)) {
+            try {
+                localStorage.setItem(`eduai_sacco_access_admins_${institutionId}`, JSON.stringify(rec.admins));
+            } catch (_) {}
+            return rec.admins;
+        }
+    } catch (_) {}
+    return getLocalStaffSaccoAdmins(institutionId);
+};
+
 interface EduStaffSaccoManagerProps {
     institution: Institution;
     currentUser?: User | null;
     users: User[];
+    isSuperAdmin?: boolean;
+    onAdminsUpdated?: (admins: EduSaccoAdminAssignment[]) => void;
     smsConfig?: SmsConfig;
     onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
     onLogAction?: (msg: string) => Promise<void> | void;
@@ -167,11 +206,75 @@ export const EduStaffSaccoManager: React.FC<EduStaffSaccoManagerProps> = ({
     institution,
     currentUser,
     users,
+    isSuperAdmin: isSuperAdminProp,
+    onAdminsUpdated,
     smsConfig,
     onSendSms,
     onLogAction
 }) => {
     const instId = institution?.id || 'default_inst';
+    const isSuperAdmin = Boolean(
+        isSuperAdminProp ||
+        currentUser?.role === 'super_admin' ||
+        (currentUser as any)?.is_super_admin === true ||
+        (typeof window !== 'undefined' && localStorage.getItem('eduai_super_admin_session'))
+    );
+
+    // Super Admin Assigned Independent SACCO Admins
+    const [assignedAdmins, setAssignedAdmins] = useState<EduSaccoAdminAssignment[]>(() => getLocalStaffSaccoAdmins(instId));
+    const [isAdminAssignModalOpen, setIsAdminAssignModalOpen] = useState(false);
+    const [adminSearchQuery, setAdminSearchQuery] = useState('');
+    const [selectedAdminRoleTitle, setSelectedAdminRoleTitle] = useState<EduSaccoAdminAssignment['roleTitle']>('SACCO Treasurer');
+
+    useEffect(() => {
+        let mounted = true;
+        fetchStaffSaccoAdmins(instId).then(list => {
+            if (mounted) {
+                setAssignedAdmins(list);
+                onAdminsUpdated?.(list);
+            }
+        });
+        return () => { mounted = false; };
+    }, [instId]);
+
+    const saveAssignedAdmins = async (next: EduSaccoAdminAssignment[], logMsg: string) => {
+        setAssignedAdmins(next);
+        onAdminsUpdated?.(next);
+        try {
+            localStorage.setItem(`eduai_sacco_access_admins_${instId}`, JSON.stringify(next));
+        } catch (_) {}
+        await apiService.saveModuleRecord('edu_sacco_access_admins', {
+            id: `sacco_access_${instId}`,
+            institutionId: instId,
+            admins: next,
+            updatedAt: new Date().toISOString(),
+            updatedBy: currentUser?.name || 'Super Admin',
+        }).catch(() => {});
+        onLogAction?.(logMsg);
+    };
+
+    const handleGrantSaccoAdmin = async (u: User) => {
+        if (!isSuperAdmin) return;
+        if (assignedAdmins.some(a => a.userId === u.id)) return;
+        const entry: EduSaccoAdminAssignment = {
+            userId: u.id,
+            name: u.name,
+            email: u.email,
+            roleTitle: selectedAdminRoleTitle,
+            assignedBy: currentUser?.name || 'Super Admin',
+            assignedAt: new Date().toISOString(),
+        };
+        const next = [entry, ...assignedAdmins];
+        await saveAssignedAdmins(next, `[Staff SACCO Governance] Super Admin granted ${selectedAdminRoleTitle} access to ${u.name}`);
+        showBanner('success', `Granted independent Staff SACCO access (${selectedAdminRoleTitle}) to ${u.name}.`);
+    };
+
+    const handleRevokeSaccoAdmin = async (userId: string, name: string) => {
+        if (!isSuperAdmin) return;
+        const next = assignedAdmins.filter(a => a.userId !== userId);
+        await saveAssignedAdmins(next, `[Staff SACCO Governance] Super Admin revoked Staff SACCO access from ${name}`);
+        showBanner('success', `Revoked Staff SACCO admin access from ${name}.`);
+    };
     const [subTab, setSubTab] = useState<'members' | 'loans' | 'checkoff' | 'products' | 'ledger'>('members');
     const [statusBanner, setStatusBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -741,6 +844,17 @@ export const EduStaffSaccoManager: React.FC<EduStaffSaccoManagerProps> = ({
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                    {isSuperAdmin && (
+                        <button
+                            type="button"
+                            onClick={() => setIsAdminAssignModalOpen(true)}
+                            className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg cursor-pointer"
+                            title="Only Super Admin can assign independent Staff SACCO Admins"
+                        >
+                            <ShieldCheckIcon className="w-4 h-4" />
+                            <span>Assign SACCO Admins ({assignedAdmins.length})</span>
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={() => {
@@ -1272,6 +1386,132 @@ export const EduStaffSaccoManager: React.FC<EduStaffSaccoManagerProps> = ({
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* SUPER ADMIN ONLY: ASSIGN INDEPENDENT STAFF SACCO ADMINS MODAL */}
+            {isSuperAdmin && isAdminAssignModalOpen && typeof document !== 'undefined' && createPortal(
+                <div
+                    onClick={(e) => { if (e.target === e.currentTarget) setIsAdminAssignModalOpen(false); }}
+                    className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md"
+                >
+                    <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
+                        <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-gradient-to-r from-slate-900 via-indigo-950 to-teal-950 text-white flex items-center justify-between">
+                            <div>
+                                <div className="text-[10px] font-black uppercase tracking-widest text-amber-300 flex items-center gap-1.5">
+                                    <ShieldCheckIcon className="w-4 h-4" /> Super Admin Governance Only
+                                </div>
+                                <h3 className="text-base font-black mt-0.5">Assign Independent Staff SACCO Admins</h3>
+                                <p className="text-[11px] text-slate-300 mt-0.5">
+                                    School Admins do NOT access Staff SACCO automatically. Grant access only to elected SACCO officials below.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsAdminAssignModalOpen(false)}
+                                className="p-2 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white cursor-pointer"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-5 overflow-y-auto space-y-5 flex-1">
+                            {/* Currently Assigned Independent SACCO Admins */}
+                            <div>
+                                <h4 className="text-[11px] font-black uppercase tracking-wider text-teal-600 dark:text-teal-400 mb-2">
+                                    Authorized Independent SACCO Admins ({assignedAdmins.length})
+                                </h4>
+                                {assignedAdmins.length === 0 ? (
+                                    <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs font-semibold text-amber-900 dark:text-amber-200">
+                                        No SACCO Admins assigned yet. Currently only Super Admin can access this school&apos;s Staff SACCO.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {assignedAdmins.map(a => (
+                                            <div key={a.userId} className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+                                                <div>
+                                                    <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-2">
+                                                        <span>{a.name}</span>
+                                                        <span className="px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[9px] font-black uppercase">
+                                                            {a.roleTitle}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 mt-0.5">
+                                                        {a.email || a.userId} • Assigned by {a.assignedBy}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRevokeSaccoAdmin(a.userId, a.name)}
+                                                    className="px-3 py-1.5 rounded-xl bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-[10px] font-black uppercase cursor-pointer"
+                                                >
+                                                    Revoke
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Grant Access to Staff / Official */}
+                            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <h4 className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                        Grant Access to School Staff Member
+                                    </h4>
+                                    <select
+                                        value={selectedAdminRoleTitle}
+                                        onChange={e => setSelectedAdminRoleTitle(e.target.value as any)}
+                                        className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold"
+                                    >
+                                        <option value="SACCO Chairperson">Role: SACCO Chairperson</option>
+                                        <option value="SACCO Treasurer">Role: SACCO Treasurer</option>
+                                        <option value="SACCO Secretary">Role: SACCO Secretary</option>
+                                        <option value="SACCO Admin">Role: SACCO Admin</option>
+                                    </select>
+                                </div>
+
+                                <input
+                                    type="text"
+                                    value={adminSearchQuery}
+                                    onChange={e => setAdminSearchQuery(e.target.value)}
+                                    placeholder="Search staff by name, email, or role..."
+                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold outline-none focus:border-teal-500"
+                                />
+
+                                <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                                    {eligibleStaffUsers
+                                        .filter(u => !assignedAdmins.some(a => a.userId === u.id))
+                                        .filter(u => {
+                                            const q = adminSearchQuery.trim().toLowerCase();
+                                            if (!q) return true;
+                                            return (
+                                                (u.name || '').toLowerCase().includes(q) ||
+                                                (u.email || '').toLowerCase().includes(q) ||
+                                                (u.role || '').toLowerCase().includes(q)
+                                            );
+                                        })
+                                        .slice(0, 25)
+                                        .map(u => (
+                                            <div key={u.id} className="p-2.5 rounded-xl bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <div className="font-bold text-xs text-slate-900 dark:text-white truncate">{u.name}</div>
+                                                    <div className="text-[10px] text-slate-500 truncate">{u.role} • {u.email}</div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleGrantSaccoAdmin(u)}
+                                                    className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-[10px] font-black uppercase tracking-wider shrink-0 cursor-pointer"
+                                                >
+                                                    + Grant Access
+                                                </button>
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
         </div>
     );
