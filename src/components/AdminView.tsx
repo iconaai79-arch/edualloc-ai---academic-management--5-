@@ -26,6 +26,7 @@ const TimetableGenerator = lazy(() => import('./TimetableGenerator').then(m => (
 const AscTimetableCardsDashboard = lazy(() => import('./AscTimetableCardsDashboard').then(m => ({ default: m.AscTimetableCardsDashboard })));
 const AscSubjectsManager = lazy(() => import('./AscSubjectsManager').then(m => ({ default: m.AscSubjectsManager })));
 const AscClassesManager = lazy(() => import('./AscClassesManager').then(m => ({ default: m.AscClassesManager })));
+const AscClassroomsManager = lazy(() => import('./AscClassroomsManager').then(m => ({ default: m.AscClassroomsManager })));
 const TimetableClassroomsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableClassroomsManager })));
 const TimetableRelationsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableRelationsManager })));
 const SettingsManager = lazy(() => import('./SettingsManager').then(m => ({ default: m.SettingsManager })));
@@ -3375,14 +3376,18 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     </Suspense>
                                 ) : timetableSubTab === 'classrooms' ? (
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
-                                        <TimetableClassroomsManager
+                                        <AscClassroomsManager
+                                            institutionId={props.currentInstitution?.id || ''}
                                             rooms={props.rooms || []}
                                             buildings={props.buildings || []}
                                             courses={props.courses || []}
+                                            subjects={props.subjects || []}
+                                            timetableEntries={props.generatedTimetable || []}
+                                            timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                                             onAddRoom={props.onAddRoom}
                                             onUpdateRoom={props.onUpdateRoom}
                                             onDeleteRoom={props.onDeleteRoom}
-                                            institutionId={props.currentInstitution?.id || ''}
+                                            onSwitchTab={(tab) => setTimetableSubTab(tab)}
                                         />
                                     </Suspense>
                                 ) : timetableSubTab === 'relations' ? (
