@@ -3476,6 +3476,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
                                         <AscSchoolSettingsPanel
                                             institution={props.currentInstitution}
+                                            courses={props.courses || []}
                                             activeAcademicYear={props.activeAcademicYear || null}
                                             timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                                             onSaveTimetableSettings={props.onSaveTimetableSettings}

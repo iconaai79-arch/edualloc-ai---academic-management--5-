@@ -1,6 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import type { Institution, TimetableSettings, AcademicYear } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import type { Institution, TimetableSettings, AcademicYear, Course } from '../types';
 import { apiService } from '../services/apiService';
+
+export interface AscBellGroup {
+    id: string;
+    name: string;        // e.g. 'Bells 1', 'Bells 2'
+    classLabels: string[];
+}
 
 export interface AscBellPeriodRow {
     id: string;
@@ -33,6 +39,7 @@ export interface AscSchoolSettings {
     dayNames: string[];
     bellTimes: AscBellPeriodRow[];
     differentBellsInClasses?: boolean;
+    bellGroups?: AscBellGroup[];
     differentBellsOnDays?: boolean;
     country: string;
     curriculum: string;
@@ -53,6 +60,7 @@ export interface AscSchoolSettings {
 
 interface AscSchoolSettingsPanelProps {
     institution?: Institution | null;
+    courses?: Course[];
     activeAcademicYear?: AcademicYear | null;
     timetableSettings?: TimetableSettings;
     onSaveTimetableSettings?: (settings: TimetableSettings) => void;
@@ -98,6 +106,7 @@ const normalizeBellRow = (row: any, idx: number): AscBellPeriodRow => ({
 
 export const AscSchoolSettingsPanel: React.FC<AscSchoolSettingsPanelProps> = ({
     institution,
+    courses = [],
     activeAcademicYear,
     timetableSettings,
     onSaveTimetableSettings,
@@ -114,9 +123,29 @@ export const AscSchoolSettingsPanel: React.FC<AscSchoolSettingsPanelProps> = ({
     const [showBellTimesModal, setShowBellTimesModal] = useState(false);
     const [selectedBellId, setSelectedBellId] = useState<string>('');
     const [editingBellRow, setEditingBellRow] = useState<AscBellPeriodRow | null>(null);
+    const [activeBellGroupId, setActiveBellGroupId] = useState<string>('bells_1');
+    const [showValidForModal, setShowValidForModal] = useState<boolean>(false);
     const [showRenameDaysModal, setShowRenameDaysModal] = useState(false);
     const [showParamsModal, setShowParamsModal] = useState(false);
     const [showCustomFieldsModal, setShowCustomFieldsModal] = useState(false);
+
+    const allClassNames = useMemo(() => {
+        const list: string[] = [];
+        (courses || []).forEach(c => {
+            if (!c) return;
+            const levels = Array.isArray(c.levels) && c.levels.length > 0 ? c.levels : [];
+            if (levels.length === 0) {
+                list.push(c.name.toUpperCase());
+            } else {
+                levels.forEach(l => {
+                    if (!l) return;
+                    const label = l.name.toLowerCase().includes(c.name.toLowerCase()) ? l.name : `${c.name} ${l.name}`;
+                    list.push(label.trim().toUpperCase());
+                });
+            }
+        });
+        return list;
+    }, [courses]);
 
     const [settings, setSettings] = useState<AscSchoolSettings>(() => {
         try {
@@ -707,19 +736,81 @@ export const AscSchoolSettingsPanel: React.FC<AscSchoolSettingsPanelProps> = ({
                                 </div>
 
                                 {/* Bottom Framed Checkboxes */}
-                                <div className="grid grid-cols-1 md:grid-cols-[1fr_200px] gap-4 items-end">
+                                <div className="grid grid-cols-1 md:grid-cols-[1fr_160px] gap-4 items-end">
                                     <div className="space-y-3 text-xs">
-                                        <div className="border border-slate-300 dark:border-slate-700 rounded p-3 bg-white/50 dark:bg-slate-800/50">
-                                            <label className="flex items-center gap-2 font-semibold cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={Boolean(settings.differentBellsInClasses)}
-                                                    onChange={e => setSettings(p => ({ ...p, differentBellsInClasses: e.target.checked }))}
-                                                    className="w-3.5 h-3.5 accent-blue-600"
-                                                />
-                                                <span>We have a different bell times in different classes</span>
-                                            </label>
-                                        </div>
+                                        {(() => {
+                                            const groups: AscBellGroup[] = (settings.bellGroups && settings.bellGroups.length > 0)
+                                                ? settings.bellGroups
+                                                : [
+                                                    { id: 'bells_1', name: 'Bells 1', classLabels: allClassNames },
+                                                    { id: 'bells_2', name: 'Bells 2', classLabels: [] },
+                                                ];
+                                            const currentGroup = groups.find(g => g.id === activeBellGroupId) || groups[0];
+
+                                            return (
+                                                <div className="border border-slate-300 dark:border-slate-700 rounded p-3 bg-white/50 dark:bg-slate-800/50 space-y-2.5">
+                                                    <label className="flex items-center gap-2 font-semibold cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={Boolean(settings.differentBellsInClasses)}
+                                                            onChange={e => {
+                                                                const checked = e.target.checked;
+                                                                setSettings(p => ({
+                                                                    ...p,
+                                                                    differentBellsInClasses: checked,
+                                                                    bellGroups: p.bellGroups && p.bellGroups.length > 0 ? p.bellGroups : groups,
+                                                                }));
+                                                            }}
+                                                            className="w-3.5 h-3.5 accent-blue-600"
+                                                        />
+                                                        <span>We have a different bell times in different classes</span>
+                                                    </label>
+
+                                                    {settings.differentBellsInClasses && (
+                                                        <div className="pl-1 space-y-2">
+                                                            <div className="flex flex-wrap items-center gap-2.5">
+                                                                <select
+                                                                    value={currentGroup.id}
+                                                                    onChange={e => {
+                                                                        if (e.target.value === '__add_new__') {
+                                                                            const nextNum = groups.length + 1;
+                                                                            const newGroup: AscBellGroup = {
+                                                                                id: `bells_${Date.now()}`,
+                                                                                name: `Bells ${nextNum}`,
+                                                                                classLabels: [],
+                                                                            };
+                                                                            setSettings(p => ({ ...p, bellGroups: [...groups, newGroup] }));
+                                                                            setActiveBellGroupId(newGroup.id);
+                                                                        } else {
+                                                                            setActiveBellGroupId(e.target.value);
+                                                                        }
+                                                                    }}
+                                                                    className="w-48 px-2.5 py-1.5 rounded border border-slate-400 dark:border-slate-600 bg-slate-200/80 dark:bg-slate-900 text-xs font-semibold text-slate-900 dark:text-white"
+                                                                >
+                                                                    {groups.map(g => (
+                                                                        <option key={g.id} value={g.id}>{g.name}</option>
+                                                                    ))}
+                                                                    <option value="__add_new__">+ Add Bells {groups.length + 1}</option>
+                                                                </select>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setShowValidForModal(true)}
+                                                                    className="px-8 py-1.5 rounded border border-slate-400 dark:border-slate-600 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer"
+                                                                >
+                                                                    Valid for
+                                                                </button>
+                                                            </div>
+                                                            <div className="text-[11px] font-medium text-slate-700 dark:text-slate-300 uppercase truncate" title={currentGroup.classLabels.join(', ')}>
+                                                                {currentGroup.classLabels.length > 0
+                                                                    ? currentGroup.classLabels.join(',')
+                                                                    : 'No classes assigned yet — click "Valid for"'}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
+
                                         <div className="border border-slate-300 dark:border-slate-700 rounded p-3 bg-white/50 dark:bg-slate-800/50">
                                             <label className="flex items-center gap-2 font-semibold cursor-pointer">
                                                 <input
@@ -743,6 +834,70 @@ export const AscSchoolSettingsPanel: React.FC<AscSchoolSettingsPanelProps> = ({
                                         </button>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* SUB-MODAL: VALID FOR CLASSES (BELL GROUP ASSIGNMENT) */}
+            {showValidForModal && (() => {
+                const groups: AscBellGroup[] = (settings.bellGroups && settings.bellGroups.length > 0)
+                    ? settings.bellGroups
+                    : [
+                        { id: 'bells_1', name: 'Bells 1', classLabels: allClassNames },
+                        { id: 'bells_2', name: 'Bells 2', classLabels: [] },
+                    ];
+                const currentGroup = groups.find(g => g.id === activeBellGroupId) || groups[0];
+                const toggleClass = (cls: string) => {
+                    const has = currentGroup.classLabels.includes(cls);
+                    const updatedLabels = has
+                        ? currentGroup.classLabels.filter(x => x !== cls)
+                        : [...currentGroup.classLabels, cls];
+                    const nextGroups = groups.map(g => g.id === currentGroup.id ? { ...g, classLabels: updatedLabels } : g);
+                    setSettings(p => ({ ...p, bellGroups: nextGroups }));
+                };
+
+                return (
+                    <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-400 p-5 w-full max-w-md shadow-2xl space-y-4 text-xs">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-black uppercase">Valid For Classes — {currentGroup.name}</h3>
+                                <button type="button" onClick={() => setShowValidForModal(false)} className="font-black text-sm px-2 cursor-pointer">×</button>
+                            </div>
+                            <div className="max-h-64 overflow-y-auto space-y-1.5 border border-slate-200 dark:border-slate-700 rounded-lg p-3 bg-slate-50 dark:bg-slate-900">
+                                {allClassNames.length === 0 ? (
+                                    <p className="text-slate-400">No classes configured yet. Add classes under the Classes tab first.</p>
+                                ) : allClassNames.map(cls => (
+                                    <label key={cls} className="flex items-center gap-2 font-bold cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-800 p-1 rounded">
+                                        <input
+                                            type="checkbox"
+                                            checked={currentGroup.classLabels.includes(cls)}
+                                            onChange={() => toggleClass(cls)}
+                                            className="w-4 h-4 accent-blue-600"
+                                        />
+                                        <span>{cls}</span>
+                                    </label>
+                                ))}
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const nextGroups = groups.map(g => g.id === currentGroup.id ? { ...g, classLabels: [...allClassNames] } : g);
+                                        setSettings(p => ({ ...p, bellGroups: nextGroups }));
+                                    }}
+                                    className="text-blue-600 font-bold hover:underline cursor-pointer"
+                                >
+                                    Select All
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowValidForModal(false)}
+                                    className="px-6 py-1.5 rounded bg-blue-600 text-white font-black uppercase cursor-pointer"
+                                >
+                                    OK
+                                </button>
                             </div>
                         </div>
                     </div>
