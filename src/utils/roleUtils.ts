@@ -368,11 +368,36 @@ export function isEduInstitution(institution: Partial<Institution> | null | unde
  */
 export function isInvoicingInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
-    const type = (institution.institutionType || '').toLowerCase();
-    const category = (institution.category || '').toLowerCase();
-    const subType = (institution.businessSubType || '').toLowerCase();
-    const hasModule = institution.moduleStates?.some(m => (m.moduleId === 'invoicing' || m.moduleId === 'corporate_invoicing') && (m.status === 'active' || m.status === 'trial'));
-    return type === 'invoicing' || type === 'billing services' || category.includes('invoicing') || category.includes('billing') || subType.includes('invoicing') || subType.includes('billing') || !!hasModule;
+    const type = (institution.institutionType || (institution as any)?.institution_type || '').toLowerCase();
+    const category = (institution.category || (institution as any)?.category || '').toLowerCase();
+    const subType = (institution.businessSubType || (institution as any)?.business_sub_type || '').toLowerCase();
+    const name = (institution.name || (institution as any)?.institution_name || '').toLowerCase();
+
+    const isExplicitInvoicingType =
+        type === 'invoicing' ||
+        type === 'billing services' ||
+        category.includes('invoicing') ||
+        category.includes('billing') ||
+        subType.includes('invoicing') ||
+        subType.includes('billing');
+
+    if (isExplicitInvoicingType) return true;
+
+    // Guard: Educational / School institutions must NEVER be hijacked into standalone Corporate Invoicing
+    // even if they have an active/trial 'invoicing' or 'corporate_invoicing' module state.
+    const eduCats = ['primary', 'secondary', 'university', 'college', 'institute', 'polytechnic', 'ecd', 'international', 'tvet', 'kindergarten', 'pre-primary', 'junior secondary', 'senior school', 'senior-school', 'school', 'academy', 'high school', 'k-12', 'education', 'tuition'];
+    const looksLikeEdu =
+        type === 'education' ||
+        type === 'school' ||
+        eduCats.includes(type) ||
+        eduCats.includes(category) ||
+        eduCats.some(c => category.includes(c) || subType.includes(c) || name.includes(c));
+    if (looksLikeEdu) return false;
+
+    const hasModule = institution.moduleStates?.some(
+        m => (m.moduleId === 'invoicing' || m.moduleId === 'corporate_invoicing') && (m.status === 'active' || m.status === 'trial')
+    );
+    return !!hasModule;
 }
 
 /**
