@@ -42,11 +42,44 @@ const REPORT_OPTIONS: Array<{ id: AscReportKind; label: string; icon: string; ba
     { id: 'poster_classrooms', label: 'Wall poster of classrooms', icon: '🚪', badge: 'Wall Poster' },
 ];
 
-const CARD_COLORS = ['#bbf7d0', '#bae6fd', '#fbcfe8', '#fde68a', '#ddd6fe', '#fed7aa', '#99f6e4', '#fecaca', '#e9d5ff', '#d9f99d'];
+const CARD_COLORS = [
+    '#0099cc', // KIS cyan-blue
+    '#f9c2ff', // MAT soft pink-lilac
+    '#f453f4', // CHE vibrant magenta
+    '#993333', // ENG maroon-brown
+    '#169138', // BIO rich green
+    '#c4f1ff', // PHY ice blue
+    '#e4f796', // GEO light lime
+    '#f99898', // AGRI coral pink
+    '#c743a7', // HS orchid
+    '#a3f56b', // CS bright lime
+    '#57c757', // BST green
+    '#6b6bf0', // CRE periwinkle
+];
 const getCardTint = (key: string) => {
+    const k = (key || '').toUpperCase();
+    if (k.startsWith('KIS')) return '#0099cc';
+    if (k.startsWith('MAT')) return '#f9c2ff';
+    if (k.startsWith('CHE')) return '#f453f4';
+    if (k.startsWith('ENG')) return '#993333';
+    if (k.startsWith('BIO')) return '#169138';
+    if (k.startsWith('PHY')) return '#c4f1ff';
+    if (k.startsWith('GEO')) return '#e4f796';
+    if (k.startsWith('HIS')) return '#4fd1ff';
+    if (k.startsWith('AGR')) return '#f99898';
+    if (k.startsWith('HS')) return '#c743a7';
+    if (k.startsWith('CS') || k.startsWith('COM')) return '#a3f56b';
+    if (k.startsWith('BST') || k.startsWith('BUS')) return '#57c757';
+    if (k.startsWith('CRE')) return '#8f8ff5';
     let h = 0;
-    for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+    for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) >>> 0;
     return CARD_COLORS[h % CARD_COLORS.length];
+};
+
+const getDayAbbr = (day: string): string => {
+    const d = (day || '').trim();
+    if (/^day\s*\d+/i.test(d)) return d;
+    return d.slice(0, 2);
 };
 
 const getShortCode = (sub?: Subject) => {
@@ -90,14 +123,32 @@ export const AscTimetablePrintPreviewReports: React.FC<AscTimetablePrintPreviewR
 
     const previewContainerRef = useRef<HTMLDivElement>(null);
 
-    // Load aSc School Settings (Bell Times, Breaks, Custom Fields)
-    const schoolCfg = useMemo<Partial<AscSchoolSettings>>(() => {
+    // Load aSc School Settings (Bell Times, Breaks, Custom Fields) & Teacher Short Codes
+    const { schoolCfg, teacherPrefs } = useMemo(() => {
+        let sc: Partial<AscSchoolSettings> = {};
+        let tp: Record<string, any> = {};
         try {
             const raw = localStorage.getItem(`eduai_asc_school_settings_${instId}`);
-            if (raw) return JSON.parse(raw);
+            if (raw) sc = JSON.parse(raw);
         } catch (_) {}
-        return {};
+        try {
+            const rawT = localStorage.getItem(`eduai_asc_teacher_prefs_${instId}`);
+            if (rawT) tp = JSON.parse(rawT);
+        } catch (_) {}
+        return { schoolCfg: sc, teacherPrefs: tp };
     }, [instId]);
+
+    const getTeacherShortCode = (lecturerId?: string, teacher?: User): string => {
+        if (lecturerId && teacherPrefs[lecturerId]?.shortCode) {
+            return String(teacherPrefs[lecturerId].shortCode);
+        }
+        const idx = (lecturers || []).findIndex(l => l.id === lecturerId);
+        if (idx >= 0) return String(idx + 1).padStart(2, '0');
+        if (teacher?.name) {
+            return teacher.name.split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase();
+        }
+        return '';
+    };
 
     const operatingDays = useMemo(() => {
         if (Array.isArray(schoolCfg.dayNames) && schoolCfg.dayNames.length > 0) {
@@ -254,15 +305,15 @@ export const AscTimetablePrintPreviewReports: React.FC<AscTimetablePrintPreviewR
         win.document.write(`
             <html><head><title>${schoolCfg.schoolName || institution?.name || 'School'} — ${activeReportMeta.label}</title>
             <style>
-                @page { size: landscape; margin: 10mm; }
-                body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; margin: 0; padding: 12px; background: #fff; }
-                .asc-sheet { page-break-after: always; margin-bottom: 24px; border: 1px solid #cbd5e1; padding: 16px; }
+                @page { size: landscape; margin: 8mm; }
+                * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                body { font-family: Arial, Helvetica, sans-serif; color: #000; margin: 0; padding: 8px; background: #fff; }
+                .asc-sheet { page-break-after: always; margin-bottom: 18px; padding: 12px; background: #fff; }
                 .asc-sheet:last-child { page-break-after: auto; }
-                table { width: 100%; border-collapse: collapse; font-size: 11px; }
-                th, td { border: 1px solid #475569; padding: 4px; text-align: center; vertical-align: middle; }
-                th { background: #f1f5f9; font-weight: 800; }
-                h2 { margin: 0 0 4px; font-size: 18px; text-transform: uppercase; }
-                p { margin: 0; font-size: 11px; color: #475569; }
+                table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+                th, td { border: 1.5px solid #000; padding: 0; text-align: center; vertical-align: middle; }
+                th { background: #fff; font-weight: 600; padding: 4px 2px; }
+                .asc-break-vertical { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 20px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; }
             </style></head><body>
             ${html}
             <script>setTimeout(() => window.print(), 200);</script>
@@ -274,125 +325,184 @@ export const AscTimetablePrintPreviewReports: React.FC<AscTimetablePrintPreviewR
     const schoolHeaderName = (schoolCfg.schoolName || institution?.name || 'SCHOOL TIMETABLE').toUpperCase();
     const yearLabel = schoolCfg.academicYear || activeAcademicYear?.name || String(new Date().getFullYear());
 
-    // Render Single Individual A4 Paper Sheet
-    const renderIndividualSheet = (page: { id: string; title: string; subtitle: string; entries: TimetableEntry[] }) => (
-        <div
-            key={page.id}
-            className="asc-sheet bg-white text-slate-900 rounded-sm shadow-2xl border border-slate-300 p-6 sm:p-8 mx-auto max-w-[1050px] space-y-4"
-        >
-            {/* Paper Header */}
-            <div className="flex items-start justify-between border-b-2 border-slate-800 pb-3">
-                <div>
-                    <div className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
-                        {schoolHeaderName} • Academic Year {yearLabel}
-                    </div>
-                    <h2 className="text-2xl font-black tracking-tight text-slate-900 mt-0.5">{page.title}</h2>
-                    <p className="text-xs font-semibold text-slate-500">{page.subtitle}</p>
-                </div>
-                <div className="text-right text-[10px] text-slate-500">
-                    <div className="font-black uppercase text-slate-700">{activeReportMeta.label}</div>
-                    <div>Printed: {new Date().toLocaleDateString()}</div>
-                    {schoolCfg.customFields?.motto && <div className="italic mt-0.5">&ldquo;{schoolCfg.customFields.motto}&rdquo;</div>}
-                </div>
-            </div>
+    // Render Single Individual A4 Paper Sheet (Exact Authentic aSc Noticeboard Format)
+    const renderIndividualSheet = (page: { id: string; title: string; subtitle: string; entries: TimetableEntry[] }) => {
+        const regOrSchool = (schoolCfg.registrationName || schoolHeaderName).toUpperCase();
+        const todayStr = new Date().toLocaleDateString('en-GB');
 
-            {/* Days × Periods Timetable Grid */}
-            <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-center text-xs">
-                    <thead>
-                        <tr className="bg-slate-100">
-                            <th className="border border-slate-700 p-2 w-24 font-black uppercase">Day</th>
-                            {periodCols.map(col => (
-                                <th
-                                    key={col.id}
-                                    className={`border border-slate-700 p-1.5 ${col.isBreak ? 'bg-green-100 w-10 text-emerald-900' : ''}`}
-                                >
-                                    <div className="font-black text-xs">{col.short}</div>
-                                    {showBellTimes && (
-                                        <div className="text-[9px] font-mono text-slate-500 font-normal">
-                                            {col.start}–{col.end}
+        return (
+            <div
+                key={page.id}
+                className="asc-sheet bg-white text-black rounded-sm shadow-2xl border border-slate-300 p-5 sm:p-7 mx-auto max-w-[1160px]"
+            >
+                {/* Centered Bold Class / Entity Title */}
+                <div className="text-center">
+                    <h2 className="text-3xl font-normal tracking-wide text-black uppercase leading-tight">
+                        {page.title}
+                    </h2>
+                </div>
+
+                {/* Top-Left Registration / School Name directly above grid */}
+                <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700 mt-1 mb-0.5">
+                    <span>{regOrSchool}</span>
+                    {reportKind !== 'each_class' && <span className="uppercase">{page.subtitle}</span>}
+                </div>
+
+                {/* Authentic aSc Days × Periods + Merged Vertical Breaks Grid */}
+                <div className="overflow-x-auto">
+                    <table className="w-full border-collapse table-fixed text-center" style={{ minWidth: '880px' }}>
+                        <thead>
+                            <tr>
+                                <th className="border-[1.5px] border-black w-[72px] bg-white p-1" />
+                                {periodCols.map(col => (
+                                    <th
+                                        key={col.id}
+                                        className={`border-[1.5px] border-black bg-white py-1.5 px-0.5 align-middle ${col.isBreak ? 'w-[60px]' : ''}`}
+                                    >
+                                        <div className={`${col.isBreak ? 'text-[9px] font-bold uppercase leading-tight' : 'text-sm font-normal text-black leading-none'}`}>
+                                            {col.name}
                                         </div>
-                                    )}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {operatingDays.map(day => (
-                            <tr key={day}>
-                                <td className="border border-slate-700 p-2 font-black bg-slate-50 uppercase text-left text-[11px]">
-                                    {day}
-                                </td>
-                                {periodCols.map(col => {
-                                    if (col.isBreak) {
+                                        {showBellTimes && (
+                                            <div className="text-[9px] font-normal text-slate-700 mt-0.5 whitespace-nowrap">
+                                                {col.start} - {col.end}
+                                            </div>
+                                        )}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {operatingDays.map((day, dIdx) => (
+                                <tr key={day} className="h-[88px]">
+                                    {/* Bold 2-Letter Day Label (Mo, Tu, We, Th, Fr) */}
+                                    <td className="border-[1.5px] border-black bg-white text-2xl font-normal text-black align-middle">
+                                        {getDayAbbr(day)}
+                                    </td>
+
+                                    {periodCols.map(col => {
+                                        // Merged tall vertical Break column spanning all days (SHORT BREAK / LONG BREAK / LUNCH)
+                                        if (col.isBreak) {
+                                            if (dIdx > 0) return null;
+                                            const breakText = (col.name.toUpperCase() === 'BREAK' ? 'SHORT BREAK' : col.name.toUpperCase().replace('LUNCH BREAK', 'LUNCH'));
+                                            return (
+                                                <td
+                                                    key={col.id}
+                                                    rowSpan={operatingDays.length}
+                                                    className="border-[1.5px] border-black bg-white align-middle text-center p-1"
+                                                >
+                                                    <div className="asc-break-vertical inline-block [writing-mode:vertical-rl] rotate-180 text-xl font-bold tracking-[0.16em] text-black uppercase whitespace-nowrap">
+                                                        {breakText}
+                                                    </div>
+                                                </td>
+                                            );
+                                        }
+
+                                        const slotEntries = page.entries.filter(e => e.day === day && matchesCol(e, col));
+                                        if (slotEntries.length === 0) {
+                                            return <td key={col.id} className="border-[1.5px] border-black bg-white h-[88px]" />;
+                                        }
+
+                                        // SINGLE SUBJECT CARD — full-bleed color, large centered short code, teacher short code bottom-right
+                                        if (slotEntries.length === 1) {
+                                            const entry = slotEntries[0];
+                                            const sub = getSubjectById(entry.subjectId);
+                                            const lec = getLecturerById(entry.lecturerId);
+                                            const rm = getRoomById(entry.roomId);
+                                            const cls = flatClasses.find(c => c.levelId === String(entry.levelId || '') || c.courseId === entry.courseId);
+                                            const code = getShortCode(sub);
+                                            const bg = showColors ? getCardTint(code) : '#ffffff';
+                                            const tCode = getTeacherShortCode(entry.lecturerId, lec);
+
+                                            return (
+                                                <td
+                                                    key={col.id}
+                                                    style={{ backgroundColor: bg }}
+                                                    className="border-[1.5px] border-black p-0 h-[88px] relative align-middle"
+                                                >
+                                                    <div className="w-full h-full flex flex-col items-center justify-center px-1 relative">
+                                                        {showRoomNames && reportKind !== 'each_classroom' && rm && (
+                                                            <span className="absolute top-0.5 right-1 text-[8px] font-semibold text-black/80 truncate max-w-[90%]">
+                                                                {rm.name}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-lg font-normal text-black tracking-tight leading-none">
+                                                            {reportKind === 'each_subject' ? (cls?.short || code) : code}
+                                                        </span>
+                                                        {reportKind === 'each_teacher' && cls && (
+                                                            <span className="text-[10px] font-bold text-black/80 mt-0.5">{cls.short}</span>
+                                                        )}
+                                                        {showTeacherNames && reportKind !== 'each_teacher' && tCode && (
+                                                            <span
+                                                                title={lec?.name}
+                                                                className="absolute bottom-0.5 right-1 text-[9px] font-semibold text-black"
+                                                            >
+                                                                {tCode}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            );
+                                        }
+
+                                        // SPLIT / MULTI-ELECTIVE CELL (2, 3, or 4 stacked horizontal color bands with dashed dividers)
+                                        const visibleSplits = slotEntries.slice(0, 4);
                                         return (
-                                            <td key={col.id} className="border border-slate-700 bg-green-100/80 text-[9px] font-black text-emerald-800 p-1">
-                                                <span className="inline-block [writing-mode:vertical-rl] rotate-180 tracking-widest">
-                                                    {col.short}
-                                                </span>
+                                            <td key={col.id} className="border-[1.5px] border-black p-0 h-[88px] align-top">
+                                                <div className="w-full h-full flex flex-col">
+                                                    {visibleSplits.map((entry, sIdx) => {
+                                                        const sub = getSubjectById(entry.subjectId);
+                                                        const lec = getLecturerById(entry.lecturerId);
+                                                        const code = getShortCode(sub);
+                                                        const bg = showColors ? getCardTint(code) : '#ffffff';
+                                                        const tCode = getTeacherShortCode(entry.lecturerId, lec);
+                                                        const isCompact = visibleSplits.length >= 3;
+                                                        return (
+                                                            <div
+                                                                key={entry.id}
+                                                                style={{ backgroundColor: bg }}
+                                                                className={`flex-1 w-full relative flex items-center justify-center px-1 ${
+                                                                    sIdx > 0 ? 'border-t border-dashed border-black/70' : ''
+                                                                }`}
+                                                            >
+                                                                <span className={`${isCompact ? 'text-[11px]' : 'text-sm'} font-normal text-black leading-none`}>
+                                                                    {code}
+                                                                </span>
+                                                                {showTeacherNames && tCode && (
+                                                                    <span
+                                                                        title={lec?.name}
+                                                                        className="absolute bottom-0 right-0.5 text-[8px] font-semibold text-black leading-none"
+                                                                    >
+                                                                        {tCode}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
                                             </td>
                                         );
-                                    }
-                                    const slotEntries = page.entries.filter(e => e.day === day && matchesCol(e, col));
-                                    if (slotEntries.length === 0) {
-                                        return <td key={col.id} className="border border-slate-700 h-14 bg-white" />;
-                                    }
-                                    return (
-                                        <td key={col.id} className="border border-slate-700 p-0.5 h-14 align-middle">
-                                            <div className="flex flex-col gap-0.5 h-full justify-center">
-                                                {slotEntries.map(entry => {
-                                                    const sub = getSubjectById(entry.subjectId);
-                                                    const lec = getLecturerById(entry.lecturerId);
-                                                    const rm = getRoomById(entry.roomId);
-                                                    const cls = flatClasses.find(c => c.levelId === String(entry.levelId || '') || c.courseId === entry.courseId);
-                                                    const code = getShortCode(sub);
-                                                    return (
-                                                        <div
-                                                            key={entry.id}
-                                                            style={{ backgroundColor: showColors ? getCardTint(code) : '#ffffff' }}
-                                                            className="rounded-xs p-1 leading-tight border border-slate-300/80"
-                                                        >
-                                                            <div className="font-black text-xs text-slate-900">
-                                                                {reportKind === 'each_subject' ? (cls?.short || 'CLS') : code}
-                                                            </div>
-                                                            {showTeacherNames && reportKind !== 'each_teacher' && lec && (
-                                                                <div className="text-[9px] font-semibold text-slate-700 truncate">{lec.name}</div>
-                                                            )}
-                                                            {reportKind === 'each_teacher' && cls && (
-                                                                <div className="text-[9px] font-bold text-slate-700 truncate">{cls.short}</div>
-                                                            )}
-                                                            {showRoomNames && reportKind !== 'each_classroom' && rm && (
-                                                                <div className="text-[8px] font-mono text-slate-500 truncate">{rm.name}</div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </td>
-                                    );
-                                })}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Paper Signature Footer */}
-            {showSignatures && (
-                <div className="pt-3 border-t border-slate-300 flex flex-wrap justify-between items-center text-[10px] text-slate-600 gap-2">
-                    <div>
-                        Principal: <strong>{schoolCfg.customFields?.principalName || '_______________________'}</strong>
-                    </div>
-                    <div>
-                        Director of Studies: <strong>{schoolCfg.customFields?.dosName || '_______________________'}</strong>
-                    </div>
-                    <div>
-                        {schoolCfg.customFields?.footerNote || 'Generated by EduAI Smart Timetable'}
-                    </div>
+                                    })}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
-            )}
-        </div>
-    );
+
+                {/* Classic aSc Bottom Footer Line */}
+                <div className="flex items-center justify-between text-[10px] text-slate-800 mt-1">
+                    <span>Timetable generated:{todayStr}</span>
+                    {showSignatures && (schoolCfg.customFields?.principalName || schoolCfg.customFields?.dosName) && (
+                        <span>
+                            {schoolCfg.customFields?.principalName ? `Principal: ${schoolCfg.customFields.principalName}` : ''}
+                            {schoolCfg.customFields?.principalName && schoolCfg.customFields?.dosName ? ' • ' : ''}
+                            {schoolCfg.customFields?.dosName ? `DOS: ${schoolCfg.customFields.dosName}` : ''}
+                        </span>
+                    )}
+                    <span>{schoolCfg.customFields?.footerNote || `${schoolHeaderName} • EduAI Timetables`}</span>
+                </div>
+            </div>
+        );
+    };
 
     // Render Summary / Wall Poster Sheet (Rows = Classes OR Teachers OR Classrooms; Columns = Days × Periods)
     const renderSummaryOrPosterSheet = () => {
