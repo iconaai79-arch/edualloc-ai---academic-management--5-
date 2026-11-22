@@ -9,6 +9,7 @@ import { PhoneIcon } from '../icons/PhoneIcon';
 import { ShoppingCartIcon } from '../icons/ShoppingCartIcon';
 import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
 import { ChatBubbleBottomCenterTextIcon } from '../icons/ChatBubbleBottomCenterTextIcon';
+import { EduAiAvatar } from '../common/EduAiAvatar';
 
 interface AiSalesAgentWidgetProps {
     institution?: Institution;
@@ -239,15 +240,12 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
                 <div className="relative group">
                     <button
                         onClick={() => setIsOpen(true)}
-                        className="flex items-center gap-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-500 hover:to-purple-600 text-white px-5 py-4 rounded-full shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 group-hover:shadow-indigo-500/40"
+                        className="flex items-center gap-2.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-500 hover:to-purple-600 text-white pl-2.5 pr-5 py-2 rounded-full shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 group-hover:shadow-indigo-500/40 cursor-pointer"
                         aria-label="Open AI Assistant"
                     >
-                        <div className="relative">
-                            <SparklesIcon className="w-6 h-6 animate-pulse" />
-                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border-2 border-white dark:border-slate-900 rounded-full"></span>
-                        </div>
+                        <EduAiAvatar size="sm" mood="waving" showOrbit={false} showStatusDot interactive={false} />
                         <span className="font-bold text-sm tracking-wide hidden sm:inline">
-                            {isSchool ? 'Ask Campus AI' : 'Ask Solutions AI'}
+                            {isSchool ? 'Ask EduAI' : 'Ask Solutions AI'}
                         </span>
                     </button>
                 </div>
@@ -259,11 +257,16 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
                     {/* Drawer Header */}
                     <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 px-5 flex justify-between items-center border-b border-indigo-500/20">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center font-black text-white shadow-md">
+                            <div className="w-11 h-11 rounded-2xl bg-indigo-950/80 border border-indigo-500/30 flex items-center justify-center font-black text-white shadow-md overflow-visible">
                                 {agentAvatarUrl ? (
                                     <img src={agentAvatarUrl} alt={agentName} className="w-full h-full rounded-2xl object-cover" />
                                 ) : (
-                                    <SparklesIcon className="w-5 h-5 text-white" />
+                                    <EduAiAvatar
+                                        size={44}
+                                        mood={isLoading ? 'thinking' : messages.length > 1 ? 'speaking' : 'idle'}
+                                        showOrbit={false}
+                                        interactive={false}
+                                    />
                                 )}
                             </div>
                             <div>

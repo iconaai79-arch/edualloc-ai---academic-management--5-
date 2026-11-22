@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { buildSmartTimetableDemoBundle } from '../../utils/ascTimetableDemoGenerator';
 import { AscTimetableCardsDashboard } from '../AscTimetableCardsDashboard';
 import { AscTimetablePrintPreviewReports } from '../AscTimetablePrintPreviewReports';
+import { EduAiAvatar } from '../common/EduAiAvatar';
 
 interface PublicSmartTimetableSimulatorProps {
     onRegister?: (modId: string) => void;
@@ -77,9 +78,36 @@ export const PublicSmartTimetableSimulator: React.FC<PublicSmartTimetableSimulat
 
     const [activeTab, setActiveTab] = useState<SimTabId>('cards');
     const [tourRunning, setTourRunning] = useState<boolean>(false);
+    const [voiceEnabled, setVoiceEnabled] = useState<boolean>(false);
 
     const activeStepIdx = SIM_STEPS.findIndex(s => s.id === activeTab);
     const activeStep = SIM_STEPS[activeStepIdx >= 0 ? activeStepIdx : 4];
+
+    // Optional browser SpeechSynthesis narration when Voice Guide is toggled on
+    useEffect(() => {
+        if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        if (!voiceEnabled) return;
+        try {
+            const utter = new SpeechSynthesisUtterance(`${activeStep.title}. ${activeStep.insight}`);
+            utter.rate = 1.03;
+            utter.pitch = 1.05;
+            window.speechSynthesis.speak(utter);
+        } catch (_) {}
+        return () => {
+            try { window.speechSynthesis.cancel(); } catch (_) {}
+        };
+    }, [voiceEnabled, activeStep.id]);
+
+    const avatarMood = voiceEnabled
+        ? 'speaking'
+        : tourRunning
+        ? 'thinking'
+        : activeTab === 'reports'
+        ? 'celebrating'
+        : activeTab === 'school'
+        ? 'waving'
+        : 'idle';
 
     useEffect(() => {
         if (!tourRunning) return;
@@ -162,16 +190,29 @@ export const PublicSmartTimetableSimulator: React.FC<PublicSmartTimetableSimulat
 
             {/* Guided Insight Narrator Strip */}
             <div className="px-5 py-3 bg-indigo-950/60 border-b border-indigo-800/40 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-start gap-2.5">
-                    <span className="text-xl leading-none mt-0.5">{activeStep.icon}</span>
+                <div className="flex items-center gap-3">
+                    <EduAiAvatar size={52} mood={avatarMood} showOrbit={false} showStatusDot />
                     <div>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-cyan-300">
-                            {activeStep.phase} — {activeStep.title}
+                        <div className="text-[10px] font-black uppercase tracking-widest text-cyan-300 flex items-center gap-1.5">
+                            <span>{activeStep.icon}</span>
+                            <span>{activeStep.phase} — {activeStep.title}</span>
                         </div>
-                        <p className="text-xs text-slate-200 mt-0.5">{activeStep.insight}</p>
+                        <p className="text-xs text-slate-200 mt-0.5 max-w-2xl">{activeStep.insight}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => setVoiceEnabled(v => !v)}
+                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase cursor-pointer transition-colors ${
+                            voiceEnabled
+                                ? 'bg-cyan-500 text-slate-950 shadow'
+                                : 'bg-white/10 hover:bg-white/20 text-white'
+                        }`}
+                        title="Toggle EduAI Voice Guide"
+                    >
+                        {voiceEnabled ? '🔊 Voice On' : '🔇 Voice Guide'}
+                    </button>
                     <button
                         type="button"
                         disabled={activeStepIdx <= 0}

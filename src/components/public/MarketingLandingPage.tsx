@@ -18,6 +18,7 @@ import { KenyanOfficialStamp } from '../common/KenyanOfficialStamp';
 import { generateStampDataUri, formatStampDate } from '../../utils/stampGenerator';
 import { PublicStampPaymentModal } from './PublicStampPaymentModal';
 import { PublicSmartTimetableSimulator } from './PublicSmartTimetableSimulator';
+import { EduAiAvatar } from '../common/EduAiAvatar';
 
 const copyToClipboard = async (text: string): Promise<boolean> => {
   try {
@@ -473,7 +474,21 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
       </header>
 
       {/* ── HERO SECTION ── */}
-      <section className="relative z-10 pt-20 pb-28 px-6 max-w-7xl mx-auto text-center">
+      <section className="relative z-10 pt-14 pb-28 px-6 max-w-7xl mx-auto text-center">
+        {/* Signature Animated EduAI Mascot Avatar */}
+        <div className="flex flex-col items-center justify-center mb-5">
+          <EduAiAvatar
+            size="lg"
+            mood="waving"
+            showOrbit
+            speechBubble="Hi! I'm EduAI — Your Smart Automation Guide ✨"
+            onClick={() => {
+              setPlaygroundTab('timetable');
+              document.getElementById('playground')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          />
+        </div>
+
         <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-slate-900/90 border border-slate-700/60 text-slate-300 text-xs font-bold mb-8 shadow-xl backdrop-blur-md">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
           <span className="text-emerald-400 font-black uppercase text-[10px] tracking-wider">Live & Ready</span>
