@@ -499,29 +499,82 @@ export const AscTimetablePrintPreviewReports: React.FC<AscTimetablePrintPreviewR
             window.print();
             return;
         }
-        const win = window.open('', '_blank', 'width=1150,height=800');
-        if (!win) {
+
+        // Remove any stale print iframe
+        const existingFrame = document.getElementById('asc-timetable-print-iframe');
+        if (existingFrame) existingFrame.remove();
+
+        const iframe = document.createElement('iframe');
+        iframe.id = 'asc-timetable-print-iframe';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '1280px';
+        iframe.style.height = '900px';
+        iframe.style.border = '0';
+        iframe.style.opacity = '0';
+        iframe.style.pointerEvents = 'none';
+        iframe.style.zIndex = '-1';
+        document.body.appendChild(iframe);
+
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!doc) {
+            iframe.remove();
             window.print();
             return;
         }
-        win.document.write(`
-            <html><head><title>${schoolCfg.schoolName || institution?.name || 'School'} — ${activeReportMeta.label}</title>
-            <style>
-                @page { size: landscape; margin: 8mm; }
-                * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                body { font-family: Arial, Helvetica, sans-serif; color: #000; margin: 0; padding: 8px; background: #fff; }
-                .asc-sheet { page-break-after: always; margin-bottom: 18px; padding: 12px; background: #fff; }
-                .asc-sheet:last-child { page-break-after: auto; }
-                table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-                th, td { border: 1.5px solid #000; padding: 0; text-align: center; vertical-align: middle; }
-                th { background: #fff; font-weight: 600; padding: 4px 2px; }
-                .asc-break-vertical { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 20px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; }
-            </style></head><body>
-            ${html}
-            <script>setTimeout(() => window.print(), 200);</script>
-            </body></html>
-        `);
-        win.document.close();
+
+        // Collect all active Tailwind / app stylesheets from parent document so grid, colors, flex & diagonal splits render identically
+        const headStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+            .map(el => {
+                if (el.tagName.toLowerCase() === 'link') {
+                    const href = (el as HTMLLinkElement).href;
+                    return href ? `<link rel="stylesheet" href="${href}" />` : '';
+                }
+                return `<style>${el.textContent || ''}</style>`;
+            })
+            .join('\n');
+
+        doc.open();
+        doc.write(`<!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8" />
+                <title>${schoolCfg.schoolName || institution?.name || 'School'} — ${activeReportMeta.label}</title>
+                ${headStyles}
+                <style>
+                    @page { size: landscape; margin: 8mm; }
+                    * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    html, body { background: #ffffff !important; color: #000000 !important; margin: 0 !important; padding: 8px !important; width: 100% !important; height: auto !important; overflow: visible !important; }
+                    .asc-sheet { page-break-after: always; break-after: page; margin: 0 auto 14px auto !important; padding: 12px !important; background: #ffffff !important; box-shadow: none !important; border: none !important; max-width: 100% !important; width: 100% !important; }
+                    .asc-sheet:last-child { page-break-after: auto; break-after: auto; }
+                    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+                    th, td { border: 1.5px solid #000000; }
+                    .asc-break-vertical { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 20px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; }
+                </style>
+            </head>
+            <body>${html}</body>
+            </html>`);
+        doc.close();
+
+        let printed = false;
+        const triggerPrint = () => {
+            if (printed) return;
+            printed = true;
+            try {
+                iframe.contentWindow?.focus();
+                iframe.contentWindow?.print();
+            } catch (err) {
+                console.error('Iframe print failed, falling back:', err);
+                window.print();
+            }
+            window.setTimeout(() => {
+                try { iframe.remove(); } catch (_) {}
+            }, 3000);
+        };
+
+        iframe.onload = () => window.setTimeout(triggerPrint, 300);
+        window.setTimeout(triggerPrint, 750);
     };
 
     const schoolHeaderName = (schoolCfg.schoolName || institution?.name || 'SCHOOL TIMETABLE').toUpperCase();
