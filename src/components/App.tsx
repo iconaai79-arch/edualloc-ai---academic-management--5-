@@ -9042,7 +9042,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         <main className={`flex-grow mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full transition-all duration-300 ${isFullWidthLayout ? 'max-w-[1600px]' : 'max-w-7xl'}`}>
                             <Suspense fallback={<SystemPulseLoader message="Initializing Portal..." status="Loading perspective environment" />}>
                                 {isPharmacySystemOpen || (activeRole === 'pharmacist' || activeRole === 'pharmacy_admin' || (activeRole === 'admin' && (['Pharmacy', 'Chemist'].includes(activeInstitution?.institutionType || '') || ['Pharmacy', 'Chemist'].includes(activeInstitution?.businessSubType || '') || ['Pharmacy', 'Chemist'].includes(activeInstitution?.category || '')))) ? (
-                                    <div className="p-8 bg-slate-950 min-h-[80vh] rounded-[3rem] overflow-hidden shadow-2xl">
+                                    <div className="p-0 bg-slate-50 min-h-[82vh] rounded-[2.5rem] border border-slate-200/80 overflow-hidden shadow-xl">
                                         <ModernPharmacyManager 
                                              institutionId={activeInstitution?.id || currentUser?.institutionId || ''} 
                                              currentUser={currentUser!}
