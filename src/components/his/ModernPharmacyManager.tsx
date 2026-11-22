@@ -41,7 +41,7 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
     currentInstitution?: Institution | null;
     currentUser: User;
 }) {
-    const [activeTab, setActiveTab] = useState<'subscription' | 'dashboard' | 'pos' | 'inventory' | 'prescriptions' | 'hr' | 'accounting' | 'automation' | 'reports' | 'sales' | 'config'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'prescriptions' | 'hr' | 'accounting' | 'automation' | 'reports' | 'sales' | 'config'>('dashboard');
     const [configSubTab, setConfigSubTab] = useState<'branding' | 'contact' | 'operations'>('branding');
     const [reportsSubTab, setReportsSubTab] = useState<'general' | 'sales'>('general');
     const [salesFilter, setSalesFilter] = useState<'day' | 'week' | 'month' | 'period'>('day');
@@ -178,7 +178,6 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
 
         // Admin/Owner has full access
         if (role === 'retail_agent' || role === 'admin' || role === 'his_admin' || role === 'pharmacy_admin' || role === 'super_admin') return true;
-        if (tab === 'subscription') return true;
 
         switch (pharmRole) {
             case 'Pharmacist':
@@ -197,7 +196,7 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
     };
 
     const accessibleTabs = useMemo(() => {
-        const allTabs = ['subscription', 'dashboard', 'pos', 'inventory', 'prescriptions', 'hr', 'accounting', 'automation', 'reports', 'sales', 'config'] as const;
+        const allTabs = ['dashboard', 'pos', 'inventory', 'prescriptions', 'hr', 'accounting', 'automation', 'reports', 'sales', 'config'] as const;
         return allTabs.filter(tab => canAccessTab(tab as any));
     }, [currentUser.role, staff]);
 
@@ -735,7 +734,6 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
     };
 
     const PHARMACY_TAB_META: Record<string, { label: string; subtitle: string }> = {
-        subscription: { label: 'Subscription Renewal', subtitle: 'License status, M-Pesa & SMS' },
         dashboard: { label: 'Overview', subtitle: 'Daily KPIs & AI stock alerts' },
         pos: { label: 'POS Terminal', subtitle: 'Counter sales & M-Pesa' },
         inventory: { label: 'Drug Inventory', subtitle: 'Stock, FEFO batches & expiry' },
@@ -812,7 +810,6 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
                                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
                                             isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-emerald-600'
                                         }`}>
-                                            {tab === 'subscription' && <ShieldCheckIcon className="w-4 h-4" />}
                                             {tab === 'dashboard' && <ChartBarIcon className="w-4 h-4" />}
                                             {tab === 'pos' && <CreditCardIcon className="w-4 h-4" />}
                                             {tab === 'inventory' && <ArchiveBoxIcon className="w-4 h-4" />}
@@ -882,56 +879,6 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
                         Light Clinical Mode • Live
                     </span>
                 </div>
-
-            {/* SUBSCRIPTION RENEWAL VIEW */}
-            {activeTab === 'subscription' && (
-                <div className="space-y-6 animate-fade-in max-w-3xl">
-                    <div className="bg-white shadow-sm border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-5">
-                        <div>
-                            <span className="px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black uppercase tracking-widest">
-                                Pharmacy &amp; Chemist License Center
-                            </span>
-                            <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 mt-2">
-                                Subscription &amp; SMS Fuel Renewal
-                            </h3>
-                            <p className="text-xs text-slate-500 mt-1">
-                                View your active pharmacy license status, remaining days, and renew instantly via M-Pesa STK Push or top up SMS credits.
-                            </p>
-                        </div>
-
-                        <SubscriptionExpiryBanner
-                            institution={currentInstitution}
-                            subscriptionLabel="PHARMACY & CHEMIST LICENSE"
-                            renewButtonText="Renew Subscription via M-Pesa"
-                        />
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Chemist / Pharmacy</div>
-                                <div className="text-sm font-black text-slate-900 mt-1 truncate">
-                                    {settings?.pharmacyName || currentInstitution?.name || 'Pharmacy'}
-                                </div>
-                            </div>
-                            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Expiry Date</div>
-                                <div className="text-sm font-black text-emerald-700 mt-1">
-                                    {currentInstitution?.subscriptionEndsAt
-                                        ? new Date(currentInstitution.subscriptionEndsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                                        : currentInstitution?.trialEndsAt
-                                        ? `Trial until ${new Date(currentInstitution.trialEndsAt).toLocaleDateString('en-GB')}`
-                                        : 'Active License'}
-                                </div>
-                            </div>
-                            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">SMS Credits Balance</div>
-                                <div className="text-sm font-black text-indigo-700 mt-1">
-                                    {((currentInstitution as any)?.smsBalance ?? 0).toLocaleString()} SMS
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* DASHBOARD VIEW */}
             {activeTab === 'dashboard' && (
