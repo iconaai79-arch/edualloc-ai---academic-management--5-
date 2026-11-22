@@ -29,6 +29,7 @@ const AscClassesManager = lazy(() => import('./AscClassesManager').then(m => ({ 
 const AscClassroomsManager = lazy(() => import('./AscClassroomsManager').then(m => ({ default: m.AscClassroomsManager })));
 const AscTeachersManager = lazy(() => import('./AscTeachersManager').then(m => ({ default: m.AscTeachersManager })));
 const AscCardRelationshipsManager = lazy(() => import('./AscCardRelationshipsManager').then(m => ({ default: m.AscCardRelationshipsManager })));
+const AscInputtedConstraintsList = lazy(() => import('./AscInputtedConstraintsList').then(m => ({ default: m.AscInputtedConstraintsList })));
 const TimetableClassroomsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableClassroomsManager })));
 const TimetableRelationsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableRelationsManager })));
 const SettingsManager = lazy(() => import('./SettingsManager').then(m => ({ default: m.SettingsManager })));
@@ -521,7 +522,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     });
     const [projectorElectionId, setProjectorElectionId] = useState<string | null>(null);
 
-    const [timetableSubTab, setTimetableSubTab] = useState<'cards' | 'subjects' | 'classes' | 'classrooms' | 'teachers' | 'relations' | 'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'calendar' | 'students'>('cards');
+    const [timetableSubTab, setTimetableSubTab] = useState<'cards' | 'subjects' | 'classes' | 'classrooms' | 'teachers' | 'relations' | 'constraints_list' | 'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'calendar' | 'students'>('cards');
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
     const [enrollmentSubTab, setEnrollmentSubTab] = useState<'students' | 'teachers' | 'support_staff' | 'broadcaster' | 'calendar' | 'guests' | 'portal_hub'>('students');
     const [timetablePreselectedViewMode, setTimetablePreselectedViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff' | 'subjects' | 'test' | null>(null);
@@ -3320,6 +3321,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 <button onClick={() => setTimetableSubTab('classrooms')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'classrooms' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Classrooms</button>
                                 <button onClick={() => setTimetableSubTab('teachers')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'teachers' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Teachers</button>
                                 <button onClick={() => setTimetableSubTab('relations')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'relations' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Relations</button>
+                                <button onClick={() => setTimetableSubTab('constraints_list')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'constraints_list' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>List of Inputed Constraints</button>
                             </div>
 
                             <div className="animate-fade-in-up">
@@ -3402,6 +3404,18 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                             timetableEntries={props.generatedTimetable || []}
                                             onClose={() => setTimetableSubTab('cards')}
                                             onOpenWizard={() => setTimetableSubTab('wizard')}
+                                        />
+                                    </Suspense>
+                                ) : timetableSubTab === 'constraints_list' ? (
+                                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                                        <AscInputtedConstraintsList
+                                            institutionId={props.currentInstitution?.id || ''}
+                                            subjects={props.subjects || []}
+                                            courses={props.courses || []}
+                                            rooms={props.rooms || []}
+                                            lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
+                                            timetableEntries={props.generatedTimetable || []}
+                                            onOpenTab={(tab) => setTimetableSubTab(tab)}
                                         />
                                     </Suspense>
                                 ) : timetableSubTab === 'wizard' ? (
