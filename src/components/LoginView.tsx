@@ -17,6 +17,7 @@ import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
 import { ShoppingCartIcon } from './icons/ShoppingCartIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
+import { EduAiBannerFlyover } from './common/SystemPulseLoader';
 
 interface LoginViewProps {
     onLogin: (email: string, password: string) => Promise<'success' | 'expired' | 'failed' | 'suspended' | 'otp_required'>;
@@ -482,6 +483,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                             })()}
                         </h2>
                         <p className="mt-2 text-sm font-bold text-slate-400 uppercase tracking-widest">Automation Management Hub</p>
+                        <EduAiBannerFlyover compact />
                         {error && (
                             <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 text-red-700 dark:text-red-300 text-xs text-left animate-shake">
                                 <div className="flex gap-2">
