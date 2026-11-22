@@ -16,7 +16,15 @@ export interface AscBellPeriodRow {
     start: string;
     end: string;
     isBreak?: boolean;
+    breakPosition?: string;
+    printoutText?: string;
     print: boolean;
+    printInSummary?: boolean;
+    printInTeacher?: boolean;
+    printInClass?: boolean;
+    printInClassroom?: boolean;
+    noDoubleSpan?: boolean;
+    sufficientForTransit?: boolean;
     bell: string; // 'All classes' or specific
     // backwards-compat alias
     label?: string;
@@ -122,7 +130,7 @@ export const AscSchoolSettingsPanel: React.FC<AscSchoolSettingsPanelProps> = ({
     // Sub-modals
     const [showBellTimesModal, setShowBellTimesModal] = useState(false);
     const [selectedBellId, setSelectedBellId] = useState<string>('');
-    const [editingBellRow, setEditingBellRow] = useState<AscBellPeriodRow | null>(null);
+    const [editingBellRow, setEditingBellRow] = useState<(AscBellPeriodRow & { isNew?: boolean }) | null>(null);
     const [activeBellGroupId, setActiveBellGroupId] = useState<string>('bells_1');
     const [showValidForModal, setShowValidForModal] = useState<boolean>(false);
     const [showRenameDaysModal, setShowRenameDaysModal] = useState(false);
@@ -281,34 +289,66 @@ export const AscSchoolSettingsPanel: React.FC<AscSchoolSettingsPanelProps> = ({
     };
 
     const handleAddBreakBetweenLessons = () => {
+        const teachingRows = normalizedBells.filter(b => !b.isBreak);
         const idx = normalizedBells.findIndex(b => b.id === selectedBellId);
-        const refRow = idx >= 0 ? normalizedBells[idx] : normalizedBells[normalizedBells.length - 1];
-        const newBreak: AscBellPeriodRow = {
+        const refRow = idx >= 0 ? normalizedBells[idx] : teachingRows[2] || normalizedBells[0];
+        const refPos = refRow && !refRow.isBreak ? `after_${refRow.id}` : (teachingRows[0] ? `after_${teachingRows[0].id}` : 'end');
+        const newBreak: AscBellPeriodRow & { isNew?: boolean } = {
             id: `brk_${Date.now()}`,
-            name: 'BREAK',
-            short: 'BREAK',
+            name: '',
+            short: '',
             start: refRow?.end || '10:00',
             end: refRow?.end || '10:20',
             isBreak: true,
+            breakPosition: refPos,
+            printoutText: '',
             print: true,
+            printInSummary: true,
+            printInTeacher: true,
+            printInClass: true,
+            printInClassroom: true,
+            noDoubleSpan: false,
+            sufficientForTransit: false,
             bell: 'All classes',
+            isNew: true,
         };
-        const next = [...normalizedBells];
-        if (idx >= 0) {
-            next.splice(idx + 1, 0, newBreak);
-        } else {
-            next.push(newBreak);
-        }
-        setSettings(p => ({ ...p, bellTimes: next }));
-        setSelectedBellId(newBreak.id);
         setEditingBellRow(newBreak);
     };
 
     const handleSaveEditedBellRow = (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingBellRow) return;
-        const next = normalizedBells.map(b => b.id === editingBellRow.id ? editingBellRow : b);
+        const { isNew, ...cleanRow } = editingBellRow;
+        const finalRow: AscBellPeriodRow = {
+            ...cleanRow,
+            name: cleanRow.name.trim() || (cleanRow.isBreak ? 'BREAK' : 'Period'),
+            short: cleanRow.short.trim() || cleanRow.name.trim().slice(0, 5).toUpperCase() || (cleanRow.isBreak ? 'BREAK' : 'P'),
+            print: Boolean(cleanRow.printInSummary || cleanRow.printInTeacher || cleanRow.printInClass || cleanRow.printInClassroom),
+        };
+
+        let next = normalizedBells.filter(b => b.id !== finalRow.id);
+        if (finalRow.isBreak && finalRow.breakPosition) {
+            if (finalRow.breakPosition === 'before_first') {
+                next.unshift(finalRow);
+            } else if (finalRow.breakPosition.startsWith('after_')) {
+                const targetId = finalRow.breakPosition.slice(6);
+                const tIdx = next.findIndex(b => b.id === targetId);
+                if (tIdx >= 0) {
+                    next.splice(tIdx + 1, 0, finalRow);
+                } else {
+                    next.push(finalRow);
+                }
+            } else {
+                next.push(finalRow);
+            }
+        } else if (isNew) {
+            next.push(finalRow);
+        } else {
+            next = normalizedBells.map(b => b.id === finalRow.id ? finalRow : b);
+        }
+
         setSettings(p => ({ ...p, bellTimes: next }));
+        setSelectedBellId(finalRow.id);
         setEditingBellRow(null);
     };
 
@@ -904,82 +944,253 @@ export const AscSchoolSettingsPanel: React.FC<AscSchoolSettingsPanelProps> = ({
                 );
             })()}
 
-            {/* SUB-MODAL: EDIT PERIOD OR BREAK */}
-            {editingBellRow && (
-                <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-                    <form onSubmit={handleSaveEditedBellRow} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-400 p-5 w-full max-w-md shadow-2xl space-y-4 text-xs">
-                        <h3 className="text-sm font-black uppercase">
-                            {editingBellRow.isBreak ? 'Edit Break' : `Edit Period ${editingBellRow.name}`}
-                        </h3>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Name *</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={editingBellRow.name}
-                                    onChange={e => setEditingBellRow({ ...editingBellRow, name: e.target.value })}
-                                    className="w-full px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 font-bold"
-                                />
+            {/* SUB-MODAL: AUTHENTIC aSc "PERIOD" (ADD BREAK / EDIT PERIOD) DIALOG */}
+            {editingBellRow && (() => {
+                const teachingRows = normalizedBells.filter(b => !b.isBreak);
+                const [startH, startM] = (editingBellRow.start || '08:00').split(':');
+                const [endH, endM] = (editingBellRow.end || '08:30').split(':');
+                const hours = Array.from({ length: 16 }).map((_, i) => String(i + 6).padStart(2, '0'));
+                const mins = Array.from({ length: 12 }).map((_, i) => String(i * 5).padStart(2, '0'));
+                const bellGroupOptions = [
+                    'All classes',
+                    ...((settings.bellGroups || []).map(g => g.name)),
+                ];
+
+                const updateTime = (which: 'start' | 'end', part: 'h' | 'm', val: string) => {
+                    const cur = (which === 'start' ? editingBellRow.start : editingBellRow.end) || '08:00';
+                    const [ch, cm] = cur.split(':');
+                    const nextVal = part === 'h' ? `${val}:${cm || '00'}` : `${ch || '08'}:${val}`;
+                    setEditingBellRow({ ...editingBellRow, [which]: nextVal });
+                };
+
+                return (
+                    <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+                        <form
+                            onSubmit={handleSaveEditedBellRow}
+                            className="bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-400 dark:border-slate-600 w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+                        >
+                            {/* Title Bar */}
+                            <div className="bg-white dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 px-4 py-2 flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-800 dark:text-white">Period</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingBellRow(null)}
+                                    className="px-2 py-0.5 rounded hover:bg-rose-100 text-slate-600 hover:text-rose-600 font-black text-sm cursor-pointer"
+                                >
+                                    ×
+                                </button>
                             </div>
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Short *</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={editingBellRow.short}
-                                    onChange={e => setEditingBellRow({ ...editingBellRow, short: e.target.value })}
-                                    className="w-full px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 font-mono font-bold"
-                                />
+
+                            {/* Form Body */}
+                            <div className="p-4 space-y-3.5 overflow-y-auto text-xs text-slate-800 dark:text-slate-200">
+                                {/* Top 3 Rows: Name, Short, Break position */}
+                                <div className="space-y-2">
+                                    <div className="grid grid-cols-[155px_1fr] items-center gap-2">
+                                        <label className="font-semibold">
+                                            {editingBellRow.isBreak ? 'Name of the break:' : 'Name of the period:'}
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={editingBellRow.name}
+                                            onChange={e => setEditingBellRow({ ...editingBellRow, name: e.target.value })}
+                                            placeholder={editingBellRow.isBreak ? 'e.g. BREAK, LONG BREAK, LUNCH BREAK' : '1'}
+                                            className="w-full px-2.5 py-1 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-800 font-semibold"
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-[155px_1fr] items-center gap-2">
+                                        <label className="font-semibold">Short</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={editingBellRow.short}
+                                            onChange={e => setEditingBellRow({ ...editingBellRow, short: e.target.value })}
+                                            placeholder={editingBellRow.isBreak ? 'e.g. BREAK, LUNCH' : '1'}
+                                            className="w-full px-2.5 py-1 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-800 font-mono font-semibold"
+                                        />
+                                    </div>
+
+                                    {editingBellRow.isBreak && (
+                                        <div className="grid grid-cols-[155px_1fr] items-center gap-2">
+                                            <label className="font-semibold">Break position:</label>
+                                            <select
+                                                value={editingBellRow.breakPosition || ''}
+                                                onChange={e => setEditingBellRow({ ...editingBellRow, breakPosition: e.target.value })}
+                                                className="w-full px-2.5 py-1.5 rounded border border-slate-400 dark:border-slate-600 bg-slate-200/80 dark:bg-slate-800 text-xs font-semibold"
+                                            >
+                                                <option value="before_first">Before period {teachingRows[0]?.name || '1'}</option>
+                                                {teachingRows.map((tr, i) => (
+                                                    <option key={tr.id} value={`after_${tr.id}`}>
+                                                        {teachingRows[i + 1]
+                                                            ? `Between period ${tr.name} and ${teachingRows[i + 1].name}`
+                                                            : `After period ${tr.name}`}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Start / The End Group Box */}
+                                <fieldset className="border border-slate-300 dark:border-slate-700 rounded p-3 bg-white/50 dark:bg-slate-800/50">
+                                    <legend className="px-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300">Start / The End</legend>
+                                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                                        <div className="flex items-center gap-1.5">
+                                            <select
+                                                value={startH || '08'}
+                                                onChange={e => updateTime('start', 'h', e.target.value)}
+                                                className="w-16 px-2 py-1 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-900 font-mono font-bold"
+                                            >
+                                                {hours.map(h => <option key={h} value={h}>{h}</option>)}
+                                            </select>
+                                            <span className="font-bold">:</span>
+                                            <select
+                                                value={mins.includes(startM) ? startM : '00'}
+                                                onChange={e => updateTime('start', 'm', e.target.value)}
+                                                className="w-16 px-2 py-1 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-900 font-mono font-bold"
+                                            >
+                                                {mins.map(m => <option key={m} value={m}>{m}</option>)}
+                                            </select>
+                                        </div>
+
+                                        <div className="flex items-center gap-1.5">
+                                            <select
+                                                value={endH || '08'}
+                                                onChange={e => updateTime('end', 'h', e.target.value)}
+                                                className="w-16 px-2 py-1 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-900 font-mono font-bold"
+                                            >
+                                                {hours.map(h => <option key={h} value={h}>{h}</option>)}
+                                            </select>
+                                            <span className="font-bold">:</span>
+                                            <select
+                                                value={mins.includes(endM) ? endM : '30'}
+                                                onChange={e => updateTime('end', 'm', e.target.value)}
+                                                className="w-16 px-2 py-1 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-900 font-mono font-bold"
+                                            >
+                                                {mins.map(m => <option key={m} value={m}>{m}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </fieldset>
+
+                                {/* Break Text for Printouts Group Box */}
+                                {editingBellRow.isBreak && (
+                                    <fieldset className="border border-slate-300 dark:border-slate-700 rounded p-3 bg-white/50 dark:bg-slate-800/50">
+                                        <legend className="px-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300">Break</legend>
+                                        <div className="grid grid-cols-[140px_1fr] items-center gap-2 pt-1">
+                                            <label className="font-semibold text-right pr-2">Text for printouts:</label>
+                                            <input
+                                                type="text"
+                                                value={editingBellRow.printoutText || ''}
+                                                onChange={e => setEditingBellRow({ ...editingBellRow, printoutText: e.target.value })}
+                                                placeholder="e.g. TEA BREAK"
+                                                className="w-full px-2.5 py-1 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-800 font-semibold"
+                                            />
+                                        </div>
+                                    </fieldset>
+                                )}
+
+                                {/* Printouts Group Box */}
+                                <fieldset className="border border-slate-300 dark:border-slate-700 rounded p-3 bg-white/50 dark:bg-slate-800/50 space-y-1.5">
+                                    <legend className="px-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300">Printouts</legend>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={editingBellRow.printInSummary !== false}
+                                            onChange={e => setEditingBellRow({ ...editingBellRow, printInSummary: e.target.checked })}
+                                            className="w-3.5 h-3.5 accent-blue-600"
+                                        />
+                                        <span>Print this period in summary timetables</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={editingBellRow.printInTeacher !== false}
+                                            onChange={e => setEditingBellRow({ ...editingBellRow, printInTeacher: e.target.checked })}
+                                            className="w-3.5 h-3.5 accent-blue-600"
+                                        />
+                                        <span>Print this period in individual teacher&apos;s timetables</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={editingBellRow.printInClass !== false}
+                                            onChange={e => setEditingBellRow({ ...editingBellRow, printInClass: e.target.checked })}
+                                            className="w-3.5 h-3.5 accent-blue-600"
+                                        />
+                                        <span>Print this period in individual class timetables</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={editingBellRow.printInClassroom !== false}
+                                            onChange={e => setEditingBellRow({ ...editingBellRow, printInClassroom: e.target.checked })}
+                                            className="w-3.5 h-3.5 accent-blue-600"
+                                        />
+                                        <span>Print this period in individual classroom timetables</span>
+                                    </label>
+                                </fieldset>
+
+                                {/* Print in bells */}
+                                <div className="flex items-center gap-4 pt-1">
+                                    <label className="font-semibold w-28">Print in bells:</label>
+                                    <select
+                                        value={editingBellRow.bell || 'All classes'}
+                                        onChange={e => setEditingBellRow({ ...editingBellRow, bell: e.target.value })}
+                                        className="w-44 px-2.5 py-1 rounded border border-slate-400 dark:border-slate-600 bg-slate-200/80 dark:bg-slate-800 text-xs font-semibold"
+                                    >
+                                        {bellGroupOptions.map(opt => (
+                                            <option key={opt} value={opt}>{opt}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Bottom Break Constraints */}
+                                {editingBellRow.isBreak && (
+                                    <div className="space-y-1.5 pt-1">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(editingBellRow.noDoubleSpan)}
+                                                onChange={e => setEditingBellRow({ ...editingBellRow, noDoubleSpan: e.target.checked })}
+                                                className="w-3.5 h-3.5 accent-blue-600"
+                                            />
+                                            <span>Double lessons cannot span this break.</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(editingBellRow.sufficientForTransit)}
+                                                onChange={e => setEditingBellRow({ ...editingBellRow, sufficientForTransit: e.target.checked })}
+                                                className="w-3.5 h-3.5 accent-blue-600"
+                                            />
+                                            <span>Sufficient for the transition between buildings.</span>
+                                        </label>
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Start</label>
-                                <input
-                                    type="time"
-                                    value={editingBellRow.start}
-                                    onChange={e => setEditingBellRow({ ...editingBellRow, start: e.target.value })}
-                                    className="w-full px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 font-mono font-bold"
-                                />
+
+                            {/* Footer */}
+                            <div className="bg-slate-100 dark:bg-slate-800 border-t border-slate-300 dark:border-slate-700 px-4 py-3 flex justify-end gap-2">
+                                <button
+                                    type="submit"
+                                    className="px-8 py-1.5 rounded border-2 border-blue-500 bg-slate-200 dark:bg-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500 text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
+                                >
+                                    OK
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingBellRow(null)}
+                                    className="px-6 py-1.5 rounded border border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs font-semibold cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
                             </div>
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">The End</label>
-                                <input
-                                    type="time"
-                                    value={editingBellRow.end}
-                                    onChange={e => setEditingBellRow({ ...editingBellRow, end: e.target.value })}
-                                    className="w-full px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 font-mono font-bold"
-                                />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 items-center">
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">Bell Applies To</label>
-                                <input
-                                    type="text"
-                                    value={editingBellRow.bell}
-                                    onChange={e => setEditingBellRow({ ...editingBellRow, bell: e.target.value })}
-                                    className="w-full px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 font-bold"
-                                />
-                            </div>
-                            <label className="flex items-center gap-2 font-bold pt-4 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={editingBellRow.print}
-                                    onChange={e => setEditingBellRow({ ...editingBellRow, print: e.target.checked })}
-                                    className="w-4 h-4 accent-blue-600"
-                                />
-                                <span>Print on timetable</span>
-                            </label>
-                        </div>
-                        <div className="flex justify-end gap-2 pt-2">
-                            <button type="button" onClick={() => setEditingBellRow(null)} className="px-4 py-1.5 rounded bg-slate-100 dark:bg-slate-700 font-bold cursor-pointer">Cancel</button>
-                            <button type="submit" className="px-6 py-1.5 rounded bg-blue-600 text-white font-black uppercase cursor-pointer">OK</button>
-                        </div>
-                    </form>
-                </div>
-            )}
+                        </form>
+                    </div>
+                );
+            })()}
 
             {/* MODAL: RENAME DAYS */}
             {showRenameDaysModal && (
