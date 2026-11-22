@@ -338,11 +338,12 @@ export const AscTimetablePrintPreviewReports: React.FC<AscTimetablePrintPreviewR
                         periodCols.forEach(col => {
                             if (col.isBreak) {
                                 if (dIdx === 0) {
-                                    const breakText = col.name.toUpperCase() === 'BREAK' ? 'SHORT\nBREAK' : col.name.toUpperCase().replace('LUNCH BREAK', 'LUNCH');
+                                    const breakText = col.name.toUpperCase() === 'BREAK' ? 'SHORT BREAK' : col.name.toUpperCase().replace('LUNCH BREAK', 'LUNCH');
                                     rowCells.push({
-                                        content: breakText,
+                                        content: '',
                                         rowSpan: operatingDays.length,
-                                        styles: { fillColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8, halign: 'center', valign: 'middle' },
+                                        verticalBreakText: breakText,
+                                        styles: { fillColor: [255, 255, 255], fontStyle: 'bold', fontSize: 12, halign: 'center', valign: 'middle' },
                                     });
                                 }
                                 return;
@@ -399,6 +400,19 @@ export const AscTimetablePrintPreviewReports: React.FC<AscTimetablePrintPreviewR
                             fontStyle: 'bold',
                             fontSize: 7.5,
                             minCellHeight: 11,
+                        },
+                        didDrawCell: (data: any) => {
+                            const vText = data?.cell?.raw?.verticalBreakText;
+                            if (data.section === 'body' && vText) {
+                                const cx = data.cell.x + data.cell.width / 2 + 2.2;
+                                const cy = data.cell.y + data.cell.height / 2;
+                                doc.saveGraphicsState?.();
+                                doc.setFont('helvetica', 'bold');
+                                doc.setFontSize(13);
+                                doc.setTextColor(0, 0, 0);
+                                doc.text(String(vText), cx, cy, { angle: 90, align: 'center' });
+                                doc.restoreGraphicsState?.();
+                            }
                         },
                     });
 
