@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { buildSmartTimetableDemoBundle } from '../../utils/ascTimetableDemoGenerator';
 import { AscTimetableCardsDashboard } from '../AscTimetableCardsDashboard';
 import { AscTimetablePrintPreviewReports } from '../AscTimetablePrintPreviewReports';
+import { AscTimetableLessonAttendanceManager } from '../AscTimetableLessonAttendanceManager';
 import { EduAiAvatar } from '../common/EduAiAvatar';
 
 interface PublicSmartTimetableSimulatorProps {
@@ -12,7 +13,7 @@ interface PublicSmartTimetableSimulatorProps {
 const SIM_STEPS = [
     {
         id: 'school',
-        phase: 'Step 1 of 6 • Setup',
+        phase: 'Step 1 of 7 • Setup',
         icon: '🏛️',
         label: 'School & Bells',
         title: 'Configure School Periods & Breaks',
@@ -20,7 +21,7 @@ const SIM_STEPS = [
     },
     {
         id: 'subjects',
-        phase: 'Step 2 of 6 • Data Entry',
+        phase: 'Step 2 of 7 • Data Entry',
         icon: '📘',
         label: 'Subjects & Classes',
         title: 'Enter Subjects, Streams & Elective Divisions',
@@ -28,7 +29,7 @@ const SIM_STEPS = [
     },
     {
         id: 'teachers',
-        phase: 'Step 3 of 6 • Staffing',
+        phase: 'Step 3 of 7 • Staffing',
         icon: '🎓',
         label: 'Teachers & Labs',
         title: 'Assign Teachers, Color Swatches & Labs',
@@ -36,7 +37,7 @@ const SIM_STEPS = [
     },
     {
         id: 'relations',
-        phase: 'Step 4 of 6 • Constraints',
+        phase: 'Step 4 of 7 • Constraints',
         icon: '🕸️',
         label: 'Card Relations',
         title: 'Enforce Card Relationships & Zero Clashes',
@@ -44,7 +45,7 @@ const SIM_STEPS = [
     },
     {
         id: 'cards',
-        phase: 'Step 5 of 6 • AI Generation',
+        phase: 'Step 5 of 7 • AI Generation',
         icon: '🗂️',
         label: 'Subject Cards Board',
         title: 'Interactive aSc-Style Master Subject Cards Board',
@@ -52,11 +53,19 @@ const SIM_STEPS = [
     },
     {
         id: 'reports',
-        phase: 'Step 6 of 6 • Print & PDF',
+        phase: 'Step 6 of 7 • Print & PDF',
         icon: '🖨️',
         label: 'Print & PDF Reports',
         title: 'Instant Class Noticeboard Sheets & Landscape PDF',
         insight: 'Preview individual Class, Teacher, Classroom, or Wall Poster timetables with vertical breaks — click Download PDF to test a real export!',
+    },
+    {
+        id: 'attendance',
+        phase: 'Step 7 of 7 • Live Tracking',
+        icon: '✅',
+        label: 'Lesson QR Attendance',
+        title: 'Per-Class QR Start/End Scans & Advance Topic Tracking',
+        insight: 'Teachers scan the Class QR poster at lesson start (Check-In) and end (Check-Out). Pre-planned topics auto-load during Check-Out for 1-tap syllabus tracking & PDF audits!',
     },
 ] as const;
 
@@ -68,17 +77,79 @@ export const PublicSmartTimetableSimulator: React.FC<PublicSmartTimetableSimulat
 }) => {
     const demoBundle = useMemo(() => buildSmartTimetableDemoBundle('public_showcase_demo', 'DEMO SECONDARY SCHOOL'), []);
 
-    // Seed demo localStorage keys for public_showcase_demo so Print Preview reads bells & teacher short codes seamlessly
+    // Seed demo localStorage keys for public_showcase_demo so Print Preview & Lesson QR Attendance work immediately
     useEffect(() => {
         try {
             localStorage.setItem('eduai_asc_school_settings_public_showcase_demo', JSON.stringify(demoBundle.schoolSettings));
             localStorage.setItem('eduai_asc_teacher_prefs_public_showcase_demo', JSON.stringify(demoBundle.teacherPrefs));
+            const topicsKey = 'eduai_tt_planned_topics_public_showcase_demo';
+            if (!localStorage.getItem(topicsKey) && demoBundle.entries.length > 0) {
+                const sampleTopics = [
+                    'Quadratic Equations — Completing the Square',
+                    'Organic Chemistry II — Alkanols & Alkanoic Acids',
+                    'Oral Literature — Narratives & Stylistic Devices',
+                    'Genetics — Mendelian Inheritance & Punnett Squares',
+                ];
+                const seeded = demoBundle.courses.slice(0, 4).map((c, idx) => {
+                    const slot = demoBundle.entries.find(e => e.courseId === c.id && e.day === 'Monday') || demoBundle.entries[idx];
+                    return {
+                        id: `demo_topic_${c.id}_p1`,
+                        institutionId: 'public_showcase_demo',
+                        teacherId: slot?.lecturerId || demoBundle.lecturers[0]?.id || '',
+                        classId: c.id,
+                        subjectId: slot?.subjectId || demoBundle.subjects[0]?.id || '',
+                        day: slot?.day || 'Monday',
+                        period: 1,
+                        topic: sampleTopics[idx % sampleTopics.length],
+                        notes: 'Pre-planned by teacher in advance for 1-tap QR Check-Out',
+                        updatedAt: new Date().toISOString(),
+                    };
+                });
+                localStorage.setItem(topicsKey, JSON.stringify(seeded));
+            }
         } catch (_) {}
     }, [demoBundle]);
 
-    const [activeTab, setActiveTab] = useState<SimTabId>('cards');
+    const [activeTab, setActiveTab] = useState<SimTabId>(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const simParam = params.get('sim') as SimTabId | null;
+            if (simParam && SIM_STEPS.some(s => s.id === simParam)) return simParam;
+        } catch (_) {}
+        return 'cards';
+    });
     const [tourRunning, setTourRunning] = useState<boolean>(false);
     const [voiceEnabled, setVoiceEnabled] = useState<boolean>(false);
+    const [shareCopied, setShareCopied] = useState<boolean>(false);
+
+    const buildShareUrl = (stepId?: SimTabId) => {
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('sim', stepId || activeTab);
+            url.hash = 'playground';
+            return url.toString();
+        } catch {
+            return `${window.location.origin}/?sim=${stepId || activeTab}#playground`;
+        }
+    };
+
+    const handleCopyShareLink = async (stepId?: SimTabId) => {
+        const link = buildShareUrl(stepId);
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(link);
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = link;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            setShareCopied(true);
+            window.setTimeout(() => setShareCopied(false), 2600);
+        } catch (_) {}
+    };
 
     const activeStepIdx = SIM_STEPS.findIndex(s => s.id === activeTab);
     const activeStep = SIM_STEPS[activeStepIdx >= 0 ? activeStepIdx : 4];
@@ -103,7 +174,7 @@ export const PublicSmartTimetableSimulator: React.FC<PublicSmartTimetableSimulat
         ? 'speaking'
         : tourRunning
         ? 'thinking'
-        : activeTab === 'reports'
+        : activeTab === 'reports' || activeTab === 'attendance'
         ? 'celebrating'
         : activeTab === 'school'
         ? 'waving'
@@ -151,10 +222,18 @@ export const PublicSmartTimetableSimulator: React.FC<PublicSmartTimetableSimulat
                 <div className="flex flex-wrap items-center gap-2.5">
                     <button
                         type="button"
+                        onClick={() => handleCopyShareLink()}
+                        className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-black uppercase tracking-wider shadow cursor-pointer flex items-center gap-1.5"
+                        title="Copy direct shareable link to this simulator"
+                    >
+                        <span>{shareCopied ? '✅ Link Copied!' : '🔗 Share Link'}</span>
+                    </button>
+                    <button
+                        type="button"
                         onClick={tourRunning ? () => setTourRunning(false) : startGuidedSimulation}
                         className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black uppercase tracking-wider shadow-lg cursor-pointer flex items-center gap-1.5"
                     >
-                        <span>{tourRunning ? '⏸ Pause Walkthrough' : '▶ Run 6-Step Guided Simulation'}</span>
+                        <span>{tourRunning ? '⏸ Pause Walkthrough' : '▶ Run 7-Step Guided Simulation'}</span>
                     </button>
                     <button
                         type="button"
@@ -407,6 +486,82 @@ export const PublicSmartTimetableSimulator: React.FC<PublicSmartTimetableSimulat
                         getLecturerById={getLecturerById}
                         getRoomById={getRoomById}
                     />
+                )}
+
+                {activeTab === 'attendance' && (
+                    <div className="space-y-5">
+                        {/* Showcase Feature Explainer & Direct Share Strip */}
+                        <div className="rounded-2xl bg-gradient-to-r from-indigo-950 via-slate-900 to-emerald-950 text-white p-5 border border-indigo-500/30 shadow-lg space-y-4">
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                <div>
+                                    <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 text-[10px] font-black uppercase tracking-widest">
+                                        What Smart Lesson QR Attendance Does
+                                    </span>
+                                    <h4 className="text-base sm:text-lg font-black mt-1">
+                                        End-to-End Lesson Accountability — From Classroom QR Scan to Syllabus &amp; DOS Audit PDF
+                                    </h4>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopyShareLink('attendance')}
+                                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-[11px] font-black uppercase tracking-wider cursor-pointer"
+                                    >
+                                        {shareCopied ? '✅ Attendance Demo Link Copied!' : '🔗 Copy Share Link'}
+                                    </button>
+                                    <a
+                                        href={`https://wa.me/?text=${encodeURIComponent(`Check out EduAI Smart Timetable Lesson QR Attendance & Advance Topic Tracking live demo: ${buildShareUrl('attendance')}`)}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black uppercase tracking-wider"
+                                    >
+                                        💬 Share on WhatsApp
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                                    <div className="font-black text-cyan-300 uppercase text-[10px]">1. Per-Class QR Posters</div>
+                                    <p className="text-slate-200 mt-1 leading-relaxed">
+                                        Bulk-print a unique signed QR poster for every class stream to mount inside the classroom or hand to the Class Prefect.
+                                    </p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                                    <div className="font-black text-emerald-300 uppercase text-[10px]">2. Start &amp; End QR Scans</div>
+                                    <p className="text-slate-200 mt-1 leading-relaxed">
+                                        Teachers scan at lesson start (Check-In) and end (Check-Out) — automatically logging On-Time, Late, Left-Early &amp; Cover teachers.
+                                    </p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                                    <div className="font-black text-amber-300 uppercase text-[10px]">3. Pre-Planned Topics</div>
+                                    <p className="text-slate-200 mt-1 leading-relaxed">
+                                        Teachers add lesson topics in advance on their timetable so Check-Out auto-loads the topic (optional) for effortless 1-tap completion.
+                                    </p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                                    <div className="font-black text-purple-300 uppercase text-[10px]">4. Live DOS Matrix &amp; PDF</div>
+                                    <p className="text-slate-200 mt-1 leading-relaxed">
+                                        Principals &amp; DOS see who is in class right now, track syllabus coverage %, and export daily Lesson Attendance PDFs.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Interactive Live Lesson QR Attendance Sandbox */}
+                        <AscTimetableLessonAttendanceManager
+                            institutionId="public_showcase_demo"
+                            institutionName="DEMO SECONDARY SCHOOL"
+                            currentUser={demoBundle.lecturers[0]}
+                            mode="admin"
+                            entries={demoBundle.entries}
+                            courses={demoBundle.courses}
+                            subjects={demoBundle.subjects}
+                            lecturers={demoBundle.lecturers}
+                            rooms={demoBundle.rooms}
+                            timetableSettings={demoBundle.timetableSettings}
+                        />
+                    </div>
                 )}
             </div>
 
