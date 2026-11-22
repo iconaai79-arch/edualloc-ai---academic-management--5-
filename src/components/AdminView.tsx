@@ -30,6 +30,7 @@ const AscClassroomsManager = lazy(() => import('./AscClassroomsManager').then(m 
 const AscTeachersManager = lazy(() => import('./AscTeachersManager').then(m => ({ default: m.AscTeachersManager })));
 const AscCardRelationshipsManager = lazy(() => import('./AscCardRelationshipsManager').then(m => ({ default: m.AscCardRelationshipsManager })));
 const AscInputtedConstraintsList = lazy(() => import('./AscInputtedConstraintsList').then(m => ({ default: m.AscInputtedConstraintsList })));
+const AscSchoolSettingsPanel = lazy(() => import('./AscSchoolSettingsPanel').then(m => ({ default: m.AscSchoolSettingsPanel })));
 const TimetableClassroomsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableClassroomsManager })));
 const TimetableRelationsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableRelationsManager })));
 const SettingsManager = lazy(() => import('./SettingsManager').then(m => ({ default: m.SettingsManager })));
@@ -522,7 +523,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     });
     const [projectorElectionId, setProjectorElectionId] = useState<string | null>(null);
 
-    const [timetableSubTab, setTimetableSubTab] = useState<'cards' | 'subjects' | 'classes' | 'classrooms' | 'teachers' | 'relations' | 'constraints_list' | 'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'calendar' | 'students'>('cards');
+    const [timetableSubTab, setTimetableSubTab] = useState<'cards' | 'subjects' | 'classes' | 'classrooms' | 'teachers' | 'relations' | 'constraints_list' | 'school' | 'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'calendar' | 'students'>('cards');
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
     const [enrollmentSubTab, setEnrollmentSubTab] = useState<'students' | 'teachers' | 'support_staff' | 'broadcaster' | 'calendar' | 'guests' | 'portal_hub'>('students');
     const [timetablePreselectedViewMode, setTimetablePreselectedViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff' | 'subjects' | 'test' | null>(null);
@@ -3315,13 +3316,29 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         ) : (
                             <div className="space-y-6">
                             <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar max-w-full gap-1">
-                                <button onClick={() => setTimetableSubTab('cards')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'cards' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Subject Cards</button>
-                                <button onClick={() => setTimetableSubTab('subjects')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'subjects' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Subjects</button>
-                                <button onClick={() => setTimetableSubTab('classes')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'classes' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Classes</button>
-                                <button onClick={() => setTimetableSubTab('classrooms')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'classrooms' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Classrooms</button>
-                                <button onClick={() => setTimetableSubTab('teachers')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'teachers' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Teachers</button>
-                                <button onClick={() => setTimetableSubTab('relations')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'relations' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Relations</button>
-                                <button onClick={() => setTimetableSubTab('constraints_list')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer ${timetableSubTab === 'constraints_list' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>List of Inputed Constraints</button>
+                                {[
+                                    { id: 'cards', label: 'Subject Cards', icon: '🗂️' },
+                                    { id: 'subjects', label: 'Subjects', icon: '📘' },
+                                    { id: 'classes', label: 'Classes', icon: '👥' },
+                                    { id: 'classrooms', label: 'Classrooms', icon: '🚪' },
+                                    { id: 'teachers', label: 'Teachers', icon: '🎓' },
+                                    { id: 'relations', label: 'Relations', icon: '🕸️' },
+                                    { id: 'constraints_list', label: 'List of Inputed Constraints', icon: '💡' },
+                                    { id: 'school', label: 'School', icon: '🏛️' },
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setTimetableSubTab(tab.id as any)}
+                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                                            timetableSubTab === tab.id
+                                                ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg'
+                                                : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'
+                                        }`}
+                                    >
+                                        <span className="text-sm leading-none">{tab.icon}</span>
+                                        <span>{tab.label}</span>
+                                    </button>
+                                ))}
                             </div>
 
                             <div className="animate-fade-in-up">
@@ -3416,6 +3433,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                             lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
                                             timetableEntries={props.generatedTimetable || []}
                                             onOpenTab={(tab) => setTimetableSubTab(tab)}
+                                        />
+                                    </Suspense>
+                                ) : timetableSubTab === 'school' ? (
+                                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                                        <AscSchoolSettingsPanel
+                                            institution={props.currentInstitution}
+                                            activeAcademicYear={props.activeAcademicYear || null}
+                                            timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                            onSaveTimetableSettings={props.onSaveTimetableSettings}
+                                            onClose={() => setTimetableSubTab('cards')}
                                         />
                                     </Suspense>
                                 ) : timetableSubTab === 'wizard' ? (
