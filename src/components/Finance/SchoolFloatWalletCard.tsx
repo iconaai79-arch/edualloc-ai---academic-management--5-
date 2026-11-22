@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
     Wallet, ArrowUpRight, Smartphone, AlertTriangle, ShieldCheck, 
     RefreshCw, CheckCircle2, History, X, PlusCircle, CreditCard, Sparkles, AlertCircle
@@ -228,10 +229,13 @@ export const SchoolFloatWalletCard: React.FC<SchoolFloatWalletCardProps> = ({
                 </div>
             </div>
 
-            {/* TOP-UP MODAL */}
-            {isTopUpModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
-                    <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white w-full max-w-lg rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 space-y-6 animate-scale-up">
+            {/* TOP-UP MODAL (Portaled to document.body so it always appears instantly centered in viewport) */}
+            {isTopUpModalOpen && typeof document !== 'undefined' && createPortal(
+                <div
+                    onClick={(e) => { if (e.target === e.currentTarget && !isSubmitting) setIsTopUpModalOpen(false); }}
+                    className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in overflow-y-auto"
+                >
+                    <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 space-y-6 animate-scale-up">
                         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
                             <div className="flex items-center gap-2.5">
                                 <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-xl">
@@ -391,12 +395,16 @@ export const SchoolFloatWalletCard: React.FC<SchoolFloatWalletCardProps> = ({
                             </button>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
-            {/* FLOAT LEDGER MODAL */}
-            {isHistoryModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+            {/* FLOAT LEDGER MODAL (Portaled to document.body) */}
+            {isHistoryModalOpen && typeof document !== 'undefined' && createPortal(
+                <div
+                    onClick={(e) => { if (e.target === e.currentTarget) setIsHistoryModalOpen(false); }}
+                    className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in"
+                >
                     <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white w-full max-w-2xl max-h-[85vh] rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col p-6 sm:p-8 space-y-4 animate-scale-up">
                         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
                             <div className="flex items-center gap-2.5">
@@ -473,7 +481,8 @@ export const SchoolFloatWalletCard: React.FC<SchoolFloatWalletCardProps> = ({
                             )}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </>
     );
