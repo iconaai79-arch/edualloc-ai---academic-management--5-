@@ -2009,14 +2009,14 @@ export const HRManager: React.FC<HRManagerProps> = ({
                             <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-700/80">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
-                                        <tr className="bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200/80 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                            <th className="px-6 py-4">Staff Member</th>
-                                            <th className="px-6 py-4">PF No</th>
-                                            <th className="px-6 py-4">Role & Designation</th>
-                                            <th className="px-6 py-4">Directory Contact</th>
-                                            <th className="px-6 py-4">Terms & Status</th>
-                                            <th className="px-6 py-4">Basic Compensation</th>
-                                            <th className="px-6 py-4 text-right">Actions</th>
+                                        <tr className="bg-slate-50/95 dark:bg-slate-900/95 border-b border-slate-200/80 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                            <th className="px-4 py-3.5">Staff Member</th>
+                                            <th className="px-3 py-3.5">PF No</th>
+                                            <th className="px-3 py-3.5">Role &amp; Designation</th>
+                                            <th className="px-3 py-3.5">Directory Contact</th>
+                                            <th className="px-3 py-3.5">Terms &amp; Status</th>
+                                            <th className="px-3 py-3.5">Basic Compensation</th>
+                                            <th className="sticky right-0 z-20 px-4 py-3.5 text-right bg-slate-50 dark:bg-slate-900 border-l border-slate-200/80 dark:border-slate-700 shadow-[-8px_0_14px_-8px_rgba(15,23,42,0.18)]">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 bg-white dark:bg-slate-800">
@@ -2030,13 +2030,13 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                             return (
                                                 <tr key={member.id || i} className="hover:bg-slate-50/70 dark:hover:bg-slate-750 transition-colors group">
                                                     {/* Member Info */}
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-indigo-700 text-white flex items-center justify-center font-black text-sm shadow-sm shrink-0">
+                                                    <td className="px-4 py-3.5">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-indigo-700 text-white flex items-center justify-center font-black text-xs shadow-sm shrink-0">
                                                                 {member.name.charAt(0).toUpperCase()}
                                                             </div>
                                                             <div className="min-w-0">
-                                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight truncate group-hover:text-indigo-600 transition-colors">
+                                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight truncate max-w-[165px] group-hover:text-indigo-600 transition-colors">
                                                                     {member.name}
                                                                 </p>
                                                                 <div className="flex items-center gap-1.5 mt-0.5">
@@ -2049,9 +2049,9 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                                     </td>
 
                                                     {/* PF No - Fintech Prestige */}
-                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                    <td className="px-3 py-3.5 whitespace-nowrap">
                                                         {pfCode ? (
-                                                            <span className="inline-flex items-center font-mono text-[11px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800/80 px-2.5 py-1 rounded-lg tracking-wide shadow-xs">
+                                                            <span className="inline-flex items-center font-mono text-[11px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800/80 px-2 py-0.5 rounded-lg tracking-wide shadow-xs">
                                                                 {pfCode}
                                                             </span>
                                                         ) : (
@@ -2060,8 +2060,8 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                                     </td>
 
                                                     {/* Role */}
-                                                    <td className="px-6 py-4">
-                                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border ${
+                                                    <td className="px-3 py-3.5">
+                                                        <span className={`inline-flex items-center px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border ${
                                                             member.role === 'teacher' || member.role === 'lecturer'
                                                                 ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
                                                                 : (member.role as string) === 'doctor' || (member.role as string) === 'nurse'
@@ -2075,12 +2075,12 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                                     </td>
 
                                                     {/* Contact */}
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-3 py-3.5">
                                                         <div className="space-y-1">
                                                             {member.email && (
                                                                 <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300">
                                                                     <EnvelopeIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                                    <span className="truncate max-w-[180px]">{member.email}</span>
+                                                                    <span className="truncate max-w-[145px]">{member.email}</span>
                                                                 </div>
                                                             )}
                                                             {member.phoneNumber && (
@@ -2093,39 +2093,39 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                                     </td>
 
                                                     {/* Terms & Status */}
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-3 py-3.5 whitespace-nowrap">
                                                         <div className="space-y-1">
                                                             <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 block">
                                                                 {terms}
                                                             </span>
                                                             <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
                                                                 <ShieldCheckIcon className="w-3 h-3" />
-                                                                Active & Verified
+                                                                Active &amp; Verified
                                                             </span>
                                                         </div>
                                                     </td>
 
                                                     {/* Basic Compensation - Fintech Prestige */}
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-3 py-3.5 whitespace-nowrap">
                                                         <span className="font-mono text-xs font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
                                                             {salary > 0 ? `${currency} ${salary.toLocaleString()}` : <span className="text-slate-400 font-sans font-normal italic">Unset</span>}
                                                         </span>
                                                     </td>
 
-                                                    {/* Actions */}
-                                                    <td className="px-6 py-4 text-right">
-                                                        <div className="flex items-center justify-end gap-2">
+                                                    {/* Actions — Always Pinned Visible on Right */}
+                                                    <td className="sticky right-0 z-10 px-3.5 py-3.5 text-right bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-750 border-l border-slate-100 dark:border-slate-700 shadow-[-8px_0_14px_-8px_rgba(15,23,42,0.16)] whitespace-nowrap">
+                                                        <div className="flex items-center justify-end gap-1.5">
                                                             <button
                                                                 onClick={() => handleOpenEditStaff(member)}
-                                                                className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1 border border-indigo-200 dark:border-indigo-800"
+                                                                className="px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1 border border-indigo-200 dark:border-indigo-800 cursor-pointer"
                                                                 title="Edit HR File"
                                                             >
                                                                 <PencilIcon className="w-3 h-3" />
-                                                                <span>Edit File</span>
+                                                                <span>Edit</span>
                                                             </button>
                                                             <button
                                                                 onClick={() => handleOpenDocuments(member)}
-                                                                className="px-3 py-1.5 bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border border-sky-200 dark:border-sky-800"
+                                                                className="px-2.5 py-1.5 bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1 border border-sky-200 dark:border-sky-800 cursor-pointer"
                                                                 title="Manage Employee Documents (Contracts, IDs, Certs)"
                                                             >
                                                                 <DocumentTextIcon className="w-3 h-3" />
@@ -2141,17 +2141,17 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                                                     setSelectedStaffId(member.id);
                                                                     setActiveTab('payroll');
                                                                 }}
-                                                                className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
+                                                                className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer"
                                                                 title="View Pay History"
                                                             >
                                                                 <BanknotesIcon className="w-3 h-3" />
-                                                                <span>Payroll</span>
+                                                                <span>Pay</span>
                                                             </button>
                                                             {onDeleteUser && (
                                                                 <button
                                                                     onClick={() => handleDeleteStaff(member)}
-                                                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-all"
-                                                                    title="Remove Personnel"
+                                                                    className="px-2 py-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 rounded-lg transition-all cursor-pointer flex items-center gap-1 text-[9px] font-black uppercase"
+                                                                    title="Delete / Remove Personnel"
                                                                 >
                                                                     <TrashIcon className="w-3.5 h-3.5" />
                                                                 </button>
