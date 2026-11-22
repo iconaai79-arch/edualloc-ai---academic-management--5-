@@ -507,14 +507,14 @@ export const AscTimetablePrintPreviewReports: React.FC<AscTimetablePrintPreviewR
         const iframe = document.createElement('iframe');
         iframe.id = 'asc-timetable-print-iframe';
         iframe.style.position = 'fixed';
-        iframe.style.right = '0';
-        iframe.style.bottom = '0';
+        iframe.style.top = '-12000px';
+        iframe.style.left = '-12000px';
         iframe.style.width = '1280px';
         iframe.style.height = '900px';
         iframe.style.border = '0';
-        iframe.style.opacity = '0';
+        iframe.style.opacity = '1';
+        iframe.style.visibility = 'visible';
         iframe.style.pointerEvents = 'none';
-        iframe.style.zIndex = '-1';
         document.body.appendChild(iframe);
 
         const doc = iframe.contentDocument || iframe.contentWindow?.document;
@@ -545,7 +545,13 @@ export const AscTimetablePrintPreviewReports: React.FC<AscTimetablePrintPreviewR
                 <style>
                     @page { size: landscape; margin: 8mm; }
                     * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                    html, body { background: #ffffff !important; color: #000000 !important; margin: 0 !important; padding: 8px !important; width: 100% !important; height: auto !important; overflow: visible !important; }
+                    html, body { background: #ffffff !important; color: #000000 !important; margin: 0 !important; padding: 8px !important; width: 100% !important; height: auto !important; overflow: visible !important; opacity: 1 !important; visibility: visible !important; }
+                    @media print {
+                        html, body, body *, .asc-sheet, .asc-sheet * {
+                            visibility: visible !important;
+                            opacity: 1 !important;
+                        }
+                    }
                     .asc-sheet { page-break-after: always; break-after: page; margin: 0 auto 14px auto !important; padding: 12px !important; background: #ffffff !important; box-shadow: none !important; border: none !important; max-width: 100% !important; width: 100% !important; }
                     .asc-sheet:last-child { page-break-after: auto; break-after: auto; }
                     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
