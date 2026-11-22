@@ -33,6 +33,7 @@ const AscInputtedConstraintsList = lazy(() => import('./AscInputtedConstraintsLi
 const AscSchoolSettingsPanel = lazy(() => import('./AscSchoolSettingsPanel').then(m => ({ default: m.AscSchoolSettingsPanel })));
 const AscTimetableOperationsHub = lazy(() => import('./AscTimetableOperationsHub').then(m => ({ default: m.AscTimetableOperationsHub })));
 const AscTimetablePrintPreviewReports = lazy(() => import('./AscTimetablePrintPreviewReports').then(m => ({ default: m.AscTimetablePrintPreviewReports })));
+import { buildSmartTimetableDemoBundle, type SmartTimetableDemoBundle } from '../utils/ascTimetableDemoGenerator';
 const TimetableClassroomsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableClassroomsManager })));
 const TimetableRelationsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableRelationsManager })));
 const SettingsManager = lazy(() => import('./SettingsManager').then(m => ({ default: m.SettingsManager })));
@@ -526,6 +527,89 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const [projectorElectionId, setProjectorElectionId] = useState<string | null>(null);
 
     const [timetableSubTab, setTimetableSubTab] = useState<'cards' | 'subjects' | 'classes' | 'classrooms' | 'teachers' | 'relations' | 'constraints_list' | 'school' | 'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'calendar' | 'students'>('cards');
+    const [smartTimetableDemo, setSmartTimetableDemo] = useState<SmartTimetableDemoBundle | null>(() => {
+        try {
+            const instId = props.currentInstitution?.id || 'default';
+            if (localStorage.getItem(`eduai_asc_demo_active_${instId}`) === '1') {
+                return buildSmartTimetableDemoBundle(instId, props.currentInstitution?.name);
+            }
+        } catch (_) {}
+        return null;
+    });
+    const [demoVersionTick, setDemoVersionTick] = useState(0);
+
+    const handleLoadSmartTimetableDemo = () => {
+        const instId = props.currentInstitution?.id || 'default';
+        const bundle = buildSmartTimetableDemoBundle(instId, props.currentInstitution?.name);
+        try {
+            const keysToSwap = [
+                `eduai_asc_lessons_${instId}`,
+                `eduai_asc_card_relations_${instId}`,
+                `eduai_asc_teacher_prefs_${instId}`,
+                `eduai_asc_class_prefs_${instId}`,
+                `eduai_asc_subject_prefs_${instId}`,
+                `eduai_asc_school_settings_${instId}`,
+            ];
+            if (localStorage.getItem(`eduai_asc_demo_active_${instId}`) !== '1') {
+                const backup: Record<string, string | null> = {};
+                keysToSwap.forEach(k => { backup[k] = localStorage.getItem(k); });
+                localStorage.setItem(`eduai_asc_demo_backup_${instId}`, JSON.stringify(backup));
+            }
+            localStorage.setItem(`eduai_asc_lessons_${instId}`, JSON.stringify(bundle.ascLessons));
+            localStorage.setItem(`eduai_asc_card_relations_${instId}`, JSON.stringify(bundle.cardRelations));
+            localStorage.setItem(`eduai_asc_teacher_prefs_${instId}`, JSON.stringify(bundle.teacherPrefs));
+            localStorage.setItem(`eduai_asc_class_prefs_${instId}`, JSON.stringify(bundle.classPrefs));
+            localStorage.setItem(`eduai_asc_subject_prefs_${instId}`, JSON.stringify(bundle.subjectPrefs));
+            localStorage.setItem(`eduai_asc_school_settings_${instId}`, JSON.stringify(bundle.schoolSettings));
+            localStorage.setItem(`eduai_asc_demo_active_${instId}`, '1');
+        } catch (_) {}
+        setSmartTimetableDemo(bundle);
+        setDemoVersionTick(t => t + 1);
+        setTimetableSubTab('cards');
+    };
+
+    const handleClearSmartTimetableDemo = () => {
+        if (!window.confirm('Clear all demo timetable data and return to fresh school data?')) return;
+        const instId = props.currentInstitution?.id || 'default';
+        try {
+            const backupRaw = localStorage.getItem(`eduai_asc_demo_backup_${instId}`);
+            const keysToRestore = [
+                `eduai_asc_lessons_${instId}`,
+                `eduai_asc_card_relations_${instId}`,
+                `eduai_asc_teacher_prefs_${instId}`,
+                `eduai_asc_class_prefs_${instId}`,
+                `eduai_asc_subject_prefs_${instId}`,
+                `eduai_asc_school_settings_${instId}`,
+            ];
+            if (backupRaw) {
+                const backup = JSON.parse(backupRaw);
+                keysToRestore.forEach(k => {
+                    if (backup[k] !== null && backup[k] !== undefined) {
+                        localStorage.setItem(k, backup[k]);
+                    } else {
+                        localStorage.removeItem(k);
+                    }
+                });
+                localStorage.removeItem(`eduai_asc_demo_backup_${instId}`);
+            } else {
+                keysToRestore.forEach(k => localStorage.removeItem(k));
+            }
+            localStorage.removeItem(`eduai_asc_demo_active_${instId}`);
+        } catch (_) {}
+        setSmartTimetableDemo(null);
+        setDemoVersionTick(t => t + 1);
+    };
+
+    // Effective Smart Timetable Data (reads Demo Bundle while Demo Mode is active, otherwise real school data)
+    const ttEntries = smartTimetableDemo ? smartTimetableDemo.entries : (props.generatedTimetable || []);
+    const ttCourses = smartTimetableDemo ? smartTimetableDemo.courses : (props.courses || []);
+    const ttSubjects = smartTimetableDemo ? smartTimetableDemo.subjects : (props.subjects || []);
+    const ttRooms = smartTimetableDemo ? smartTimetableDemo.rooms : (props.rooms || []);
+    const ttLecturers = smartTimetableDemo ? smartTimetableDemo.lecturers : (props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []);
+    const ttSettings = smartTimetableDemo ? smartTimetableDemo.timetableSettings : (props.timetableSettings || INITIAL_TIMETABLE_SETTINGS);
+    const ttGetSubjectById = (id: string) => ttSubjects.find(s => s && s.id === id) || props.getSubjectById?.(id);
+    const ttGetLecturerById = (id: string) => ttLecturers.find(u => u && u.id === id) || props.getLecturerById?.(id);
+    const ttGetRoomById = (id: string) => ttRooms.find(r => r && r.id === id) || props.getRoomById?.(id);
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
     const [enrollmentSubTab, setEnrollmentSubTab] = useState<'students' | 'teachers' | 'support_staff' | 'broadcaster' | 'calendar' | 'guests' | 'portal_hub'>('students');
     const [timetablePreselectedViewMode, setTimetablePreselectedViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff' | 'subjects' | 'test' | null>(null);
@@ -3248,17 +3332,17 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 )}
 
                 {activeTab === 'timetable_ops' && (
-                    <div className="animate-fade-in-up">
+                    <div className="animate-fade-in-up" key={`ops_${demoVersionTick}`}>
                         <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
                             <AscTimetableOperationsHub
                                 institution={props.currentInstitution}
-                                entries={props.generatedTimetable || []}
-                                courses={props.courses || []}
-                                subjects={props.subjects || []}
-                                lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
-                                rooms={props.rooms || []}
+                                entries={ttEntries}
+                                courses={ttCourses}
+                                subjects={ttSubjects}
+                                lecturers={ttLecturers}
+                                rooms={ttRooms}
                                 allocations={(props.requests || []).filter((r: any) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
-                                timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                timetableSettings={ttSettings}
                                 activeAcademicYear={props.activeAcademicYear || null}
                                 activeSemester={activeSemester || null}
                                 courseSizes={props.courseSizes || new Map<string, number>()}
@@ -3353,46 +3437,59 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             </Suspense>
                         ) : (
                             <div className="space-y-6">
-                            <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar max-w-full gap-1">
-                                {[
-                                    { id: 'cards', label: 'Subject Cards', icon: '🗂️' },
-                                    { id: 'subjects', label: 'Subjects', icon: '📘' },
-                                    { id: 'classes', label: 'Classes', icon: '👥' },
-                                    { id: 'classrooms', label: 'Classrooms', icon: '🚪' },
-                                    { id: 'teachers', label: 'Teachers', icon: '🎓' },
-                                    { id: 'relations', label: 'Relations', icon: '🕸️' },
-                                    { id: 'constraints_list', label: 'List of Inputed Constraints', icon: '💡' },
-                                    { id: 'school', label: 'School', icon: '🏛️' },
-                                ].map(tab => (
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar max-w-full gap-1">
+                                    {[
+                                        { id: 'cards', label: 'Subject Cards', icon: '🗂️' },
+                                        { id: 'subjects', label: 'Subjects', icon: '📘' },
+                                        { id: 'classes', label: 'Classes', icon: '👥' },
+                                        { id: 'classrooms', label: 'Classrooms', icon: '🚪' },
+                                        { id: 'teachers', label: 'Teachers', icon: '🎓' },
+                                        { id: 'relations', label: 'Relations', icon: '🕸️' },
+                                        { id: 'constraints_list', label: 'List of Inputed Constraints', icon: '💡' },
+                                        { id: 'school', label: 'School', icon: '🏛️' },
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setTimetableSubTab(tab.id as any)}
+                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                                                timetableSubTab === tab.id
+                                                    ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg'
+                                                    : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'
+                                            }`}
+                                        >
+                                            <span className="text-sm leading-none">{tab.icon}</span>
+                                            <span>{tab.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {!smartTimetableDemo && (
                                     <button
-                                        key={tab.id}
-                                        onClick={() => setTimetableSubTab(tab.id as any)}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                                            timetableSubTab === tab.id
-                                                ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg'
-                                                : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'
-                                        }`}
+                                        type="button"
+                                        onClick={handleLoadSmartTimetableDemo}
+                                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white text-[10px] font-black uppercase tracking-wider shadow-md flex items-center gap-1.5 cursor-pointer shrink-0"
                                     >
-                                        <span className="text-sm leading-none">{tab.icon}</span>
-                                        <span>{tab.label}</span>
+                                        <span>✨</span>
+                                        <span>Generate Complete Demo</span>
                                     </button>
-                                ))}
+                                )}
                             </div>
 
-                            <div className="animate-fade-in-up">
+                            <div className="animate-fade-in-up" key={`tt_${demoVersionTick}`}>
                                 {timetableSubTab === 'cards' ? (
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
                                         <AscTimetableCardsDashboard
-                                            entries={props.generatedTimetable || []}
-                                            courses={props.courses || []}
-                                            subjects={props.subjects || []}
-                                            lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
-                                            rooms={props.rooms || []}
-                                            timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                            entries={ttEntries}
+                                            courses={ttCourses}
+                                            subjects={ttSubjects}
+                                            lecturers={ttLecturers}
+                                            rooms={ttRooms}
+                                            timetableSettings={ttSettings}
                                             institutionName={props.currentInstitution?.name}
-                                            getSubjectById={props.getSubjectById || ((id: string) => props.subjects?.find(s => s && s.id === id))}
-                                            getLecturerById={props.getLecturerById || ((id: string) => props.users?.find(u => u && u.id === id))}
-                                            getRoomById={props.getRoomById || ((id: string) => props.rooms?.find(r => r && r.id === id))}
+                                            getSubjectById={ttGetSubjectById}
+                                            getLecturerById={ttGetLecturerById}
+                                            getRoomById={ttGetRoomById}
                                             onMoveLesson={props.onMoveTimetableEntry}
                                             onOpenWizard={() => setTimetableSubTab('wizard')}
                                             onOpenFullScheduler={() => setTimetableSubTab('scheduler')}
@@ -3402,14 +3499,14 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
                                         <AscSubjectsManager
                                             institutionId={props.currentInstitution?.id || ''}
-                                            subjects={props.subjects || []}
+                                            subjects={ttSubjects}
                                             departments={props.departments || []}
-                                            rooms={props.rooms || []}
-                                            courses={props.courses || []}
-                                            lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
-                                            timetableEntries={props.generatedTimetable || []}
+                                            rooms={ttRooms}
+                                            courses={ttCourses}
+                                            lecturers={ttLecturers}
+                                            timetableEntries={ttEntries}
                                             allocations={(props.requests || []).filter((r: any) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
-                                            timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                            timetableSettings={ttSettings}
                                             onAddSubject={props.onAddSubject}
                                             onUpdateSubject={props.onUpdateSubject}
                                             onDeleteSubject={props.onDeleteSubject}
@@ -3420,13 +3517,13 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
                                         <AscClassesManager
                                             institutionId={props.currentInstitution?.id || ''}
-                                            courses={courses}
-                                            subjects={subjects}
-                                            rooms={rooms}
-                                            lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
-                                            timetableEntries={props.generatedTimetable || []}
+                                            courses={ttCourses}
+                                            subjects={ttSubjects}
+                                            rooms={ttRooms}
+                                            lecturers={ttLecturers}
+                                            timetableEntries={ttEntries}
                                             allocations={(props.requests || []).filter((r: any) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
-                                            timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                            timetableSettings={ttSettings}
                                             onAddCourse={props.onAddCourse}
                                             onUpdateCourse={props.onUpdateCourse}
                                             onDeleteCourse={props.onDeleteCourse}
@@ -3437,12 +3534,12 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
                                         <AscClassroomsManager
                                             institutionId={props.currentInstitution?.id || ''}
-                                            rooms={props.rooms || []}
+                                            rooms={ttRooms}
                                             buildings={props.buildings || []}
-                                            courses={props.courses || []}
-                                            subjects={props.subjects || []}
-                                            timetableEntries={props.generatedTimetable || []}
-                                            timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                            courses={ttCourses}
+                                            subjects={ttSubjects}
+                                            timetableEntries={ttEntries}
+                                            timetableSettings={ttSettings}
                                             onAddRoom={props.onAddRoom}
                                             onUpdateRoom={props.onUpdateRoom}
                                             onDeleteRoom={props.onDeleteRoom}
@@ -3453,10 +3550,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
                                         <AscCardRelationshipsManager
                                             institutionId={props.currentInstitution?.id || ''}
-                                            subjects={props.subjects || []}
-                                            courses={props.courses || []}
-                                            lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
-                                            timetableEntries={props.generatedTimetable || []}
+                                            subjects={ttSubjects}
+                                            courses={ttCourses}
+                                            lecturers={ttLecturers}
+                                            timetableEntries={ttEntries}
                                             onClose={() => setTimetableSubTab('cards')}
                                             onOpenWizard={() => setTimetableSubTab('wizard')}
                                         />
@@ -3465,11 +3562,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
                                         <AscInputtedConstraintsList
                                             institutionId={props.currentInstitution?.id || ''}
-                                            subjects={props.subjects || []}
-                                            courses={props.courses || []}
-                                            rooms={props.rooms || []}
-                                            lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
-                                            timetableEntries={props.generatedTimetable || []}
+                                            subjects={ttSubjects}
+                                            courses={ttCourses}
+                                            rooms={ttRooms}
+                                            lecturers={ttLecturers}
+                                            timetableEntries={ttEntries}
                                             onOpenTab={(tab) => setTimetableSubTab(tab)}
                                         />
                                     </Suspense>
@@ -3477,9 +3574,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
                                         <AscSchoolSettingsPanel
                                             institution={props.currentInstitution}
-                                            courses={props.courses || []}
+                                            courses={ttCourses}
                                             activeAcademicYear={props.activeAcademicYear || null}
-                                            timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                            timetableSettings={ttSettings}
                                             onSaveTimetableSettings={props.onSaveTimetableSettings}
                                             onClose={() => setTimetableSubTab('cards')}
                                         />
@@ -3548,12 +3645,12 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
                                         <AscTeachersManager
                                             institutionId={props.currentInstitution?.id || ''}
-                                            lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
-                                            subjects={props.subjects || []}
-                                            courses={props.courses || []}
-                                            rooms={props.rooms || []}
-                                            timetableEntries={props.generatedTimetable || []}
-                                            timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                            lecturers={ttLecturers}
+                                            subjects={ttSubjects}
+                                            courses={ttCourses}
+                                            rooms={ttRooms}
+                                            timetableEntries={ttEntries}
+                                            timetableSettings={ttSettings}
                                             onAddUser={props.onAddUser as any}
                                             onEditUser={props.onEditUser as any}
                                             onDeleteUser={props.onDeleteUser as any}
@@ -4608,17 +4705,18 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         ) : activeScope === 'smart_timetable' ? (
                             <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
                                 <AscTimetablePrintPreviewReports
+                                    key={`rep_${demoVersionTick}`}
                                     institution={props.currentInstitution}
                                     activeAcademicYear={props.activeAcademicYear || null}
-                                    entries={props.generatedTimetable || props.allTimetableEntries || []}
-                                    courses={props.courses || []}
-                                    subjects={props.subjects || []}
-                                    lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
-                                    rooms={props.rooms || []}
-                                    timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
-                                    getSubjectById={props.getSubjectById || ((id: string) => (props.subjects || []).find(s => s && s.id === id))}
-                                    getLecturerById={props.getLecturerById || ((id: string) => (props.users || []).find(u => u && u.id === id))}
-                                    getRoomById={props.getRoomById || ((id: string) => (props.rooms || []).find(r => r && r.id === id))}
+                                    entries={smartTimetableDemo ? smartTimetableDemo.entries : (props.generatedTimetable || props.allTimetableEntries || [])}
+                                    courses={ttCourses}
+                                    subjects={ttSubjects}
+                                    lecturers={ttLecturers}
+                                    rooms={ttRooms}
+                                    timetableSettings={ttSettings}
+                                    getSubjectById={ttGetSubjectById}
+                                    getLecturerById={ttGetLecturerById}
+                                    getRoomById={ttGetRoomById}
                                 />
                             </Suspense>
                         ) : (
@@ -4862,6 +4960,29 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     filename={pdfPreviewData.title}
                     onClose={() => setPdfPreviewData(null)}
                 />
+            )}
+
+            {/* Sticky Bottom Banner when Smart Timetable Complete Demo Mode is Active */}
+            {smartTimetableDemo && activeScope === 'smart_timetable' && (
+                <div className="fixed bottom-0 left-0 right-0 z-[120] bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white px-4 py-3 shadow-2xl border-t-2 border-amber-300 no-print">
+                    <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <span className="px-2.5 py-1 rounded-full bg-slate-950/30 border border-white/30 text-[10px] font-black uppercase tracking-widest shrink-0">
+                                ✨ DEMO DATA ACTIVE
+                            </span>
+                            <span className="text-xs font-bold">
+                                You are testing a complete sample Smart Timetable ({smartTimetableDemo.courses.length} classes, {smartTimetableDemo.subjects.length} subjects, {smartTimetableDemo.lecturers.length} teachers, {smartTimetableDemo.rooms.length} rooms, {smartTimetableDemo.entries.length} placed cards). Your real school records are untouched.
+                            </span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleClearSmartTimetableDemo}
+                            className="px-4 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider shadow-lg border border-white/25 cursor-pointer shrink-0"
+                        >
+                            🗑️ Clear Demo &amp; Start Fresh
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     );
