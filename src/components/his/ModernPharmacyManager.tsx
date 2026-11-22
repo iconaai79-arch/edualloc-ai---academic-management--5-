@@ -41,6 +41,7 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
     currentUser: User;
 }) {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'prescriptions' | 'hr' | 'accounting' | 'automation' | 'reports' | 'sales' | 'config'>('dashboard');
+    const [configSubTab, setConfigSubTab] = useState<'branding' | 'contact' | 'operations'>('branding');
     const [reportsSubTab, setReportsSubTab] = useState<'general' | 'sales'>('general');
     const [salesFilter, setSalesFilter] = useState<'day' | 'week' | 'month' | 'period'>('day');
     const [salesStartDate, setSalesStartDate] = useState(new Date().toISOString().split('T')[0]);
@@ -751,9 +752,17 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
                 <div className="space-y-5">
                     {/* Brand Header */}
                     <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-lg shadow-emerald-500/25 shrink-0">
-                            <SparklesIcon className="w-6 h-6" />
-                        </div>
+                        {settings?.pharmacyLogo ? (
+                            <img
+                                src={settings.pharmacyLogo}
+                                alt={settings.pharmacyName || 'Pharmacy Logo'}
+                                className="w-11 h-11 rounded-2xl object-contain bg-slate-50 border border-slate-200 p-1 shadow-sm shrink-0"
+                            />
+                        ) : (
+                            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-lg shadow-emerald-500/25 shrink-0">
+                                <SparklesIcon className="w-6 h-6" />
+                            </div>
+                        )}
                         <div className="min-w-0">
                             <h1 className="text-base font-black uppercase tracking-tight text-slate-900 truncate leading-tight">
                                 {settings?.pharmacyName || currentInstitution?.name || 'Pharmacy & Chemist'}
@@ -2021,205 +2030,318 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
 
             {/* CONFIGURATION CENTER */}
             {activeTab === 'config' && settings && (
-                <div className="p-12 animate-fade-in space-y-12 no-scrollbar overflow-y-auto max-h-[75vh]">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-                        <div className="lg:col-span-2 space-y-12">
-                            <div className="bg-white shadow-sm border border-slate-200 p-12 rounded-[4rem] border border-slate-200 bg-gradient-to-br from-indigo-500/5 to-transparent">
-                                <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-10 text-indigo-400">Branding <span className="text-slate-900">& Identity Vault</span></h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4">Dispensing Point Name</label>
-                                        <input 
-                                            type="text" 
-                                            value={settings.pharmacyName} 
-                                            onChange={e => setSettings({...settings, pharmacyName: e.target.value})}
-                                            className="w-full bg-slate-100 border border-slate-200 rounded-3xl p-4 text-slate-900 text-sm outline-none focus:border-indigo-500/50 transition-all font-black uppercase tracking-widest italic" 
-                                        />
-                                    </div>
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4">Nexus Logo URL</label>
-                                        <input 
-                                            type="text" 
-                                            value={settings.pharmacyLogo || ''} 
-                                            onChange={e => setSettings({...settings, pharmacyLogo: e.target.value})}
-                                            className="w-full bg-slate-100 border border-slate-200 rounded-3xl p-4 text-slate-900 text-sm outline-none focus:border-indigo-500/50 transition-all font-mono" 
-                                        />
-                                    </div>
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4">License / PPB ID</label>
-                                        <input 
-                                            type="text" 
-                                            value={settings.pharmacyLicense || ''} 
-                                            onChange={e => setSettings({...settings, pharmacyLicense: e.target.value})}
-                                            className="w-full bg-slate-100 border border-slate-200 rounded-3xl p-4 text-slate-900 text-sm outline-none focus:border-indigo-500/50 transition-all uppercase font-bold" 
-                                        />
-                                    </div>
-                                    <div className="space-y-4 md:col-span-2">
-                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4">Receipt Header Text</label>
-                                        <textarea 
-                                            value={settings.receiptHeader || ''} 
-                                            onChange={e => setSettings({...settings, receiptHeader: e.target.value})}
-                                            className="w-full bg-slate-100 border border-slate-200 rounded-[2rem] p-6 text-slate-900 text-xs outline-none focus:border-indigo-500/50 transition-all h-20" 
-                                            placeholder="Molecular Nexus Hospital/Clinic | P.O. BOX 123..."
-                                        ></textarea>
-                                    </div>
-                                    <div className="space-y-4 md:col-span-2">
-                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4">Receipt Nexus Footer</label>
-                                        <textarea 
-                                            value={settings.receiptFooter || ''} 
-                                            onChange={e => setSettings({...settings, receiptFooter: e.target.value})}
-                                            className="w-full bg-slate-100 border border-slate-200 rounded-[2rem] p-6 text-slate-900 text-xs outline-none focus:border-indigo-500/50 transition-all h-20" 
-                                            placeholder="Thank you for trusting our Molecular Nexus..."
-                                        ></textarea>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-white shadow-sm border border-slate-200 p-12 rounded-[4rem] border border-slate-200">
-                                <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-10 text-emerald-400">Connectivity <span className="text-slate-900">& Outreach</span></h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4 flex items-center gap-2"><EnvelopeIcon className="w-3 h-3 text-emerald-500" /> Dispatch Email</label>
-                                        <input 
-                                            type="email" 
-                                            value={settings.pharmacyEmail || ''} 
-                                            onChange={e => setSettings({...settings, pharmacyEmail: e.target.value})}
-                                            className="w-full bg-slate-100 border border-slate-200 rounded-3xl p-4 text-slate-900 text-sm outline-none focus:border-emerald-500/50 transition-all" 
-                                        />
-                                    </div>
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4 flex items-center gap-2"><PhoneIcon className="w-3 h-3 text-emerald-500" /> Hot Matrix Phone</label>
-                                        <input 
-                                            type="text" 
-                                            value={settings.pharmacyPhone || ''} 
-                                            onChange={e => setSettings({...settings, pharmacyPhone: e.target.value})}
-                                            className="w-full bg-slate-100 border border-slate-200 rounded-3xl p-4 text-slate-900 text-sm outline-none focus:border-emerald-500/50 transition-all" 
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-white shadow-sm border border-slate-200 p-12 rounded-[4rem] border border-slate-200 bg-gradient-to-b from-indigo-500/5 to-transparent">
-                                <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-10 text-indigo-400">Theme <span className="text-slate-900">Experience</span></h3>
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-                                    {(['indigo', 'emerald', 'rose', 'amber', 'cyan', 'violet', 'fuchsia', 'sky', 'lime'] as const).map(t => (
-                                        <button 
-                                            key={t}
-                                            onClick={() => setSettings(prev => prev ? {...prev, theme: t} : null)}
-                                            className={`group relative h-24 rounded-[2rem] border-2 transition-all duration-500 flex flex-col items-center justify-center gap-3 ${settings.theme === t ? `border-${t === 'indigo' ? 'indigo-500' : t === 'emerald' ? 'emerald-500' : t === 'rose' ? 'rose-500' : t === 'amber' ? 'amber-500' : t === 'cyan' ? 'cyan-500' : t === 'violet' ? 'violet-500' : t === 'fuchsia' ? 'fuchsia-500' : t === 'sky' ? 'sky-500' : 'lime-500'} bg-slate-50 shadow-2xl scale-105` : 'border-slate-200 opacity-40 hover:opacity-100 hover:bg-slate-50'}`}
-                                        >
-                                            <div className={`w-8 h-8 rounded-full bg-${t === 'indigo' ? 'indigo-500' : t === 'emerald' ? 'emerald-500' : t === 'rose' ? 'rose-500' : t === 'amber' ? 'amber-500' : t === 'cyan' ? 'cyan-500' : t === 'violet' ? 'violet-500' : t === 'fuchsia' ? 'fuchsia-500' : t === 'sky' ? 'sky-500' : 'lime-500'} shadow-lg group-hover:scale-125 transition-transform duration-500`}></div>
-                                            <span className="text-[8px] font-black uppercase tracking-widest">{t}</span>
-                                            {settings.theme === t && (
-                                                <div className="absolute -top-2 -right-2 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-[#0a0a0f]">
-                                                    <CheckCircleIcon className="w-3 h-3 text-slate-900" />
-                                                </div>
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                             <div className="mt-10 p-6 bg-slate-50 rounded-3xl border border-slate-200 flex items-center gap-4">
-                                    <SparklesIcon className="w-6 h-6 text-indigo-400" />
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic">Adaptive Bio-Interface: The selected theme will propagate across all visual nodes and PDF artifacts.</p>
-                                </div>
-                            </div>
-                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-6 text-center italic">Global accent nodes will be recalibrated upon selection.</p>
+                <div className="animate-fade-in space-y-6">
+                    {/* Settings Sub-Tabs Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            {[
+                                { id: 'branding', label: '🎨 Branding & Identity' },
+                                { id: 'contact', label: '📞 Contact & Receipts' },
+                                { id: 'operations', label: '⚙️ Operations & Alerts' },
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => setConfigSubTab(tab.id as any)}
+                                    className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                        configSubTab === tab.id
+                                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                    }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
                         </div>
-
-                        <div className="space-y-12">
-                            <div className="bg-white shadow-sm border border-slate-200 p-12 rounded-[4rem] border border-slate-200 bg-gradient-to-b from-amber-500/5 to-transparent">
-                                <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-10 text-amber-500">Operation <span className="text-slate-900">Logic</span></h3>
-                                <div className="space-y-10">
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-center px-4">
-                                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Low Stock Alert Level</label>
-                                            <span className="text-xl font-black italic text-amber-400">{settings.lowStockThreshold} Units</span>
-                                        </div>
-                                        <input 
-                                            type="range" 
-                                            min="0" 
-                                            max="100" 
-                                            value={settings.lowStockThreshold} 
-                                            onChange={e => setSettings({...settings, lowStockThreshold: parseInt(e.target.value)})}
-                                            className="w-full h-1 bg-slate-50 rounded-lg appearance-none cursor-pointer range-indigo" 
-                                        />
-                                    </div>
-
-                                    <div className="flex items-center justify-between p-8 bg-slate-100 rounded-[2.5rem] border border-slate-200 group hover:border-indigo-500/30 transition-all">
-                                        <div>
-                                            <p className="text-xs font-black uppercase italic text-slate-900 text-left">Medication Alert Nodes</p>
-                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1 text-left">GSM Triggers for dosages</p>
-                                        </div>
-                                        <button 
-                                            onClick={() => setSettings({...settings, medicationRemindersEnabled: !settings.medicationRemindersEnabled})}
-                                            className={`w-12 h-6 rounded-full p-1 transition-all flex items-center ${settings.medicationRemindersEnabled ? 'bg-indigo-500 justify-end' : 'bg-slate-100 justify-start'}`}
-                                        >
-                                            <div className="w-4 h-4 rounded-full bg-white shadow-lg"></div>
-                                        </button>
-                                    </div>
-
-                                    <div className="flex items-center justify-between p-8 bg-slate-100 rounded-[2.5rem] border border-slate-200 group hover:border-rose-500/30 transition-all">
-                                        <div>
-                                            <p className="text-xs font-black uppercase italic text-slate-900 text-left">Course Completion Signals</p>
-                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1 text-left">Alert patient to STOP medication</p>
-                                        </div>
-                                        <button 
-                                            onClick={() => setSettings({...settings, stopRemindersEnabled: !settings.stopRemindersEnabled})}
-                                            className={`w-12 h-6 rounded-full p-1 transition-all flex items-center ${settings.stopRemindersEnabled ? 'bg-rose-500 justify-end' : 'bg-slate-100 justify-start'}`}
-                                        >
-                                            <div className="w-4 h-4 rounded-full bg-white shadow-lg"></div>
-                                        </button>
-                                    </div>
-
-                                    <div className="flex items-center justify-between p-8 bg-slate-100 rounded-[2.5rem] border border-slate-200 group hover:border-teal-500/30 transition-all">
-                                        <div>
-                                            <p className="text-xs font-black uppercase italic text-slate-900 text-left">Post-Clinical Checkup Prompts</p>
-                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1 text-left">Automated return appointment triggers</p>
-                                        </div>
-                                        <button 
-                                            onClick={() => setSettings({...settings, checkupRemindersEnabled: !settings.checkupRemindersEnabled})}
-                                            className={`w-12 h-6 rounded-full p-1 transition-all flex items-center ${settings.checkupRemindersEnabled ? 'bg-teal-500 justify-end' : 'bg-slate-100 justify-start'}`}
-                                        >
-                                            <div className="w-4 h-4 rounded-full bg-white shadow-lg"></div>
-                                        </button>
-                                    </div>
-
-                                    <div className="flex items-center justify-between p-8 bg-slate-100 rounded-[2.5rem] border border-slate-200 group hover:border-emerald-500/30 transition-all">
-                                        <div>
-                                            <p className="text-xs font-black uppercase italic text-slate-900 text-left">Global GSM Outreach</p>
-                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1 text-left">Master switch for all SMS broadcasts</p>
-                                        </div>
-                                        <button 
-                                            onClick={() => setSettings({...settings, enableSmsReminders: !settings.enableSmsReminders})}
-                                            className={`w-12 h-6 rounded-full p-1 transition-all flex items-center ${settings.enableSmsReminders ? 'bg-emerald-500 justify-end' : 'bg-slate-100 justify-start'}`}
-                                        >
-                                            <div className="w-4 h-4 rounded-full bg-white shadow-lg"></div>
-                                        </button>
-                                    </div>
-
-                                    <div className="flex items-center justify-between p-8 bg-slate-100 rounded-[2.5rem] border border-slate-200 group hover:border-emerald-500/30 transition-all">
-                                        <div>
-                                            <p className="text-xs font-black uppercase italic text-slate-900">EPOS Auto-Print</p>
-                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1">Generate receipt after sale</p>
-                                        </div>
-                                        <button 
-                                            onClick={() => setSettings({...settings, autoPrintReceipt: !settings.autoPrintReceipt})}
-                                            className={`w-12 h-6 rounded-full p-1 transition-all flex items-center ${settings.autoPrintReceipt ? 'bg-emerald-500 justify-end' : 'bg-slate-100 justify-start'}`}
-                                        >
-                                            <div className="w-4 h-4 rounded-full bg-white shadow-lg"></div>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button 
-                                onClick={handleSaveSettings}
-                                className={`w-full py-8 rounded-[2rem] bg-${theme.bg} text-white font-black uppercase tracking-[0.5em] italic shadow-2xl ${theme.shadow} hover:scale-[1.02] active:scale-95 transition-all text-xs`}
-                            >
-                                Commit Nexus Config
-                            </button>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={handleSaveSettings}
+                            className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black uppercase tracking-wider shadow-md cursor-pointer"
+                        >
+                            💾 Save Settings
+                        </button>
                     </div>
+
+                    {/* ── SUB-TAB 1: BRANDING ── */}
+                    {configSubTab === 'branding' && (
+                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                            <div className="xl:col-span-2 space-y-6">
+                                {/* Logo & Identity Card */}
+                                <div className="bg-white shadow-sm border border-slate-200 p-6 sm:p-8 rounded-3xl space-y-6">
+                                    <div>
+                                        <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">
+                                            Pharmacy / Chemist <span className="text-emerald-600">Branding &amp; Logo</span>
+                                        </h3>
+                                        <p className="text-xs text-slate-500 mt-0.5">
+                                            Customize your pharmacy name, logo, license ID, brand accent color, and printed receipt branding.
+                                        </p>
+                                    </div>
+
+                                    {/* Logo Uploader + Preview */}
+                                    <div className="flex flex-wrap items-center gap-5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                                        {settings.pharmacyLogo ? (
+                                            <img
+                                                src={settings.pharmacyLogo}
+                                                alt="Pharmacy Logo Preview"
+                                                className="w-20 h-20 rounded-2xl object-contain bg-white border border-slate-200 p-1.5 shadow-xs"
+                                            />
+                                        ) : (
+                                            <div className="w-20 h-20 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-black text-2xl border border-emerald-200">
+                                                {(settings.pharmacyName || 'P').charAt(0).toUpperCase()}
+                                            </div>
+                                        )}
+                                        <div className="flex-1 min-w-[200px] space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">
+                                                Upload Pharmacy Logo (PNG / JPG / SVG)
+                                            </label>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <label className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black uppercase tracking-wider cursor-pointer shadow-xs">
+                                                    Upload Image
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (!file) return;
+                                                            const reader = new FileReader();
+                                                            reader.onload = () => {
+                                                                if (typeof reader.result === 'string') {
+                                                                    setSettings({ ...settings, pharmacyLogo: reader.result });
+                                                                }
+                                                            };
+                                                            reader.readAsDataURL(file);
+                                                        }}
+                                                    />
+                                                </label>
+                                                {settings.pharmacyLogo && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSettings({ ...settings, pharmacyLogo: '' })}
+                                                        className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-[11px] font-black uppercase cursor-pointer"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={settings.pharmacyLogo || ''}
+                                                onChange={e => setSettings({ ...settings, pharmacyLogo: e.target.value })}
+                                                placeholder="Or paste logo image URL..."
+                                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono outline-none focus:border-emerald-500"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Pharmacy / Chemist Name</label>
+                                            <input
+                                                type="text"
+                                                value={settings.pharmacyName}
+                                                onChange={e => setSettings({ ...settings, pharmacyName: e.target.value })}
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-900 text-sm outline-none focus:border-emerald-500 font-black uppercase"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">PPB License / Registration ID</label>
+                                            <input
+                                                type="text"
+                                                value={settings.pharmacyLicense || ''}
+                                                onChange={e => setSettings({ ...settings, pharmacyLicense: e.target.value })}
+                                                placeholder="e.g. PPB/RET/2026/0042"
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-900 text-sm outline-none focus:border-emerald-500 uppercase font-bold"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5 md:col-span-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Receipt Header / Address Line</label>
+                                            <textarea
+                                                value={settings.receiptHeader || ''}
+                                                onChange={e => setSettings({ ...settings, receiptHeader: e.target.value })}
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-900 text-xs outline-none focus:border-emerald-500 h-20"
+                                                placeholder="e.g. KIPKEINO CHEMIST & PHARMACY | P.O. BOX 123, ELDORET | TEL: 07XX XXX XXX"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5 md:col-span-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Receipt Footer / Tagline</label>
+                                            <textarea
+                                                value={settings.receiptFooter || ''}
+                                                onChange={e => setSettings({ ...settings, receiptFooter: e.target.value })}
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-900 text-xs outline-none focus:border-emerald-500 h-20"
+                                                placeholder="Thank you for choosing us. Get well soon! Medicines sold are not returnable."
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Brand Accent Theme Picker */}
+                                <div className="bg-white shadow-sm border border-slate-200 p-6 sm:p-8 rounded-3xl space-y-5">
+                                    <h3 className="text-base font-black uppercase tracking-tight text-slate-900">
+                                        Brand Accent <span className="text-emerald-600">Color</span>
+                                    </h3>
+                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                                        {(['emerald', 'indigo', 'cyan', 'sky', 'violet', 'amber', 'rose', 'fuchsia', 'lime'] as const).map(t => (
+                                            <button
+                                                key={t}
+                                                type="button"
+                                                onClick={() => setSettings(prev => prev ? { ...prev, theme: t } : null)}
+                                                className={`relative py-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-2 cursor-pointer ${
+                                                    settings.theme === t
+                                                        ? 'border-emerald-600 bg-emerald-50/50 shadow-md scale-[1.02]'
+                                                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                                                }`}
+                                            >
+                                                <div className={`w-7 h-7 rounded-full bg-${t}-500 shadow`} />
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-700">{t}</span>
+                                                {settings.theme === t && (
+                                                    <div className="absolute -top-2 -right-2 w-5 h-5 bg-emerald-600 text-white rounded-full flex items-center justify-center text-[10px] font-black shadow">
+                                                        ✓
+                                                    </div>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Live Branded Receipt Preview */}
+                            <div className="space-y-4">
+                                <div className="bg-white shadow-sm border border-slate-200 p-6 rounded-3xl space-y-4 sticky top-6">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                                        Live Branded Receipt Preview
+                                    </div>
+                                    <div className="p-5 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-300 font-mono text-center space-y-2.5 text-xs text-slate-800">
+                                        {settings.pharmacyLogo && (
+                                            <img src={settings.pharmacyLogo} alt="Receipt Logo" className="w-12 h-12 mx-auto object-contain" />
+                                        )}
+                                        <div className="font-black text-sm uppercase tracking-tight text-slate-900">
+                                            {settings.pharmacyName || 'PHARMACY & CHEMIST'}
+                                        </div>
+                                        {settings.pharmacyLicense && (
+                                            <div className="text-[10px] font-bold text-slate-500">PPB: {settings.pharmacyLicense}</div>
+                                        )}
+                                        {settings.receiptHeader && (
+                                            <div className="text-[10px] text-slate-600 whitespace-pre-line">{settings.receiptHeader}</div>
+                                        )}
+                                        <div className="border-t border-dashed border-slate-300 my-2 pt-2 text-left text-[10px] space-y-1">
+                                            <div className="flex justify-between"><span>Paracetamol 500mg x2</span><span>KES 100</span></div>
+                                            <div className="flex justify-between"><span>Amoxicillin 500mg x1</span><span>KES 250</span></div>
+                                            <div className="border-t border-dashed border-slate-300 pt-1 mt-1 flex justify-between font-black text-xs text-slate-900">
+                                                <span>TOTAL</span><span>KES 350</span>
+                                            </div>
+                                        </div>
+                                        <div className="border-t border-dashed border-slate-300 pt-2 text-[10px] text-slate-500 italic">
+                                            {settings.receiptFooter || 'Thank you for visiting. Get well soon!'}
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveSettings}
+                                        className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-xs shadow-lg cursor-pointer"
+                                    >
+                                        Save Branding Changes
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── SUB-TAB 2: CONTACT & RECEIPTS ── */}
+                    {configSubTab === 'contact' && (
+                        <div className="bg-white shadow-sm border border-slate-200 p-6 sm:p-8 rounded-3xl space-y-6 max-w-3xl">
+                            <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">
+                                Contact &amp; <span className="text-emerald-600">EPOS Printing</span>
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-1.5">
+                                        <EnvelopeIcon className="w-3.5 h-3.5 text-emerald-600" /> Pharmacy Email
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={settings.pharmacyEmail || ''}
+                                        onChange={e => setSettings({ ...settings, pharmacyEmail: e.target.value })}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-900 text-sm outline-none focus:border-emerald-500"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-1.5">
+                                        <PhoneIcon className="w-3.5 h-3.5 text-emerald-600" /> Pharmacy Phone / WhatsApp
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={settings.pharmacyPhone || ''}
+                                        onChange={e => setSettings({ ...settings, pharmacyPhone: e.target.value })}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-900 text-sm outline-none focus:border-emerald-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-200">
+                                <div>
+                                    <p className="text-xs font-black uppercase text-slate-900">EPOS Auto-Print Receipt</p>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">Automatically generate &amp; print thermal receipt after every POS sale</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setSettings({ ...settings, autoPrintReceipt: !settings.autoPrintReceipt })}
+                                    className={`w-12 h-6 rounded-full p-1 transition-all flex items-center cursor-pointer ${settings.autoPrintReceipt ? 'bg-emerald-600 justify-end' : 'bg-slate-300 justify-start'}`}
+                                >
+                                    <div className="w-4 h-4 rounded-full bg-white shadow" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── SUB-TAB 3: OPERATIONS & ALERTS ── */}
+                    {configSubTab === 'operations' && (
+                        <div className="bg-white shadow-sm border border-slate-200 p-6 sm:p-8 rounded-3xl space-y-6 max-w-3xl">
+                            <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">
+                                Operations &amp; <span className="text-amber-600">SMS Alerts</span>
+                            </h3>
+                            <div className="space-y-2 p-5 bg-slate-50 rounded-2xl border border-slate-200">
+                                <div className="flex justify-between items-center">
+                                    <label className="text-[10px] font-black uppercase text-slate-600 tracking-widest">Low Stock Alert Threshold</label>
+                                    <span className="text-base font-black text-amber-600">{settings.lowStockThreshold} Units</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    value={settings.lowStockThreshold}
+                                    onChange={e => setSettings({ ...settings, lowStockThreshold: parseInt(e.target.value) })}
+                                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                                />
+                            </div>
+
+                            <div className="space-y-3">
+                                {[
+                                    { key: 'medicationRemindersEnabled', title: 'Medication Dosage Reminders', desc: 'Send automated SMS dosage reminders to patients' },
+                                    { key: 'stopRemindersEnabled', title: 'Course Completion Alerts', desc: 'Notify patients when their prescribed course is complete' },
+                                    { key: 'checkupRemindersEnabled', title: 'Follow-Up Checkup Prompts', desc: 'Automated return checkup reminders' },
+                                    { key: 'enableSmsReminders', title: 'Global SMS Broadcasts', desc: 'Master switch for all outgoing pharmacy SMS notifications' },
+                                ].map(item => {
+                                    const active = Boolean((settings as any)[item.key]);
+                                    return (
+                                        <div key={item.key} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                                            <div>
+                                                <p className="text-xs font-black uppercase text-slate-900">{item.title}</p>
+                                                <p className="text-[11px] text-slate-500 mt-0.5">{item.desc}</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSettings({ ...settings, [item.key]: !active } as any)}
+                                                className={`w-12 h-6 rounded-full p-1 transition-all flex items-center cursor-pointer ${active ? 'bg-emerald-600 justify-end' : 'bg-slate-300 justify-start'}`}
+                                            >
+                                                <div className="w-4 h-4 rounded-full bg-white shadow" />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
             
