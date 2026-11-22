@@ -981,55 +981,129 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
 
             {/* POS TERMINAL */}
             {activeTab === 'pos' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-10 animate-fade-in">
-                    <div className="md:col-span-2 bg-white shadow-sm border border-slate-200 rounded-[4rem] border border-slate-200 flex flex-col h-[75vh] overflow-hidden">
-                        <div className="p-10 border-b border-slate-200 bg-white/[0.02]">
-                            <div className="flex gap-6 items-center">
-                                <div className="flex-1 flex items-center gap-4 bg-slate-100 px-8 py-4 rounded-3xl border border-slate-200 focus-within:border-indigo-500/50 transition-all">
-                                    <SearchIcon className="w-5 h-5 text-slate-500" />
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-fade-in">
+                    <div className="xl:col-span-2 bg-white shadow-sm border border-slate-200 rounded-3xl flex flex-col h-[75vh] overflow-hidden">
+                        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70">
+                            <div className="flex flex-wrap gap-3 items-center">
+                                <div className="flex-1 min-w-[220px] flex items-center gap-3 bg-white px-4 py-2.5 rounded-2xl border border-slate-200 focus-within:border-emerald-500 transition-all shadow-xs">
+                                    <SearchIcon className="w-4 h-4 text-slate-400 shrink-0" />
                                     <input 
                                         type="text" 
-                                        placeholder="SEARCH MOLECULAR REGISTRY OR NAME..." 
-                                        className="bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-widest w-full text-slate-900 placeholder:text-slate-700"
+                                        placeholder="Search drug name, generic or category..." 
+                                        className="bg-transparent border-none outline-none text-xs font-bold w-full text-slate-900 placeholder:text-slate-400"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
                                 </div>
-                                <select className="bg-slate-100 border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 outline-none focus:border-indigo-500/50">
-                                    <option>Generic</option>
-                                    <option>Branded</option>
-                                    <option>Controlled</option>
-                                </select>
+                                <span className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black uppercase tracking-wider shrink-0">
+                                    {inventory.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()) || (i.category || '').toLowerCase().includes(searchTerm.toLowerCase())).length} Drugs
+                                </span>
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 no-scrollbar">
-                            {inventory.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase())).map(item => (
-                                <button 
-                                    key={item.id} 
-                                    onClick={() => addToCart(item)}
-                                    className="p-8 bg-white/[0.02] border border-slate-200 rounded-[2.5rem] text-left hover:bg-indigo-500/5 hover:border-indigo-500/30 transition-all group relative overflow-hidden"
-                                >
-                                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-all">
-                                            <BeakerIcon className="w-6 h-6" />
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest italic">{item.stockQuantity} Left</p>
-                                            {item.isNarcotic && <span className="text-[7px] font-black bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded border border-rose-500/30 uppercase mt-1 block">Controlled</span>}
-                                        </div>
-                                    </div>
-                                    <h4 className="text-sm font-black uppercase italic tracking-tighter text-slate-900 mb-2 line-clamp-1">{item.name}</h4>
-                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-6">{item.category}</p>
-                                    <div className="flex justify-between items-center">
-                                        <p className="text-lg font-black italic text-indigo-400">KES {item.unitPrice?.toLocaleString()}</p>
-                                        <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-all">
-                                            <PlusIcon className="w-4 h-4" />
-                                        </div>
-                                    </div>
-                                </button>
-                            ))}
+                        {/* Drugs Inventory — Clean Fast POS List View */}
+                        <div className="flex-1 overflow-y-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur border-b border-slate-200 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                    <tr>
+                                        <th className="px-4 py-3">Drug / Medicine</th>
+                                        <th className="px-3 py-3 hidden sm:table-cell">Category</th>
+                                        <th className="px-3 py-3 text-center">Stock</th>
+                                        <th className="px-3 py-3 text-right">Price (KES)</th>
+                                        <th className="px-4 py-3 text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 bg-white">
+                                    {inventory
+                                        .filter(i =>
+                                            i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                            (i.category || '').toLowerCase().includes(searchTerm.toLowerCase())
+                                        )
+                                        .map(item => {
+                                            const isOut = (item.stockQuantity || 0) <= 0;
+                                            const isLow = (item.stockQuantity || 0) > 0 && (item.stockQuantity || 0) <= (item.reorderLevel || 10);
+                                            const inCartQty = posCart.find(c => c.id === item.id)?.quantity || 0;
+                                            return (
+                                                <tr
+                                                    key={item.id}
+                                                    onClick={() => !isOut && addToCart(item)}
+                                                    className={`transition-colors ${
+                                                        isOut
+                                                            ? 'opacity-50 bg-slate-50 cursor-not-allowed'
+                                                            : 'hover:bg-emerald-50/60 cursor-pointer'
+                                                    }`}
+                                                >
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200/70 flex items-center justify-center text-emerald-600 shrink-0">
+                                                                <BeakerIcon className="w-4 h-4" />
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <span className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                                                                        {item.name}
+                                                                    </span>
+                                                                    {item.isNarcotic && (
+                                                                        <span className="text-[8px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded border border-rose-200 uppercase">
+                                                                            Controlled
+                                                                        </span>
+                                                                    )}
+                                                                    {inCartQty > 0 && (
+                                                                        <span className="text-[9px] font-black bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full">
+                                                                            In Basket: {inCartQty}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-[10px] text-slate-400 font-semibold sm:hidden block">
+                                                                    {item.category || 'General'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-3 hidden sm:table-cell">
+                                                        <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-bold uppercase">
+                                                            {item.category || 'General'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-3 py-3 text-center whitespace-nowrap">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                                            isOut
+                                                                ? 'bg-rose-100 text-rose-700'
+                                                                : isLow
+                                                                ? 'bg-amber-100 text-amber-800'
+                                                                : 'bg-emerald-100 text-emerald-700'
+                                                        }`}>
+                                                            {item.stockQuantity ?? 0} {item.unit || 'left'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-3 py-3 text-right whitespace-nowrap">
+                                                        <span className="font-mono text-xs font-black text-slate-900">
+                                                            KES {(item.unitPrice || 0).toLocaleString()}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                                                        <button
+                                                            type="button"
+                                                            disabled={isOut}
+                                                            onClick={(e) => { e.stopPropagation(); addToCart(item); }}
+                                                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 disabled:text-slate-400 text-white text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 shadow-xs cursor-pointer"
+                                                        >
+                                                            <PlusIcon className="w-3.5 h-3.5" />
+                                                            <span>Add</span>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    {inventory.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()) || (i.category || '').toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="px-6 py-12 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                                No drugs found matching &ldquo;{searchTerm}&rdquo;
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
