@@ -27,6 +27,7 @@ const AscTimetableCardsDashboard = lazy(() => import('./AscTimetableCardsDashboa
 const AscSubjectsManager = lazy(() => import('./AscSubjectsManager').then(m => ({ default: m.AscSubjectsManager })));
 const AscClassesManager = lazy(() => import('./AscClassesManager').then(m => ({ default: m.AscClassesManager })));
 const AscClassroomsManager = lazy(() => import('./AscClassroomsManager').then(m => ({ default: m.AscClassroomsManager })));
+const AscTeachersManager = lazy(() => import('./AscTeachersManager').then(m => ({ default: m.AscTeachersManager })));
 const TimetableClassroomsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableClassroomsManager })));
 const TimetableRelationsManager = lazy(() => import('./TimetableRelationsAndRoomsPanel').then(m => ({ default: m.TimetableRelationsManager })));
 const SettingsManager = lazy(() => import('./SettingsManager').then(m => ({ default: m.SettingsManager })));
@@ -3461,29 +3462,21 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         }}
                                     />
                                 ) : timetableSubTab === 'teachers' ? (
-                                    <TimetableUserDirectory
-                                        institutionId={props.currentInstitution?.id || ''}
-                                        role="teacher"
-                                        allUsers={props.users || []}
-                                        allCourses={props.courses || []}
-                                        departments={props.departments || []}
-                                        timetableEntries={props.generatedTimetable || []}
-                                        subjects={props.subjects || []}
-                                        allocations={(props.requests || []).filter((r: any) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
-                                        isSchool={!!(props.currentInstitution as any)?.isSchool}
-                                        onDirectAssign={props.onDirectAssign as any}
-                                        onUpdateRequest={props.onUpdateRequest as any}
-                                        onWithdrawRequest={props.onWithdrawRequest as any}
-                                        onAddTimeOffRequest={props.onAddTimeOffRequest as any}
-                                        onRestoreSchedule={(userId) => {
-                                            alert(`Schedule restore queued for teacher ${userId}. Re-run the Timetable Wizard to regenerate their entries.`);
-                                        }}
-                                        onViewCalendar={(user) => {
-                                            setTimetablePreselectedViewMode('lecturer_schedule');
-                                            setTimetablePreselectedLecturerId(user.id);
-                                            setTimetableSubTab('scheduler');
-                                        }}
-                                    />
+                                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                                        <AscTeachersManager
+                                            institutionId={props.currentInstitution?.id || ''}
+                                            lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
+                                            subjects={props.subjects || []}
+                                            courses={props.courses || []}
+                                            rooms={props.rooms || []}
+                                            timetableEntries={props.generatedTimetable || []}
+                                            timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                            onAddUser={props.onAddUser as any}
+                                            onEditUser={props.onEditUser as any}
+                                            onDeleteUser={props.onDeleteUser as any}
+                                            onSwitchTab={(tab) => setTimetableSubTab(tab)}
+                                        />
+                                    </Suspense>
                                 ) : timetableSubTab === 'students' ? (
                                     <TimetableUserDirectory
                                         institutionId={props.currentInstitution?.id || ''}
