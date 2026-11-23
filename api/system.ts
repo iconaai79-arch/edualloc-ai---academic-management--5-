@@ -343,6 +343,108 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
+        if (action === 'get_biometric_telemetry' && (req.method === 'GET' || req.method === 'POST')) {
+            let logs: any[] = [];
+            let devices: any[] = [];
+            const pool = await getPgPool();
+            if (pool) {
+                try {
+                    const q = async (sql: string) => pool.query(sql).then((r: any) => r.rows || []).catch(() => null);
+                    let instMap: Map<string, any> | null = null;
+                    const getInstMap = async () => {
+                        if (!instMap) {
+                            const insts = (await q(`SELECT id, name FROM public.institutions`)) || [];
+                            instMap = new Map(insts.map((r: any): [string, any] => [String(r.id), r.name]));
+                        }
+                        return instMap;
+                    };
+
+                    const devRes: any = await pool.query(
+                        `SELECT d.*, i.name as institution_name 
+                         FROM public.biometric_devices d 
+                         LEFT JOIN public.institutions i ON (i.id = d.institution_id OR i.id = d."institutionId")
+                         ORDER BY d.last_sync_at DESC NULLS LAST LIMIT 100`
+                    ).catch(() => null);
+                    if (devRes && devRes.rows) {
+                        devices = devRes.rows;
+                    } else {
+                        const rawDevs =
+                            (await q(`SELECT * FROM public.biometric_devices ORDER BY last_sync_at DESC NULLS LAST LIMIT 100`)) ||
+                            (await q(`SELECT * FROM public.biometric_devices ORDER BY created_at DESC NULLS LAST LIMIT 100`)) ||
+                            (await q(`SELECT * FROM public.biometric_devices LIMIT 100`)) ||
+                            [];
+                        const iMap = await getInstMap();
+                        devices = rawDevs.map((d: any) => {
+                            const iid = d.institution_id || d.institutionId;
+                            return { ...d, institution_name: d.institution_name || (iid ? iMap.get(String(iid)) || null : null) };
+                        });
+                    }
+
+                    const logRes: any = await pool.query(
+                        `SELECT l.*, i.name as institution_name, u.name as staff_name
+                         FROM public.staff_attendance_logs l
+                         LEFT JOIN public.institutions i ON (i.id = l.institution_id OR i.id = l."institutionId")
+                         LEFT JOIN public.users u ON (u.id = l.staff_id OR u.id = l."staffId")
+                         ORDER BY l.punch_time DESC NULLS LAST LIMIT 250`
+                    ).catch((e: any) => {
+                        console.warn('[get_biometric_telemetry] joined log query failed, using fallback:', e?.message || e);
+                        return null;
+                    });
+                    if (logRes && logRes.rows) {
+                        logs = logRes.rows;
+                    } else {
+                        // Fallback: schema may lack some columns (e.g. camelCase variants). Select plainly and enrich in JS.
+                        const rawLogs =
+                            (await q(`SELECT * FROM public.staff_attendance_logs ORDER BY punch_time DESC NULLS LAST LIMIT 250`)) ||
+                            (await q(`SELECT * FROM public.staff_attendance_logs ORDER BY created_at DESC NULLS LAST LIMIT 250`)) ||
+                            (await q(`SELECT * FROM public.staff_attendance_logs LIMIT 250`)) ||
+                            [];
+                        const iMap = await getInstMap();
+                        const usrs = (await q(`SELECT id, name FROM public.users`)) || [];
+                        const userMap = new Map(usrs.map((r: any): [string, any] => [String(r.id), r.name]));
+                        logs = rawLogs.map((l: any) => {
+                            const iid = l.institution_id || l.institutionId;
+                            const sid = l.staff_id || l.staffId;
+                            return {
+                                ...l,
+                                institution_name: iid ? iMap.get(String(iid)) || null : null,
+                                staff_name: sid ? userMap.get(String(sid)) || null : null,
+                            };
+                        });
+                    }
+                } catch (pgErr) {
+                    console.error('[get_biometric_telemetry PG error]:', pgErr);
+                }
+            }
+            const debug: any = { hasPool: !!pool, hasSupabase: !!supabase, pgDevices: devices.length, pgLogs: logs.length, sbError: null as any };
+            if (logs.length === 0 && supabase) {
+                try {
+                    const { data: sbDevs } = await supabase.from('biometric_devices').select('*').limit(50);
+                    if (sbDevs && sbDevs.length && devices.length === 0) devices = sbDevs;
+                    let { data: sbLogs, error: sbErr } = await supabase.from('staff_attendance_logs').select('*').order('punch_time', { ascending: false }).limit(200);
+                    if (sbErr) {
+                        debug.sbError = sbErr.message;
+                        const retry = await supabase.from('staff_attendance_logs').select('*').limit(200);
+                        sbLogs = retry.data;
+                        if (retry.error) debug.sbError = retry.error.message;
+                    }
+                    if (sbLogs) {
+                        const { data: sbInsts } = await supabase.from('institutions').select('id, name');
+                        const instMap = new Map((sbInsts || []).map((r: any): [string, any] => [String(r.id), r.name]));
+                        logs = sbLogs.map((l: any) => {
+                            const iid = l.institution_id || l.institutionId;
+                            return { ...l, institution_name: l.institution_name || (iid ? instMap.get(String(iid)) || null : null) };
+                        });
+                    }
+                } catch (e: any) {
+                    debug.sbError = String(e?.message || e);
+                }
+            }
+            debug.finalDevices = devices.length;
+            debug.finalLogs = logs.length;
+            return res.status(200).json({ success: true, devices, logs, debug });
+        }
+
         if (req.method === 'GET') {
             if (action === 'checkEmail') {
                 const { email } = req.query;
@@ -636,86 +738,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (userError) results['users'] = userError.message;
 
                 return res.status(200).json({ success: true, results });
-            }
-
-            if (action === 'get_biometric_telemetry') {
-                let logs: any[] = [];
-                let devices: any[] = [];
-                const pool = await getPgPool();
-                if (pool) {
-                    try {
-                        const devRes = await pool.query(
-                            `SELECT d.*, i.name as institution_name 
-                             FROM public.biometric_devices d 
-                             LEFT JOIN public.institutions i ON (i.id = d.institution_id OR i.id = d."institutionId")
-                             ORDER BY d.last_sync_at DESC NULLS LAST LIMIT 100`
-                        ).catch(() => ({ rows: [] }));
-                        devices = devRes.rows || [];
-
-                        const logRes: any = await pool.query(
-                            `SELECT l.*, i.name as institution_name, u.name as staff_name
-                             FROM public.staff_attendance_logs l
-                             LEFT JOIN public.institutions i ON (i.id = l.institution_id OR i.id = l."institutionId")
-                             LEFT JOIN public.users u ON (u.id = l.staff_id OR u.id = l."staffId")
-                             ORDER BY l.punch_time DESC NULLS LAST LIMIT 250`
-                        ).catch((e: any) => {
-                            console.warn('[get_biometric_telemetry] joined log query failed, using fallback:', e?.message || e);
-                            return null;
-                        });
-                        if (logRes && logRes.rows) {
-                            logs = logRes.rows;
-                        } else {
-                            // Fallback: schema may lack some columns (e.g. camelCase variants). Select plainly and enrich in JS.
-                            const q = async (sql: string) => pool.query(sql).then((r: any) => r.rows || []).catch(() => null);
-                            const rawLogs =
-                                (await q(`SELECT * FROM public.staff_attendance_logs ORDER BY punch_time DESC NULLS LAST LIMIT 250`)) ||
-                                (await q(`SELECT * FROM public.staff_attendance_logs ORDER BY created_at DESC NULLS LAST LIMIT 250`)) ||
-                                (await q(`SELECT * FROM public.staff_attendance_logs LIMIT 250`)) ||
-                                [];
-                            const insts = (await q(`SELECT id, name FROM public.institutions`)) || [];
-                            const usrs = (await q(`SELECT id, name FROM public.users`)) || [];
-                            const instMap = new Map(insts.map((r: any): [string, any] => [String(r.id), r.name]));
-                            const userMap = new Map(usrs.map((r: any): [string, any] => [String(r.id), r.name]));
-                            logs = rawLogs.map((l: any) => {
-                                const iid = l.institution_id || l.institutionId;
-                                const sid = l.staff_id || l.staffId;
-                                return {
-                                    ...l,
-                                    institution_name: iid ? instMap.get(String(iid)) || null : null,
-                                    staff_name: sid ? userMap.get(String(sid)) || null : null,
-                                };
-                            });
-                        }
-                    } catch (pgErr) {
-                        console.error('[get_biometric_telemetry PG error]:', pgErr);
-                    }
-                }
-                const debug: any = { hasPool: !!pool, hasSupabase: !!supabase, pgLogs: logs.length, sbError: null as any };
-                if (logs.length === 0 && supabase) {
-                    try {
-                        const { data: sbDevs } = await supabase.from('biometric_devices').select('*').limit(50);
-                        if (sbDevs && sbDevs.length) devices = sbDevs;
-                        let { data: sbLogs, error: sbErr } = await supabase.from('staff_attendance_logs').select('*').order('punch_time', { ascending: false }).limit(200);
-                        if (sbErr) {
-                            debug.sbError = sbErr.message;
-                            const retry = await supabase.from('staff_attendance_logs').select('*').limit(200);
-                            sbLogs = retry.data;
-                            if (retry.error) debug.sbError = retry.error.message;
-                        }
-                        if (sbLogs) {
-                            const { data: sbInsts } = await supabase.from('institutions').select('id, name');
-                            const instMap = new Map((sbInsts || []).map((r: any): [string, any] => [String(r.id), r.name]));
-                            logs = sbLogs.map((l: any) => {
-                                const iid = l.institution_id || l.institutionId;
-                                return { ...l, institution_name: l.institution_name || (iid ? instMap.get(String(iid)) || null : null) };
-                            });
-                        }
-                    } catch (e: any) {
-                        debug.sbError = String(e?.message || e);
-                    }
-                }
-                debug.finalLogs = logs.length;
-                return res.status(200).json({ success: true, devices, logs, debug });
             }
 
             if (action === 'reassign_biometric_device') {
