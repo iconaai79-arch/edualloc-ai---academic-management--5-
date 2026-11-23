@@ -690,15 +690,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         console.error('[get_biometric_telemetry PG error]:', pgErr);
                     }
                 }
+                const debug: any = { hasPool: !!pool, hasSupabase: !!supabase, pgLogs: logs.length, sbError: null as any };
                 if (logs.length === 0 && supabase) {
                     try {
                         const { data: sbDevs } = await supabase.from('biometric_devices').select('*').limit(50);
-                        if (sbDevs) devices = sbDevs;
-                        const { data: sbLogs } = await supabase.from('staff_attendance_logs').select('*').order('punch_time', { ascending: false }).limit(200);
-                        if (sbLogs) logs = sbLogs;
-                    } catch (_) {}
+                        if (sbDevs && sbDevs.length) devices = sbDevs;
+                        let { data: sbLogs, error: sbErr } = await supabase.from('staff_attendance_logs').select('*').order('punch_time', { ascending: false }).limit(200);
+                        if (sbErr) {
+                            debug.sbError = sbErr.message;
+                            const retry = await supabase.from('staff_attendance_logs').select('*').limit(200);
+                            sbLogs = retry.data;
+                            if (retry.error) debug.sbError = retry.error.message;
+                        }
+                        if (sbLogs) {
+                            const { data: sbInsts } = await supabase.from('institutions').select('id, name');
+                            const instMap = new Map((sbInsts || []).map((r: any): [string, any] => [String(r.id), r.name]));
+                            logs = sbLogs.map((l: any) => {
+                                const iid = l.institution_id || l.institutionId;
+                                return { ...l, institution_name: l.institution_name || (iid ? instMap.get(String(iid)) || null : null) };
+                            });
+                        }
+                    } catch (e: any) {
+                        debug.sbError = String(e?.message || e);
+                    }
                 }
-                return res.status(200).json({ success: true, devices, logs });
+                debug.finalLogs = logs.length;
+                return res.status(200).json({ success: true, devices, logs, debug });
             }
 
             if (action === 'reassign_biometric_device') {

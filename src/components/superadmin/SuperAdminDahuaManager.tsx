@@ -100,7 +100,10 @@ export const SuperAdminDahuaManager: React.FC<SuperAdminDahuaManagerProps> = ({
                 if (data.success) {
                     setDevices(data.devices || []);
                     setLogs(data.logs || []);
+                    if (data.debug) console.info('[SuperAdminDahuaManager] telemetry debug:', data.debug);
                 }
+            } else {
+                console.warn('[SuperAdminDahuaManager] telemetry HTTP', res.status, await res.text().catch(() => ''));
             }
         } catch (err) {
             console.warn('[SuperAdminDahuaManager] Error loading telemetry:', err);
