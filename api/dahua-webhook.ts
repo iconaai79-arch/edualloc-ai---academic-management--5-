@@ -1,5 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { randomUUID } from 'crypto';
 
 /**
  * Dahua Access Control / Face Recognition HTTP Push Webhook
@@ -1151,6 +1152,7 @@ async function reprocessHistoricalDahuaLogs({
     // 4. Upsert aggregated daily attendance records into staff_attendance_daily
     let dailyRecordsSynced = 0;
     const datesSyncedSet = new Set<string>();
+    const syncErrors: string[] = [];
 
     for (const group of dailyGroups.values()) {
         group.times.sort((a, b) => a.getTime() - b.getTime());
@@ -1168,86 +1170,98 @@ async function reprocessHistoricalDahuaLogs({
         const lastIso = group.times.length > 1 ? lastOut.toISOString() : null;
 
         if (supabase) {
-            const { data: existingDaily } = await supabase
-                .from('staff_attendance_daily')
-                .select('id')
-                .eq('institution_id', institutionId)
-                .eq('staff_id', group.staffId)
-                .eq('attendance_date', group.dateStr)
-                .maybeSingle();
-
-            if (existingDaily?.id) {
-                await supabase
+            try {
+                const { data: existingDaily } = await supabase
                     .from('staff_attendance_daily')
-                    .update({
+                    .select('id')
+                    .eq('institution_id', institutionId)
+                    .eq('staff_id', group.staffId)
+                    .eq('attendance_date', group.dateStr)
+                    .maybeSingle();
+
+                let writeErr: any = null;
+                if (existingDaily?.id) {
+                    const { error } = await supabase
+                        .from('staff_attendance_daily')
+                        .update({
+                            first_in: firstIso,
+                            last_out: lastIso,
+                            total_hours: totalHours,
+                            overtime_hours: overtimeHours,
+                            late_minutes: lateMinutes,
+                            punch_count: punchCount,
+                            status: 'present',
+                            updated_at: new Date().toISOString(),
+                        })
+                        .eq('id', existingDaily.id);
+                    writeErr = error;
+                } else {
+                    const { error } = await supabase.from('staff_attendance_daily').insert({
+                        id: randomUUID(),
+                        institution_id: institutionId,
+                        staff_id: group.staffId,
+                        attendance_date: group.dateStr,
                         first_in: firstIso,
                         last_out: lastIso,
                         total_hours: totalHours,
                         overtime_hours: overtimeHours,
                         late_minutes: lateMinutes,
+                        early_leave_minutes: 0,
                         punch_count: punchCount,
                         status: 'present',
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq('id', existingDaily.id);
-            } else {
-                await supabase.from('staff_attendance_daily').insert({
-                    institution_id: institutionId,
-                    staff_id: group.staffId,
-                    attendance_date: group.dateStr,
-                    first_in: firstIso,
-                    last_out: lastIso,
-                    total_hours: totalHours,
-                    overtime_hours: overtimeHours,
-                    late_minutes: lateMinutes,
-                    early_leave_minutes: 0,
-                    punch_count: punchCount,
-                    status: 'present',
-                });
+                    });
+                    writeErr = error;
+                }
+                if (writeErr) {
+                    console.warn('[Dahua Reprocess] Supabase daily upsert error:', writeErr.message || writeErr);
+                    if (syncErrors.length < 5) syncErrors.push(String(writeErr.message || writeErr));
+                } else {
+                    dailyRecordsSynced++;
+                    datesSyncedSet.add(group.dateStr);
+                }
+            } catch (sbErr: any) {
+                if (syncErrors.length < 5) syncErrors.push(String(sbErr?.message || sbErr));
             }
-            dailyRecordsSynced++;
-            datesSyncedSet.add(group.dateStr);
         } else if (pool) {
-            const existingRes = await pool
-                .query(
+            try {
+                const existingRes = await pool.query(
                     `SELECT id FROM public.staff_attendance_daily
-                     WHERE (institution_id = $1 OR "institutionId" = $1)
-                       AND (staff_id = $2 OR "staffId" = $2)
-                       AND (attendance_date = $3 OR "attendanceDate" = $3)
+                     WHERE institution_id::text = $1
+                       AND staff_id::text = $2
+                       AND attendance_date::text LIKE $3 || '%'
                      LIMIT 1`,
                     [institutionId, group.staffId, group.dateStr]
-                )
-                .catch(() => ({ rows: [] }));
+                );
 
-            if (existingRes.rows?.[0]?.id) {
-                await pool
-                    .query(
+                if (existingRes.rows?.[0]?.id) {
+                    await pool.query(
                         `UPDATE public.staff_attendance_daily
-                         SET first_in = $1, "firstIn" = $1,
-                             last_out = $2, "lastOut" = $2,
-                             total_hours = $3, "totalHours" = $3,
-                             overtime_hours = $4, "overtimeHours" = $4,
-                             late_minutes = $5, "lateMinutes" = $5,
-                             punch_count = $6, "punchCount" = $6,
+                         SET first_in = $1,
+                             last_out = $2,
+                             total_hours = $3,
+                             overtime_hours = $4,
+                             late_minutes = $5,
+                             punch_count = $6,
                              status = 'present',
                              updated_at = CURRENT_TIMESTAMP
                          WHERE id = $7`,
                         [firstIso, lastIso, totalHours, overtimeHours, lateMinutes, punchCount, existingRes.rows[0].id]
-                    )
-                    .catch(() => {});
-            } else {
-                const newId = `sad_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                await pool
-                    .query(
+                    );
+                } else {
+                    const newId = randomUUID();
+                    await pool.query(
                         `INSERT INTO public.staff_attendance_daily
-                         (id, institution_id, "institutionId", staff_id, "staffId", attendance_date, "attendanceDate", first_in, "firstIn", last_out, "lastOut", total_hours, "totalHours", overtime_hours, "overtimeHours", late_minutes, "lateMinutes", early_leave_minutes, "earlyLeaveMinutes", punch_count, "punchCount", status)
-                         VALUES ($1, $2, $2, $3, $3, $4, $4, $5, $5, $6, $6, $7, $7, $8, $8, $9, $9, 0, 0, $10, $10, 'present')`,
+                         (id, institution_id, staff_id, attendance_date, first_in, last_out, total_hours, overtime_hours, late_minutes, early_leave_minutes, punch_count, status)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, $10, 'present')`,
                         [newId, institutionId, group.staffId, group.dateStr, firstIso, lastIso, totalHours, overtimeHours, lateMinutes, punchCount]
-                    )
-                    .catch(() => {});
+                    );
+                }
+                dailyRecordsSynced++;
+                datesSyncedSet.add(group.dateStr);
+            } catch (pgErr: any) {
+                console.warn('[Dahua Reprocess] PG daily upsert error:', pgErr?.message || pgErr);
+                if (syncErrors.length < 5) syncErrors.push(String(pgErr?.message || pgErr));
             }
-            dailyRecordsSynced++;
-            datesSyncedSet.add(group.dateStr);
         }
     }
 
@@ -1261,5 +1275,6 @@ async function reprocessHistoricalDahuaLogs({
         dailyRecordsSynced,
         datesSynced: Array.from(datesSyncedSet).sort(),
         unmatchedPins: Array.from(unmatchedPinsSet).slice(0, 30),
+        ...(syncErrors.length > 0 ? { syncErrors } : {}),
     };
 }

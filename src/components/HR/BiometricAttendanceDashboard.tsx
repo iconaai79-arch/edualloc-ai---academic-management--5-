@@ -132,17 +132,30 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         return isNaN(d.getTime()) ? val : d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     };
 
+    const normalizeAttendanceDate = (val: any): string => {
+        if (!val) return '';
+        const s = String(val).trim();
+        // Handle ISO strings like "2026-04-15T00:00:00.000Z" or plain "2026-04-15"
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+        const parsed = new Date(s);
+        if (!isNaN(parsed.getTime())) {
+            const eat = new Date(parsed.getTime() + 3 * 60 * 60 * 1000);
+            return eat.toISOString().slice(0, 10);
+        }
+        return s.slice(0, 10);
+    };
+
     const loadTodayAttendance = async () => {
         setLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<any>('staff_attendance_daily', institution.id);
+            const data = await apiService.fetchModuleRecords<any>('staff_attendance_daily', institution.id, { bypassCache: true });
             const filtered = (data || []).filter(r => {
-                const dateVal = r.attendanceDate || r.attendance_date;
+                const dateVal = normalizeAttendanceDate(r.attendanceDate || r.attendance_date);
                 return dateVal === selectedDate;
             }).map(r => ({
                 ...r,
                 staffId: r.staffId || r.staff_id,
-                attendanceDate: r.attendanceDate || r.attendance_date,
+                attendanceDate: normalizeAttendanceDate(r.attendanceDate || r.attendance_date),
                 firstIn: r.firstIn || r.first_in,
                 lastOut: r.lastOut || r.last_out,
                 totalHours: Number(r.totalHours ?? r.total_hours ?? 0) || 0,
@@ -160,15 +173,15 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const loadMonthlyAttendance = async () => {
         setLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<any>('staff_attendance_daily', institution.id);
+            const data = await apiService.fetchModuleRecords<any>('staff_attendance_daily', institution.id, { bypassCache: true });
             const [year, month] = selectedMonth.split('-');
             const filtered = (data || []).filter(r => {
-                const d = r.attendanceDate || r.attendance_date || '';
+                const d = normalizeAttendanceDate(r.attendanceDate || r.attendance_date);
                 return d.startsWith(`${year}-${month}`);
             }).map(r => ({
                 ...r,
                 staffId: r.staffId || r.staff_id,
-                attendanceDate: r.attendanceDate || r.attendance_date,
+                attendanceDate: normalizeAttendanceDate(r.attendanceDate || r.attendance_date),
                 firstIn: r.firstIn || r.first_in,
                 lastOut: r.lastOut || r.last_out,
                 totalHours: Number(r.totalHours ?? r.total_hours ?? 0) || 0,
@@ -721,6 +734,14 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                 await (apiService as any).clearLocalCache('staff_attendance_daily').catch(() => {});
                 await (apiService as any).clearLocalCache('staff_attendance_logs').catch(() => {});
             }
+            // If synced dates exist in another month, switch selectedMonth to the latest synced month so records show immediately
+            if (Array.isArray(data.datesSynced) && data.datesSynced.length > 0) {
+                const latestDate: string = data.datesSynced[data.datesSynced.length - 1];
+                const latestMonth = latestDate.slice(0, 7);
+                if (latestMonth && !data.datesSynced.some((d: string) => d.startsWith(selectedMonth))) {
+                    setSelectedMonth(latestMonth);
+                }
+            }
             await Promise.all([loadTodayAttendance(), loadMonthlyAttendance()]);
 
             if (!options?.silent) {
@@ -729,6 +750,9 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                     : '\n✅ All scanned Device PINs matched enrolled staff!';
                 const dateRangeInfo = Array.isArray(data.datesSynced) && data.datesSynced.length > 0
                     ? `• Dates Recomputed: ${data.datesSynced[0]} → ${data.datesSynced[data.datesSynced.length - 1]} (${data.datesSynced.length} day${data.datesSynced.length === 1 ? '' : 's'})\n`
+                    : '';
+                const errInfo = Array.isArray(data.syncErrors) && data.syncErrors.length > 0
+                    ? `\n⚠️ Sync Warnings: ${data.syncErrors.join(' | ')}`
                     : '';
                 setTestModalResult({
                     deviceName: 'Dahua / Biometric Historical Sync',
@@ -740,7 +764,8 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                         `• Matched Punches: ${data.matchedLogsCount ?? 0}\n` +
                         `• Daily Attendance Records Updated: ${data.dailyRecordsSynced ?? 0}\n` +
                         dateRangeInfo +
-                        unmatchedList,
+                        unmatchedList +
+                        errInfo,
                     timestamp: new Date().toLocaleTimeString(),
                 });
             }
