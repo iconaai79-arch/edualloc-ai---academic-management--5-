@@ -34,6 +34,7 @@ import { SmartPharmacyInventoryImporterModal } from './SmartPharmacyInventoryImp
 import { DispenseMedicationModal } from './DispenseMedicationModal';
 import { PdfViewer } from '../PdfViewer';
 import { SubscriptionExpiryBanner } from '../common/SubscriptionExpiryBanner';
+import { PharmacyProcurementAndExpensesPanel } from './PharmacyProcurementAndExpensesPanel';
 
 
 export function ModernPharmacyManager({ institutionId, currentInstitution, currentUser }: { 
@@ -41,7 +42,7 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
     currentInstitution?: Institution | null;
     currentUser: User;
 }) {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'prescriptions' | 'hr' | 'accounting' | 'automation' | 'reports' | 'sales' | 'config'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'receiving' | 'prescriptions' | 'hr' | 'accounting' | 'expenses' | 'automation' | 'reports' | 'sales' | 'config'>('dashboard');
     const [configSubTab, setConfigSubTab] = useState<'branding' | 'contact' | 'operations'>('branding');
     const [reportsSubTab, setReportsSubTab] = useState<'general' | 'sales'>('general');
     const [salesFilter, setSalesFilter] = useState<'day' | 'week' | 'month' | 'period'>('day');
@@ -181,13 +182,13 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
 
         switch (pharmRole) {
             case 'Pharmacist':
-                return ['dashboard', 'pos', 'inventory', 'prescriptions', 'automation', 'reports'].includes(tab);
+                return ['dashboard', 'pos', 'inventory', 'receiving', 'prescriptions', 'expenses', 'automation', 'reports'].includes(tab);
             case 'Technician':
-                return ['inventory', 'prescriptions'].includes(tab);
+                return ['inventory', 'receiving', 'prescriptions'].includes(tab);
             case 'Cashier':
                 return ['pos'].includes(tab);
             case 'Store Manager':
-                return ['dashboard', 'inventory', 'reports'].includes(tab);
+                return ['dashboard', 'inventory', 'receiving', 'expenses', 'reports'].includes(tab);
             default:
                 // If they are a generic staff member but not in the pharmacy_staff table specifically, 
                 // give them minimal access if they have the retail_agent role (handled above).
@@ -196,7 +197,7 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
     };
 
     const accessibleTabs = useMemo(() => {
-        const allTabs = ['dashboard', 'pos', 'inventory', 'prescriptions', 'hr', 'accounting', 'automation', 'reports', 'sales', 'config'] as const;
+        const allTabs = ['dashboard', 'pos', 'inventory', 'receiving', 'prescriptions', 'expenses', 'hr', 'accounting', 'automation', 'reports', 'sales', 'config'] as const;
         return allTabs.filter(tab => canAccessTab(tab as any));
     }, [currentUser.role, staff]);
 
@@ -737,7 +738,9 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
         dashboard: { label: 'Overview', subtitle: 'Daily KPIs & AI stock alerts' },
         pos: { label: 'POS Terminal', subtitle: 'Counter sales & M-Pesa' },
         inventory: { label: 'Drug Inventory', subtitle: 'Stock, FEFO batches & expiry' },
+        receiving: { label: 'Receive Stock', subtitle: 'Supplier GRN & batch intake' },
         prescriptions: { label: 'Prescriptions', subtitle: 'Clinical Rx queue & audit' },
+        expenses: { label: 'Expenses', subtitle: 'Operating bills & stock outlays' },
         sales: { label: 'Sales Ledger', subtitle: 'Receipts & shift history' },
         hr: { label: 'Pharmacy Staff', subtitle: 'Pharmacists & shifts' },
         accounting: { label: 'Accounting', subtitle: 'Expenses, margins & ledger' },
@@ -813,7 +816,9 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
                                             {tab === 'dashboard' && <ChartBarIcon className="w-4 h-4" />}
                                             {tab === 'pos' && <CreditCardIcon className="w-4 h-4" />}
                                             {tab === 'inventory' && <ArchiveBoxIcon className="w-4 h-4" />}
+                                            {tab === 'receiving' && <PlusIcon className="w-4 h-4" />}
                                             {tab === 'prescriptions' && <DocumentTextIcon className="w-4 h-4" />}
+                                            {tab === 'expenses' && <CurrencyIcon className="w-4 h-4" />}
                                             {tab === 'hr' && <UsersIcon className="w-4 h-4" />}
                                             {tab === 'accounting' && <BanknotesIcon className="w-4 h-4" />}
                                             {tab === 'automation' && <SparklesIcon className="w-4 h-4" />}
@@ -879,6 +884,30 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
                         Light Clinical Mode • Live
                     </span>
                 </div>
+
+            {/* RECEIVE STOCK FROM SUPPLIERS (GRN) */}
+            {activeTab === 'receiving' && (
+                <PharmacyProcurementAndExpensesPanel
+                    mode="receiving"
+                    institutionId={institutionId}
+                    pharmacyName={settings?.pharmacyName || currentInstitution?.name || 'Pharmacy & Chemist'}
+                    currentUser={currentUser}
+                    inventory={inventory}
+                    onRefreshData={loadData}
+                />
+            )}
+
+            {/* PHARMACY EXPENSES MODULE */}
+            {activeTab === 'expenses' && (
+                <PharmacyProcurementAndExpensesPanel
+                    mode="expenses"
+                    institutionId={institutionId}
+                    pharmacyName={settings?.pharmacyName || currentInstitution?.name || 'Pharmacy & Chemist'}
+                    currentUser={currentUser}
+                    inventory={inventory}
+                    onRefreshData={loadData}
+                />
+            )}
 
             {/* DASHBOARD VIEW */}
             {activeTab === 'dashboard' && (
