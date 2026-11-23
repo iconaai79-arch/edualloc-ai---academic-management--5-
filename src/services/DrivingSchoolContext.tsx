@@ -1864,7 +1864,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                         sms = `Hello ${student.fullName}, your ${portalTitle} lesson is scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}. Manage here: ${actionLink}`;
                     }
                     
-                    await apiService.sendSms(student.phone, sms, activeSmsConfig, 1, institutionId, undefined, true).catch(e => console.error("SMS to student failed", e));
+                    await apiService.sendSms(student.phone, sms, activeSmsConfig, 1, institutionId).catch(e => console.error("SMS to student failed", e));
                 }
             }
 
@@ -1891,7 +1891,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                         ? `Reminder: Your lesson with ${student.fullName} starts at ${lesson.startTime}. Vehicle: ${vehicle?.plateNumber || 'N/A'}.`
                         : `Hello ${instructor.name}, a new lesson with ${student.fullName} has been scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}.`;
                     
-                    await apiService.sendSms(instructor.phone, sms, activeSmsConfig, 1, institutionId, undefined, true).catch(e => console.error("SMS to instructor failed", e));
+                    await apiService.sendSms(instructor.phone, sms, activeSmsConfig, 1, institutionId).catch(e => console.error("SMS to instructor failed", e));
                 }
             }
 

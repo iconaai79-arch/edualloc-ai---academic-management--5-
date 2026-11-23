@@ -2380,31 +2380,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 // If not found in institutions table, check if institutionId is a branch
                 if (!institution) {
-                    const { data: bData } = await supabase
-                        .from('branches')
-                        .select('id, institution_id, linked_institution_id, name')
-                        .or(`id.eq.${institutionId},linked_institution_id.eq.${institutionId},id.eq.br_${cleanId}`)
-                        .maybeSingle();
-
-                    if (bData && bData.institution_id) {
-                        resolvedBranchRecord = bData;
-                        effectiveBillableInstId = bData.institution_id;
-                        const pCleanId = String(effectiveBillableInstId).replace(/^(inst_|br_)/i, '');
-                        const { data: parentInst, error: parentErr } = await supabase
-                            .from('institutions')
-                            .select('id, name, sms_balance, sms_config')
-                            .or(`id.eq.${effectiveBillableInstId},id.eq.inst_${pCleanId},id.eq.${pCleanId}`)
+                    if (supabase) {
+                        const { data: bData } = await supabase
+                            .from('branches')
+                            .select('id, institution_id, linked_institution_id, name')
+                            .or(`id.eq.${institutionId},linked_institution_id.eq.${institutionId},id.eq.br_${cleanId}`)
                             .maybeSingle();
 
-                        if (!parentErr && parentInst) {
-                            institution = parentInst;
-                            configError = null;
+                        if (bData && bData.institution_id) {
+                            resolvedBranchRecord = bData;
+                            effectiveBillableInstId = bData.institution_id;
+                            const pCleanId = String(effectiveBillableInstId).replace(/^(inst_|br_)/i, '');
+                            const { data: parentInst, error: parentErr } = await supabase
+                                .from('institutions')
+                                .select('id, name, sms_balance, sms_config')
+                                .or(`id.eq.${effectiveBillableInstId},id.eq.inst_${pCleanId},id.eq.${pCleanId}`)
+                                .maybeSingle();
+
+                            if (!parentErr && parentInst) {
+                                institution = parentInst;
+                                configError = null;
+                            }
+                        }
+                    } else {
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                const bRes = await pool.query(
+                                    'SELECT id, institution_id, linked_institution_id, name FROM public.branches WHERE id = $1 OR linked_institution_id = $1 OR id = $2 LIMIT 1',
+                                    [institutionId, `br_${cleanId}`]
+                                );
+                                const bData = bRes?.rows?.[0];
+                                if (bData && bData.institution_id) {
+                                    resolvedBranchRecord = bData;
+                                    effectiveBillableInstId = bData.institution_id;
+                                    const pCleanId = String(effectiveBillableInstId).replace(/^(inst_|br_)/i, '');
+                                    const pRes = await pool.query(
+                                        'SELECT id, name, sms_balance, sms_config FROM public.institutions WHERE id = $1 OR id = $2 OR id = $3 LIMIT 1',
+                                        [effectiveBillableInstId, `inst_${pCleanId}`, pCleanId]
+                                    );
+                                    if (pRes?.rows?.[0]) {
+                                        institution = pRes.rows[0];
+                                        configError = null;
+                                    }
+                                }
+                            }
+                        } catch (bErr: any) {
+                            console.warn('[SMS Gateway] Direct PG branch lookup error:', bErr?.message || bErr);
                         }
                     }
                 }
 
                 if (!configError && institution) {
-                    instBalance = institution.sms_balance ?? (institution as any).smsBalance ?? 0;
+                    if (institution.id) {
+                        effectiveBillableInstId = institution.id;
+                    }
+                    instBalance = Number(institution.sms_balance ?? (institution as any).smsBalance ?? 0);
                     instConfig = institution.sms_config || (institution as any).smsConfig || {};
                     systemSmsBal = instConfig.systemSmsBalance || 0;
 
@@ -2497,37 +2528,74 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 if (deductedFromGeneral > 0) {
+                    const cleanBillId = String(effectiveBillableInstId).replace(/^inst_/i, '');
+                    const prefixedBillId = `inst_${cleanBillId}`;
                     if (supabase) {
                         try {
                             const { error: rpcErr } = await supabase.rpc('decrement_sms_balance', { inst_id: effectiveBillableInstId, amount: deductedFromGeneral });
                             if (rpcErr) {
                                 const { data: currInst } = await supabase
                                     .from('institutions')
-                                    .select('sms_balance')
-                                    .eq('id', effectiveBillableInstId)
+                                    .select('id, sms_balance')
+                                    .or(`id.eq.${effectiveBillableInstId},id.eq.${prefixedBillId},id.eq.${cleanBillId}`)
                                     .maybeSingle();
                                 if (currInst) {
-                                    const currentBal = currInst.sms_balance ?? (currInst as any).smsBalance ?? 0;
+                                    const currentBal = Number(currInst.sms_balance ?? (currInst as any).smsBalance ?? 0);
                                     remainingBalance = Math.max(0, currentBal - deductedFromGeneral);
-                                    await supabase
+                                    const targetRowId = currInst.id || effectiveBillableInstId;
+                                    const { error: updBothErr } = await supabase
                                         .from('institutions')
-                                        .update({ sms_balance: remainingBalance })
-                                        .eq('id', effectiveBillableInstId);
+                                        .update({ sms_balance: remainingBalance, smsBalance: remainingBalance } as any)
+                                        .eq('id', targetRowId);
+                                    if (updBothErr) {
+                                        await supabase
+                                            .from('institutions')
+                                            .update({ sms_balance: remainingBalance })
+                                            .eq('id', targetRowId);
+                                    }
                                 }
                             } else {
                                 remainingBalance = Math.max(0, instBalance - deductedFromGeneral);
+                                // Keep camelCase smsBalance column in sync if present
+                                await supabase
+                                    .from('institutions')
+                                    .update({ smsBalance: remainingBalance } as any)
+                                    .eq('id', effectiveBillableInstId)
+                                    .then(() => {}, () => {});
                             }
                         } catch (_) {}
                     } else {
                         try {
                             const pool = await getPgPool();
                             if (pool) {
-                                await pool.query(
-                                    'UPDATE public.institutions SET sms_balance = GREATEST(0, COALESCE(sms_balance, 0) - $1) WHERE id = $2',
-                                    [deductedFromGeneral, effectiveBillableInstId]
+                                const pgDec = await pool.query(
+                                    `UPDATE public.institutions
+                                     SET sms_balance = GREATEST(0, COALESCE(sms_balance, 0) - $1)
+                                     WHERE id = $2 OR id = $3 OR id = $4
+                                     RETURNING id, sms_balance`,
+                                    [deductedFromGeneral, effectiveBillableInstId, cleanBillId, prefixedBillId]
                                 );
+                                if (pgDec?.rows?.[0]) {
+                                    remainingBalance = Number(pgDec.rows[0].sms_balance ?? Math.max(0, instBalance - deductedFromGeneral));
+                                    // Sync camelCase "smsBalance" column and JSONB data keys so reads never return stale balance
+                                    await pool.query(
+                                        `UPDATE public.institutions
+                                         SET "smsBalance" = sms_balance,
+                                             data = jsonb_set(
+                                                 jsonb_set(COALESCE(data, '{}'::jsonb), '{sms_balance}', to_jsonb(COALESCE(sms_balance, 0)), true),
+                                                 '{smsBalance}', to_jsonb(COALESCE(sms_balance, 0)), true
+                                             )
+                                         WHERE id = $1 OR id = $2 OR id = $3`,
+                                        [pgDec.rows[0].id, cleanBillId, prefixedBillId]
+                                    ).catch(() => {});
+                                } else {
+                                    remainingBalance = Math.max(0, instBalance - deductedFromGeneral);
+                                }
                             }
-                        } catch (_) {}
+                        } catch (pgDecErr: any) {
+                            console.error('[SMS Gateway] Direct PG balance decrement error:', pgDecErr?.message || pgDecErr);
+                            remainingBalance = Math.max(0, instBalance - deductedFromGeneral);
+                        }
                     }
                 }
 
