@@ -278,8 +278,22 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
             }
         });
 
+        // Build set of known stream tokens so combined strings like "Grade 1 East" split accurately
+        const knownStreamTokens = new Set<string>([
+            'east', 'west', 'north', 'south', 'central',
+            'red', 'blue', 'green', 'yellow', 'white', 'gold', 'silver',
+            'alpha', 'beta', 'gamma', 'delta',
+            ...(institution?.streamDefinitions || []).map(s => String(s || '').trim().toLowerCase()).filter(Boolean),
+            ...courses.flatMap(c => (c.levels || []).map((l: any) => String(l?.name || '').trim().toLowerCase())).filter(Boolean),
+        ]);
+
         // Map strictly from deduplicated enrollments matching Student Enrollment Manager
-        return enrollments.map((e, idx) => {
+        return enrollments.filter(e => {
+            if (!e) return false;
+            const st = String(e.status || '').trim().toLowerCase();
+            if (st === 'deleted' || e.metadata?.enrollmentDeleted === true) return false;
+            return true;
+        }).map((e, idx) => {
             const eUserId = (e.userId || e.user_id || e.student_id || '').toLowerCase();
             const eAdm = (e.admissionNumber || e.admission_number || e.admNo || e.metadata?.admissionNumber || e.metadata?.studentAdmNo || '').toString().trim().toLowerCase();
             const eNormAdm = normAdm(eAdm);
@@ -289,6 +303,10 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                                 (eAdm && userMapByAdm.get(eAdm)) || 
                                 (eNormAdm && userMapByNormAdm.get(eNormAdm)) ||
                                 (e.id && userMapById.get(e.id.toLowerCase()));
+
+            if (matchedUser && (String((matchedUser as any).status || '').trim().toLowerCase() === 'deleted' || (matchedUser as any).metadata?.enrollmentDeleted === true)) {
+                return null;
+            }
 
             // Extract real name
             let candidateName = extractStudentName(matchedUser);
@@ -306,6 +324,10 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 candidateName = e.name;
             }
 
+            if (candidateName && candidateName.toLowerCase().includes('(deleted)')) {
+                return null;
+            }
+
             let adm = e.admissionNumber || 
                       e.admission_number || 
                       e.admNo || 
@@ -321,7 +343,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
             const userCourse = courses.find(c => c.id === e.courseId || c.id === matchedUser?.courseId);
             const userLevel = userCourse?.levels?.find((l: any) => l.id === e.courseLevelId || l.id === matchedUser?.courseLevelId);
 
-            const gradeLevel = (
+            let gradeLevel = (
                 e.metadata?.gradeLevel || 
                 e.gradeLevel || 
                 e.classLevel || 
@@ -332,9 +354,9 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 matchedUser?.metadata?.gradeLevel || 
                 userCourse?.name || 
                 ''
-            ).toString().trim();
+            ).toString().trim().replace(/\s+/g, ' ');
 
-            const stream = (
+            let stream = (
                 e.metadata?.stream || 
                 e.stream || 
                 e.streamName || 
@@ -345,7 +367,20 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 userLevel?.name || 
                 e.section ||
                 ''
-            ).toString().trim();
+            ).toString().trim().replace(/\s+/g, ' ');
+
+            // Split combined grade+stream strings (e.g. "Grade 1 East" -> gradeLevel: "Grade 1", stream: "East")
+            if (gradeLevel) {
+                const parts = gradeLevel.split(' ');
+                if (parts.length >= 2) {
+                    const lastWord = parts[parts.length - 1];
+                    const lastLower = lastWord.toLowerCase();
+                    if (knownStreamTokens.has(lastLower) || (stream && lastLower === stream.toLowerCase())) {
+                        gradeLevel = parts.slice(0, -1).join(' ').trim();
+                        if (!stream) stream = lastWord;
+                    }
+                }
+            }
 
             let classDisplay = '';
             if (gradeLevel && stream) {
@@ -374,8 +409,8 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 classStr: classDisplay,
                 metadata: { ...(matchedUser?.metadata || {}), ...(e.metadata || {}) }
             } as User & { admissionNumber: string; gradeLevel: string; stream: string; classDisplay: string; classStr: string };
-        });
-    }, [liveUsers, enrollments, courses, institutionId]);
+        }).filter((item): item is User & { admissionNumber: string; gradeLevel: string; stream: string; classDisplay: string; classStr: string } => item !== null);
+    }, [liveUsers, enrollments, courses, institutionId, institution]);
 
     const classOptions = useMemo(() => {
         const rawGrades: string[] = [];
@@ -509,10 +544,12 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
         });
 
         const filteredStudents = processed.filter(u => u.role === 'student').filter(s => {
-            const sGrade = ((s as any).gradeLevel || '').trim().toLowerCase();
-            const sStream = ((s as any).stream || '').trim().toLowerCase();
-            const matchesClass = classFilter === 'all' || sGrade === classFilter.trim().toLowerCase();
-            const matchesStream = streamFilter === 'all' || sStream === streamFilter.trim().toLowerCase();
+            const sGrade = norm((s as any).gradeLevel);
+            const sStream = norm((s as any).stream);
+            const targetClass = norm(classFilter);
+            const targetStream = norm(streamFilter);
+            const matchesClass = classFilter === 'all' || sGrade === targetClass;
+            const matchesStream = streamFilter === 'all' || sStream === targetStream;
             return matchesClass && matchesStream;
         });
 
@@ -597,9 +634,9 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                             <p className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 font-mono uppercase tracking-widest">
                                 {member.role === 'student' ? (member.admissionNumber || member.admission_number || 'No ADM') : (member.staffId || 'No ID')}
                             </p>
-                            {member.role === 'student' && (member.gradeLevel || member.stream) && (
+                            {member.role === 'student' && (member.classDisplay || member.gradeLevel || member.stream) && (
                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                    • {member.gradeLevel} {member.stream}
+                                    • {member.classDisplay || `${member.gradeLevel || ''} ${member.stream || ''}`.trim()}
                                 </p>
                             )}
                             <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-[7px] font-black text-slate-500 rounded uppercase tracking-tighter">
@@ -678,7 +715,10 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                     <div className="flex gap-3 flex-wrap">
                         <select
                             value={classFilter}
-                            onChange={e => setClassFilter(e.target.value)}
+                            onChange={e => {
+                                setClassFilter(e.target.value);
+                                setStreamFilter('all');
+                            }}
                             className="px-4 py-2 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 font-bold text-xs shadow-sm outline-none min-w-[140px] text-slate-700 dark:text-slate-200"
                         >
                             <option value="all">All Classes</option>
