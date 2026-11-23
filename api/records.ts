@@ -613,6 +613,152 @@ const ensureEssentialSchema = async (pool: any) => {
         );
         CREATE INDEX IF NOT EXISTS idx_ng_cdf_school_grants_inst ON public.ng_cdf_school_grants(institution_id);
 
+        CREATE TABLE IF NOT EXISTS public.edu_sacco_access_admins (
+            id TEXT PRIMARY KEY DEFAULT ('sacco_access_' || substr(md5(random()::text || clock_timestamp()::text), 1, 16)),
+            institution_id TEXT,
+            "institutionId" TEXT,
+            admins JSONB DEFAULT '[]'::jsonb,
+            updated_by TEXT,
+            "updatedBy" TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_edu_sacco_access_admins_inst ON public.edu_sacco_access_admins(institution_id);
+
+        CREATE TABLE IF NOT EXISTS public.edu_sacco_members (
+            id TEXT PRIMARY KEY DEFAULT ('sacco_m_' || substr(md5(random()::text || clock_timestamp()::text), 1, 16)),
+            institution_id TEXT,
+            "institutionId" TEXT,
+            user_id TEXT,
+            "userId" TEXT,
+            member_number TEXT,
+            "memberNumber" TEXT,
+            "mem43berNumber" TEXT,
+            name TEXT,
+            role TEXT,
+            phone_number TEXT,
+            "phoneNumber" TEXT,
+            email TEXT,
+            share_capital DOUBLE PRECISION DEFAULT 0,
+            "shareCapital" DOUBLE PRECISION DEFAULT 0,
+            savings_balance DOUBLE PRECISION DEFAULT 0,
+            "savingsBalance" DOUBLE PRECISION DEFAULT 0,
+            monthly_contribution DOUBLE PRECISION DEFAULT 0,
+            "monthlyContribution" DOUBLE PRECISION DEFAULT 0,
+            next_of_kin_name TEXT,
+            "nextOfKinName" TEXT,
+            next_of_kin_phone TEXT,
+            "nextOfKinPhone" TEXT,
+            status TEXT DEFAULT 'active',
+            joined_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "joinedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_edu_sacco_members_inst ON public.edu_sacco_members(institution_id);
+
+        CREATE TABLE IF NOT EXISTS public.edu_sacco_loan_products (
+            id TEXT PRIMARY KEY DEFAULT ('sacco_lp_' || substr(md5(random()::text || clock_timestamp()::text), 1, 16)),
+            institution_id TEXT,
+            "institutionId" TEXT,
+            name TEXT,
+            savings_multiplier DOUBLE PRECISION DEFAULT 3,
+            "savingsMultiplier" DOUBLE PRECISION DEFAULT 3,
+            monthly_interest_rate DOUBLE PRECISION DEFAULT 1,
+            "monthlyInterestRate" DOUBLE PRECISION DEFAULT 1,
+            interest_type TEXT DEFAULT 'reducing',
+            "interestType" TEXT DEFAULT 'reducing',
+            max_months INTEGER DEFAULT 24,
+            "maxMonths" INTEGER DEFAULT 24,
+            processing_fee_percent DOUBLE PRECISION DEFAULT 1,
+            "processingFeePercent" DOUBLE PRECISION DEFAULT 1,
+            is_active BOOLEAN DEFAULT TRUE,
+            "isActive" BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_edu_sacco_loan_products_inst ON public.edu_sacco_loan_products(institution_id);
+
+        CREATE TABLE IF NOT EXISTS public.edu_sacco_loans (
+            id TEXT PRIMARY KEY DEFAULT ('sacco_l_' || substr(md5(random()::text || clock_timestamp()::text), 1, 16)),
+            institution_id TEXT,
+            "institutionId" TEXT,
+            member_id TEXT,
+            "memberId" TEXT,
+            member_name TEXT,
+            "memberName" TEXT,
+            member_number TEXT,
+            "memberNumber" TEXT,
+            product_id TEXT,
+            "productId" TEXT,
+            product_name TEXT,
+            "productName" TEXT,
+            principal DOUBLE PRECISION DEFAULT 0,
+            interest_rate DOUBLE PRECISION DEFAULT 0,
+            "interestRate" DOUBLE PRECISION DEFAULT 0,
+            interest_type TEXT DEFAULT 'reducing',
+            "interestType" TEXT DEFAULT 'reducing',
+            months INTEGER DEFAULT 12,
+            processing_fee DOUBLE PRECISION DEFAULT 0,
+            "processingFee" DOUBLE PRECISION DEFAULT 0,
+            total_interest DOUBLE PRECISION DEFAULT 0,
+            "totalInterest" DOUBLE PRECISION DEFAULT 0,
+            total_repayable DOUBLE PRECISION DEFAULT 0,
+            "totalRepayable" DOUBLE PRECISION DEFAULT 0,
+            monthly_installment DOUBLE PRECISION DEFAULT 0,
+            "monthlyInstallment" DOUBLE PRECISION DEFAULT 0,
+            amount_paid DOUBLE PRECISION DEFAULT 0,
+            "amountPaid" DOUBLE PRECISION DEFAULT 0,
+            balance_remaining DOUBLE PRECISION DEFAULT 0,
+            "balanceRemaining" DOUBLE PRECISION DEFAULT 0,
+            guarantors JSONB DEFAULT '[]'::jsonb,
+            status TEXT DEFAULT 'pending_approval',
+            disbursement_mode TEXT,
+            "disbursementMode" TEXT,
+            disbursement_ref TEXT,
+            "disbursementRef" TEXT,
+            disbursed_at TIMESTAMPTZ,
+            "disbursedAt" TIMESTAMPTZ,
+            approved_by TEXT,
+            "approvedBy" TEXT,
+            purpose TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_edu_sacco_loans_inst ON public.edu_sacco_loans(institution_id);
+
+        CREATE TABLE IF NOT EXISTS public.edu_sacco_txns (
+            id TEXT PRIMARY KEY DEFAULT ('sacco_tx_' || substr(md5(random()::text || clock_timestamp()::text), 1, 16)),
+            institution_id TEXT,
+            "institutionId" TEXT,
+            member_id TEXT,
+            "memberId" TEXT,
+            member_name TEXT,
+            "memberName" TEXT,
+            member_number TEXT,
+            "memberNumber" TEXT,
+            type TEXT,
+            amount DOUBLE PRECISION DEFAULT 0,
+            mode TEXT,
+            reference TEXT,
+            notes TEXT,
+            recorded_by TEXT,
+            "recordedBy" TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_edu_sacco_txns_inst ON public.edu_sacco_txns(institution_id);
+
         DO $$
         BEGIN
             -- 0. Ensure county_id exists on core county-scoped tables (institutions, users, county_bursary_funds)
@@ -1930,7 +2076,7 @@ const fetchViaDirectPg = async (
     const errMsgStr = String(err?.message || '');
     const isMissingTableError = err?.code === '42P01' || (/relation ".*" does not exist/i.test(errMsgStr) && err?.code !== '42703');
     if (isMissingTableError) {
-      if (['system_settings', 'invoices', 'receipts', 'bank_feed_transactions', 'observation_notes', 'building_offices', 'building_floors', 'building_visitor_logs', 'building_visitor_assets', 'car_test_drives', 'ng_cdf_school_grants'].includes(table)) {
+      if (['system_settings', 'invoices', 'receipts', 'bank_feed_transactions', 'observation_notes', 'building_offices', 'building_floors', 'building_visitor_logs', 'building_visitor_assets', 'car_test_drives', 'ng_cdf_school_grants', 'edu_sacco_access_admins', 'edu_sacco_members', 'edu_sacco_loan_products', 'edu_sacco_loans', 'edu_sacco_txns'].includes(table)) {
         try {
           _schemaMigrationDone = false;
           _schemaMigrationPromise = null;
