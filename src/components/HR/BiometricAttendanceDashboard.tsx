@@ -12,7 +12,24 @@ interface BiometricAttendanceDashboardProps {
     institution: Institution;
 }
 
-type SubTab = 'today' | 'monthly' | 'devices' | 'enrollment' | 'unmatched';
+type SubTab = 'today' | 'monthly' | 'devices' | 'enrollment' | 'unmatched' | 'shifts';
+
+interface HrShiftTemplate {
+    id: string;
+    institutionId: string;
+    name: string;
+    startTime: string;
+    endTime: string;
+    isOvernight: boolean;
+    graceMinutes: number;
+    earlyLeaveGraceMinutes: number;
+    standardHours: number;
+    assignedRoles: string[];
+    overtimeMultiplier: number;
+    nightAllowance: number;
+    isDefault: boolean;
+    isActive: boolean;
+}
 
 interface DevicePerson {
     pin: string;
@@ -136,11 +153,161 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const [linkingPin, setLinkingPin] = useState<string | null>(null);
     const [showMatchedPersons, setShowMatchedPersons] = useState(false);
 
+    // Shift Config & Staff Rotation states
+    const [shifts, setShifts] = useState<HrShiftTemplate[]>([]);
+    const [staffShiftAssignments, setStaffShiftAssignments] = useState<Record<string, string>>({});
+    const [loadingShifts, setLoadingShifts] = useState(false);
+    const [savingShift, setSavingShift] = useState(false);
+    const [assigningStaffId, setAssigningStaffId] = useState<string | null>(null);
+    const [staffShiftSearch, setStaffShiftSearch] = useState('');
+    const [shiftForm, setShiftForm] = useState<{
+        id?: string;
+        name: string;
+        startTime: string;
+        endTime: string;
+        graceMinutes: number;
+        earlyLeaveGraceMinutes: number;
+        standardHours: number;
+        assignedRolesText: string;
+        overtimeMultiplier: number;
+        nightAllowance: number;
+        isDefault: boolean;
+    }>({
+        name: '',
+        startTime: '08:00',
+        endTime: '17:00',
+        graceMinutes: 15,
+        earlyLeaveGraceMinutes: 10,
+        standardHours: 8,
+        assignedRolesText: '',
+        overtimeMultiplier: 1.5,
+        nightAllowance: 0,
+        isDefault: false,
+    });
+
     // Fetch data
     useEffect(() => {
         loadDevices();
         loadEnrollments();
+        loadShifts();
     }, [institution.id]);
+
+    useEffect(() => {
+        if (subTab === 'shifts') loadShifts();
+    }, [subTab, institution.id]);
+
+    const loadShifts = async () => {
+        setLoadingShifts(true);
+        try {
+            const res = await fetch(`/api/dahua-webhook?action=get_shifts&institutionId=${encodeURIComponent(institution.id)}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    setShifts(data.shifts || []);
+                    setStaffShiftAssignments(data.staffAssignments || {});
+                }
+            }
+        } catch (err) {
+            console.warn('[BiometricAttendance] Failed to load shifts:', err);
+        } finally {
+            setLoadingShifts(false);
+        }
+    };
+
+    const handleSaveShift = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!shiftForm.name.trim()) {
+            alert('Please enter a shift name (e.g. Morning Shift, Night Shift Security).');
+            return;
+        }
+        setSavingShift(true);
+        try {
+            const roles = shiftForm.assignedRolesText
+                .split(',')
+                .map(s => s.trim().toLowerCase())
+                .filter(Boolean);
+            const res = await fetch('/api/dahua-webhook?action=save_shift', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    institutionId: institution.id,
+                    shift: {
+                        id: shiftForm.id,
+                        name: shiftForm.name.trim(),
+                        startTime: shiftForm.startTime,
+                        endTime: shiftForm.endTime,
+                        graceMinutes: Number(shiftForm.graceMinutes) || 0,
+                        earlyLeaveGraceMinutes: Number(shiftForm.earlyLeaveGraceMinutes) || 0,
+                        standardHours: Number(shiftForm.standardHours) || 8,
+                        assignedRoles: roles,
+                        overtimeMultiplier: Number(shiftForm.overtimeMultiplier) || 1.5,
+                        nightAllowance: Number(shiftForm.nightAllowance) || 0,
+                        isDefault: shiftForm.isDefault,
+                    },
+                }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setShifts(data.shifts || []);
+                setStaffShiftAssignments(data.staffAssignments || {});
+                setShiftForm({
+                    name: '',
+                    startTime: '08:00',
+                    endTime: '17:00',
+                    graceMinutes: 15,
+                    earlyLeaveGraceMinutes: 10,
+                    standardHours: 8,
+                    assignedRolesText: '',
+                    overtimeMultiplier: 1.5,
+                    nightAllowance: 0,
+                    isDefault: false,
+                });
+            } else {
+                alert(data.error || 'Failed to save shift.');
+            }
+        } catch (err: any) {
+            alert('Error saving shift: ' + (err?.message || err));
+        } finally {
+            setSavingShift(false);
+        }
+    };
+
+    const handleDeleteShift = async (shiftId: string) => {
+        if (!confirm('Delete this shift template? Staff assigned to it will fall back to role/default shift.')) return;
+        try {
+            const res = await fetch('/api/dahua-webhook?action=delete_shift', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ institutionId: institution.id, shiftId }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setShifts(data.shifts || []);
+                setStaffShiftAssignments(data.staffAssignments || {});
+            }
+        } catch (err: any) {
+            alert('Error deleting shift: ' + (err?.message || err));
+        }
+    };
+
+    const handleAssignStaffShift = async (staffId: string, shiftId: string) => {
+        setAssigningStaffId(staffId);
+        try {
+            const res = await fetch('/api/dahua-webhook?action=assign_staff_shift', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ institutionId: institution.id, staffId, shiftId }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setStaffShiftAssignments(data.staffAssignments || {});
+            }
+        } catch (err: any) {
+            alert('Error assigning staff shift: ' + (err?.message || err));
+        } finally {
+            setAssigningStaffId(null);
+        }
+    };
 
     useEffect(() => {
         if (subTab === 'today') loadTodayAttendance();
@@ -225,7 +392,10 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         lateMinutes: Number(r.lateMinutes ?? r.late_minutes ?? 0) || 0,
         earlyLeaveMinutes: Number(r.earlyLeaveMinutes ?? r.early_leave_minutes ?? 0) || 0,
         punchCount: Number(r.punchCount ?? r.punch_count ?? 1) || 1,
-        status: r.status || 'present'
+        status: r.status || 'present',
+        shiftId: r.shiftId || r.shift_id || null,
+        shiftName: r.shiftName || r.shift_name || null,
+        isNightShift: Boolean(r.isNightShift ?? r.is_night_shift ?? false),
     });
 
     const loadTodayAttendance = async (silent = false) => {
@@ -1075,6 +1245,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const subTabs: { id: SubTab; label: string }[] = [
         { id: 'today', label: "Today's Roll Call" },
         { id: 'monthly', label: 'Monthly Register' },
+        { id: 'shifts', label: 'Shift Config' },
         { id: 'devices', label: 'Device Fleet' },
         { id: 'enrollment', label: 'Staff Enrollment' },
         { id: 'unmatched', label: 'Unmatched Users' },
@@ -1237,11 +1408,16 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                                         {displayName.charAt(0)}
                                                     </div>
                                                     <div>
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="flex items-center gap-2 flex-wrap">
                                                             <p className="text-sm font-black text-slate-900 dark:text-white">{displayName}</p>
                                                             <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase ${teacher ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}`}>
                                                                 {teacher ? 'Teacher' : 'Other Staff'}
                                                             </span>
+                                                            {(rec as any).shiftName && (
+                                                                <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase ${(rec as any).isNightShift ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
+                                                                    {(rec as any).isNightShift ? '🌙 ' : '☀️ '}{(rec as any).shiftName}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{rec.punchCount} punches</p>
                                                     </div>
@@ -1808,6 +1984,334 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                 )}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══════════ SHIFT CONFIG & STAFF ROTATION ═══════════ */}
+            {subTab === 'shifts' && (
+                <div className="space-y-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        {/* Shift Templates List */}
+                        <div className="lg:col-span-7 bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm p-8 space-y-6">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Configured Work Shifts</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                        Morning, Night (Security), Kitchen & Custom Schedules
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleSyncPreviousLogs()}
+                                    disabled={syncingPreviousLogs}
+                                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md transition-all cursor-pointer"
+                                    title="Re-evaluate biometric punches using the current shift schedules"
+                                >
+                                    {syncingPreviousLogs ? '⏳ Recalculating...' : '🔄 Recalculate Attendance'}
+                                </button>
+                            </div>
+
+                            {loadingShifts ? (
+                                <div className="py-10 text-center text-slate-400 text-xs font-bold">Loading shift schedules...</div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {shifts.map(sh => (
+                                        <div
+                                            key={sh.id}
+                                            className={`p-5 rounded-3xl border transition-all ${
+                                                sh.isOvernight
+                                                    ? 'bg-violet-50/40 dark:bg-violet-950/20 border-violet-200 dark:border-violet-800/60'
+                                                    : 'bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700'
+                                            }`}
+                                        >
+                                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                                <div>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="text-sm font-black text-slate-900 dark:text-white">
+                                                            {sh.isOvernight ? '🌙' : '☀️'} {sh.name}
+                                                        </span>
+                                                        {sh.isDefault && (
+                                                            <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 text-[8px] font-black uppercase">
+                                                                Default
+                                                            </span>
+                                                        )}
+                                                        {sh.isOvernight && (
+                                                            <span className="px-2 py-0.5 rounded-md bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 text-[8px] font-black uppercase">
+                                                                Overnight
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-1">
+                                                        {sh.startTime} → {sh.endTime} {sh.isOvernight ? '(next day)' : ''} • {sh.standardHours}h standard • {sh.graceMinutes}m grace
+                                                    </p>
+                                                    <div className="flex flex-wrap gap-2 mt-2 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                                        <span>OT: {sh.overtimeMultiplier}x</span>
+                                                        {sh.nightAllowance > 0 && (
+                                                            <span className="text-violet-600 dark:text-violet-300">• Night Allowance: KES {sh.nightAllowance.toLocaleString()}/shift</span>
+                                                        )}
+                                                        {sh.assignedRoles.length > 0 && (
+                                                            <span>• Auto-Roles: {sh.assignedRoles.join(', ')}</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShiftForm({
+                                                            id: sh.id,
+                                                            name: sh.name,
+                                                            startTime: sh.startTime,
+                                                            endTime: sh.endTime,
+                                                            graceMinutes: sh.graceMinutes,
+                                                            earlyLeaveGraceMinutes: sh.earlyLeaveGraceMinutes,
+                                                            standardHours: sh.standardHours,
+                                                            assignedRolesText: sh.assignedRoles.join(', '),
+                                                            overtimeMultiplier: sh.overtimeMultiplier,
+                                                            nightAllowance: sh.nightAllowance,
+                                                            isDefault: sh.isDefault,
+                                                        })}
+                                                        className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 cursor-pointer"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    {!sh.isDefault && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteShift(sh.id)}
+                                                            className="px-3 py-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl text-[9px] font-black uppercase tracking-widest cursor-pointer"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Add / Edit Shift Form */}
+                        <form onSubmit={handleSaveShift} className="lg:col-span-5 bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm p-8 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                                        {shiftForm.id ? 'Edit Shift Schedule' : 'Add Shift Schedule'}
+                                    </h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                        Overnight is auto-detected when End ≤ Start
+                                    </p>
+                                </div>
+                                {shiftForm.id && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShiftForm({
+                                            name: '', startTime: '08:00', endTime: '17:00', graceMinutes: 15,
+                                            earlyLeaveGraceMinutes: 10, standardHours: 8, assignedRolesText: '',
+                                            overtimeMultiplier: 1.5, nightAllowance: 0, isDefault: false
+                                        })}
+                                        className="text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase"
+                                    >
+                                        Cancel Edit
+                                    </button>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Shift Name *</label>
+                                <input
+                                    type="text"
+                                    value={shiftForm.name}
+                                    onChange={e => setShiftForm(f => ({ ...f, name: e.target.value }))}
+                                    placeholder="e.g. Night Shift (Security)"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Start Time</label>
+                                    <input
+                                        type="time"
+                                        value={shiftForm.startTime}
+                                        onChange={e => setShiftForm(f => ({ ...f, startTime: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">End Time</label>
+                                    <input
+                                        type="time"
+                                        value={shiftForm.endTime}
+                                        onChange={e => setShiftForm(f => ({ ...f, endTime: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Std Hours</label>
+                                    <input
+                                        type="number"
+                                        step="0.5"
+                                        min="1"
+                                        value={shiftForm.standardHours}
+                                        onChange={e => setShiftForm(f => ({ ...f, standardHours: Number(e.target.value) }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Late Grace (m)</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={shiftForm.graceMinutes}
+                                        onChange={e => setShiftForm(f => ({ ...f, graceMinutes: Number(e.target.value) }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">OT Rate (x)</label>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        min="1"
+                                        value={shiftForm.overtimeMultiplier}
+                                        onChange={e => setShiftForm(f => ({ ...f, overtimeMultiplier: Number(e.target.value) }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Night Allowance (KES/Shift)</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={shiftForm.nightAllowance}
+                                        onChange={e => setShiftForm(f => ({ ...f, nightAllowance: Number(e.target.value) }))}
+                                        placeholder="e.g. 300"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div className="flex items-end pb-2">
+                                    <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={shiftForm.isDefault}
+                                            onChange={e => setShiftForm(f => ({ ...f, isDefault: e.target.checked }))}
+                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        Default Institution Shift
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                                    Auto-Assign Role / Designation Keywords (comma separated)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={shiftForm.assignedRolesText}
+                                    onChange={e => setShiftForm(f => ({ ...f, assignedRolesText: e.target.value }))}
+                                    placeholder="e.g. security, watchman, guard, kitchen"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={savingShift}
+                                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-lg transition-all cursor-pointer"
+                            >
+                                {savingShift ? 'Saving Shift...' : (shiftForm.id ? 'Update Shift Schedule' : 'Save New Shift')}
+                            </button>
+                        </form>
+                    </div>
+
+                    {/* Staff Shift Assignment & Day/Night Rotation */}
+                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Staff Shift Assignment & Rotation</h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                    Override individual staff (e.g. rotate a security guard between Day & Night shift)
+                                </p>
+                            </div>
+                            <input
+                                type="text"
+                                value={staffShiftSearch}
+                                onChange={e => setStaffShiftSearch(e.target.value)}
+                                placeholder="Search staff name or role..."
+                                className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-64"
+                            />
+                        </div>
+                        <div className="overflow-x-auto max-h-[420px]">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="bg-slate-50/80 dark:bg-slate-900/50">
+                                        <th className="text-left px-8 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Staff Member</th>
+                                        <th className="text-left px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Role / Designation</th>
+                                        <th className="text-left px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Active Shift</th>
+                                        <th className="text-right px-8 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Assign / Rotate Shift</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {staff
+                                        .filter(s => {
+                                            if (!staffShiftSearch.trim()) return true;
+                                            const q = staffShiftSearch.toLowerCase();
+                                            const desig = String((s as any).metadata?.designation || '').toLowerCase();
+                                            return (s.name || '').toLowerCase().includes(q) || (s.role || '').toLowerCase().includes(q) || desig.includes(q);
+                                        })
+                                        .map(s => {
+                                            const explicitShiftId = staffShiftAssignments[s.id] || '';
+                                            const combinedRole = [s.role, (s as any).metadata?.designation, (s as any).metadata?.jobTitle].filter(Boolean).join(' ').toLowerCase();
+                                            const autoMatched = shifts.find(sh => sh.assignedRoles.some(kw => kw && combinedRole.includes(kw))) || shifts.find(sh => sh.isDefault) || shifts[0];
+                                            const effectiveShift = (explicitShiftId ? shifts.find(sh => sh.id === explicitShiftId) : null) || autoMatched;
+                                            return (
+                                                <tr key={s.id} className="border-t border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                                                    <td className="px-8 py-3.5 text-sm font-black text-slate-900 dark:text-white">{s.name}</td>
+                                                    <td className="px-4 py-3.5 text-xs font-bold text-slate-500 dark:text-slate-400 capitalize">
+                                                        {(s as any).metadata?.designation || s.role || 'Staff'}
+                                                    </td>
+                                                    <td className="px-4 py-3.5">
+                                                        {effectiveShift ? (
+                                                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black ${
+                                                                effectiveShift.isOvernight
+                                                                    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300'
+                                                                    : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                                            }`}>
+                                                                {effectiveShift.isOvernight ? '🌙' : '☀️'} {effectiveShift.name} ({effectiveShift.startTime}–{effectiveShift.endTime})
+                                                                <span className="opacity-60 font-bold ml-1">[{explicitShiftId ? 'Manual' : 'Auto'}]</span>
+                                                            </span>
+                                                        ) : '—'}
+                                                    </td>
+                                                    <td className="px-8 py-3.5 text-right">
+                                                        <select
+                                                            value={explicitShiftId}
+                                                            disabled={assigningStaffId === s.id}
+                                                            onChange={e => handleAssignStaffShift(s.id, e.target.value)}
+                                                            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
+                                                        >
+                                                            <option value="">Auto ({autoMatched?.name || 'Default'})</option>
+                                                            {shifts.map(sh => (
+                                                                <option key={sh.id} value={sh.id}>
+                                                                    {sh.isOvernight ? '🌙 ' : '☀️ '}{sh.name} ({sh.startTime}–{sh.endTime})
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}

@@ -173,6 +173,9 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
     const [isProcessing, setIsProcessing] = useState(false);
     const [useBiometric, setUseBiometric] = useState(false);
     const [autoSyncSacco, setAutoSyncSacco] = useState(true);
+    const [autoSyncShiftAllowances, setAutoSyncShiftAllowances] = useState(true);
+    const [shiftTemplates, setShiftTemplates] = useState<any[]>([]);
+    const [shiftDailyRecords, setShiftDailyRecords] = useState<any[]>([]);
     const [saccoMembers, setSaccoMembers] = useState<any[]>(() => {
         try {
             const raw = localStorage.getItem(`eduai_sacco_members_${institution.id || 'default_inst'}`);
@@ -213,6 +216,36 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
         });
         return () => { active = false; };
     }, [institution.id]);
+
+    // Fetch real monthly biometric attendance & shift templates for Overtime & Night Shift Allowance auto-sync
+    useEffect(() => {
+        if (!institution.id) return;
+        let active = true;
+        const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const [mName, yStr] = selectedMonth.split(' ');
+        const mIdx = monthNames.indexOf(mName);
+        const yr = parseInt(yStr, 10) || new Date().getFullYear();
+        const mm = String((mIdx >= 0 ? mIdx : new Date().getMonth()) + 1).padStart(2, '0');
+        const lastDay = new Date(yr, (mIdx >= 0 ? mIdx : new Date().getMonth()) + 1, 0).getDate();
+        const startDate = `${yr}-${mm}-01`;
+        const endDate = `${yr}-${mm}-${String(lastDay).padStart(2, '0')}`;
+
+        Promise.all([
+            fetch(`/api/dahua-webhook?action=get_shifts&institutionId=${encodeURIComponent(institution.id)}`).then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch(`/api/dahua-webhook?action=daily_records&institutionId=${encodeURIComponent(institution.id)}&startDate=${startDate}&endDate=${endDate}`).then(r => r.ok ? r.json() : null).catch(() => null),
+        ]).then(([shData, dailyData]) => {
+            if (!active) return;
+            if (shData?.success && Array.isArray(shData.shifts)) {
+                setShiftTemplates(shData.shifts);
+            }
+            if (dailyData?.success && Array.isArray(dailyData.records)) {
+                setShiftDailyRecords(dailyData.records);
+            } else {
+                setShiftDailyRecords([]);
+            }
+        });
+        return () => { active = false; };
+    }, [institution.id, selectedMonth]);
     const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null);
     const [showDesignerModal, setShowDesignerModal] = useState(false);
     const [showStatutorySettingsModal, setShowStatutorySettingsModal] = useState(false);
@@ -287,9 +320,52 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
             if (typeof m === 'string') {
                 try { m = JSON.parse(m); } catch (e) { m = {}; }
             }
-            const assignedAllowances: Array<{ name: string; amount: number; type?: string }> = Array.isArray(m.assignedAllowances) ? m.assignedAllowances : [];
+            const baseAssignedAllowances: Array<{ name: string; amount: number; type?: string }> = Array.isArray(m.assignedAllowances) ? m.assignedAllowances : [];
+            const assignedAllowances = [...baseAssignedAllowances];
             const baseAssignedDeductions: Array<{ name: string; amount: number; type?: string; referenceNumber?: string }> = Array.isArray(m.assignedDeductions) ? m.assignedDeductions : [];
             const assignedDeductions = [...baseAssignedDeductions];
+
+            // Compute monthly biometric shift summary (Overtime Hours & Night Shifts Worked)
+            const staffMonthRecs = shiftDailyRecords.filter((r: any) => String(r.staffId || r.staff_id) === String(s.id));
+            const totalOvertimeHours = Math.round(staffMonthRecs.reduce((sum: number, r: any) => sum + (Number(r.overtimeHours ?? r.overtime_hours ?? 0) || 0), 0) * 100) / 100;
+            const nightShiftRecs = staffMonthRecs.filter((r: any) => Boolean(r.isNightShift ?? r.is_night_shift));
+            const nightShiftsWorked = nightShiftRecs.length;
+
+            if (autoSyncShiftAllowances && (nightShiftsWorked > 0 || totalOvertimeHours > 0)) {
+                // Night shift allowance based on each record's configured shift nightAllowance (fallback to first overnight shift template)
+                const fallbackNightShift = shiftTemplates.find((sh: any) => sh.isOvernight);
+                const nightAllowanceTotal = Math.round(
+                    nightShiftRecs.reduce((sum: number, r: any) => {
+                        const sh = shiftTemplates.find((t: any) => t.id === (r.shiftId || r.shift_id)) || fallbackNightShift;
+                        return sum + (Number(sh?.nightAllowance) || 0);
+                    }, 0)
+                );
+                if (nightAllowanceTotal > 0 && !assignedAllowances.some(a => a.name.toLowerCase().includes('night shift'))) {
+                    assignedAllowances.push({
+                        name: `Night Shift Allowance (${nightShiftsWorked} shift${nightShiftsWorked === 1 ? '' : 's'})`,
+                        amount: nightAllowanceTotal,
+                        type: 'shift_auto',
+                    });
+                }
+
+                // Overtime pay based on staff basic salary / (22 working days * standardHours) * overtimeHours * overtimeMultiplier
+                if (totalOvertimeHours > 0 && staffBasicSalary > 0 && !assignedAllowances.some(a => a.name.toLowerCase().includes('overtime'))) {
+                    const matchedShift = shiftTemplates.find((t: any) => t.id === (staffMonthRecs[0]?.shiftId || staffMonthRecs[0]?.shift_id))
+                        || shiftTemplates.find((t: any) => t.isDefault)
+                        || { standardHours: 8, overtimeMultiplier: 1.5 };
+                    const stdH = Number(matchedShift.standardHours) > 0 ? Number(matchedShift.standardHours) : 8;
+                    const otMult = Number(matchedShift.overtimeMultiplier) >= 1 ? Number(matchedShift.overtimeMultiplier) : 1.5;
+                    const hourlyRate = staffBasicSalary / (22 * stdH);
+                    const overtimePay = Math.round(hourlyRate * totalOvertimeHours * otMult);
+                    if (overtimePay > 0) {
+                        assignedAllowances.push({
+                            name: `Biometric Overtime (${totalOvertimeHours}h @ ${otMult}x)`,
+                            amount: overtimePay,
+                            type: 'shift_auto',
+                        });
+                    }
+                }
+            }
 
             // Auto-sync Staff SACCO Check-Off (Monthly Savings + Active Loan Installments)
             if (autoSyncSacco) {
@@ -337,12 +413,14 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                 customAllowancesSum,
                 customDeductionsSum,
                 adjustedNetSalary,
-                attendance, 
-                payroll, 
-                configuredSalary: configured 
+                attendance,
+                payroll,
+                configuredSalary: configured,
+                nightShiftsWorked,
+                totalOvertimeHours
             };
         });
-    }, [staff, useBiometric, salaryOverrides, autoSyncSacco, saccoMembers, saccoLoans, statutorySettings]);
+    }, [staff, useBiometric, salaryOverrides, autoSyncSacco, saccoMembers, saccoLoans, statutorySettings, autoSyncShiftAllowances, shiftTemplates, shiftDailyRecords]);
 
     const stats = useMemo(() => {
         const currentMonthRecords = localRecords.filter(r => r.month === selectedMonth);
@@ -885,22 +963,42 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                 </div>
             </div>
 
-            {/* Biometric Toggle - Fintech Prestige */}
-            <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950/30 p-8 rounded-[2.5rem] text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border border-emerald-500/20 shadow-xl">
-                <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/30">
-                        <FingerPrintIcon className="w-6 h-6 animate-pulse" />
+            {/* Biometric & Shift Allowances Toggles - Fintech Prestige */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950/30 p-6 sm:p-7 rounded-[2.5rem] text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border border-emerald-500/20 shadow-xl">
+                    <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/30 shrink-0">
+                            <FingerPrintIcon className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-black uppercase tracking-wider text-white">Biometric Attendance Payroll Link</h4>
+                            <p className="text-xs text-slate-300 mt-1">Pro-rate basic salaries by linking biometric check-ins.</p>
+                        </div>
                     </div>
-                    <div>
-                        <h4 className="text-sm font-black uppercase tracking-wider text-white">Biometric Attendance Payroll Link</h4>
-                        <p className="text-xs text-slate-300 mt-1 max-w-lg">Pro-rate basic salaries automatically by linking biometric check-ins. Unpaid absences trigger statutory tax base adjustments.</p>
+                    <div className="flex items-center gap-3 shrink-0">
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${useBiometric ? 'text-emerald-400' : 'text-slate-400'}`}>{useBiometric ? 'Active' : 'Off'}</span>
+                        <button onClick={() => setUseBiometric(!useBiometric)} className={`w-14 h-8 rounded-full transition-all duration-300 relative border ${useBiometric ? 'bg-emerald-500 border-emerald-400' : 'bg-slate-800 border-slate-700'}`}>
+                            <div className={`w-6 h-6 rounded-full bg-white absolute top-0.5 shadow transition-all duration-300 ${useBiometric ? 'right-0.5' : 'left-0.5'}`} />
+                        </button>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${useBiometric ? 'text-emerald-400' : 'text-slate-400'}`}>{useBiometric ? 'Active & Synced' : 'Disabled'}</span>
-                    <button onClick={() => setUseBiometric(!useBiometric)} className={`w-14 h-8 rounded-full transition-all duration-300 relative border ${useBiometric ? 'bg-emerald-500 border-emerald-400' : 'bg-slate-800 border-slate-700'}`}>
-                        <div className={`w-6 h-6 rounded-full bg-white absolute top-0.5 shadow transition-all duration-300 ${useBiometric ? 'right-0.5' : 'left-0.5'}`} />
-                    </button>
+
+                <div className="bg-gradient-to-r from-slate-950 via-indigo-950/60 to-violet-950/40 p-6 sm:p-7 rounded-[2.5rem] text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border border-violet-500/20 shadow-xl">
+                    <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-violet-500/15 rounded-2xl flex items-center justify-center text-violet-300 border border-violet-500/30 shrink-0 text-xl">
+                            🌙
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-black uppercase tracking-wider text-white">Shift Overtime & Night Allowances</h4>
+                            <p className="text-xs text-slate-300 mt-1">Auto-add biometric overtime pay & night-shift allowances from HR Shift Config.</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${autoSyncShiftAllowances ? 'text-violet-300' : 'text-slate-400'}`}>{autoSyncShiftAllowances ? 'Auto-Sync' : 'Off'}</span>
+                        <button onClick={() => setAutoSyncShiftAllowances(!autoSyncShiftAllowances)} className={`w-14 h-8 rounded-full transition-all duration-300 relative border ${autoSyncShiftAllowances ? 'bg-violet-500 border-violet-400' : 'bg-slate-800 border-slate-700'}`}>
+                            <div className={`w-6 h-6 rounded-full bg-white absolute top-0.5 shadow transition-all duration-300 ${autoSyncShiftAllowances ? 'right-0.5' : 'left-0.5'}`} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -938,7 +1036,19 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                                                         <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-black text-sm uppercase flex-shrink-0">{calc.name.charAt(0)}</div>
                                                         <div>
                                                             <p className="text-sm font-black text-slate-900">{calc.name}</p>
-                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{calc.role.replace(/_/g, ' ')}</p>
+                                                            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{calc.role.replace(/_/g, ' ')}</p>
+                                                                {calc.nightShiftsWorked > 0 && (
+                                                                    <span className="px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 text-[8px] font-black uppercase">
+                                                                        🌙 {calc.nightShiftsWorked} Night
+                                                                    </span>
+                                                                )}
+                                                                {calc.totalOvertimeHours > 0 && (
+                                                                    <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[8px] font-black uppercase">
+                                                                        ⏱️ +{calc.totalOvertimeHours}h OT
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </td>

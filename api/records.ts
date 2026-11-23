@@ -8107,6 +8107,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.assessmentNumber && !copy.assessment_no) copy.assessment_no = copy.assessmentNumber;
                     if (copy.dateOfBirth && !copy.date_of_birth) copy.date_of_birth = copy.dateOfBirth;
                     if (copy.dob && !copy.date_of_birth) copy.date_of_birth = copy.dob;
+                    if (copy.date_of_birth === '' || copy.date_of_birth === 'null' || copy.date_of_birth === 'undefined') {
+                        copy.date_of_birth = null;
+                    }
                     if (copy.leadershipPosition && !copy.leadership_position) copy.leadership_position = copy.leadershipPosition;
                     if (copy.enrollmentDate && !copy.enrollment_date) copy.enrollment_date = copy.enrollmentDate;
                     if (copy.courseId && !copy.course_id) copy.course_id = copy.courseId;
@@ -12316,6 +12319,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.assessmentNumber && !copy.assessment_no) copy.assessment_no = copy.assessmentNumber;
                     if (copy.dateOfBirth && !copy.date_of_birth) copy.date_of_birth = copy.dateOfBirth;
                     if (copy.dob && !copy.date_of_birth) copy.date_of_birth = copy.dob;
+                    if (copy.date_of_birth === '' || copy.date_of_birth === 'null' || copy.date_of_birth === 'undefined') {
+                        copy.date_of_birth = null;
+                    }
                     if (copy.leadershipPosition && !copy.leadership_position) copy.leadership_position = copy.leadershipPosition;
                     if (copy.enrollmentDate && !copy.enrollment_date) copy.enrollment_date = copy.enrollmentDate;
                     if (copy.courseId && !copy.course_id) copy.course_id = copy.courseId;
@@ -12833,13 +12839,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
 
                             let validPatchCols: Set<string> | null = null;
+                            const patchColTypes = new Map<string, string>();
                             try {
                                 const colRes = await pool.query(
-                                    `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1`,
+                                    `SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1`,
                                     [targetDbTable]
                                 );
                                 if (colRes?.rows && colRes.rows.length > 0) {
                                     validPatchCols = new Set(colRes.rows.map((r: any) => String(r.column_name)));
+                                    colRes.rows.forEach((r: any) => patchColTypes.set(String(r.column_name), String(r.data_type || '').toLowerCase()));
                                 }
                             } catch (_) {}
 
@@ -12866,6 +12874,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 const vals: any[] = [];
                                 const setClauses = rawKeys.map((k, idx) => {
                                     let v = patchPayload[k];
+                                    const colType = patchColTypes.get(k) || '';
+                                    if (v === '' && (colType.includes('date') || colType.includes('time') || colType.includes('int') || colType.includes('numeric') || colType.includes('double') || colType.includes('real') || colType.includes('bool') || colType.includes('uuid'))) {
+                                        v = null;
+                                    }
                                     if (v !== null && typeof v === 'object') v = JSON.stringify(v);
                                     vals.push(v);
                                     return `"${k}" = $${idx + 1}`;

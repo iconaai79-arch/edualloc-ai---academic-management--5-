@@ -2027,11 +2027,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         try {
             let userId = '';
             
-            // 1. Centralized Identity setup: check if User already exists with the same phone/email locally
-            let existingUser = users.find(u => 
-                (formData.email && u.email && u.email.toLowerCase() === formData.email.toLowerCase()) || 
-                (formData.phoneNumber && u.phoneNumber && u.phoneNumber === formData.phoneNumber)
-            );
+            // 1. Centralized Identity setup: when editing, match existing User by editingEnrollment.userId FIRST
+            const editingUserId = editingEnrollment?.userId || (editingEnrollment as any)?.user_id || '';
+            let existingUser = editingUserId
+                ? users.find(u => u.id === editingUserId)
+                : undefined;
+
+            if (!existingUser) {
+                existingUser = users.find(u => 
+                    (formData.email && u.email && u.email.toLowerCase() === formData.email.toLowerCase()) || 
+                    (formData.phoneNumber && u.phoneNumber && u.phoneNumber === formData.phoneNumber)
+                );
+            }
 
             // Query globally to avoid unique email constraint violation (Error 23505)
             if (!existingUser && formData.email && formData.email.trim()) {
@@ -2043,19 +2050,33 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 }
             }
             
+            const primaryParentForUser = formData.metadata.parents?.[0] || { name: formData.metadata.parentName || '', phone: formData.metadata.parentPhone || '', email: formData.metadata.parentEmail || '', relation: 'Father' };
+            const combinedClassLabel = [formData.metadata.gradeLevel, formData.metadata.stream].filter(Boolean).join(' ').trim();
+
             if (existingUser) {
                 userId = existingUser.id;
                 const studentDob = formData.dateOfBirth || formData.metadata.dateOfBirth || existingUser.dateOfBirth || existingUser.metadata?.dateOfBirth || '';
-                const updatedUser = {
+                const updatedUser: any = {
                     ...existingUser,
+                    name: (formData.fullName || '').trim() || existingUser.name,
                     email: formData.email && formData.email.trim() 
                         ? formData.email.trim() 
                         : (existingUser.email && !existingUser.email.endsWith('@eduai.local') ? existingUser.email : `student_${existingUser.id}@eduai.local`),
                     phoneNumber: formData.phoneNumber || existingUser.phoneNumber || '',
-                    dateOfBirth: studentDob,
-                    dob: studentDob,
+                    admissionNumber: formData.admissionNumber || (existingUser as any).admissionNumber || '',
+                    dateOfBirth: studentDob || undefined,
+                    dob: studentDob || undefined,
                     metadata: {
                         ...(existingUser.metadata || {}),
+                        studentName: (formData.fullName || '').trim() || existingUser.name,
+                        fullName: (formData.fullName || '').trim() || existingUser.name,
+                        admissionNumber: formData.admissionNumber || existingUser.metadata?.admissionNumber || '',
+                        gradeLevel: formData.metadata.gradeLevel || existingUser.metadata?.gradeLevel || '',
+                        stream: formData.metadata.stream || existingUser.metadata?.stream || '',
+                        studentClass: combinedClassLabel || existingUser.metadata?.studentClass || '',
+                        parentName: primaryParentForUser.name || existingUser.metadata?.parentName || '',
+                        parentPhone: primaryParentForUser.phone || existingUser.metadata?.parentPhone || '',
+                        parentEmail: primaryParentForUser.email || existingUser.metadata?.parentEmail || '',
                         dateOfBirth: studentDob,
                         dob: studentDob,
                         passportPhoto: formData.passportPhoto || existingUser.metadata?.passportPhoto,
@@ -2131,6 +2152,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const resolvedLeadership = formData.leadershipPosition || formData.metadata.leadershipPosition || '';
             const metadataToSave = {
                 ...formData.metadata,
+                studentName: (formData.fullName || '').trim(),
+                fullName: (formData.fullName || '').trim(),
+                name: (formData.fullName || '').trim(),
                 admissionNumber: formData.admissionNumber,
                 gradeLevel: formData.metadata.gradeLevel || '',
                 stream: formData.metadata.stream || '',
@@ -2151,21 +2175,24 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             if (editingEnrollment) {
                 const updated: StudentEnrollment = {
                     ...editingEnrollment,
+                    userId: userId || editingEnrollment.userId,
                     courseId: resolvedCourseId || (editingEnrollment as any).courseId || (editingEnrollment as any).course_id || undefined,
                     classId: resolvedClassId || (editingEnrollment as any).classId || (editingEnrollment as any).class_id || undefined,
                     admissionNumber: formData.admissionNumber,
                     assessmentNo: finalAssessmentNo,
-                    dateOfBirth: resolvedDob,
-                    dob: resolvedDob,
+                    dateOfBirth: (resolvedDob || null) as any,
+                    dob: (resolvedDob || null) as any,
                     leadershipPosition: resolvedLeadership,
                     status: formData.status,
                     enrollmentDate: formData.enrollmentDate,
                     metadata: metadataToSave,
                     updatedAt: new Date().toISOString()
                 };
+                (updated as any).user_id = userId || editingEnrollment.userId;
                 (updated as any).admission_number = formData.admissionNumber;
                 (updated as any).course_id = resolvedCourseId || undefined;
                 (updated as any).class_id = resolvedClassId || undefined;
+                (updated as any).date_of_birth = resolvedDob || null;
                 await apiService.updateModuleRecord('student_enrollments', editingEnrollment.id, updated);
                 setStatusMsg({ type: 'success', message: 'Enrollment record updated successfully.' });
             } else {

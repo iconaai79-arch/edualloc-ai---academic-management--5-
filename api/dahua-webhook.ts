@@ -244,6 +244,36 @@ const ensureDahuaTables = async (pool: any) => {
                 UPDATE public.biometric_enrollments SET device_pin = "devicePin" WHERE (device_pin IS NULL OR device_pin = '') AND "devicePin" IS NOT NULL AND "devicePin" <> '';
                 UPDATE public.biometric_enrollments SET "devicePin" = device_pin WHERE ("devicePin" IS NULL OR "devicePin" = '') AND device_pin IS NOT NULL AND device_pin <> '';
             END $$;
+
+            CREATE TABLE IF NOT EXISTS public.hr_shifts (
+                id TEXT PRIMARY KEY DEFAULT ('shift_' || substr(md5(random()::text || clock_timestamp()::text), 1, 16)),
+                institution_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                start_time TEXT NOT NULL DEFAULT '08:00',
+                end_time TEXT NOT NULL DEFAULT '17:00',
+                is_overnight BOOLEAN DEFAULT FALSE,
+                grace_minutes INTEGER DEFAULT 15,
+                early_leave_grace_minutes INTEGER DEFAULT 10,
+                standard_hours NUMERIC DEFAULT 8,
+                assigned_roles TEXT DEFAULT '[]',
+                overtime_multiplier NUMERIC DEFAULT 1.5,
+                night_allowance NUMERIC DEFAULT 0,
+                is_default BOOLEAN DEFAULT FALSE,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_hr_shifts_inst ON public.hr_shifts(institution_id);
+
+            CREATE TABLE IF NOT EXISTS public.hr_staff_shifts (
+                id TEXT PRIMARY KEY DEFAULT ('sshift_' || substr(md5(random()::text || clock_timestamp()::text), 1, 16)),
+                institution_id TEXT NOT NULL,
+                staff_id TEXT NOT NULL,
+                shift_id TEXT NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_hr_staff_shifts_inst ON public.hr_staff_shifts(institution_id);
+            CREATE INDEX IF NOT EXISTS idx_hr_staff_shifts_staff ON public.hr_staff_shifts(staff_id);
         `);
         _dahuaTablesEnsured = true;
     } catch (e: any) {
@@ -265,6 +295,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const action = (req.query.action || '').toString().toLowerCase();
         const institutionId = (req.query.institutionId || req.query.institution_id || '').toString();
         const sn = (req.query.SN || req.query.sn || '').toString();
+
+        if (action === 'get_shifts' || action === 'shifts') {
+            if (!institutionId) {
+                return res.status(400).json({ success: false, error: 'institutionId is required' });
+            }
+            const supabase = getSupabase(req);
+            const pool = await getPgPool();
+            if (pool) await ensureDahuaTables(pool).catch(() => {});
+            if (!supabase && !pool) {
+                return res.status(500).json({ success: false, error: 'DB not configured' });
+            }
+            try {
+                const result = await loadInstitutionShifts(supabase, pool, institutionId, true);
+                return res.status(200).json({ success: true, ...result });
+            } catch (err: any) {
+                console.error('[Dahua Webhook] get_shifts error:', err);
+                return res.status(500).json({ success: false, error: err?.message || 'Failed to load shifts' });
+            }
+        }
 
         if (action === 'daily_records' || action === 'get_daily_attendance') {
             if (!institutionId) {
@@ -544,6 +593,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'POST') {
         const postAction = (req.query.action || (req.body && typeof req.body === 'object' ? (req.body as any).action : '') || '').toString().toLowerCase();
+        if (postAction === 'save_shift' || postAction === 'delete_shift' || postAction === 'assign_staff_shift') {
+            const supabase = getSupabase(req);
+            const pool = await getPgPool();
+            if (pool) await ensureDahuaTables(pool).catch(() => {});
+            if (!supabase && !pool) {
+                return res.status(500).json({ success: false, error: 'Database not configured' });
+            }
+            const bodyObj = (req.body && typeof req.body === 'object') ? (req.body as any) : {};
+            const instId = (req.query.institutionId || req.query.institution_id || bodyObj.institutionId || bodyObj.institution_id || '').toString().trim();
+            if (!instId) {
+                return res.status(400).json({ success: false, error: 'institutionId is required' });
+            }
+            try {
+                if (postAction === 'save_shift') {
+                    const saved = await saveShiftTemplate(supabase, pool, instId, bodyObj.shift || bodyObj);
+                    const state = await loadInstitutionShifts(supabase, pool, instId, false);
+                    return res.status(200).json({ success: true, shift: saved, ...state });
+                }
+                if (postAction === 'delete_shift') {
+                    const shiftId = String(bodyObj.shiftId || bodyObj.id || req.query.shiftId || '').trim();
+                    if (!shiftId) return res.status(400).json({ success: false, error: 'shiftId is required' });
+                    await deleteShiftTemplate(supabase, pool, instId, shiftId);
+                    const state = await loadInstitutionShifts(supabase, pool, instId, false);
+                    return res.status(200).json({ success: true, ...state });
+                }
+                if (postAction === 'assign_staff_shift') {
+                    const staffId = String(bodyObj.staffId || bodyObj.staff_id || '').trim();
+                    const shiftId = String(bodyObj.shiftId || bodyObj.shift_id || '').trim();
+                    if (!staffId) return res.status(400).json({ success: false, error: 'staffId is required' });
+                    await assignStaffShift(supabase, pool, instId, staffId, shiftId);
+                    const state = await loadInstitutionShifts(supabase, pool, instId, false);
+                    return res.status(200).json({ success: true, ...state });
+                }
+            } catch (err: any) {
+                console.error(`[Dahua Webhook] ${postAction} error:`, err);
+                return res.status(500).json({ success: false, error: err?.message || `Failed to ${postAction}` });
+            }
+        }
+
         if (postAction === 'reprocess' || postAction === 'sync_previous' || postAction === 'backfill') {
             const supabase = getSupabase(req);
             const pool = await getPgPool();
@@ -1007,12 +1095,22 @@ async function reprocessHistoricalDahuaLogs({
             ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS early_leave_minutes INTEGER DEFAULT 0;
             ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS punch_count INTEGER DEFAULT 1;
             ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'present';
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS shift_id TEXT;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "shiftId" TEXT;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS shift_name TEXT;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "shiftName" TEXT;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS is_night_shift BOOLEAN DEFAULT FALSE;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "isNightShift" BOOLEAN DEFAULT FALSE;
             ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
             ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
         `).catch((e: any) => console.warn('[Dahua Reprocess] ensure staff_attendance_daily failed:', e?.message || e));
     }
 
-    // 2. Load enrollments, users, and devices for this institution
+    // 2. Load shifts, enrollments, users, and devices for this institution
+    const { shifts: instShifts, staffAssignments } = await loadInstitutionShifts(supabase, pool, institutionId, false).catch(() => ({
+        shifts: getDefaultShiftTemplates(institutionId),
+        staffAssignments: {} as Record<string, string>,
+    }));
     let enrollments: any[] = [];
     let users: any[] = [];
     let devices: any[] = [];
@@ -1022,7 +1120,7 @@ async function reprocessHistoricalDahuaLogs({
         const instFilter = instCandidates.map(id => `institution_id.eq.${id}`).join(',');
         const [enrRes, usrRes, devRes, logRes] = await Promise.all([
             supabase.from('biometric_enrollments').select('*').or(instFilter),
-            supabase.from('users').select('id, staff_id, phone_number, name').or(instFilter),
+            supabase.from('users').select('id, staff_id, phone_number, name, role, metadata').or(instFilter),
             supabase.from('biometric_devices').select('id, serial_number, device_name').or(instFilter),
             supabase.from('staff_attendance_logs').select('*').or(`${instFilter},institution_id.is.null`).order('punch_time', { ascending: true }).limit(5000),
         ]);
@@ -1033,7 +1131,9 @@ async function reprocessHistoricalDahuaLogs({
     } else if (pool) {
         const [enrRes, usrRes, devRes, logRes] = await Promise.all([
             pool.query('SELECT * FROM public.biometric_enrollments WHERE institution_id = ANY($1::text[]) OR "institutionId" = ANY($1::text[])', [instCandidates]).catch(() => ({ rows: [] })),
-            pool.query('SELECT id, staff_id, phone_number, name FROM public.users WHERE institution_id = ANY($1::text[])', [instCandidates]).catch(() => ({ rows: [] })),
+            pool.query('SELECT id, staff_id, phone_number, name, role, metadata FROM public.users WHERE institution_id = ANY($1::text[])', [instCandidates]).catch(async () =>
+                pool.query('SELECT id, staff_id, phone_number, name, role FROM public.users WHERE institution_id = ANY($1::text[])', [instCandidates]).catch(() => ({ rows: [] }))
+            ),
             pool.query('SELECT id, serial_number, device_name FROM public.biometric_devices WHERE institution_id = ANY($1::text[]) OR "institutionId" = ANY($1::text[])', [instCandidates]).catch(() => ({ rows: [] })),
             pool.query('SELECT * FROM public.staff_attendance_logs WHERE institution_id = ANY($1::text[]) OR "institutionId" = ANY($1::text[]) OR institution_id IS NULL ORDER BY COALESCE(punch_time, created_at) ASC LIMIT 5000', [instCandidates]).catch(() => ({ rows: [] })),
         ]);
@@ -1041,6 +1141,15 @@ async function reprocessHistoricalDahuaLogs({
         users = usrRes.rows || [];
         devices = devRes.rows || [];
         rawLogs = logRes.rows || [];
+    }
+
+    const userRoleMap = new Map<string, string>();
+    for (const u of users) {
+        if (!u.id) continue;
+        let meta: any = u.metadata || {};
+        if (typeof meta === 'string') { try { meta = JSON.parse(meta); } catch { meta = {}; } }
+        const combinedRole = [u.role, meta?.designation, meta?.jobTitle, meta?.department, meta?.shiftCategory].filter(Boolean).join(' ').toLowerCase();
+        userRoleMap.set(String(u.id), combinedRole);
     }
 
     const pinToStaff = new Map<string, string>();
@@ -1225,10 +1334,25 @@ async function reprocessHistoricalDahuaLogs({
             }
         }
 
-        const key = `${resolvedStaffId}|${dateStr}`;
+        const assignedShift = resolveShiftForStaff(resolvedStaffId, userRoleMap.get(resolvedStaffId) || '', instShifts, staffAssignments);
+        const punchEat = toKenyaDateStr(punchDate);
+        const punchMin = punchEat.eatHour * 60 + punchEat.eatMin;
+        let effectiveDateStr = dateStr;
+        // For overnight shifts (e.g. Security 18:00 -> 06:00), morning clock-outs between 00:00 and endTime+4h
+        // belong to the previous evening's shift date instead of creating a broken second day.
+        if (assignedShift.isOvernight) {
+            const endMin = parseHHMM(assignedShift.endTime, 6 * 60);
+            if (punchMin <= endMin + 240) {
+                const prevDay = new Date(`${dateStr}T00:00:00Z`);
+                prevDay.setUTCDate(prevDay.getUTCDate() - 1);
+                effectiveDateStr = prevDay.toISOString().slice(0, 10);
+            }
+        }
+
+        const key = `${resolvedStaffId}|${effectiveDateStr}`;
         let group = dailyGroups.get(key);
         if (!group) {
-            group = { staffId: resolvedStaffId, dateStr, times: [] };
+            group = { staffId: resolvedStaffId, dateStr: effectiveDateStr, times: [] };
             dailyGroups.set(key, group);
         }
         group.times.push(punchDate);
@@ -1243,13 +1367,33 @@ async function reprocessHistoricalDahuaLogs({
         group.times.sort((a, b) => a.getTime() - b.getTime());
         const firstIn = group.times[0];
         const lastOut = group.times.length > 1 ? group.times[group.times.length - 1] : firstIn;
+        const shift = resolveShiftForStaff(group.staffId, userRoleMap.get(group.staffId) || '', instShifts, staffAssignments);
         const diffHours = Math.max(0, (lastOut.getTime() - firstIn.getTime()) / (1000 * 60 * 60));
         const totalHours = Math.round(diffHours * 100) / 100;
-        const overtimeHours = totalHours > 8 ? Math.round((totalHours - 8) * 100) / 100 : 0;
-        const { eatHour, eatMin } = toKenyaDateStr(firstIn);
-        const minutesSinceMidnight = eatHour * 60 + eatMin;
-        const lateMinutes = minutesSinceMidnight > 8 * 60 ? minutesSinceMidnight - 8 * 60 : 0;
+        const stdHours = Number(shift.standardHours) > 0 ? Number(shift.standardHours) : 8;
+        const overtimeHours = totalHours > stdHours ? Math.round((totalHours - stdHours) * 100) / 100 : 0;
+
+        // Compute late_minutes & early_leave_minutes relative to the staff member's shift in EAT (UTC+3)
+        const startMin = parseHHMM(shift.startTime, 8 * 60);
+        const endMin = parseHHMM(shift.endTime, 17 * 60);
+        const graceMin = Math.max(0, Number(shift.graceMinutes) || 0);
+        const earlyGraceMin = Math.max(0, Number(shift.earlyLeaveGraceMinutes) || 0);
+
+        const baseUtcMidnightMs = new Date(`${group.dateStr}T00:00:00Z`).getTime() - 3 * 60 * 60 * 1000;
+        const expectedStartMs = baseUtcMidnightMs + startMin * 60 * 1000;
+        const expectedEndMs = baseUtcMidnightMs + ((shift.isOvernight ? 24 * 60 : 0) + endMin) * 60 * 1000;
+
+        const rawLate = Math.round((firstIn.getTime() - expectedStartMs) / 60000);
+        const lateMinutes = rawLate > graceMin ? rawLate : 0;
+
+        let earlyLeaveMinutes = 0;
+        if (group.times.length > 1) {
+            const rawEarly = Math.round((expectedEndMs - lastOut.getTime()) / 60000);
+            earlyLeaveMinutes = rawEarly > earlyGraceMin ? rawEarly : 0;
+        }
+
         const punchCount = group.times.length;
+        const computedStatus = lateMinutes > 0 ? 'late' : 'present';
 
         const firstIso = firstIn.toISOString();
         const lastIso = group.times.length > 1 ? lastOut.toISOString() : null;
@@ -1274,8 +1418,12 @@ async function reprocessHistoricalDahuaLogs({
                             total_hours: totalHours,
                             overtime_hours: overtimeHours,
                             late_minutes: lateMinutes,
+                            early_leave_minutes: earlyLeaveMinutes,
                             punch_count: punchCount,
-                            status: 'present',
+                            status: computedStatus,
+                            shift_id: shift.id,
+                            shift_name: shift.name,
+                            is_night_shift: shift.isOvernight,
                             updated_at: new Date().toISOString(),
                         })
                         .eq('id', existingDaily.id);
@@ -1291,9 +1439,12 @@ async function reprocessHistoricalDahuaLogs({
                         total_hours: totalHours,
                         overtime_hours: overtimeHours,
                         late_minutes: lateMinutes,
-                        early_leave_minutes: 0,
+                        early_leave_minutes: earlyLeaveMinutes,
                         punch_count: punchCount,
-                        status: 'present',
+                        status: computedStatus,
+                        shift_id: shift.id,
+                        shift_name: shift.name,
+                        is_night_shift: shift.isOvernight,
                     });
                     writeErr = error;
                 }
@@ -1326,19 +1477,26 @@ async function reprocessHistoricalDahuaLogs({
                              total_hours = $3,
                              overtime_hours = $4,
                              late_minutes = $5,
-                             punch_count = $6,
-                             status = 'present',
+                             early_leave_minutes = $6,
+                             punch_count = $7,
+                             status = $8,
+                             shift_id = $9,
+                             "shiftId" = $9,
+                             shift_name = $10,
+                             "shiftName" = $10,
+                             is_night_shift = $11,
+                             "isNightShift" = $11,
                              updated_at = CURRENT_TIMESTAMP
-                         WHERE id = $7`,
-                        [firstIso, lastIso, totalHours, overtimeHours, lateMinutes, punchCount, existingRes.rows[0].id]
+                         WHERE id = $12`,
+                        [firstIso, lastIso, totalHours, overtimeHours, lateMinutes, earlyLeaveMinutes, punchCount, computedStatus, shift.id, shift.name, shift.isOvernight, existingRes.rows[0].id]
                     );
                 } else {
                     const newId = randomUUID();
                     await pool.query(
                         `INSERT INTO public.staff_attendance_daily
-                         (id, institution_id, staff_id, attendance_date, first_in, last_out, total_hours, overtime_hours, late_minutes, early_leave_minutes, punch_count, status)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, $10, 'present')`,
-                        [newId, institutionId, group.staffId, group.dateStr, firstIso, lastIso, totalHours, overtimeHours, lateMinutes, punchCount]
+                         (id, institution_id, staff_id, attendance_date, first_in, last_out, total_hours, overtime_hours, late_minutes, early_leave_minutes, punch_count, status, shift_id, "shiftId", shift_name, "shiftName", is_night_shift, "isNightShift")
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13, $14, $14, $15, $15)`,
+                        [newId, institutionId, group.staffId, group.dateStr, firstIso, lastIso, totalHours, overtimeHours, lateMinutes, earlyLeaveMinutes, punchCount, computedStatus, shift.id, shift.name, shift.isOvernight]
                     );
                 }
                 dailyRecordsSynced++;
@@ -1665,6 +1823,9 @@ async function fetchDahuaDailyAttendance(
                 earlyLeaveMinutes: Number(r.early_leave_minutes ?? r.earlyLeaveMinutes ?? 0) || 0,
                 punchCount: Number(r.punch_count ?? r.punchCount ?? 1) || 1,
                 status: r.status || 'present',
+                shiftId: r.shift_id || r.shiftId || null,
+                shiftName: r.shift_name || r.shiftName || null,
+                isNightShift: Boolean(r.is_night_shift ?? r.isNightShift ?? false),
             };
         })
         .filter(r => {
@@ -1679,4 +1840,297 @@ async function fetchDahuaDailyAttendance(
         count: normalized.length,
         records: normalized,
     };
+}
+
+export interface HrShiftConfig {
+    id: string;
+    institutionId: string;
+    name: string;
+    startTime: string;
+    endTime: string;
+    isOvernight: boolean;
+    graceMinutes: number;
+    earlyLeaveGraceMinutes: number;
+    standardHours: number;
+    assignedRoles: string[];
+    overtimeMultiplier: number;
+    nightAllowance: number;
+    isDefault: boolean;
+    isActive: boolean;
+}
+
+function parseHHMM(hhmm: string, fallbackMinutes: number): number {
+    const m = String(hhmm || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return fallbackMinutes;
+    const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));
+    const min = Math.min(59, Math.max(0, parseInt(m[2], 10)));
+    return h * 60 + min;
+}
+
+function getDefaultShiftTemplates(institutionId: string): HrShiftConfig[] {
+    return [
+        {
+            id: `shift_morning_${institutionId}`,
+            institutionId,
+            name: 'Morning / Regular Shift',
+            startTime: '08:00',
+            endTime: '17:00',
+            isOvernight: false,
+            graceMinutes: 15,
+            earlyLeaveGraceMinutes: 10,
+            standardHours: 8,
+            assignedRoles: [],
+            overtimeMultiplier: 1.5,
+            nightAllowance: 0,
+            isDefault: true,
+            isActive: true,
+        },
+        {
+            id: `shift_night_${institutionId}`,
+            institutionId,
+            name: 'Night Shift (Security)',
+            startTime: '18:00',
+            endTime: '06:00',
+            isOvernight: true,
+            graceMinutes: 15,
+            earlyLeaveGraceMinutes: 10,
+            standardHours: 12,
+            assignedRoles: ['security', 'watchman', 'guard', 'night'],
+            overtimeMultiplier: 1.5,
+            nightAllowance: 300,
+            isDefault: false,
+            isActive: true,
+        },
+    ];
+}
+
+function normalizeShiftRow(r: any, institutionId: string): HrShiftConfig {
+    let roles: string[] = [];
+    if (Array.isArray(r.assigned_roles)) {
+        roles = r.assigned_roles.map((x: any) => String(x).trim().toLowerCase()).filter(Boolean);
+    } else if (Array.isArray(r.assignedRoles)) {
+        roles = r.assignedRoles.map((x: any) => String(x).trim().toLowerCase()).filter(Boolean);
+    } else if (typeof r.assigned_roles === 'string' && r.assigned_roles.trim()) {
+        try {
+            const parsed = JSON.parse(r.assigned_roles);
+            if (Array.isArray(parsed)) roles = parsed.map((x: any) => String(x).trim().toLowerCase()).filter(Boolean);
+        } catch {
+            roles = r.assigned_roles.split(',').map((x: string) => x.trim().toLowerCase()).filter(Boolean);
+        }
+    }
+    const startTime = String(r.start_time || r.startTime || '08:00').trim();
+    const endTime = String(r.end_time || r.endTime || '17:00').trim();
+    const isOvernight = r.is_overnight !== undefined
+        ? Boolean(r.is_overnight)
+        : (r.isOvernight !== undefined ? Boolean(r.isOvernight) : parseHHMM(endTime, 1020) <= parseHHMM(startTime, 480));
+    return {
+        id: String(r.id),
+        institutionId: String(r.institution_id || r.institutionId || institutionId),
+        name: String(r.name || 'Shift'),
+        startTime,
+        endTime,
+        isOvernight,
+        graceMinutes: Number(r.grace_minutes ?? r.graceMinutes ?? 15) || 0,
+        earlyLeaveGraceMinutes: Number(r.early_leave_grace_minutes ?? r.earlyLeaveGraceMinutes ?? 10) || 0,
+        standardHours: Number(r.standard_hours ?? r.standardHours ?? (isOvernight ? 12 : 8)) || 8,
+        assignedRoles: roles,
+        overtimeMultiplier: Number(r.overtime_multiplier ?? r.overtimeMultiplier ?? 1.5) || 1.5,
+        nightAllowance: Number(r.night_allowance ?? r.nightAllowance ?? 0) || 0,
+        isDefault: Boolean(r.is_default ?? r.isDefault ?? false),
+        isActive: r.is_active !== false && r.isActive !== false,
+    };
+}
+
+function resolveShiftForStaff(
+    staffId: string,
+    combinedRoleLower: string,
+    shifts: HrShiftConfig[],
+    staffAssignments: Record<string, string>
+): HrShiftConfig {
+    const activeShifts = shifts.filter(s => s.isActive !== false);
+    const list = activeShifts.length > 0 ? activeShifts : shifts;
+    // 1. Explicit per-staff assignment (supports Day <-> Night rotation)
+    const assignedId = staffAssignments[staffId];
+    if (assignedId) {
+        const direct = list.find(s => s.id === assignedId);
+        if (direct) return direct;
+    }
+    // 2. Role / designation keyword match
+    if (combinedRoleLower) {
+        const roleMatch = list.find(s =>
+            Array.isArray(s.assignedRoles) &&
+            s.assignedRoles.some(kw => kw && combinedRoleLower.includes(kw.toLowerCase()))
+        );
+        if (roleMatch) return roleMatch;
+    }
+    // 3. Institution default shift
+    return list.find(s => s.isDefault) || list[0] || getDefaultShiftTemplates('default')[0];
+}
+
+async function loadInstitutionShifts(
+    supabase: any,
+    pool: any,
+    institutionId: string,
+    seedIfEmpty: boolean
+): Promise<{ shifts: HrShiftConfig[]; staffAssignments: Record<string, string> }> {
+    const cleanInst = institutionId.replace(/^inst_/, '');
+    const instCandidates = Array.from(new Set([institutionId, cleanInst, `inst_${cleanInst}`].filter(Boolean)));
+    let shiftRows: any[] = [];
+    let assignRows: any[] = [];
+
+    if (supabase) {
+        const instFilter = instCandidates.map(id => `institution_id.eq.${id}`).join(',');
+        const [sRes, aRes] = await Promise.all([
+            supabase.from('hr_shifts').select('*').or(instFilter).order('created_at', { ascending: true }),
+            supabase.from('hr_staff_shifts').select('*').or(instFilter),
+        ]);
+        shiftRows = sRes.data || [];
+        assignRows = aRes.data || [];
+    } else if (pool) {
+        const [sRes, aRes] = await Promise.all([
+            pool.query('SELECT * FROM public.hr_shifts WHERE institution_id = ANY($1::text[]) ORDER BY is_default DESC, created_at ASC', [instCandidates]).catch(() => ({ rows: [] })),
+            pool.query('SELECT * FROM public.hr_staff_shifts WHERE institution_id = ANY($1::text[])', [instCandidates]).catch(() => ({ rows: [] })),
+        ]);
+        shiftRows = sRes.rows || [];
+        assignRows = aRes.rows || [];
+    }
+
+    if (shiftRows.length === 0) {
+        const defaults = getDefaultShiftTemplates(institutionId);
+        if (seedIfEmpty) {
+            for (const def of defaults) {
+                await saveShiftTemplate(supabase, pool, institutionId, def).catch(() => {});
+            }
+        }
+        return { shifts: defaults, staffAssignments: {} };
+    }
+
+    const shifts = shiftRows.map(r => normalizeShiftRow(r, institutionId));
+    const staffAssignments: Record<string, string> = {};
+    for (const a of assignRows) {
+        const sid = String(a.staff_id || a.staffId || '');
+        const shId = String(a.shift_id || a.shiftId || '');
+        if (sid && shId) staffAssignments[sid] = shId;
+    }
+    return { shifts, staffAssignments };
+}
+
+async function saveShiftTemplate(supabase: any, pool: any, institutionId: string, raw: any): Promise<HrShiftConfig> {
+    const startTime = String(raw.startTime || raw.start_time || '08:00').trim();
+    const endTime = String(raw.endTime || raw.end_time || '17:00').trim();
+    const startMin = parseHHMM(startTime, 8 * 60);
+    const endMin = parseHHMM(endTime, 17 * 60);
+    const isOvernight = raw.isOvernight !== undefined
+        ? Boolean(raw.isOvernight)
+        : (raw.is_overnight !== undefined ? Boolean(raw.is_overnight) : endMin <= startMin);
+    const assignedRoles: string[] = Array.isArray(raw.assignedRoles)
+        ? raw.assignedRoles.map((x: any) => String(x).trim().toLowerCase()).filter(Boolean)
+        : (typeof raw.assignedRoles === 'string'
+            ? raw.assignedRoles.split(',').map((x: string) => x.trim().toLowerCase()).filter(Boolean)
+            : []);
+
+    const shift: HrShiftConfig = {
+        id: String(raw.id || `shift_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`),
+        institutionId,
+        name: String(raw.name || 'Shift').trim(),
+        startTime,
+        endTime,
+        isOvernight,
+        graceMinutes: Math.max(0, Number(raw.graceMinutes ?? raw.grace_minutes ?? 15) || 0),
+        earlyLeaveGraceMinutes: Math.max(0, Number(raw.earlyLeaveGraceMinutes ?? raw.early_leave_grace_minutes ?? 10) || 0),
+        standardHours: Math.max(1, Number(raw.standardHours ?? raw.standard_hours ?? (isOvernight ? 12 : 8)) || 8),
+        assignedRoles,
+        overtimeMultiplier: Math.max(1, Number(raw.overtimeMultiplier ?? raw.overtime_multiplier ?? 1.5) || 1.5),
+        nightAllowance: Math.max(0, Number(raw.nightAllowance ?? raw.night_allowance ?? 0) || 0),
+        isDefault: Boolean(raw.isDefault ?? raw.is_default ?? false),
+        isActive: raw.isActive !== false && raw.is_active !== false,
+    };
+
+    if (supabase) {
+        if (shift.isDefault) {
+            await supabase.from('hr_shifts').update({ is_default: false }).eq('institution_id', institutionId);
+        }
+        await supabase.from('hr_shifts').upsert({
+            id: shift.id,
+            institution_id: institutionId,
+            name: shift.name,
+            start_time: shift.startTime,
+            end_time: shift.endTime,
+            is_overnight: shift.isOvernight,
+            grace_minutes: shift.graceMinutes,
+            early_leave_grace_minutes: shift.earlyLeaveGraceMinutes,
+            standard_hours: shift.standardHours,
+            assigned_roles: JSON.stringify(shift.assignedRoles),
+            overtime_multiplier: shift.overtimeMultiplier,
+            night_allowance: shift.nightAllowance,
+            is_default: shift.isDefault,
+            is_active: shift.isActive,
+            updated_at: new Date().toISOString(),
+        });
+    } else if (pool) {
+        if (shift.isDefault) {
+            await pool.query('UPDATE public.hr_shifts SET is_default = false WHERE institution_id = $1', [institutionId]).catch(() => {});
+        }
+        await pool.query(
+            `INSERT INTO public.hr_shifts
+             (id, institution_id, name, start_time, end_time, is_overnight, grace_minutes, early_leave_grace_minutes, standard_hours, assigned_roles, overtime_multiplier, night_allowance, is_default, is_active, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP)
+             ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                start_time = EXCLUDED.start_time,
+                end_time = EXCLUDED.end_time,
+                is_overnight = EXCLUDED.is_overnight,
+                grace_minutes = EXCLUDED.grace_minutes,
+                early_leave_grace_minutes = EXCLUDED.early_leave_grace_minutes,
+                standard_hours = EXCLUDED.standard_hours,
+                assigned_roles = EXCLUDED.assigned_roles,
+                overtime_multiplier = EXCLUDED.overtime_multiplier,
+                night_allowance = EXCLUDED.night_allowance,
+                is_default = EXCLUDED.is_default,
+                is_active = EXCLUDED.is_active,
+                updated_at = CURRENT_TIMESTAMP`,
+            [
+                shift.id, institutionId, shift.name, shift.startTime, shift.endTime, shift.isOvernight,
+                shift.graceMinutes, shift.earlyLeaveGraceMinutes, shift.standardHours,
+                JSON.stringify(shift.assignedRoles), shift.overtimeMultiplier, shift.nightAllowance,
+                shift.isDefault, shift.isActive,
+            ]
+        );
+    }
+    return shift;
+}
+
+async function deleteShiftTemplate(supabase: any, pool: any, institutionId: string, shiftId: string) {
+    if (supabase) {
+        await supabase.from('hr_staff_shifts').delete().eq('institution_id', institutionId).eq('shift_id', shiftId);
+        await supabase.from('hr_shifts').delete().eq('institution_id', institutionId).eq('id', shiftId);
+    } else if (pool) {
+        await pool.query('DELETE FROM public.hr_staff_shifts WHERE institution_id = $1 AND shift_id = $2', [institutionId, shiftId]).catch(() => {});
+        await pool.query('DELETE FROM public.hr_shifts WHERE institution_id = $1 AND id = $2', [institutionId, shiftId]);
+    }
+}
+
+async function assignStaffShift(supabase: any, pool: any, institutionId: string, staffId: string, shiftId: string) {
+    if (supabase) {
+        await supabase.from('hr_staff_shifts').delete().eq('institution_id', institutionId).eq('staff_id', staffId);
+        if (shiftId) {
+            await supabase.from('hr_staff_shifts').insert({
+                id: `sshift_${institutionId}_${staffId}`,
+                institution_id: institutionId,
+                staff_id: staffId,
+                shift_id: shiftId,
+                updated_at: new Date().toISOString(),
+            });
+        }
+    } else if (pool) {
+        await pool.query('DELETE FROM public.hr_staff_shifts WHERE institution_id = $1 AND staff_id = $2', [institutionId, staffId]).catch(() => {});
+        if (shiftId) {
+            await pool.query(
+                `INSERT INTO public.hr_staff_shifts (id, institution_id, staff_id, shift_id, updated_at)
+                 VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+                 ON CONFLICT (id) DO UPDATE SET shift_id = EXCLUDED.shift_id, updated_at = CURRENT_TIMESTAMP`,
+                [`sshift_${institutionId}_${staffId}`, institutionId, staffId, shiftId]
+            );
+        }
+    }
 }
