@@ -96,29 +96,68 @@ const createPgSupabaseShim = () => {
             const safeTable = table.replace(/[^a-zA-Z0-9_]/g, '');
             let op: 'select' | 'insert' | 'update' | 'upsert' | 'delete' = 'select';
             let payloadData: any = null;
-            const whereClauses: string[] = [];
-            const params: any[] = [];
-            let orderClause = '';
+            const filterItems: Array<
+                | { kind: 'cond'; col: string; op: 'eq' | 'ilike'; val: any }
+                | { kind: 'in'; col: string; vals: any[] }
+                | { kind: 'or'; parts: Array<{ col: string; op: 'eq' | 'ilike'; val: any }> }
+            > = [];
+            let orderSpec: { col: string; ascending?: boolean } | null = null;
             let limitVal: number | null = null;
             let isSingle = false;
-
-            const addCondition = (col: string, operator: 'eq' | 'ilike', val: any) => {
-                params.push(val === null || val === undefined ? '' : String(val));
-                const idx = params.length;
-                const colSql = formatPgCol(col);
-                if (operator === 'ilike') {
-                    whereClauses.push(`${colSql}::text ILIKE $${idx}::text`);
-                } else {
-                    whereClauses.push(`${colSql}::text = $${idx}::text`);
-                }
-            };
 
             const execute = async (): Promise<{ data: any; error: any }> => {
                 try {
                     const pool = await getPgPool();
                     if (!pool) return { data: null, error: { message: 'Database pool unavailable' } };
 
+                    const colMap = await getTableColumns(pool, safeTable);
+                    const hasCol = (col: string): boolean => {
+                        if (colMap.size === 0) return true;
+                        const clean = col.trim();
+                        const base = clean.includes('->>') ? clean.split('->>')[0].trim() : clean;
+                        return colMap.has(base.replace(/[^a-zA-Z0-9_]/g, ''));
+                    };
+
+                    const whereClauses: string[] = [];
+                    const params: any[] = [];
+                    for (const f of filterItems) {
+                        if (f.kind === 'cond') {
+                            if (!hasCol(f.col)) {
+                                whereClauses.push('1 = 0');
+                                continue;
+                            }
+                            params.push(f.val === null || f.val === undefined ? '' : String(f.val));
+                            const idx = params.length;
+                            const colSql = formatPgCol(f.col);
+                            whereClauses.push(f.op === 'ilike' ? `${colSql}::text ILIKE $${idx}::text` : `${colSql}::text = $${idx}::text`);
+                        } else if (f.kind === 'in') {
+                            if (!hasCol(f.col) || !Array.isArray(f.vals) || f.vals.length === 0) {
+                                whereClauses.push('1 = 0');
+                                continue;
+                            }
+                            params.push(f.vals.map(v => String(v)));
+                            whereClauses.push(`${formatPgCol(f.col)}::text = ANY($${params.length}::text[])`);
+                        } else if (f.kind === 'or') {
+                            const subClauses: string[] = [];
+                            for (const p of f.parts) {
+                                if (!hasCol(p.col)) continue;
+                                params.push(p.val);
+                                const idx = params.length;
+                                const colSql = formatPgCol(p.col);
+                                subClauses.push(p.op === 'ilike' ? `${colSql}::text ILIKE $${idx}::text` : `${colSql}::text = $${idx}::text`);
+                            }
+                            if (subClauses.length > 0) {
+                                whereClauses.push(`(${subClauses.join(' OR ')})`);
+                            } else {
+                                whereClauses.push('1 = 0');
+                            }
+                        }
+                    }
+
                     const whereSql = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+                    const orderClause = orderSpec && hasCol(orderSpec.col)
+                        ? ` ORDER BY ${formatPgCol(orderSpec.col)} ${orderSpec.ascending ? 'ASC' : 'DESC'} NULLS LAST`
+                        : '';
 
                     if (op === 'select') {
                         const sql = `SELECT * FROM public."${safeTable}"${whereSql}${orderClause}${limitVal ? ` LIMIT ${limitVal}` : ''}`;
@@ -142,8 +181,6 @@ const createPgSupabaseShim = () => {
                         const res = await pool.query(sql, params);
                         return { data: res?.rows || [], error: null };
                     }
-
-                    const colMap = await getTableColumns(pool, safeTable);
 
                     if (op === 'insert' || op === 'upsert') {
                         const items = Array.isArray(payloadData) ? payloadData : [payloadData];
@@ -241,48 +278,39 @@ const createPgSupabaseShim = () => {
                     return builder;
                 },
                 eq(col: string, val: any) {
-                    addCondition(col, 'eq', val);
+                    filterItems.push({ kind: 'cond', col, op: 'eq', val });
                     return builder;
                 },
                 ilike(col: string, val: any) {
-                    addCondition(col, 'ilike', val);
+                    filterItems.push({ kind: 'cond', col, op: 'ilike', val });
                     return builder;
                 },
                 in(col: string, vals: any[]) {
-                    if (!Array.isArray(vals) || vals.length === 0) {
-                        whereClauses.push('1 = 0');
-                    } else {
-                        params.push(vals.map(v => String(v)));
-                        whereClauses.push(`${formatPgCol(col)}::text = ANY($${params.length}::text[])`);
-                    }
+                    filterItems.push({ kind: 'in', col, vals: Array.isArray(vals) ? vals : [] });
                     return builder;
                 },
                 or(expr: string) {
                     if (!expr) return builder;
                     const parts = expr.split(',').map(s => s.trim()).filter(Boolean);
-                    const subClauses: string[] = [];
+                    const parsedParts: Array<{ col: string; op: 'eq' | 'ilike'; val: any }> = [];
                     for (const part of parts) {
                         const m = part.match(/^([a-zA-Z0-9_>-]+)\.(eq|ilike|ieq)\.(.*)$/);
                         if (m) {
                             const [, col, opStr, val] = m;
-                            params.push(val);
-                            const idx = params.length;
-                            const colSql = formatPgCol(col);
-                            if (opStr === 'ilike' || opStr === 'ieq') {
-                                subClauses.push(`${colSql}::text ILIKE $${idx}::text`);
-                            } else {
-                                subClauses.push(`${colSql}::text = $${idx}::text`);
-                            }
+                            parsedParts.push({
+                                col,
+                                op: (opStr === 'ilike' || opStr === 'ieq') ? 'ilike' : 'eq',
+                                val
+                            });
                         }
                     }
-                    if (subClauses.length > 0) {
-                        whereClauses.push(`(${subClauses.join(' OR ')})`);
+                    if (parsedParts.length > 0) {
+                        filterItems.push({ kind: 'or', parts: parsedParts });
                     }
                     return builder;
                 },
                 order(col: string, opts?: { ascending?: boolean }) {
-                    const dir = opts?.ascending ? 'ASC' : 'DESC';
-                    orderClause = ` ORDER BY ${formatPgCol(col)} ${dir} NULLS LAST`;
+                    orderSpec = { col, ascending: opts?.ascending };
                     return builder;
                 },
                 limit(n: number) {
@@ -1730,12 +1758,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (!matchUser) {
                         for (const adm of Array.from(candidateAdms)) {
                             if (matchUser) break;
-                            let q = supabase.from('users').select('id, institution_id, name, parent_name, parent_phone, phone, admission_number, class_name');
+                            let q = supabase.from('users').select('*');
                             if (targetScopeInstId) q = q.eq('institution_id', targetScopeInstId);
                             
                             const { data: userList } = await q.or(`admission_number.ilike.${adm},admission_number.ilike.%-${adm},admission_number.ilike.%/${adm},metadata->>admissionNumber.ilike.${adm}`).limit(2);
                             if (userList && userList.length > 0) {
-                                matchUser = userList[0];
+                                const u = userList[0];
+                                matchUser = {
+                                    ...u,
+                                    parent_name: u.parent_name || u.metadata?.parentName || u.metadata?.parent_name || u.metadata?.guardianName,
+                                    parent_phone: u.parent_phone || u.metadata?.parentPhone || u.metadata?.parent_phone || u.metadata?.guardianPhone || u.phone_number,
+                                    phone: u.phone || u.phone_number || u.metadata?.phone,
+                                    admission_number: u.admission_number || u.metadata?.admissionNumber || u.metadata?.admNo || adm,
+                                    class_name: u.class_name || u.student_class || u.metadata?.studentClass || u.metadata?.className || u.metadata?.grade
+                                };
                                 break;
                             }
                         }
@@ -1745,30 +1781,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (!matchUser && cleanPhoneDigits.length >= 9) {
                         let q = supabase.from('student_enrollments').select('*');
                         if (targetScopeInstId) q = q.eq('institution_id', targetScopeInstId);
-                        const { data: enrByPhone } = await q.or(`parent_phone.ilike.%${cleanPhoneDigits},phone.ilike.%${cleanPhoneDigits},metadata->>parentPhone.ilike.%${cleanPhoneDigits}`).limit(1);
+                        const { data: enrByPhone } = await q.or(`metadata->>parentPhone.ilike.%${cleanPhoneDigits},metadata->>parent_phone.ilike.%${cleanPhoneDigits},metadata->>guardianPhone.ilike.%${cleanPhoneDigits},metadata->>phone.ilike.%${cleanPhoneDigits},metadata->>phoneNumber.ilike.%${cleanPhoneDigits}`).limit(1);
                         if (enrByPhone && enrByPhone.length > 0) {
                             const enrFound = enrByPhone[0];
                             matchEnrollment = enrFound;
                             matchUser = {
                                 id: enrFound.student_id || enrFound.user_id || enrFound.id,
                                 institution_id: enrFound.institution_id,
-                                name: enrFound.student_name || enrFound.name,
-                                parent_name: enrFound.parent_name || enrFound.metadata?.parentName,
-                                parent_phone: enrFound.parent_phone || enrFound.metadata?.parentPhone,
-                                phone: enrFound.phone || enrFound.metadata?.phone,
-                                admission_number: enrFound.admission_number || '',
-                                class_name: enrFound.class_name || enrFound.grade
+                                name: enrFound.student_name || enrFound.name || enrFound.metadata?.studentName || enrFound.metadata?.fullName,
+                                parent_name: enrFound.parent_name || enrFound.metadata?.parentName || enrFound.metadata?.parent_name,
+                                parent_phone: enrFound.parent_phone || enrFound.metadata?.parentPhone || enrFound.metadata?.parent_phone || enrFound.metadata?.guardianPhone,
+                                phone: enrFound.phone || enrFound.metadata?.phone || enrFound.metadata?.phoneNumber,
+                                admission_number: enrFound.admission_number || enrFound.metadata?.admissionNumber || '',
+                                class_name: enrFound.class_name || enrFound.grade || enrFound.metadata?.studentClass || enrFound.metadata?.className
                             };
                         }
                     }
 
                     // D. Fallback: Check users by parent phone
                     if (!matchUser && cleanPhoneDigits.length >= 9) {
-                        let q = supabase.from('users').select('id, institution_id, name, parent_name, parent_phone, phone, admission_number, class_name');
+                        let q = supabase.from('users').select('*');
                         if (targetScopeInstId) q = q.eq('institution_id', targetScopeInstId);
-                        const { data: userByPhone } = await q.or(`parent_phone.ilike.%${cleanPhoneDigits},phone.ilike.%${cleanPhoneDigits}`).limit(1);
+                        const { data: userByPhone } = await q.or(`phone_number.ilike.%${cleanPhoneDigits},metadata->>parentPhone.ilike.%${cleanPhoneDigits},metadata->>parent_phone.ilike.%${cleanPhoneDigits},metadata->>guardianPhone.ilike.%${cleanPhoneDigits},metadata->>phone.ilike.%${cleanPhoneDigits}`).limit(1);
                         if (userByPhone && userByPhone.length > 0) {
-                            matchUser = userByPhone[0];
+                            const u = userByPhone[0];
+                            matchUser = {
+                                ...u,
+                                parent_name: u.parent_name || u.metadata?.parentName || u.metadata?.parent_name || u.metadata?.guardianName,
+                                parent_phone: u.parent_phone || u.metadata?.parentPhone || u.metadata?.parent_phone || u.metadata?.guardianPhone || u.phone_number,
+                                phone: u.phone || u.phone_number || u.metadata?.phone,
+                                admission_number: u.admission_number || u.metadata?.admissionNumber || u.metadata?.admNo || '',
+                                class_name: u.class_name || u.student_class || u.metadata?.studentClass || u.metadata?.className || u.metadata?.grade
+                            };
                         }
                     }
 
