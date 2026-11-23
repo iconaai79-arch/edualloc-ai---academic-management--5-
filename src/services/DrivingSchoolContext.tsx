@@ -147,7 +147,7 @@ interface DrivingSchoolContextType {
     updateExpenditure: (data: Partial<DSExpenditure>) => Promise<void>;
     deleteExpenditure: (id: string) => Promise<void>;
     sendLessonNotification?: (lesson: DSLesson, isReminder?: boolean) => Promise<void>;
-    refreshData: () => Promise<void>;
+    refreshData: (options?: { silent?: boolean; bypassCache?: boolean }) => Promise<void>;
     stats: {
         totalStudents: number;
         activeInstructors: number;
@@ -627,35 +627,44 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
     }, [institutionId, branches.length, activeBranchId, setActiveBranchId, settings?.id, success, error]);
 
-    const loadDSData = useCallback(async () => {
+    const loadDSData = useCallback(async (options?: { silent?: boolean; bypassCache?: boolean }) => {
         if (!institutionId) {
             console.log("[DSContext] loadDSData: No institutionId provided, skipping fetch.");
             return;
         }
-        setIsLoading(true);
-        console.log(`[DSContext] loadDSData: Starting fetch for institutionId=${institutionId}`);
+        const silent = Boolean(options?.silent);
+        const bypassCache = Boolean(options?.bypassCache);
+        const baseOpts = bypassCache ? { bypassCache: true } : undefined;
+        const bulkOpts = bypassCache ? { limit: 5000, bypassCache: true } : { limit: 5000 };
+
+        if (!silent) {
+            setIsLoading(true);
+            console.log(`[DSContext] loadDSData: Starting fetch for institutionId=${institutionId}`);
+        }
         try {
             const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay, dsMpe, dsBnk, dsVotesStandalone, dsCatsStandalone, dsLeadsStandalone, dsExpendituresStandalone, dsBranches, dsModuleStates, idbBranches] = await Promise.all([
-                apiService.fetchModuleRecords<DSInstructor>('ds_instructors', institutionId).catch(() => []),
-                apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', institutionId).catch(() => []),
-                apiService.fetchModuleRecords<DSStudent>('ds_students', institutionId, undefined, { limit: 5000 }).catch(() => []),
-                apiService.fetchModuleRecords<DSLesson>('ds_lessons', institutionId, undefined, { limit: 5000 }).catch(() => []),
-                apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', institutionId, undefined, { limit: 5000 }).catch(() => []),
-                apiService.fetchModuleRecords<DSSettings>('ds_settings', institutionId).catch(() => []),
-                apiService.fetchModuleRecords<DSInvoice>('ds_invoices', institutionId, undefined, { limit: 5000 }).catch(() => []),
-                apiService.fetchModuleRecords<DSPayment>('ds_payments', institutionId, undefined, { limit: 5000 }).catch(() => []),
-                apiService.fetchModuleRecords<MpesaTransaction>('mpesa_transactions', institutionId, undefined, { limit: 5000 }).catch(() => []),
-                apiService.fetchModuleRecords<BankTransaction>('bank_transactions', institutionId, undefined, { limit: 5000 }).catch(() => []),
-                apiService.fetchModuleRecords<any>('ds_votes', institutionId).catch(() => []),
-                apiService.fetchModuleRecords<any>('ds_license_categories', institutionId).catch(() => []),
-                apiService.fetchModuleRecords<DSLead>('ds_leads', institutionId, undefined, { limit: 5000 }).catch(() => []),
-                apiService.fetchModuleRecords<DSExpenditure>('ds_expenditures', institutionId, undefined, { limit: 5000 }).catch(() => []),
-                apiService.fetchModuleRecords<Branch>('branches', institutionId).catch(() => []),
-                apiService.fetchModuleRecords<any>('institution_module_states', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<DSInstructor>('ds_instructors', institutionId, undefined, baseOpts).catch(() => []),
+                apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', institutionId, undefined, baseOpts).catch(() => []),
+                apiService.fetchModuleRecords<DSStudent>('ds_students', institutionId, undefined, bulkOpts).catch(() => []),
+                apiService.fetchModuleRecords<DSLesson>('ds_lessons', institutionId, undefined, bulkOpts).catch(() => []),
+                apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', institutionId, undefined, bulkOpts).catch(() => []),
+                apiService.fetchModuleRecords<DSSettings>('ds_settings', institutionId, undefined, baseOpts).catch(() => []),
+                apiService.fetchModuleRecords<DSInvoice>('ds_invoices', institutionId, undefined, bulkOpts).catch(() => []),
+                apiService.fetchModuleRecords<DSPayment>('ds_payments', institutionId, undefined, bulkOpts).catch(() => []),
+                apiService.fetchModuleRecords<MpesaTransaction>('mpesa_transactions', institutionId, undefined, bulkOpts).catch(() => []),
+                apiService.fetchModuleRecords<BankTransaction>('bank_transactions', institutionId, undefined, bulkOpts).catch(() => []),
+                apiService.fetchModuleRecords<any>('ds_votes', institutionId, undefined, baseOpts).catch(() => []),
+                apiService.fetchModuleRecords<any>('ds_license_categories', institutionId, undefined, baseOpts).catch(() => []),
+                apiService.fetchModuleRecords<DSLead>('ds_leads', institutionId, undefined, bulkOpts).catch(() => []),
+                apiService.fetchModuleRecords<DSExpenditure>('ds_expenditures', institutionId, undefined, bulkOpts).catch(() => []),
+                apiService.fetchModuleRecords<Branch>('branches', institutionId, undefined, baseOpts).catch(() => []),
+                apiService.fetchModuleRecords<any>('institution_module_states', institutionId, undefined, baseOpts).catch(() => []),
                 localDb.getAll('branches').catch(() => [])
             ]);
 
-            console.log(`[DSContext] loadDSData: Fetched ${dsInst.length} instructors, ${dsVeh.length} vehicles, ${dsStud.length} students, ${dsLess.length} lessons, ${dsLeadsStandalone.length} leads`);
+            if (!silent) {
+                console.log(`[DSContext] loadDSData: Fetched ${dsInst.length} instructors, ${dsVeh.length} vehicles, ${dsStud.length} students, ${dsLess.length} lessons, ${dsLeadsStandalone.length} leads`);
+            }
 
             setInstructors(dsInst || []);
             setVehicles(dsVeh || []);
@@ -1148,7 +1157,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         } catch (err) {
             console.error("[DSContext] loadDSData: Failed to load DS data:", err);
         } finally {
-            setIsLoading(false);
+            if (!silent) setIsLoading(false);
         }
     }, [institutionId]);
 

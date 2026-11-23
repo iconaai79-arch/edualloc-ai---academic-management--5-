@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback, useContext } from 'react';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import Webcam from 'react-webcam';
 import * as XLSX from 'xlsx';
 import { readSpreadsheet, autoMapHeaders, parseAmount, cleanPhone, phoneKey, toIsoDate, createAdmissionNumberGenerator } from './dsExcelImport';
@@ -5688,6 +5689,34 @@ END $$;
     const [enrollWizard, setEnrollWizard] = useState<{ open: boolean; student: any | null; step: 'invoice' | 'payment' | 'lesson' | 'done'; createdInvoiceId: string | null }>({ open: false, student: null, step: 'invoice', createdInvoiceId: null });
     const [pendingAdmissionPayment, setPendingAdmissionPayment] = useState<{ student: any; checkoutRequestId: string } | null>(null);
 
+    const anyModalOpen = Boolean(
+        actionModal.type ||
+        isImportModalOpen ||
+        isLeadImportModalOpen ||
+        isOpeningBalanceModalOpen ||
+        isBulkUpdateModalOpen ||
+        isBuySMSModalOpen ||
+        isExportExcelModalOpen ||
+        isCompleteImportModalOpen ||
+        showBranchModal ||
+        reasonModal?.isOpen ||
+        viewQuoteModalLead ||
+        enrollWizard.open
+    );
+
+    const {
+        lastSyncedAt: dsLastSyncedAt,
+        isSyncing: dsIsBackgroundSyncing,
+        isUserPaused: dsAutoRefreshPaused,
+        togglePause: toggleDsAutoRefresh,
+        refreshNow: triggerDsRefreshNow,
+    } = useAutoRefresh({
+        enabled: Boolean(currentInstitution?.id && refreshData),
+        intervalMs: 25000,
+        paused: anyModalOpen,
+        onRefresh: () => refreshData?.({ silent: true, bypassCache: true }),
+    });
+
     // Background Dispatch Queue Processor
     useEffect(() => {
         if (!currentInstitution) return;
@@ -7083,6 +7112,39 @@ END $$;
                 {/* Sidebar Footer Widget */}
                 {!isNavSidebarCollapsed && (
                     <div className="pt-4 border-t border-slate-800/80 space-y-3">
+                        <div className="p-3 bg-slate-800/50 rounded-2xl border border-slate-700/40 flex items-center justify-between gap-2">
+                            <button
+                                type="button"
+                                onClick={toggleDsAutoRefresh}
+                                title={dsAutoRefreshPaused ? 'Click to resume live background sync (every 25s)' : 'Live background sync active (every 25s). Click to pause.'}
+                                className="flex items-center gap-2 text-left min-w-0"
+                            >
+                                <div className={`w-2 h-2 rounded-full shrink-0 ${
+                                    dsAutoRefreshPaused
+                                        ? 'bg-amber-400'
+                                        : dsIsBackgroundSyncing
+                                            ? 'bg-sky-400 animate-ping'
+                                            : 'bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse'
+                                }`} />
+                                <div className="min-w-0">
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest truncate">
+                                        {dsAutoRefreshPaused ? 'Auto-Sync Paused' : dsIsBackgroundSyncing ? 'Syncing...' : 'Live Auto-Sync'}
+                                    </p>
+                                    <p className="text-[10px] font-bold text-slate-200 truncate">
+                                        {dsLastSyncedAt ? `Updated ${dsLastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : 'Ready'}
+                                    </p>
+                                </div>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => triggerDsRefreshNow()}
+                                disabled={dsIsBackgroundSyncing}
+                                title="Sync latest entries from other users now"
+                                className="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white rounded-xl text-[9px] font-black uppercase tracking-wider shrink-0"
+                            >
+                                {dsIsBackgroundSyncing ? '...' : 'Sync'}
+                            </button>
+                        </div>
                         <div className="p-3 bg-slate-800/50 rounded-2xl border border-slate-700/40 flex items-center justify-between">
                             <div className="flex items-center gap-2.5">
                                 <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" />
