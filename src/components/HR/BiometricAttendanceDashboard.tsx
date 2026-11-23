@@ -91,6 +91,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
 
     // Dahua Auto-Detection states
     const [autoDetectingDahua, setAutoDetectingDahua] = useState(false);
+    const [syncingPreviousLogs, setSyncingPreviousLogs] = useState(false);
     const [showAutoDetectModal, setShowAutoDetectModal] = useState(false);
     const [discoveredDevices, setDiscoveredDevices] = useState<any[]>([]);
     const [registeredDahuaDevices, setRegisteredDahuaDevices] = useState<any[]>([]);
@@ -699,6 +700,64 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         }
     };
 
+    const handleSyncPreviousLogs = async (options?: { startDate?: string; endDate?: string; silent?: boolean }) => {
+        setSyncingPreviousLogs(true);
+        try {
+            const params = new URLSearchParams({
+                action: 'reprocess',
+                institutionId: institution.id,
+            });
+            if (options?.startDate) params.set('startDate', options.startDate);
+            if (options?.endDate) params.set('endDate', options.endDate);
+
+            const res = await fetch(`/api/dahua-webhook?${params.toString()}`, { method: 'POST' });
+            const data = await res.json();
+
+            if (!res.ok || data?.success === false) {
+                throw new Error(data?.error || data?.message || 'Failed to sync previous attendance logs');
+            }
+
+            if (typeof (apiService as any).clearLocalCache === 'function') {
+                await (apiService as any).clearLocalCache('staff_attendance_daily').catch(() => {});
+                await (apiService as any).clearLocalCache('staff_attendance_logs').catch(() => {});
+            }
+            await Promise.all([loadTodayAttendance(), loadMonthlyAttendance()]);
+
+            if (!options?.silent) {
+                const unmatchedList = Array.isArray(data.unmatchedPins) && data.unmatchedPins.length > 0
+                    ? `\n⚠️ Unmatched Device PINs still unassigned: ${data.unmatchedPins.join(', ')}\n(Assign these IDs in Staff Enrollment and click Sync Previous Logs again.)`
+                    : '\n✅ All scanned Device PINs matched enrolled staff!';
+                const dateRangeInfo = Array.isArray(data.datesSynced) && data.datesSynced.length > 0
+                    ? `• Dates Recomputed: ${data.datesSynced[0]} → ${data.datesSynced[data.datesSynced.length - 1]} (${data.datesSynced.length} day${data.datesSynced.length === 1 ? '' : 's'})\n`
+                    : '';
+                setTestModalResult({
+                    deviceName: 'Dahua / Biometric Historical Sync',
+                    success: true,
+                    message:
+                        `🔄 PREVIOUS ATTENDANCE LOGS SYNCED!\n\n` +
+                        `• Total Raw Logs Scanned: ${data.totalLogsScanned ?? 0}\n` +
+                        `• Newly Linked Logs (After User Assignment): ${data.newlyLinkedLogs ?? 0}\n` +
+                        `• Matched Punches: ${data.matchedLogsCount ?? 0}\n` +
+                        `• Daily Attendance Records Updated: ${data.dailyRecordsSynced ?? 0}\n` +
+                        dateRangeInfo +
+                        unmatchedList,
+                    timestamp: new Date().toLocaleTimeString(),
+                });
+            }
+        } catch (err: any) {
+            if (!options?.silent) {
+                setTestModalResult({
+                    deviceName: 'Dahua / Biometric Historical Sync',
+                    success: false,
+                    message: `❌ Failed to sync previous logs: ${err?.message || err}`,
+                    timestamp: new Date().toLocaleTimeString(),
+                });
+            }
+        } finally {
+            setSyncingPreviousLogs(false);
+        }
+    };
+
     const handleEnrollStaff = async () => {
         if (!enrollForm.staffId || !enrollForm.devicePin) {
             alert('Staff member and Dahua Terminal ID / Device PIN are required');
@@ -744,8 +803,8 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             setShowEnrollModal(false);
             setEnrollForm({ staffId: '', devicePin: '', fingerprintIndex: 0 });
             await loadEnrollments();
-            await loadTodayAttendance();
-            alert(`Staff member Dahua ID #${cleanPin} successfully linked and saved!`);
+            await handleSyncPreviousLogs({ silent: true });
+            alert(`Staff member Dahua ID #${cleanPin} successfully linked and previous attendance logs synced!`);
         } catch (err: any) {
             alert('Failed to enroll: ' + err.message);
         }
@@ -873,7 +932,15 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                             <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Today's Attendance</h3>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <button
+                                onClick={() => handleSyncPreviousLogs()}
+                                disabled={syncingPreviousLogs}
+                                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                                title="Match previously saved Dahua/biometric logs in the database to newly assigned staff and recompute daily attendance"
+                            >
+                                {syncingPreviousLogs ? '⏳ Syncing Logs...' : '🔄 Sync Previous Logs'}
+                            </button>
                             <button
                                 onClick={() => setShowImportModal(true)}
                                 className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5"
@@ -961,12 +1028,28 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                             <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Monthly Attendance Register</h3>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Aggregated staff attendance for payroll</p>
                         </div>
-                        <input
-                            type="month"
-                            value={selectedMonth}
-                            onChange={e => setSelectedMonth(e.target.value)}
-                            className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <button
+                                onClick={() => {
+                                    const [yr, mo] = selectedMonth.split('-');
+                                    const lastDay = new Date(Number(yr), Number(mo), 0).getDate();
+                                    handleSyncPreviousLogs({
+                                        startDate: `${selectedMonth}-01`,
+                                        endDate: `${selectedMonth}-${String(lastDay).padStart(2, '0')}`,
+                                    });
+                                }}
+                                disabled={syncingPreviousLogs}
+                                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                            >
+                                {syncingPreviousLogs ? '⏳ Syncing...' : '🔄 Sync Month Logs'}
+                            </button>
+                            <input
+                                type="month"
+                                value={selectedMonth}
+                                onChange={e => setSelectedMonth(e.target.value)}
+                                className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                        </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full">
@@ -1218,7 +1301,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                             <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Staff Dahua / Biometric Enrollment</h3>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Map each staff member to their Dahua terminal face ID or device PIN</p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                             <input
                                 type="text"
                                 placeholder="Search staff..."
@@ -1226,6 +1309,13 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                 onChange={e => setSearchTerm(e.target.value)}
                                 className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500 w-48"
                             />
+                            <button
+                                onClick={() => handleSyncPreviousLogs()}
+                                disabled={syncingPreviousLogs}
+                                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer"
+                            >
+                                {syncingPreviousLogs ? '⏳ Syncing...' : '🔄 Sync Previous Logs'}
+                            </button>
                             <button
                                 onClick={() => setShowEnrollModal(true)}
                                 className="px-6 py-2 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg hover:bg-indigo-700 transition-all active:scale-95"

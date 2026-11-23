@@ -385,12 +385,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
+        if (action === 'reprocess' || action === 'sync_previous' || action === 'backfill') {
+            const supabase = getSupabase(req);
+            const pool = await getPgPool();
+            if (pool) await ensureDahuaTables(pool).catch(() => {});
+            if (!supabase && !pool) {
+                return res.status(500).json({ success: false, error: 'Database not configured' });
+            }
+            if (!institutionId) {
+                return res.status(400).json({ success: false, error: 'institutionId is required' });
+            }
+
+            const startDate = (req.query.startDate || req.query.start_date || '').toString().trim();
+            const endDate = (req.query.endDate || req.query.end_date || '').toString().trim();
+
+            const result = await reprocessHistoricalDahuaLogs({
+                supabase,
+                pool,
+                institutionId,
+                startDate: startDate || undefined,
+                endDate: endDate || undefined,
+            });
+            return res.status(200).json(result);
+        }
+
         if (action === 'status' || action === 'sync') {
             const supabase = getSupabase(req);
             const pool = await getPgPool();
             if (pool) await ensureDahuaTables(pool).catch(() => {});
             let recentCount = 0;
             let lastSeen: string | null = null;
+            let reprocessSummary: any = null;
+
+            if (action === 'sync' && institutionId) {
+                try {
+                    reprocessSummary = await reprocessHistoricalDahuaLogs({
+                        supabase,
+                        pool,
+                        institutionId,
+                    });
+                } catch (repErr) {
+                    console.warn('[Dahua Webhook] Sync reprocess warning:', repErr);
+                }
+            }
 
             if (supabase) {
                 try {
@@ -451,7 +488,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 deviceSN: sn || undefined,
                 lastSeen,
                 recentLogsCount: recentCount,
-                synced: action === 'sync'
+                synced: action === 'sync',
+                ...(reprocessSummary ? {
+                    newlyLinkedLogs: reprocessSummary.newlyLinkedLogs,
+                    dailyRecordsSynced: reprocessSummary.dailyRecordsSynced,
+                    totalLogsScanned: reprocessSummary.totalLogsScanned,
+                    unmatchedPins: reprocessSummary.unmatchedPins
+                } : {})
             });
         }
 
@@ -459,6 +502,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'POST') {
+        const postAction = (req.query.action || (req.body && typeof req.body === 'object' ? (req.body as any).action : '') || '').toString().toLowerCase();
+        if (postAction === 'reprocess' || postAction === 'sync_previous' || postAction === 'backfill') {
+            const supabase = getSupabase(req);
+            const pool = await getPgPool();
+            if (pool) await ensureDahuaTables(pool).catch(() => {});
+            if (!supabase && !pool) {
+                return res.status(500).json({ success: false, error: 'Database not configured' });
+            }
+            const bodyObj = (req.body && typeof req.body === 'object') ? (req.body as any) : {};
+            const instId = (req.query.institutionId || req.query.institution_id || bodyObj.institutionId || bodyObj.institution_id || '').toString().trim();
+            if (!instId) {
+                return res.status(400).json({ success: false, error: 'institutionId is required' });
+            }
+            const startDate = (req.query.startDate || req.query.start_date || bodyObj.startDate || bodyObj.start_date || '').toString().trim();
+            const endDate = (req.query.endDate || req.query.end_date || bodyObj.endDate || bodyObj.end_date || '').toString().trim();
+            const result = await reprocessHistoricalDahuaLogs({
+                supabase,
+                pool,
+                institutionId: instId,
+                startDate: startDate || undefined,
+                endDate: endDate || undefined,
+            });
+            return res.status(200).json(result);
+        }
+
         const supabase = getSupabase(req);
         const pool = await getPgPool();
         if (pool) await ensureDahuaTables(pool).catch(() => {});
@@ -822,4 +890,376 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     return res.status(200).send('OK');
+}
+
+/**
+ * Reprocesses historical raw logs in staff_attendance_logs against current
+ * biometric_enrollments & users, links previously unmatched punches, and
+ * recomputes staff_attendance_daily across all matched dates.
+ */
+async function reprocessHistoricalDahuaLogs({
+    supabase,
+    pool,
+    institutionId,
+    startDate,
+    endDate,
+}: {
+    supabase: any;
+    pool: any;
+    institutionId: string;
+    startDate?: string;
+    endDate?: string;
+}) {
+    const cleanInst = String(institutionId).replace(/^inst_/i, '');
+    const instCandidates = Array.from(new Set([institutionId, cleanInst, `inst_${cleanInst}`].filter(Boolean)));
+
+    const normalizeKey = (v: any): string => String(v ?? '').trim().toLowerCase();
+    const stripLeadingZeros = (v: string): string => v.replace(/^0+/, '') || v;
+
+    // 1. Ensure staff_attendance_daily exists on Direct PG
+    if (pool) {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS public.staff_attendance_daily (
+                id TEXT PRIMARY KEY DEFAULT ('sad_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+                institution_id TEXT,
+                "institutionId" TEXT,
+                staff_id TEXT,
+                "staffId" TEXT,
+                attendance_date TEXT,
+                "attendanceDate" TEXT,
+                first_in TIMESTAMPTZ,
+                "firstIn" TIMESTAMPTZ,
+                last_out TIMESTAMPTZ,
+                "lastOut" TIMESTAMPTZ,
+                total_hours NUMERIC DEFAULT 0,
+                "totalHours" NUMERIC DEFAULT 0,
+                overtime_hours NUMERIC DEFAULT 0,
+                "overtimeHours" NUMERIC DEFAULT 0,
+                late_minutes INTEGER DEFAULT 0,
+                "lateMinutes" INTEGER DEFAULT 0,
+                early_leave_minutes INTEGER DEFAULT 0,
+                "earlyLeaveMinutes" INTEGER DEFAULT 0,
+                punch_count INTEGER DEFAULT 1,
+                "punchCount" INTEGER DEFAULT 1,
+                status TEXT DEFAULT 'present',
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "staffId" TEXT;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "attendanceDate" TEXT;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "firstIn" TIMESTAMPTZ;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "lastOut" TIMESTAMPTZ;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "totalHours" NUMERIC DEFAULT 0;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "overtimeHours" NUMERIC DEFAULT 0;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "lateMinutes" INTEGER DEFAULT 0;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "earlyLeaveMinutes" INTEGER DEFAULT 0;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "punchCount" INTEGER DEFAULT 1;
+        `).catch(() => {});
+    }
+
+    // 2. Load enrollments, users, and devices for this institution
+    let enrollments: any[] = [];
+    let users: any[] = [];
+    let devices: any[] = [];
+    let rawLogs: any[] = [];
+
+    if (supabase) {
+        const instFilter = instCandidates.map(id => `institution_id.eq.${id}`).join(',');
+        const [enrRes, usrRes, devRes, logRes] = await Promise.all([
+            supabase.from('biometric_enrollments').select('*').or(instFilter),
+            supabase.from('users').select('id, staff_id, phone_number, name').or(instFilter),
+            supabase.from('biometric_devices').select('id, serial_number, device_name').or(instFilter),
+            supabase.from('staff_attendance_logs').select('*').or(`${instFilter},institution_id.is.null`).order('punch_time', { ascending: true }).limit(5000),
+        ]);
+        enrollments = enrRes.data || [];
+        users = usrRes.data || [];
+        devices = devRes.data || [];
+        rawLogs = logRes.data || [];
+    } else if (pool) {
+        const [enrRes, usrRes, devRes, logRes] = await Promise.all([
+            pool.query('SELECT * FROM public.biometric_enrollments WHERE institution_id = ANY($1::text[]) OR "institutionId" = ANY($1::text[])', [instCandidates]).catch(() => ({ rows: [] })),
+            pool.query('SELECT id, staff_id, phone_number, name FROM public.users WHERE institution_id = ANY($1::text[])', [instCandidates]).catch(() => ({ rows: [] })),
+            pool.query('SELECT id, serial_number, device_name FROM public.biometric_devices WHERE institution_id = ANY($1::text[]) OR "institutionId" = ANY($1::text[])', [instCandidates]).catch(() => ({ rows: [] })),
+            pool.query('SELECT * FROM public.staff_attendance_logs WHERE institution_id = ANY($1::text[]) OR "institutionId" = ANY($1::text[]) OR institution_id IS NULL ORDER BY COALESCE(punch_time, created_at) ASC LIMIT 5000', [instCandidates]).catch(() => ({ rows: [] })),
+        ]);
+        enrollments = enrRes.rows || [];
+        users = usrRes.rows || [];
+        devices = devRes.rows || [];
+        rawLogs = logRes.rows || [];
+    }
+
+    const pinToStaff = new Map<string, string>();
+    const registerPin = (rawKey: any, staffId: string) => {
+        const k = normalizeKey(rawKey);
+        if (!k || !staffId) return;
+        if (!pinToStaff.has(k)) pinToStaff.set(k, staffId);
+        const stripped = stripLeadingZeros(k);
+        if (stripped && !pinToStaff.has(stripped)) pinToStaff.set(stripped, staffId);
+    };
+
+    for (const enr of enrollments) {
+        const isActive = enr.is_active !== false && enr.isActive !== false;
+        if (!isActive) continue;
+        const sid = enr.staff_id || enr.staffId;
+        if (!sid) continue;
+        registerPin(enr.device_pin ?? enr.devicePin, sid);
+        registerPin(enr.card_number ?? enr.cardNumber, sid);
+    }
+
+    const validUserIds = new Set<string>();
+    for (const u of users) {
+        if (!u.id) continue;
+        validUserIds.add(String(u.id));
+        registerPin(u.id, String(u.id));
+        if (u.staff_id) registerPin(u.staff_id, String(u.id));
+        if (u.phone_number) {
+            const digits = String(u.phone_number).replace(/\D/g, '');
+            if (digits.length >= 9) {
+                registerPin(digits, String(u.id));
+                registerPin(digits.slice(-9), String(u.id));
+                registerPin('0' + digits.slice(-9), String(u.id));
+            }
+        }
+    }
+
+    const deviceSns = new Set<string>();
+    for (const d of devices) {
+        if (d.serial_number) deviceSns.add(normalizeKey(d.serial_number));
+        if (d.id) deviceSns.add(normalizeKey(d.id));
+    }
+
+    // 3. Match logs & backfill staff_id on staff_attendance_logs
+    let totalLogsScanned = 0;
+    let newlyLinkedLogs = 0;
+    let matchedLogsCount = 0;
+    let unmatchedLogsCount = 0;
+    const unmatchedPinsSet = new Set<string>();
+
+    // Group matched punches by `${staffId}|${YYYY-MM-DD}`
+    const dailyGroups = new Map<string, { staffId: string; dateStr: string; times: Date[] }>();
+
+    const toKenyaDateStr = (d: Date): { dateStr: string; eatHour: number; eatMin: number } => {
+        const eatMs = d.getTime() + 3 * 60 * 60 * 1000;
+        const eat = new Date(eatMs);
+        const yyyy = eat.getUTCFullYear();
+        const mm = String(eat.getUTCMonth() + 1).padStart(2, '0');
+        const dd = String(eat.getUTCDate()).padStart(2, '0');
+        return { dateStr: `${yyyy}-${mm}-${dd}`, eatHour: eat.getUTCHours(), eatMin: eat.getUTCMinutes() };
+    };
+
+    for (const log of rawLogs) {
+        const logInst = log.institution_id || log.institutionId || '';
+        const logDev = normalizeKey(log.device_id || log.deviceId || '');
+        // Only include logs belonging to this institution or one of its registered devices
+        if (logInst && !instCandidates.includes(logInst)) continue;
+        if (!logInst && deviceSns.size > 0 && logDev && !deviceSns.has(logDev)) continue;
+
+        const rawPunch = log.punch_time || log.punchTime || log.created_at || log.createdAt;
+        const punchDate = rawPunch ? new Date(rawPunch) : null;
+        if (!punchDate || isNaN(punchDate.getTime())) continue;
+
+        const { dateStr } = toKenyaDateStr(punchDate);
+        if (startDate && dateStr < startDate) continue;
+        if (endDate && dateStr > endDate) continue;
+
+        totalLogsScanned++;
+
+        let rawObj: any = {};
+        try {
+            rawObj = typeof log.raw_data === 'string' ? JSON.parse(log.raw_data) : (log.raw_data || log.rawData || {});
+        } catch (_) {}
+
+        const candidatePins = [
+            log.device_pin,
+            log.devicePin,
+            rawObj.UserID,
+            rawObj.userId,
+            rawObj.UserCode,
+            rawObj.PersonID,
+            rawObj.EmployeeNo,
+            rawObj.CardNo,
+            rawObj.cardNo,
+            rawObj.PIN,
+            rawObj.pin,
+        ]
+            .map(v => String(v ?? '').trim())
+            .filter(v => v && v.toLowerCase() !== 'unknown_user');
+
+        let resolvedStaffId: string | null = null;
+        for (const p of candidatePins) {
+            const match = pinToStaff.get(normalizeKey(p)) || pinToStaff.get(stripLeadingZeros(normalizeKey(p)));
+            if (match) {
+                resolvedStaffId = match;
+                break;
+            }
+        }
+        if (!resolvedStaffId) {
+            const existingSid = log.staff_id || log.staffId;
+            if (existingSid && validUserIds.has(String(existingSid))) {
+                resolvedStaffId = String(existingSid);
+            }
+        }
+
+        if (!resolvedStaffId) {
+            unmatchedLogsCount++;
+            if (candidatePins[0]) unmatchedPinsSet.add(candidatePins[0]);
+            continue;
+        }
+
+        matchedLogsCount++;
+        const currentSid = log.staff_id || log.staffId || '';
+        const needsUpdate = currentSid !== resolvedStaffId || !logInst || (!log.is_processed && !log.isProcessed);
+
+        if (needsUpdate && log.id) {
+            newlyLinkedLogs++;
+            if (supabase) {
+                await supabase
+                    .from('staff_attendance_logs')
+                    .update({
+                        staff_id: resolvedStaffId,
+                        institution_id: institutionId,
+                        is_processed: true,
+                    })
+                    .eq('id', log.id)
+                    .then(() => {}, () => {});
+            } else if (pool) {
+                await pool
+                    .query(
+                        `UPDATE public.staff_attendance_logs
+                         SET staff_id = $1, "staffId" = $1,
+                             institution_id = COALESCE(NULLIF(institution_id, ''), $2),
+                             "institutionId" = COALESCE(NULLIF("institutionId", ''), $2),
+                             is_processed = true, "isProcessed" = true,
+                             updated_at = CURRENT_TIMESTAMP
+                         WHERE id = $3`,
+                        [resolvedStaffId, institutionId, log.id]
+                    )
+                    .catch(() => {});
+            }
+        }
+
+        const key = `${resolvedStaffId}|${dateStr}`;
+        let group = dailyGroups.get(key);
+        if (!group) {
+            group = { staffId: resolvedStaffId, dateStr, times: [] };
+            dailyGroups.set(key, group);
+        }
+        group.times.push(punchDate);
+    }
+
+    // 4. Upsert aggregated daily attendance records into staff_attendance_daily
+    let dailyRecordsSynced = 0;
+    const datesSyncedSet = new Set<string>();
+
+    for (const group of dailyGroups.values()) {
+        group.times.sort((a, b) => a.getTime() - b.getTime());
+        const firstIn = group.times[0];
+        const lastOut = group.times.length > 1 ? group.times[group.times.length - 1] : firstIn;
+        const diffHours = Math.max(0, (lastOut.getTime() - firstIn.getTime()) / (1000 * 60 * 60));
+        const totalHours = Math.round(diffHours * 100) / 100;
+        const overtimeHours = totalHours > 8 ? Math.round((totalHours - 8) * 100) / 100 : 0;
+        const { eatHour, eatMin } = toKenyaDateStr(firstIn);
+        const minutesSinceMidnight = eatHour * 60 + eatMin;
+        const lateMinutes = minutesSinceMidnight > 8 * 60 ? minutesSinceMidnight - 8 * 60 : 0;
+        const punchCount = group.times.length;
+
+        const firstIso = firstIn.toISOString();
+        const lastIso = group.times.length > 1 ? lastOut.toISOString() : null;
+
+        if (supabase) {
+            const { data: existingDaily } = await supabase
+                .from('staff_attendance_daily')
+                .select('id')
+                .eq('institution_id', institutionId)
+                .eq('staff_id', group.staffId)
+                .eq('attendance_date', group.dateStr)
+                .maybeSingle();
+
+            if (existingDaily?.id) {
+                await supabase
+                    .from('staff_attendance_daily')
+                    .update({
+                        first_in: firstIso,
+                        last_out: lastIso,
+                        total_hours: totalHours,
+                        overtime_hours: overtimeHours,
+                        late_minutes: lateMinutes,
+                        punch_count: punchCount,
+                        status: 'present',
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', existingDaily.id);
+            } else {
+                await supabase.from('staff_attendance_daily').insert({
+                    institution_id: institutionId,
+                    staff_id: group.staffId,
+                    attendance_date: group.dateStr,
+                    first_in: firstIso,
+                    last_out: lastIso,
+                    total_hours: totalHours,
+                    overtime_hours: overtimeHours,
+                    late_minutes: lateMinutes,
+                    early_leave_minutes: 0,
+                    punch_count: punchCount,
+                    status: 'present',
+                });
+            }
+            dailyRecordsSynced++;
+            datesSyncedSet.add(group.dateStr);
+        } else if (pool) {
+            const existingRes = await pool
+                .query(
+                    `SELECT id FROM public.staff_attendance_daily
+                     WHERE (institution_id = $1 OR "institutionId" = $1)
+                       AND (staff_id = $2 OR "staffId" = $2)
+                       AND (attendance_date = $3 OR "attendanceDate" = $3)
+                     LIMIT 1`,
+                    [institutionId, group.staffId, group.dateStr]
+                )
+                .catch(() => ({ rows: [] }));
+
+            if (existingRes.rows?.[0]?.id) {
+                await pool
+                    .query(
+                        `UPDATE public.staff_attendance_daily
+                         SET first_in = $1, "firstIn" = $1,
+                             last_out = $2, "lastOut" = $2,
+                             total_hours = $3, "totalHours" = $3,
+                             overtime_hours = $4, "overtimeHours" = $4,
+                             late_minutes = $5, "lateMinutes" = $5,
+                             punch_count = $6, "punchCount" = $6,
+                             status = 'present',
+                             updated_at = CURRENT_TIMESTAMP
+                         WHERE id = $7`,
+                        [firstIso, lastIso, totalHours, overtimeHours, lateMinutes, punchCount, existingRes.rows[0].id]
+                    )
+                    .catch(() => {});
+            } else {
+                const newId = `sad_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                await pool
+                    .query(
+                        `INSERT INTO public.staff_attendance_daily
+                         (id, institution_id, "institutionId", staff_id, "staffId", attendance_date, "attendanceDate", first_in, "firstIn", last_out, "lastOut", total_hours, "totalHours", overtime_hours, "overtimeHours", late_minutes, "lateMinutes", early_leave_minutes, "earlyLeaveMinutes", punch_count, "punchCount", status)
+                         VALUES ($1, $2, $2, $3, $3, $4, $4, $5, $5, $6, $6, $7, $7, $8, $8, $9, $9, 0, 0, $10, $10, 'present')`,
+                        [newId, institutionId, group.staffId, group.dateStr, firstIso, lastIso, totalHours, overtimeHours, lateMinutes, punchCount]
+                    )
+                    .catch(() => {});
+            }
+            dailyRecordsSynced++;
+            datesSyncedSet.add(group.dateStr);
+        }
+    }
+
+    return {
+        success: true,
+        status: 'ok',
+        totalLogsScanned,
+        newlyLinkedLogs,
+        matchedLogsCount,
+        unmatchedLogsCount,
+        dailyRecordsSynced,
+        datesSynced: Array.from(datesSyncedSet).sort(),
+        unmatchedPins: Array.from(unmatchedPinsSet).slice(0, 30),
+    };
 }
