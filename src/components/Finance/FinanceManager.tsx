@@ -26020,26 +26020,67 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 📥 Export CSV
                                                             </button>
                                                             <button
+                                                                type="button"
                                                                 onClick={() => {
                                                                     setPdfPreviewModal({
                                                                         title: `FEE REGISTER AUDIT REPORT`,
                                                                         subtitle: `${props.institution.name} — Class: ${feeRegClass || 'All Classes'} | Stream: ${feeRegStream || 'All Streams'} (${searchedFeeRegister.length} Students)`,
-                                                                        studentName: `Batch Register (${searchedFeeRegister.length} Students)`,
-                                                                        admNo: `COUNT: ${searchedFeeRegister.length}`,
-                                                                        className: feeRegClass || 'All Classes',
+                                                                        studentName: `Fee Register (${searchedFeeRegister.length} Students)`,
+                                                                        admNo: `CLASS: ${feeRegClass || 'ALL'}`,
+                                                                        className: `Stream: ${feeRegStream || 'All Streams'}`,
                                                                         invoiced: totalPaidSum + totalArrearsSum,
                                                                         paid: totalPaidSum,
                                                                         balance: totalArrearsSum,
+                                                                        isFeeRegister: true,
                                                                         items: searchedFeeRegister.map((s: any) => ({
                                                                             name: s.name,
                                                                             adm: s.admissionNumber,
-                                                                            cls: `${s.class} ${s.stream && s.stream !== '—' ? `(${s.stream})` : ''}`,
-                                                                            inv: s.totalPaid + s.arrears,
-                                                                            pd: s.totalPaid,
-                                                                            bal: s.arrears
+                                                                            bf: s.bf || 0,
+                                                                            t1Count: s.t1Count || 0,
+                                                                            t1Amount: s.t1Amount || 0,
+                                                                            t2Count: s.t2Count || 0,
+                                                                            t2Amount: s.t2Amount || 0,
+                                                                            t3Count: s.t3Count || 0,
+                                                                            t3Amount: s.t3Amount || 0,
+                                                                            totalPaid: s.totalPaid || 0,
+                                                                            prepaid: s.prepaid || 0,
+                                                                            arrears: s.arrears || 0,
                                                                         }))
-                                                                    });
-                                                                    setTimeout(() => printElementViaIframe('printable-pdf-pages-container'), 250);
+                                                                    } as any);
+                                                                }}
+                                                                className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                            >
+                                                                👥 On-Screen PDF Preview
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setPdfPreviewModal({
+                                                                        title: `FEE REGISTER AUDIT REPORT`,
+                                                                        subtitle: `${props.institution.name} — Class: ${feeRegClass || 'All Classes'} | Stream: ${feeRegStream || 'All Streams'} (${searchedFeeRegister.length} Students)`,
+                                                                        studentName: `Fee Register (${searchedFeeRegister.length} Students)`,
+                                                                        admNo: `CLASS: ${feeRegClass || 'ALL'}`,
+                                                                        className: `Stream: ${feeRegStream || 'All Streams'}`,
+                                                                        invoiced: totalPaidSum + totalArrearsSum,
+                                                                        paid: totalPaidSum,
+                                                                        balance: totalArrearsSum,
+                                                                        isFeeRegister: true,
+                                                                        items: searchedFeeRegister.map((s: any) => ({
+                                                                            name: s.name,
+                                                                            adm: s.admissionNumber,
+                                                                            bf: s.bf || 0,
+                                                                            t1Count: s.t1Count || 0,
+                                                                            t1Amount: s.t1Amount || 0,
+                                                                            t2Count: s.t2Count || 0,
+                                                                            t2Amount: s.t2Amount || 0,
+                                                                            t3Count: s.t3Count || 0,
+                                                                            t3Amount: s.t3Amount || 0,
+                                                                            totalPaid: s.totalPaid || 0,
+                                                                            prepaid: s.prepaid || 0,
+                                                                            arrears: s.arrears || 0,
+                                                                        }))
+                                                                    } as any);
+                                                                    setTimeout(() => printElementViaIframe('printable-pdf-pages-container'), 300);
                                                                 }}
                                                                 className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                                                             >
@@ -26372,7 +26413,69 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Statement of Cash Flows</h3>
                                                             <p className="text-[10px] text-slate-400 font-medium">Summarized cash inflows and outflows categorized by Operating, Investing, and Financing activities</p>
                                                         </div>
-                                                        <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">🖨️ Print Statement</button>
+                                                        <div className="flex flex-wrap items-center gap-2 print:hidden">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setPdfPreviewModal({
+                                                                        title: `STATEMENT OF CASH FLOWS`,
+                                                                        subtitle: `${props.institution.name} — Operating, Investing & Financing Activities`,
+                                                                        studentName: `Statement of Cash Flows`,
+                                                                        admNo: `RECEIPTS: ${mappedReceipts.length}`,
+                                                                        className: `Net Cash Movement: KSh ${netCashChange.toLocaleString()}`,
+                                                                        invoiced: totalInflows,
+                                                                        paid: operatingOutflow + investingOutflow + financingOutflow,
+                                                                        balance: netCashChange,
+                                                                        isCashFlow: true,
+                                                                        cashFlowData: {
+                                                                            totalInflows,
+                                                                            operatingOutflow,
+                                                                            netOperating,
+                                                                            investingOutflow,
+                                                                            netInvesting,
+                                                                            financingOutflow,
+                                                                            netFinancing,
+                                                                            netCashChange,
+                                                                        },
+                                                                        items: [{ id: 'cf_1' }],
+                                                                    } as any);
+                                                                }}
+                                                                className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                                                            >
+                                                                👥 PDF Preview
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setPdfPreviewModal({
+                                                                        title: `STATEMENT OF CASH FLOWS`,
+                                                                        subtitle: `${props.institution.name} — Operating, Investing & Financing Activities`,
+                                                                        studentName: `Statement of Cash Flows`,
+                                                                        admNo: `RECEIPTS: ${mappedReceipts.length}`,
+                                                                        className: `Net Cash Movement: KSh ${netCashChange.toLocaleString()}`,
+                                                                        invoiced: totalInflows,
+                                                                        paid: operatingOutflow + investingOutflow + financingOutflow,
+                                                                        balance: netCashChange,
+                                                                        isCashFlow: true,
+                                                                        cashFlowData: {
+                                                                            totalInflows,
+                                                                            operatingOutflow,
+                                                                            netOperating,
+                                                                            investingOutflow,
+                                                                            netInvesting,
+                                                                            financingOutflow,
+                                                                            netFinancing,
+                                                                            netCashChange,
+                                                                        },
+                                                                        items: [{ id: 'cf_1' }],
+                                                                    } as any);
+                                                                    setTimeout(() => printElementViaIframe('printable-pdf-pages-container'), 300);
+                                                                }}
+                                                                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                                                            >
+                                                                🖨️ Print Statement
+                                                            </button>
+                                                        </div>
                                                     </div>
 
                                                     <div className="max-w-2xl mx-auto space-y-8 bg-slate-50/50 dark:bg-slate-950/40 p-8 rounded-[2rem] border border-slate-100/80 dark:border-slate-800/30">
@@ -26670,26 +26773,57 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             </button>
                                                             <button onClick={handleDownloadPDF} className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95">📥 Download PDF</button>
                                                             <button
+                                                                type="button"
                                                                 onClick={() => {
                                                                     setPdfPreviewModal({
                                                                         title: `FEES INSTALLMENTS SUMMARY REPORT`,
                                                                         subtitle: `${props.institution.name} — Class: ${installmentClass} (${searchedStudentInstallments.length} Students)`,
-                                                                        studentName: `Batch Installments (${searchedStudentInstallments.length} Students)`,
-                                                                        admNo: `COUNT: ${searchedStudentInstallments.length}`,
-                                                                        className: installmentClass,
+                                                                        studentName: `Fees Installments (${searchedStudentInstallments.length} Students)`,
+                                                                        admNo: `CLASS: ${installmentClass}`,
+                                                                        className: `12-Installment Breakdown`,
                                                                         invoiced: totalExpectedSum,
                                                                         paid: totalPaidSum,
                                                                         balance: totalBalSum,
+                                                                        isFeeInstallment: true,
                                                                         items: searchedStudentInstallments.map((s: any) => ({
-                                                                            name: s.name,
                                                                             adm: s.admissionNumber,
-                                                                            cls: `${s.pctPaid}% Paid`,
-                                                                            inv: s.expectedFees,
-                                                                            pd: s.totals,
-                                                                            bal: s.balance
+                                                                            name: s.name,
+                                                                            expectedFees: s.expectedFees || 0,
+                                                                            installments: Array.isArray(s.installments) ? s.installments : Array(12).fill(0),
+                                                                            totals: s.totals || 0,
+                                                                            balance: s.balance || 0,
+                                                                            pctPaid: s.pctPaid || 0,
                                                                         }))
-                                                                    });
-                                                                    setTimeout(() => printElementViaIframe('printable-pdf-pages-container'), 250);
+                                                                    } as any);
+                                                                }}
+                                                                className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                            >
+                                                                👥 PDF Preview
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setPdfPreviewModal({
+                                                                        title: `FEES INSTALLMENTS SUMMARY REPORT`,
+                                                                        subtitle: `${props.institution.name} — Class: ${installmentClass} (${searchedStudentInstallments.length} Students)`,
+                                                                        studentName: `Fees Installments (${searchedStudentInstallments.length} Students)`,
+                                                                        admNo: `CLASS: ${installmentClass}`,
+                                                                        className: `12-Installment Breakdown`,
+                                                                        invoiced: totalExpectedSum,
+                                                                        paid: totalPaidSum,
+                                                                        balance: totalBalSum,
+                                                                        isFeeInstallment: true,
+                                                                        items: searchedStudentInstallments.map((s: any) => ({
+                                                                            adm: s.admissionNumber,
+                                                                            name: s.name,
+                                                                            expectedFees: s.expectedFees || 0,
+                                                                            installments: Array.isArray(s.installments) ? s.installments : Array(12).fill(0),
+                                                                            totals: s.totals || 0,
+                                                                            balance: s.balance || 0,
+                                                                            pctPaid: s.pctPaid || 0,
+                                                                        }))
+                                                                    } as any);
+                                                                    setTimeout(() => printElementViaIframe('printable-pdf-pages-container'), 300);
                                                                 }}
                                                                 className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                                                             >
@@ -28616,7 +28750,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             {/* On-Screen Interactive PDF Preview Modal */}
             {pdfPreviewModal && (() => {
                 const isCollectionSummary = Boolean((pdfPreviewModal as any).isCollectionSummary);
-                const isLandscapeReport = Boolean(pdfPreviewModal.isCashBook || isCollectionSummary);
+                const isFeeRegister = Boolean((pdfPreviewModal as any).isFeeRegister);
+                const isFeeInstallment = Boolean((pdfPreviewModal as any).isFeeInstallment);
+                const isCashFlow = Boolean((pdfPreviewModal as any).isCashFlow);
+                const isLandscapeReport = Boolean(pdfPreviewModal.isCashBook || isCollectionSummary || isFeeRegister || isFeeInstallment);
                 const rawItems = pdfPreviewModal.items || [];
                 const paginatePreviewItems = () => {
                     if (rawItems.length === 0) {
@@ -28999,6 +29136,168 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     )}
                                                                 </tbody>
                                                             </table>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                if (isFeeRegister) {
+                                                    const sumBf = rawItems.reduce((a: number, s: any) => a + Number(s.bf || 0), 0);
+                                                    const sumT1 = rawItems.reduce((a: number, s: any) => a + Number(s.t1Amount || 0), 0);
+                                                    const sumT2 = rawItems.reduce((a: number, s: any) => a + Number(s.t2Amount || 0), 0);
+                                                    const sumT3 = rawItems.reduce((a: number, s: any) => a + Number(s.t3Amount || 0), 0);
+                                                    const sumTotal = rawItems.reduce((a: number, s: any) => a + Number(s.totalPaid || 0), 0);
+                                                    const sumPrepaid = rawItems.reduce((a: number, s: any) => a + Number(s.prepaid || 0), 0);
+                                                    const sumArrears = rawItems.reduce((a: number, s: any) => a + Number(s.arrears || 0), 0);
+                                                    return (
+                                                        <div className="mb-4 overflow-x-auto">
+                                                            <table className="w-full text-left text-[10px] border-collapse border border-slate-300">
+                                                                <thead>
+                                                                    <tr className="bg-slate-100 text-[9px] font-black uppercase tracking-wider text-slate-700">
+                                                                        <th rowSpan={2} className="py-1.5 px-2 border border-slate-300">Name</th>
+                                                                        <th rowSpan={2} className="py-1.5 px-2 border border-slate-300">Adm.No</th>
+                                                                        <th rowSpan={2} className="py-1.5 px-2 border border-slate-300 text-right">Amount Bf.</th>
+                                                                        <th colSpan={2} className="py-1 px-2 border border-slate-300 text-center">1st Term</th>
+                                                                        <th colSpan={2} className="py-1 px-2 border border-slate-300 text-center">2nd Term</th>
+                                                                        <th colSpan={2} className="py-1 px-2 border border-slate-300 text-center">3rd Term</th>
+                                                                        <th rowSpan={2} className="py-1.5 px-2 border border-slate-300 text-right">TOTAL</th>
+                                                                        <th rowSpan={2} className="py-1.5 px-2 border border-slate-300 text-right">PREPAID</th>
+                                                                        <th rowSpan={2} className="py-1.5 px-2 border border-slate-300 text-right">ARREARS</th>
+                                                                    </tr>
+                                                                    <tr className="bg-slate-50 text-[8px] font-bold uppercase text-slate-500">
+                                                                        <th className="py-1 px-1.5 border border-slate-300 text-center">Inst.</th>
+                                                                        <th className="py-1 px-1.5 border border-slate-300 text-right">Amount</th>
+                                                                        <th className="py-1 px-1.5 border border-slate-300 text-center">Inst.</th>
+                                                                        <th className="py-1 px-1.5 border border-slate-300 text-right">Amount</th>
+                                                                        <th className="py-1 px-1.5 border border-slate-300 text-center">Inst.</th>
+                                                                        <th className="py-1 px-1.5 border border-slate-300 text-right">Amount</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {page.items.map((s: any, idx: number) => (
+                                                                        <tr key={idx} className="border-b border-slate-200">
+                                                                            <td className="py-1.5 px-2 border border-slate-200 font-bold text-slate-900 whitespace-nowrap">{s.name}</td>
+                                                                            <td className="py-1.5 px-2 border border-slate-200 font-mono text-slate-600">{s.adm}</td>
+                                                                            <td className="py-1.5 px-2 border border-slate-200 text-right">{Number(s.bf || 0) !== 0 ? `KSh ${Number(s.bf).toLocaleString()}` : '0'}</td>
+                                                                            <td className="py-1.5 px-1.5 border border-slate-200 text-center">{s.t1Count || 0}</td>
+                                                                            <td className="py-1.5 px-1.5 border border-slate-200 text-right">{Number(s.t1Amount || 0) > 0 ? Number(s.t1Amount).toLocaleString() : '—'}</td>
+                                                                            <td className="py-1.5 px-1.5 border border-slate-200 text-center">{s.t2Count || 0}</td>
+                                                                            <td className="py-1.5 px-1.5 border border-slate-200 text-right">{Number(s.t2Amount || 0) > 0 ? Number(s.t2Amount).toLocaleString() : '—'}</td>
+                                                                            <td className="py-1.5 px-1.5 border border-slate-200 text-center">{s.t3Count || 0}</td>
+                                                                            <td className="py-1.5 px-1.5 border border-slate-200 text-right">{Number(s.t3Amount || 0) > 0 ? Number(s.t3Amount).toLocaleString() : '—'}</td>
+                                                                            <td className="py-1.5 px-2 border border-slate-200 text-right font-black text-emerald-700">{Number(s.totalPaid || 0).toLocaleString()}</td>
+                                                                            <td className="py-1.5 px-2 border border-slate-200 text-right text-indigo-700">{Number(s.prepaid || 0) > 0 ? Number(s.prepaid).toLocaleString() : '—'}</td>
+                                                                            <td className="py-1.5 px-2 border border-slate-200 text-right font-bold text-rose-700">{Number(s.arrears || 0) > 0 ? Number(s.arrears).toLocaleString() : '0'}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                    {page.isLast && rawItems.length > 0 && (
+                                                                        <tr className="bg-slate-100 font-black border-t-2 border-slate-900">
+                                                                            <td colSpan={2} className="py-2 px-2 border border-slate-300 uppercase">TOTALS ({rawItems.length} Students)</td>
+                                                                            <td className="py-2 px-2 border border-slate-300 text-right">{sumBf.toLocaleString()}</td>
+                                                                            <td className="py-2 px-1.5 border border-slate-300 text-center">—</td>
+                                                                            <td className="py-2 px-1.5 border border-slate-300 text-right">{sumT1.toLocaleString()}</td>
+                                                                            <td className="py-2 px-1.5 border border-slate-300 text-center">—</td>
+                                                                            <td className="py-2 px-1.5 border border-slate-300 text-right">{sumT2.toLocaleString()}</td>
+                                                                            <td className="py-2 px-1.5 border border-slate-300 text-center">—</td>
+                                                                            <td className="py-2 px-1.5 border border-slate-300 text-right">{sumT3.toLocaleString()}</td>
+                                                                            <td className="py-2 px-2 border border-slate-300 text-right text-emerald-700">KSh {sumTotal.toLocaleString()}</td>
+                                                                            <td className="py-2 px-2 border border-slate-300 text-right text-indigo-700">KSh {sumPrepaid.toLocaleString()}</td>
+                                                                            <td className="py-2 px-2 border border-slate-300 text-right text-rose-700">KSh {sumArrears.toLocaleString()}</td>
+                                                                        </tr>
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                if (isFeeInstallment) {
+                                                    const sumExpected = rawItems.reduce((a: number, s: any) => a + Number(s.expectedFees || 0), 0);
+                                                    const sumTotals = rawItems.reduce((a: number, s: any) => a + Number(s.totals || 0), 0);
+                                                    const sumBalance = rawItems.reduce((a: number, s: any) => a + Number(s.balance || 0), 0);
+                                                    const overallPct = sumExpected > 0 ? Math.round((sumTotals / sumExpected) * 100) : 0;
+                                                    return (
+                                                        <div className="mb-4 overflow-x-auto">
+                                                            <table className="w-full text-left text-[9px] border-collapse border border-slate-300">
+                                                                <thead>
+                                                                    <tr className="bg-slate-100 text-[8px] font-black uppercase tracking-wider text-slate-700">
+                                                                        <th rowSpan={2} className="py-1.5 px-1.5 border border-slate-300">Adm.No</th>
+                                                                        <th rowSpan={2} className="py-1.5 px-2 border border-slate-300">Names</th>
+                                                                        <th rowSpan={2} className="py-1.5 px-1.5 border border-slate-300 text-right">Expected</th>
+                                                                        <th colSpan={12} className="py-1 px-2 border border-slate-300 text-center">All Installments Since Beginning of Year</th>
+                                                                        <th rowSpan={2} className="py-1.5 px-1.5 border border-slate-300 text-right">Totals</th>
+                                                                        <th rowSpan={2} className="py-1.5 px-1.5 border border-slate-300 text-right">Balance</th>
+                                                                        <th rowSpan={2} className="py-1.5 px-1.5 border border-slate-300 text-center">% Paid</th>
+                                                                    </tr>
+                                                                    <tr className="bg-slate-50 text-[8px] font-bold text-slate-500">
+                                                                        {Array.from({ length: 12 }).map((_, c) => (
+                                                                            <th key={c} className="py-1 px-1 border border-slate-300 text-center">{c + 1}</th>
+                                                                        ))}
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {page.items.map((s: any, idx: number) => (
+                                                                        <tr key={idx} className="border-b border-slate-200">
+                                                                            <td className="py-1.5 px-1.5 border border-slate-200 font-mono text-slate-600">{s.adm}</td>
+                                                                            <td className="py-1.5 px-2 border border-slate-200 font-bold text-slate-900 whitespace-nowrap">{s.name}</td>
+                                                                            <td className="py-1.5 px-1.5 border border-slate-200 text-right">{Number(s.expectedFees || 0).toLocaleString()}</td>
+                                                                            {(s.installments || Array(12).fill(0)).slice(0, 12).map((val: number, cIdx: number) => (
+                                                                                <td key={cIdx} className="py-1.5 px-1 border border-slate-200 text-right">
+                                                                                    {Number(val || 0) > 0 ? Number(val).toLocaleString() : '—'}
+                                                                                </td>
+                                                                            ))}
+                                                                            <td className="py-1.5 px-1.5 border border-slate-200 text-right font-black text-emerald-700">{Number(s.totals || 0).toLocaleString()}</td>
+                                                                            <td className="py-1.5 px-1.5 border border-slate-200 text-right font-bold text-rose-700">{Number(s.balance || 0).toLocaleString()}</td>
+                                                                            <td className="py-1.5 px-1.5 border border-slate-200 text-center font-black">{s.pctPaid || 0}%</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                    {page.isLast && rawItems.length > 0 && (
+                                                                        <tr className="bg-slate-100 font-black border-t-2 border-slate-900">
+                                                                            <td colSpan={2} className="py-2 px-2 border border-slate-300 uppercase">TOTALS ({rawItems.length})</td>
+                                                                            <td className="py-2 px-1.5 border border-slate-300 text-right">{sumExpected.toLocaleString()}</td>
+                                                                            {Array.from({ length: 12 }).map((_, c) => {
+                                                                                const colSum = rawItems.reduce((a: number, s: any) => a + Number(s.installments?.[c] || 0), 0);
+                                                                                return (
+                                                                                    <td key={c} className="py-2 px-1 border border-slate-300 text-right">
+                                                                                        {colSum > 0 ? colSum.toLocaleString() : '—'}
+                                                                                    </td>
+                                                                                );
+                                                                            })}
+                                                                            <td className="py-2 px-1.5 border border-slate-300 text-right text-emerald-700">{sumTotals.toLocaleString()}</td>
+                                                                            <td className="py-2 px-1.5 border border-slate-300 text-right text-rose-700">{sumBalance.toLocaleString()}</td>
+                                                                            <td className="py-2 px-1.5 border border-slate-300 text-center">{overallPct}%</td>
+                                                                        </tr>
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                if (isCashFlow) {
+                                                    const cf = (pdfPreviewModal as any).cashFlowData || {};
+                                                    const fmt = (v: number) => (v < 0 ? `(KSh ${Math.abs(v).toLocaleString()})` : `KSh ${Number(v || 0).toLocaleString()}`);
+                                                    return (
+                                                        <div className="mb-4 space-y-5 text-xs">
+                                                            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+                                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-200 pb-1.5">1. Cash Flows from Operating Activities</div>
+                                                                <div className="flex justify-between"><span>Cash Inflow: Fee Collections</span><span className="font-bold text-emerald-700">{fmt(cf.totalInflows || 0)}</span></div>
+                                                                <div className="flex justify-between"><span>Cash Outflow: Operating Expenses</span><span className="font-bold text-rose-700">{fmt(-(cf.operatingOutflow || 0))}</span></div>
+                                                                <div className="flex justify-between border-t border-slate-300 pt-1.5 font-black"><span>Net Cash from Operating Activities</span><span>{fmt(cf.netOperating || 0)}</span></div>
+                                                            </div>
+                                                            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+                                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-200 pb-1.5">2. Cash Flows from Investing Activities</div>
+                                                                <div className="flex justify-between"><span>Capital / Asset &amp; Equipment Purchases</span><span className="font-bold text-rose-700">{fmt(-(cf.investingOutflow || 0))}</span></div>
+                                                                <div className="flex justify-between border-t border-slate-300 pt-1.5 font-black"><span>Net Cash from Investing Activities</span><span>{fmt(cf.netInvesting || 0)}</span></div>
+                                                            </div>
+                                                            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+                                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-200 pb-1.5">3. Cash Flows from Financing Activities</div>
+                                                                <div className="flex justify-between"><span>Loans, Bank Financing &amp; Capital Outflows</span><span className="font-bold text-rose-700">{fmt(-(cf.financingOutflow || 0))}</span></div>
+                                                                <div className="flex justify-between border-t border-slate-300 pt-1.5 font-black"><span>Net Cash from Financing Activities</span><span>{fmt(cf.netFinancing || 0)}</span></div>
+                                                            </div>
+                                                            <div className="p-4 rounded-xl bg-slate-900 text-white flex justify-between items-center font-black text-sm">
+                                                                <span className="uppercase tracking-wider">Net Increase / (Decrease) in Cash</span>
+                                                                <span className="font-mono text-emerald-400">{fmt(cf.netCashChange || 0)}</span>
+                                                            </div>
                                                         </div>
                                                     );
                                                 }
