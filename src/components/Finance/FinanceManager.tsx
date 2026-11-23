@@ -85,6 +85,8 @@ const LogisticsManager = React.lazy(() => import('../LogisticsManager').then(m =
 import { SiblingPaymentSplitterModal } from './SiblingPaymentSplitterModal';
 import { BoardingHouseholdBalanceManager } from './BoardingHouseholdBalanceManager';
 import { FeePromissoryTracker } from './FeePromissoryTracker';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { AutoRefreshBadge } from '../common/AutoRefreshBadge';
 
 const parseMoneyAmount = (amt: any): number => {
     if (amt === null || amt === undefined) return 0;
@@ -180,6 +182,7 @@ interface FinanceManagerProps {
     voteHeads?: VoteHead[];
     courses?: Course[];
     onRefreshData?: () => Promise<void>;
+    onSilentRefreshData?: () => Promise<void>;
     companyDetails?: CompanyDetails;
     onLogAction?: (message: string) => Promise<void> | void;
     // HR & Payroll integration
@@ -7882,6 +7885,38 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
     const [scheduleStaffAccounts, setScheduleStaffAccounts] = useState<any[]>([]);
 
+    const isFinanceModalOpen = Boolean(
+        showPostModal ||
+        showReconcileModal ||
+        showOtherIncomeModal ||
+        showRecordExpenseModal ||
+        showExcelInvoiceModal ||
+        showStmtPdfModal ||
+        showCleanDuplicatesModal ||
+        showVoucherPreviewModal ||
+        showBankScheduleModal ||
+        isCreatingDsInvoice
+    );
+
+    const {
+        lastSyncedAt: financeLastSyncedAt,
+        isSyncing: isFinanceAutoSyncing,
+        isUserPaused: isFinanceAutoSyncPaused,
+        togglePause: toggleFinanceAutoSyncPause,
+        refreshNow: refreshFinanceNow,
+    } = useAutoRefresh({
+        enabled: Boolean(props.institution?.id && (props.onSilentRefreshData || props.onRefreshData)),
+        intervalMs: 30000,
+        paused: isFinanceModalOpen,
+        onRefresh: async () => {
+            if (props.onSilentRefreshData) {
+                await props.onSilentRefreshData();
+            } else if (props.onRefreshData) {
+                await props.onRefreshData();
+            }
+        },
+    });
+
     useEffect(() => {
         if (showBankScheduleModal) {
             const currentPeriod = schedulePeriod || (props.payrollRecords && props.payrollRecords[0]?.period) || '';
@@ -12255,6 +12290,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </button>
                         </div>
 
+                        {/* Live Auto-Sync Status & Controls */}
+                        {(props.onSilentRefreshData || props.onRefreshData) && (
+                            <div className="flex items-center px-3 border-l border-slate-100 dark:border-slate-800">
+                                <AutoRefreshBadge
+                                    lastSyncedAt={financeLastSyncedAt}
+                                    isSyncing={isFinanceAutoSyncing}
+                                    isPaused={isFinanceModalOpen}
+                                    isUserPaused={isFinanceAutoSyncPaused}
+                                    onTogglePause={toggleFinanceAutoSyncPause}
+                                    onRefreshNow={refreshFinanceNow}
+                                    variant="light"
+                                    label="Live Sync"
+                                />
+                            </div>
+                        )}
+
                         <div className="hidden md:flex items-center gap-4 px-6 border-l border-slate-100 dark:border-slate-800">
                             <div className="text-right">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -16520,6 +16571,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 activeTab={hrSubTab}
                                 setActiveTab={setHrSubTab}
                                 users={props.users || []}
+                                onRefreshData={props.onRefreshData}
+                                onSilentRefreshData={props.onSilentRefreshData}
                             />
                         </React.Suspense>
                     </div>

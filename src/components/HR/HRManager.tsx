@@ -1,6 +1,8 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { AllowanceDeductionManager, DEFAULT_ALLOWANCE_CATEGORIES, DEFAULT_DEDUCTION_CATEGORIES } from './AllowanceDeductionManager';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { AutoRefreshBadge } from '../common/AutoRefreshBadge';
 import type { User, PayrollRecord, LeaveRequest, Institution, LetterheadConfig, AllowanceCategory, DeductionCategory, AssignedAllowance, AssignedDeduction } from '../../types';
 import { PayrollEngine } from './PayrollEngine';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
@@ -82,6 +84,8 @@ interface HRManagerProps {
     showEduFlow?: boolean;
     users?: User[];
     onLogAction?: (action: string) => Promise<void>;
+    onRefreshData?: () => Promise<void>;
+    onSilentRefreshData?: () => Promise<void>;
 }
 
 export const HRManager: React.FC<HRManagerProps> = ({
@@ -103,7 +107,9 @@ export const HRManager: React.FC<HRManagerProps> = ({
     activityLog = [],
     showEduFlow = false,
     users = [],
-    onLogAction
+    onLogAction,
+    onRefreshData,
+    onSilentRefreshData
 }) => {
     const [localAddedStaff, setLocalAddedStaff] = useState<any[]>([]);
 
@@ -155,31 +161,31 @@ export const HRManager: React.FC<HRManagerProps> = ({
         return [];
     });
 
-    useEffect(() => {
+    const refreshSaccoData = useCallback(async () => {
         const instId = institution.id || 'default_inst';
-        let active = true;
-        Promise.all([
-            apiService.fetchModuleRecords('edu_sacco_members').catch(() => null),
-            apiService.fetchModuleRecords('edu_sacco_loans').catch(() => null),
-        ]).then(([mRecs, lRecs]) => {
-            if (!active) return;
-            if (Array.isArray(mRecs)) {
-                const filtered = mRecs.filter((r: any) => !r.institutionId || r.institutionId === instId);
-                if (filtered.length > 0) {
-                    setSaccoMembers(filtered);
-                    try { localStorage.setItem(`eduai_sacco_members_${instId}`, JSON.stringify(filtered)); } catch {}
-                }
+        const [mRecs, lRecs] = await Promise.all([
+            apiService.fetchModuleRecords('edu_sacco_members', instId, { bypassCache: true }).catch(() => null),
+            apiService.fetchModuleRecords('edu_sacco_loans', instId, { bypassCache: true }).catch(() => null),
+        ]);
+        if (Array.isArray(mRecs)) {
+            const filtered = mRecs.filter((r: any) => !r.institutionId || r.institutionId === instId);
+            if (filtered.length > 0) {
+                setSaccoMembers(filtered);
+                try { localStorage.setItem(`eduai_sacco_members_${instId}`, JSON.stringify(filtered)); } catch {}
             }
-            if (Array.isArray(lRecs)) {
-                const filtered = lRecs.filter((r: any) => !r.institutionId || r.institutionId === instId);
-                if (filtered.length > 0) {
-                    setSaccoLoans(filtered);
-                    try { localStorage.setItem(`eduai_sacco_loans_${instId}`, JSON.stringify(filtered)); } catch {}
-                }
+        }
+        if (Array.isArray(lRecs)) {
+            const filtered = lRecs.filter((r: any) => !r.institutionId || r.institutionId === instId);
+            if (filtered.length > 0) {
+                setSaccoLoans(filtered);
+                try { localStorage.setItem(`eduai_sacco_loans_${instId}`, JSON.stringify(filtered)); } catch {}
             }
-        });
-        return () => { active = false; };
+        }
     }, [institution.id]);
+
+    useEffect(() => {
+        refreshSaccoData();
+    }, [refreshSaccoData]);
 
     const getStaffSaccoCheckOff = (staffMember: any): { savings: number; loanRepayment: number } => {
         if (!staffMember) return { savings: 0, loanRepayment: 0 };
@@ -731,6 +737,36 @@ export const HRManager: React.FC<HRManagerProps> = ({
     const [scheduleSourceBankId, setScheduleSourceBankId] = useState('');
     const [scheduleChequeNumber, setScheduleChequeNumber] = useState('');
     const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+
+    const isHRModalOpen = Boolean(
+        showOnboardModal ||
+        showExcelImportModal ||
+        showStatutorySettingsModal ||
+        showGateQrModal ||
+        showDocModal ||
+        showBankScheduleModal
+    );
+
+    const {
+        lastSyncedAt: hrLastSyncedAt,
+        isSyncing: isHRAutoSyncing,
+        isUserPaused: isHRAutoSyncPaused,
+        togglePause: toggleHRAutoSyncPause,
+        refreshNow: refreshHRNow,
+    } = useAutoRefresh({
+        enabled: Boolean(institution?.id),
+        intervalMs: 30000,
+        paused: isHRModalOpen,
+        onRefresh: async () => {
+            const tasks: Promise<any>[] = [refreshSaccoData()];
+            if (onSilentRefreshData) {
+                tasks.push(onSilentRefreshData());
+            } else if (onRefreshData) {
+                tasks.push(onRefreshData());
+            }
+            await Promise.allSettled(tasks);
+        },
+    });
 
     React.useEffect(() => {
         if (showBankScheduleModal) {
@@ -1465,6 +1501,16 @@ export const HRManager: React.FC<HRManagerProps> = ({
 
                 {/* Header Action Shortcuts */}
                 <div className="relative flex flex-wrap items-center gap-3 shrink-0">
+                    <AutoRefreshBadge
+                        lastSyncedAt={hrLastSyncedAt}
+                        isSyncing={isHRAutoSyncing}
+                        isPaused={isHRModalOpen}
+                        isUserPaused={isHRAutoSyncPaused}
+                        onTogglePause={toggleHRAutoSyncPause}
+                        onRefreshNow={refreshHRNow}
+                        variant="dark"
+                        label="Live Sync"
+                    />
                     <button
                         type="button"
                         onClick={() => setShowStatutorySettingsModal(true)}

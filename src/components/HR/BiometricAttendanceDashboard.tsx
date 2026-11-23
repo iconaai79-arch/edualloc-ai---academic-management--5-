@@ -4,6 +4,8 @@ import { ClockIcon } from '../icons/ClockIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { XIcon } from '../icons/XIcon';
 import { apiService } from '../../services/apiService';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { AutoRefreshBadge } from '../common/AutoRefreshBadge';
 
 interface BiometricAttendanceDashboardProps {
     staff: User[];
@@ -226,13 +228,15 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         status: r.status || 'present'
     });
 
-    const loadTodayAttendance = async () => {
-        setLoading(true);
+    const loadTodayAttendance = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const data = await fetchDailyFromServer(selectedDate, selectedDate);
             setDailyRecords((data || []).map(normalizeDailyRow));
-        } catch { setDailyRecords([]); }
-        setLoading(false);
+        } catch {
+            if (!silent) setDailyRecords([]);
+        }
+        if (!silent) setLoading(false);
     };
 
     const getActiveRangeBounds = (): { start: string; end: string } => {
@@ -247,14 +251,16 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         };
     };
 
-    const loadMonthlyAttendance = async () => {
-        setLoading(true);
+    const loadMonthlyAttendance = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const { start, end } = getActiveRangeBounds();
             const data = await fetchDailyFromServer(start, end);
             setMonthlyRecords((data || []).map(normalizeDailyRow));
-        } catch { setMonthlyRecords([]); }
-        setLoading(false);
+        } catch {
+            if (!silent) setMonthlyRecords([]);
+        }
+        if (!silent) setLoading(false);
     };
 
     const handleAddDevice = async () => {
@@ -896,8 +902,8 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         }
     };
 
-    const loadDevicePersons = async () => {
-        setLoadingPersons(true);
+    const loadDevicePersons = async (silent = false) => {
+        if (!silent) setLoadingPersons(true);
         try {
             const params = new URLSearchParams({
                 action: 'device_users',
@@ -923,10 +929,45 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             setDevicePersons(list);
         } catch (err) {
             console.warn('[Unmatched Users] load failed:', err);
-            setDevicePersons([]);
+            if (!silent) setDevicePersons([]);
         }
-        setLoadingPersons(false);
+        if (!silent) setLoadingPersons(false);
     };
+
+    const isBioModalOpen = Boolean(
+        showDeviceModal ||
+        showEnrollModal ||
+        showImportModal ||
+        showDesktopAgentModal ||
+        showAutoDetectModal ||
+        showGuideModal ||
+        testModalResult
+    );
+
+    const {
+        lastSyncedAt: bioLastSyncedAt,
+        isSyncing: isBioAutoSyncing,
+        isUserPaused: isBioAutoSyncPaused,
+        togglePause: toggleBioAutoSyncPause,
+        refreshNow: refreshBioNow,
+    } = useAutoRefresh({
+        enabled: Boolean(institution?.id),
+        intervalMs: 20000,
+        paused: isBioModalOpen,
+        onRefresh: async () => {
+            if (subTab === 'today') {
+                await loadTodayAttendance(true);
+            } else if (subTab === 'monthly') {
+                await loadMonthlyAttendance(true);
+            } else if (subTab === 'unmatched') {
+                await Promise.allSettled([loadDevicePersons(true), loadEnrollments()]);
+            } else if (subTab === 'devices') {
+                await loadDevices();
+            } else if (subTab === 'enrollment') {
+                await loadEnrollments();
+            }
+        },
+    });
 
     const stripZeros = (v: any) => String(v ?? '').trim().replace(/^0+/, '') || String(v ?? '').trim();
     const enrolledStaffForPin = (pin: string): string | undefined => {
@@ -1045,16 +1086,28 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-8 rounded-[3rem] text-white relative overflow-hidden">
                 <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iLjAzIj48cGF0aCBkPSJNMzYgMzRoLTJWMGgydjM0em0wLThoMjB2MkgzNnYtMnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-40" />
                 <div className="relative">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-indigo-500/30 rounded-2xl flex items-center justify-center">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a48.667 48.667 0 00-1.53 8.523M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-indigo-500/30 rounded-2xl flex items-center justify-center">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a48.667 48.667 0 00-1.53 8.523M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black tracking-tight">Biometric Attendance</h2>
+                                <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">ZKTeco & Dahua Integration • Real-Time Tracking</p>
+                            </div>
                         </div>
-                        <div>
-                            <h2 className="text-2xl font-black tracking-tight">Biometric Attendance</h2>
-                            <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">ZKTeco Integration • Real-Time Tracking</p>
-                        </div>
+                        <AutoRefreshBadge
+                            lastSyncedAt={bioLastSyncedAt}
+                            isSyncing={isBioAutoSyncing}
+                            isPaused={isBioModalOpen}
+                            isUserPaused={isBioAutoSyncPaused}
+                            onTogglePause={toggleBioAutoSyncPause}
+                            onRefreshNow={refreshBioNow}
+                            variant="dark"
+                            label="Live Punches"
+                        />
                     </div>
 
                     {/* Quick Stats */}

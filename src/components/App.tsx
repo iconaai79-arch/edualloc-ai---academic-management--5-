@@ -9839,6 +9839,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             voteHeads={voteHeads}
                                             courses={courses}
                                             onRefreshData={loadData}
+                                            onSilentRefreshData={() => loadData(false, true, undefined, true)}
                                             onGenerateInvoices={async (invoicesList: any[]) => {
                                                 const timestamp = new Date().toISOString();
                                                 const preparedInvoices = (invoicesList || []).map((inv: any) => ({
@@ -9897,7 +9898,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                                 letterheadConfig: activeLetterheadConfig,
                                                 footerImageUrl: activeFooterImageUrl,
                                                 companyDetails: companyDetails,
-                                                activityLog: activityLog
+                                                activityLog: activityLog,
+                                                onRefreshData: loadData,
+                                                onSilentRefreshData: () => loadData(false, true, undefined, true)
                                             } as any}
                                         />
                                     </ModuleAccessGuard>

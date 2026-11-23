@@ -31,6 +31,7 @@ interface FinanceOfficerViewProps {
     voteHeads?: VoteHead[];
     courses?: Course[];
     onRefreshData?: () => Promise<void>;
+    onSilentRefreshData?: () => Promise<void>;
     companyDetails?: CompanyDetails;
     // HR & Payroll
     users?: User[];
@@ -71,6 +72,7 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
     voteHeads,
     courses,
     onRefreshData,
+    onSilentRefreshData,
     companyDetails,
     users,
     payrollRecords,
@@ -133,6 +135,7 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                 voteHeads={voteHeads}
                 courses={courses}
                 onRefreshData={onRefreshData}
+                onSilentRefreshData={onSilentRefreshData}
                 onLogAction={onLogAction}
                 users={users}
                 payrollRecords={payrollRecords}

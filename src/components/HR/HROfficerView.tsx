@@ -27,6 +27,8 @@ interface HROfficerViewProps {
     /** Activity log entries — filtered for HR events */
     activityLog?: ActivityLog[];
     onLogAction?: (action: string) => Promise<void>;
+    onRefreshData?: () => Promise<void>;
+    onSilentRefreshData?: () => Promise<void>;
 }
 
 export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
@@ -77,6 +79,8 @@ export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
                 showEduFlow={true}
                 users={users}
                 onLogAction={props.onLogAction}
+                onRefreshData={props.onRefreshData}
+                onSilentRefreshData={props.onSilentRefreshData}
             />
         </div>
     );
