@@ -1037,6 +1037,19 @@ async function reprocessHistoricalDahuaLogs({
         }
     }
 
+    // Name-based fallback map (token-set, order/case insensitive) for staff whose device PIN isn't enrolled
+    const nameKey = (v: any): string =>
+        String(v ?? '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
+    const nameToStaff = new Map<string, string>();
+    const ambiguousNames = new Set<string>();
+    for (const u of users) {
+        const k = nameKey(u.name);
+        if (!k || !u.id) continue;
+        if (nameToStaff.has(k) && nameToStaff.get(k) !== String(u.id)) ambiguousNames.add(k);
+        else nameToStaff.set(k, String(u.id));
+    }
+    ambiguousNames.forEach(k => nameToStaff.delete(k));
+
     const deviceSns = new Set<string>();
     for (const d of devices) {
         if (d.serial_number) deviceSns.add(normalizeKey(d.serial_number));
@@ -1049,6 +1062,7 @@ async function reprocessHistoricalDahuaLogs({
     let matchedLogsCount = 0;
     let unmatchedLogsCount = 0;
     const unmatchedPinsSet = new Set<string>();
+    const linkWarnings: string[] = [];
 
     // Group matched punches by `${staffId}|${YYYY-MM-DD}`
     const dailyGroups = new Map<string, { staffId: string; dateStr: string; times: Date[] }>();
@@ -1085,10 +1099,10 @@ async function reprocessHistoricalDahuaLogs({
         } catch (_) {}
 
         const candidatePins = [
-            log.device_pin,
-            log.devicePin,
             rawObj.UserID,
             rawObj.userId,
+            log.device_pin,
+            log.devicePin,
             rawObj.UserCode,
             rawObj.PersonID,
             rawObj.EmployeeNo,
@@ -1098,7 +1112,12 @@ async function reprocessHistoricalDahuaLogs({
             rawObj.pin,
         ]
             .map(v => String(v ?? '').trim())
-            .filter(v => v && v.toLowerCase() !== 'unknown_user');
+            .filter(v => v && v.toLowerCase() !== 'unknown_user' && v.toLowerCase() !== logDev);
+
+        // Door relay / stranger events carry no person: skip them silently (not a staff punch)
+        if (candidatePins.length === 0 && !(log.staff_id || log.staffId)) {
+            continue;
+        }
 
         let resolvedStaffId: string | null = null;
         for (const p of candidatePins) {
@@ -1107,6 +1126,12 @@ async function reprocessHistoricalDahuaLogs({
                 resolvedStaffId = match;
                 break;
             }
+        }
+        // Fallback: match the person name stored on the device (CardName) to a staff name
+        if (!resolvedStaffId) {
+            const cardName = rawObj.CardName || rawObj.Name || '';
+            const key = nameKey(cardName);
+            if (key && nameToStaff.has(key)) resolvedStaffId = nameToStaff.get(key) as string;
         }
         if (!resolvedStaffId) {
             const existingSid = log.staff_id || log.staffId;
@@ -1128,15 +1153,22 @@ async function reprocessHistoricalDahuaLogs({
         if (needsUpdate && log.id) {
             newlyLinkedLogs++;
             if (supabase) {
-                await supabase
+                const { error: linkErr } = await supabase
                     .from('staff_attendance_logs')
                     .update({
                         staff_id: resolvedStaffId,
                         institution_id: institutionId,
                         is_processed: true,
                     })
-                    .eq('id', log.id)
-                    .then(() => {}, () => {});
+                    .eq('id', log.id);
+                if (linkErr) {
+                    // Retry with camelCase columns in case the table only has those
+                    const { error: linkErr2 } = await supabase
+                        .from('staff_attendance_logs')
+                        .update({ staffId: resolvedStaffId, institutionId: institutionId, isProcessed: true })
+                        .eq('id', log.id);
+                    if (linkErr2 && linkWarnings.length < 3) linkWarnings.push(`link log: ${linkErr.message}`);
+                }
             } else if (pool) {
                 await pool
                     .query(
@@ -1165,7 +1197,7 @@ async function reprocessHistoricalDahuaLogs({
     // 4. Upsert aggregated daily attendance records into staff_attendance_daily
     let dailyRecordsSynced = 0;
     const datesSyncedSet = new Set<string>();
-    const syncErrors: string[] = [];
+    const syncErrors: string[] = [...linkWarnings];
 
     for (const group of dailyGroups.values()) {
         group.times.sort((a, b) => a.getTime() - b.getTime());
