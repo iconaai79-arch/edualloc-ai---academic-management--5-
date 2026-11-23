@@ -956,7 +956,20 @@ async function reprocessHistoricalDahuaLogs({
             ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "lateMinutes" INTEGER DEFAULT 0;
             ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "earlyLeaveMinutes" INTEGER DEFAULT 0;
             ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS "punchCount" INTEGER DEFAULT 1;
-        `).catch(() => {});
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS institution_id TEXT;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS staff_id TEXT;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS attendance_date TEXT;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS first_in TIMESTAMPTZ;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS last_out TIMESTAMPTZ;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS total_hours NUMERIC DEFAULT 0;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS overtime_hours NUMERIC DEFAULT 0;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS late_minutes INTEGER DEFAULT 0;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS early_leave_minutes INTEGER DEFAULT 0;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS punch_count INTEGER DEFAULT 1;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'present';
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+            ALTER TABLE public.staff_attendance_daily ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+        `).catch((e: any) => console.warn('[Dahua Reprocess] ensure staff_attendance_daily failed:', e?.message || e));
     }
 
     // 2. Load enrollments, users, and devices for this institution

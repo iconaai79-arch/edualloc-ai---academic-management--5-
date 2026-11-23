@@ -746,8 +746,8 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
 
             if (!options?.silent) {
                 const unmatchedList = Array.isArray(data.unmatchedPins) && data.unmatchedPins.length > 0
-                    ? `\n⚠️ Unmatched Device PINs still unassigned: ${data.unmatchedPins.join(', ')}\n(Assign these IDs in Staff Enrollment and click Sync Previous Logs again.)`
-                    : '\n✅ All scanned Device PINs matched enrolled staff!';
+                    ? `\nℹ️ Skipped ${data.unmatchedPins.length} unmatched device PIN(s): ${data.unmatchedPins.join(', ')}\n(Only matched staff records were updated.)`
+                    : '';
                 const dateRangeInfo = Array.isArray(data.datesSynced) && data.datesSynced.length > 0
                     ? `• Dates Recomputed: ${data.datesSynced[0]} → ${data.datesSynced[data.datesSynced.length - 1]} (${data.datesSynced.length} day${data.datesSynced.length === 1 ? '' : 's'})\n`
                     : '';
