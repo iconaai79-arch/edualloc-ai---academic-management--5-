@@ -1264,6 +1264,59 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     // Modal & Form State
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingEnrollment, setEditingEnrollment] = useState<StudentEnrollment | null>(null);
+    const [requireStudentApproval, setRequireStudentApproval] = useState<boolean>(() => {
+        try {
+            const instMeta = (currentInstitution as any)?.metadata;
+            if (instMeta && typeof instMeta.requireStudentApproval === 'boolean') {
+                return instMeta.requireStudentApproval;
+            }
+            const stored = localStorage.getItem(`eduai_require_student_approval_${currentInstitution?.id || 'default'}`);
+            return stored === 'true';
+        } catch {
+            return false;
+        }
+    });
+    const [isTogglingApproval, setIsTogglingApproval] = useState(false);
+
+    useEffect(() => {
+        try {
+            const instMeta = (currentInstitution as any)?.metadata;
+            if (instMeta && typeof instMeta.requireStudentApproval === 'boolean') {
+                setRequireStudentApproval(instMeta.requireStudentApproval);
+                return;
+            }
+            const stored = localStorage.getItem(`eduai_require_student_approval_${currentInstitution?.id || 'default'}`);
+            setRequireStudentApproval(stored === 'true');
+        } catch {
+            setRequireStudentApproval(false);
+        }
+    }, [currentInstitution?.id, (currentInstitution as any)?.metadata?.requireStudentApproval]);
+
+    const handleToggleRequireApproval = async () => {
+        const nextVal = !requireStudentApproval;
+        setRequireStudentApproval(nextVal);
+        setIsTogglingApproval(true);
+        try {
+            if (currentInstitution?.id) {
+                localStorage.setItem(`eduai_require_student_approval_${currentInstitution.id}`, String(nextVal));
+                const existingMeta = (currentInstitution as any)?.metadata && typeof (currentInstitution as any).metadata === 'object'
+                    ? { ...(currentInstitution as any).metadata }
+                    : {};
+                await apiService.updateModuleRecord('institutions', currentInstitution.id, {
+                    metadata: { ...existingMeta, requireStudentApproval: nextVal }
+                } as any).catch(() => {});
+            }
+            setStatusMsg({
+                type: 'success',
+                message: nextVal
+                    ? 'Student Approval Workflow ENABLED — new enrollments will require approval before appearing in Finance.'
+                    : 'Student Approval Workflow DISABLED — all enrolled students are immediately Active.'
+            });
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        } finally {
+            setIsTogglingApproval(false);
+        }
+    };
     const [isUploading, setIsUploading] = useState(false);
     const [importMode, setImportMode] = useState<'new_enroll' | 'update_secondary_phone'>('new_enroll');
     const [secondaryPhoneImportResult, setSecondaryPhoneImportResult] = useState<{name: string; status: 'updated' | 'not_found' | 'skipped'}[]>([]);
@@ -1859,31 +1912,63 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 missingEnrollments.push(autoEnr);
             });
 
-            // Combine and deduplicate enrollments: genuine admission numbers always win over synthetic duplicates
+            // Combine and deduplicate enrollments across userId, real admission number, AND name
+            // so editing a student's name never splits one student into duplicate rows.
             const allCombined = [...hydrated, ...missingEnrollments];
             const dedupedEnrollments: StudentEnrollment[] = [];
             const seenKeys = new Map<string, number>();
 
-            allCombined.forEach((enr) => {
+            const getRecordKeys = (enr: StudentEnrollment): string[] => {
+                const keys: string[] = [];
+                const uid = String(enr.userId || (enr as any).user_id || '').trim().toLowerCase().replace(/^u_/, '');
+                const adm = String(enr.admissionNumber || (enr as any).admission_number || '').trim().toLowerCase();
                 const sName = String((enr as any).name || (enr as any).studentName || enr.metadata?.studentName || '').trim().toLowerCase();
-                const adm = String(enr.admissionNumber || (enr as any).admission_number || '').trim();
-                const isSynthetic = !adm || isSyntheticAdmNo(adm);
-                const key = sName && !isNameUnknown(sName) ? `name:${sName}` : (enr.userId ? `uid:${enr.userId}` : `id:${enr.id}`);
+                if (uid) keys.push(`uid:${uid}`);
+                if (adm && !isSyntheticAdmNo(adm)) keys.push(`adm:${adm}`);
+                if (sName && !isNameUnknown(sName)) keys.push(`name:${sName}`);
+                if (keys.length === 0) keys.push(`id:${enr.id}`);
+                return keys;
+            };
 
-                if (seenKeys.has(key)) {
-                    const existingIdx = seenKeys.get(key)!;
+            const isBetterRecord = (candidate: StudentEnrollment, existing: StudentEnrollment): boolean => {
+                const candAdm = String(candidate.admissionNumber || (candidate as any).admission_number || '').trim();
+                const existAdm = String(existing.admissionNumber || (existing as any).admission_number || '').trim();
+                const candSynthetic = !candAdm || isSyntheticAdmNo(candAdm);
+                const existSynthetic = !existAdm || isSyntheticAdmNo(existAdm);
+                if (existSynthetic && !candSynthetic) return true;
+                if (!existSynthetic && candSynthetic) return false;
+
+                const candAuto = Boolean((candidate.metadata as any)?.autoGenerated);
+                const existAuto = Boolean((existing.metadata as any)?.autoGenerated);
+                if (existAuto && !candAuto) return true;
+                if (!existAuto && candAuto) return false;
+
+                const candTime = new Date(candidate.updatedAt || (candidate as any).updated_at || candidate.createdAt || 0).getTime() || 0;
+                const existTime = new Date(existing.updatedAt || (existing as any).updated_at || existing.createdAt || 0).getTime() || 0;
+                return candTime > existTime;
+            };
+
+            allCombined.forEach((enr) => {
+                const keys = getRecordKeys(enr);
+                let existingIdx: number | undefined;
+                for (const k of keys) {
+                    if (seenKeys.has(k)) {
+                        existingIdx = seenKeys.get(k);
+                        break;
+                    }
+                }
+
+                if (existingIdx !== undefined) {
                     const existing = dedupedEnrollments[existingIdx];
-                    const existingAdm = String(existing.admissionNumber || (existing as any).admission_number || '').trim();
-                    const existingSynthetic = !existingAdm || isSyntheticAdmNo(existingAdm);
-
-                    // If existing record was synthetic and new one has a genuine admission number, swap it!
-                    if (existingSynthetic && !isSynthetic) {
+                    if (isBetterRecord(enr, existing)) {
                         dedupedEnrollments[existingIdx] = enr;
                     }
+                    keys.forEach(k => seenKeys.set(k, existingIdx!));
                     return;
                 }
 
-                seenKeys.set(key, dedupedEnrollments.length);
+                const newIdx = dedupedEnrollments.length;
+                keys.forEach(k => seenKeys.set(k, newIdx));
                 dedupedEnrollments.push(enr);
             });
 
@@ -2172,7 +2257,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 passportPhoto: formData.passportPhoto
             };
 
+            const effectiveStatus = (!requireStudentApproval && formData.status === 'Enrolled') ? 'Active' : formData.status;
+
             if (editingEnrollment) {
+                const isAutoGenerated = Boolean((editingEnrollment.metadata as any)?.autoGenerated);
+                const cleanMeta = { ...metadataToSave };
+                delete (cleanMeta as any).autoGenerated;
                 const updated: StudentEnrollment = {
                     ...editingEnrollment,
                     userId: userId || editingEnrollment.userId,
@@ -2183,9 +2273,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     dateOfBirth: (resolvedDob || null) as any,
                     dob: (resolvedDob || null) as any,
                     leadershipPosition: resolvedLeadership,
-                    status: formData.status,
+                    status: effectiveStatus,
                     enrollmentDate: formData.enrollmentDate,
-                    metadata: metadataToSave,
+                    metadata: cleanMeta,
                     updatedAt: new Date().toISOString()
                 };
                 (updated as any).user_id = userId || editingEnrollment.userId;
@@ -2193,7 +2283,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 (updated as any).course_id = resolvedCourseId || undefined;
                 (updated as any).class_id = resolvedClassId || undefined;
                 (updated as any).date_of_birth = resolvedDob || null;
-                await apiService.updateModuleRecord('student_enrollments', editingEnrollment.id, updated);
+                if (isAutoGenerated) {
+                    await apiService.saveModuleRecord('student_enrollments', updated);
+                } else {
+                    await apiService.updateModuleRecord('student_enrollments', editingEnrollment.id, updated);
+                }
                 setStatusMsg({ type: 'success', message: 'Enrollment record updated successfully.' });
             } else {
                 const enrollmentId = `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -2218,10 +2312,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     enrollmentType: context,
                     admissionNumber: finalAdmNo,
                     assessmentNo: finalAssessmentNo,
-                    dateOfBirth: resolvedDob,
-                    dob: resolvedDob,
+                    dateOfBirth: (resolvedDob || null) as any,
+                    dob: (resolvedDob || null) as any,
                     leadershipPosition: resolvedLeadership,
-                    status: formData.status,
+                    status: effectiveStatus,
                     enrollmentDate: formData.enrollmentDate,
                     metadata: metadataToSave,
                     createdAt: new Date().toISOString()
@@ -2229,6 +2323,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 (newEnrollment as any).admission_number = finalAdmNo;
                 (newEnrollment as any).course_id = resolvedCourseId || undefined;
                 (newEnrollment as any).class_id = resolvedClassId || undefined;
+                (newEnrollment as any).date_of_birth = resolvedDob || null;
                 await apiService.saveModuleRecord('student_enrollments', newEnrollment);
                 
                 // Dispatch notification to DOS (to finalize academic onboarding & update assessment number) and Headteacher/HOI (to approve enrollment)
@@ -2242,7 +2337,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                 setStatusMsg({ 
                     type: 'success', 
-                    message: formData.status === 'Active' 
+                    message: effectiveStatus === 'Active' 
                         ? 'New student enrolled and activated successfully.' 
                         : 'New student enrolled and submitted for approval. Record will be visible in Finance once approved.' 
                 });
@@ -2323,7 +2418,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             assessmentNo: '',
             dateOfBirth: '',
             leadershipPosition: '',
-            status: 'Enrolled',
+            status: requireStudentApproval ? 'Enrolled' : 'Active',
             enrollmentDate: new Date().toISOString().split('T')[0],
             gender: '',
             passportPhoto: '',
@@ -6931,6 +7026,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             <UserPlus className="w-4 h-4" />
                             Enroll Student
                         </button>
+                        {currentUser && ['admin', 'head_teacher', 'headteacher', 'hoi', 'principal', 'dos', 'super_admin', 'main_admin', 'finance_officer', 'bursar'].includes(currentUser.role) && (
+                            <button
+                                type="button"
+                                onClick={handleToggleRequireApproval}
+                                disabled={isTogglingApproval}
+                                className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 border shadow-sm cursor-pointer ${
+                                    requireStudentApproval
+                                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25'
+                                        : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                }`}
+                                title="Toggle optional Student Approval workflow (disabled by default)"
+                            >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Approval: {requireStudentApproval ? 'ON' : 'OFF'}</span>
+                            </button>
+                        )}
                     </div>
                 )}
 
@@ -7079,8 +7190,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 transition-colors"
                             >
                                 <option value="All">All Statuses</option>
-                                <option value="Enrolled">⏳ Approval Stage (Enrolled)</option>
-                                <option value="Active">🟢 Active (Approved)</option>
+                                {requireStudentApproval && <option value="Enrolled">⏳ Approval Stage (Enrolled)</option>}
+                                <option value="Active">{requireStudentApproval ? '🟢 Active (Approved)' : '🟢 Active'}</option>
                                 <option value="Graduated">Graduated</option>
                                 <option value="Suspended">Suspended</option>
                                 <option value="Dropped">Dropped</option>
@@ -7439,9 +7550,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 {/* ── Status ── */}
                                                 <div className="shrink-0 flex items-center gap-1.5">
                                                     <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider border ${statusCls}`}>
-                                                        {enr.status === 'Enrolled' ? '⏳ Approval Stage' : enr.status}
+                                                        {enr.status === 'Enrolled'
+                                                            ? (requireStudentApproval ? '⏳ Approval Stage' : 'Active')
+                                                            : enr.status}
                                                     </span>
-                                                    {enr.status === 'Enrolled' && currentUser && ['admin', 'head_teacher', 'headteacher', 'hoi', 'principal', 'dos', 'super_admin', 'main_admin', 'finance_officer', 'bursar'].includes(currentUser.role) && (
+                                                    {requireStudentApproval && enr.status === 'Enrolled' && currentUser && ['admin', 'head_teacher', 'headteacher', 'hoi', 'principal', 'dos', 'super_admin', 'main_admin', 'finance_officer', 'bursar'].includes(currentUser.role) && (
                                                         <button
                                                             type="button"
                                                             onClick={async (e) => {
@@ -7453,9 +7566,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                         updatedAt: new Date().toISOString()
                                                                     };
                                                                     await apiService.updateModuleRecord('student_enrollments', enr.id, updated);
-                                                                    setStatusMsg({ type: 'success', message: `✓ Enrollment approved for ${associatedUser?.name || enr.metadata?.studentName || 'student'}. Now visible in Finance.` });
+                                                                    const studentLabel = user?.name || enr.metadata?.studentName || 'student';
+                                                                    setStatusMsg({ type: 'success', message: `✓ Enrollment approved for ${studentLabel}. Now visible in Finance.` });
                                                                     loadAllData();
-                                                                    if (onLogAction) await onLogAction(`Approved student enrollment for ${associatedUser?.name || enr.metadata?.studentName} (${enr.id})`);
+                                                                    if (onLogAction) await onLogAction(`Approved student enrollment for ${studentLabel} (${enr.id})`);
                                                                 } catch (err: any) {
                                                                     setStatusMsg({ type: 'error', message: `Approval failed: ${err.message}` });
                                                                 }
@@ -9300,8 +9414,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         onChange={e => setFormData({ ...formData, status: e.target.value as any })}
                                         className="form-select mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                     >
-                                        <option value="Enrolled">Enrolled (Approval Stage — Hidden from Finance until approved)</option>
-                                        <option value="Active">Active (Approved — Immediately visible in Finance)</option>
+                                        {requireStudentApproval && <option value="Enrolled">Enrolled (Approval Stage — Hidden from Finance until approved)</option>}
+                                        <option value="Active">{requireStudentApproval ? 'Active (Approved — Immediately visible in Finance)' : 'Active'}</option>
                                         <option value="Graduated">Graduated</option>
                                         <option value="Suspended">Suspended</option>
                                         <option value="Dropped">Dropped</option>
