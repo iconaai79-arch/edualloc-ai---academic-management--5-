@@ -266,6 +266,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const institutionId = (req.query.institutionId || req.query.institution_id || '').toString();
         const sn = (req.query.SN || req.query.sn || '').toString();
 
+        if (action === 'daily_records' || action === 'get_daily_attendance') {
+            if (!institutionId) {
+                return res.status(400).json({ success: false, error: 'institutionId is required' });
+            }
+            const supabase = getSupabase(req);
+            const pool = await getPgPool();
+            if (pool) await ensureDahuaTables(pool).catch(() => {});
+            if (!supabase && !pool) {
+                return res.status(500).json({ success: false, error: 'DB not configured' });
+            }
+            try {
+                const startDate = (req.query.startDate || req.query.start_date || '').toString().trim();
+                const endDate = (req.query.endDate || req.query.end_date || '').toString().trim();
+                const result = await fetchDahuaDailyAttendance(supabase, pool, institutionId, { startDate, endDate });
+                return res.status(200).json(result);
+            } catch (err: any) {
+                console.error('[Dahua Webhook] daily_records error:', err);
+                return res.status(500).json({ success: false, error: err?.message || 'Failed to load daily attendance' });
+            }
+        }
+
         if (action === 'device_users' || action === 'unmatched_users') {
             if (!institutionId) {
                 return res.status(400).json({ success: false, error: 'institutionId is required' });
@@ -1546,5 +1567,116 @@ async function listDahuaDeviceUsers(supabase: any, pool: any, institutionId: str
         success: true,
         totalLogsScanned,
         deviceUsers,
+    };
+}
+
+/**
+ * Fetches aggregated daily attendance records from staff_attendance_daily
+ * using the exact same DB connection and institution matching as reprocess,
+ * filtered by optional startDate/endDate (YYYY-MM-DD) and enriched with
+ * staff name & role from public.users (covering both teachers and other staff).
+ */
+async function fetchDahuaDailyAttendance(
+    supabase: any,
+    pool: any,
+    institutionId: string,
+    opts?: { startDate?: string; endDate?: string }
+) {
+    const cleanInst = institutionId.replace(/^inst_/, '');
+    const instCandidates = Array.from(new Set([institutionId, cleanInst, `inst_${cleanInst}`].filter(Boolean)));
+    const startDate = (opts?.startDate || '').trim();
+    const endDate = (opts?.endDate || '').trim();
+
+    let rows: any[] = [];
+    let users: any[] = [];
+
+    if (supabase) {
+        const instFilter = instCandidates.map(id => `institution_id.eq.${id}`).join(',');
+        const [dailyRes, usrRes] = await Promise.all([
+            supabase.from('staff_attendance_daily').select('*').or(instFilter).order('attendance_date', { ascending: false }).limit(5000),
+            supabase.from('users').select('id, name, role, staff_id').or(instFilter),
+        ]);
+        rows = dailyRes.data || [];
+        users = usrRes.data || [];
+    } else if (pool) {
+        const [dailyRes, usrRes] = await Promise.all([
+            pool.query(
+                `SELECT * FROM public.staff_attendance_daily
+                 WHERE institution_id = ANY($1::text[]) OR "institutionId" = ANY($1::text[])
+                 ORDER BY COALESCE(attendance_date::text, "attendanceDate"::text) DESC
+                 LIMIT 5000`,
+                [instCandidates]
+            ).catch(async () =>
+                pool.query(
+                    `SELECT * FROM public.staff_attendance_daily
+                     WHERE institution_id = ANY($1::text[])
+                     ORDER BY attendance_date DESC
+                     LIMIT 5000`,
+                    [instCandidates]
+                ).catch(() => ({ rows: [] }))
+            ),
+            pool.query(
+                `SELECT id, name, role, staff_id FROM public.users WHERE institution_id = ANY($1::text[])`,
+                [instCandidates]
+            ).catch(() => ({ rows: [] })),
+        ]);
+        rows = dailyRes.rows || [];
+        users = usrRes.rows || [];
+    }
+
+    const userMap = new Map<string, { name: string; role: string }>();
+    for (const u of users) {
+        if (u.id) userMap.set(String(u.id), { name: u.name || '', role: u.role || '' });
+    }
+
+    const normDate = (v: any): string => {
+        if (!v) return '';
+        if (v instanceof Date) {
+            const eat = new Date(v.getTime() + 3 * 60 * 60 * 1000);
+            return eat.toISOString().slice(0, 10);
+        }
+        const s = String(v).trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) {
+            const eat = new Date(d.getTime() + 3 * 60 * 60 * 1000);
+            return eat.toISOString().slice(0, 10);
+        }
+        return s.slice(0, 10);
+    };
+
+    const normalized = rows
+        .map(r => {
+            const staffId = String(r.staff_id || r.staffId || '');
+            const attendanceDate = normDate(r.attendance_date || r.attendanceDate);
+            const u = userMap.get(staffId);
+            return {
+                id: r.id,
+                institutionId: r.institution_id || r.institutionId || institutionId,
+                staffId,
+                staffName: u?.name || r.staff_name || r.staffName || '',
+                staffRole: u?.role || r.staff_role || r.staffRole || '',
+                attendanceDate,
+                firstIn: r.first_in || r.firstIn || null,
+                lastOut: r.last_out || r.lastOut || null,
+                totalHours: Number(r.total_hours ?? r.totalHours ?? 0) || 0,
+                overtimeHours: Number(r.overtime_hours ?? r.overtimeHours ?? 0) || 0,
+                lateMinutes: Number(r.late_minutes ?? r.lateMinutes ?? 0) || 0,
+                earlyLeaveMinutes: Number(r.early_leave_minutes ?? r.earlyLeaveMinutes ?? 0) || 0,
+                punchCount: Number(r.punch_count ?? r.punchCount ?? 1) || 1,
+                status: r.status || 'present',
+            };
+        })
+        .filter(r => {
+            if (!r.attendanceDate) return false;
+            if (startDate && r.attendanceDate < startDate) return false;
+            if (endDate && r.attendanceDate > endDate) return false;
+            return true;
+        });
+
+    return {
+        success: true,
+        count: normalized.length,
+        records: normalized,
     };
 }

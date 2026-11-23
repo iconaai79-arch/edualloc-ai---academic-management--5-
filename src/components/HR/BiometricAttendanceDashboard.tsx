@@ -26,6 +26,15 @@ interface DevicePerson {
 const nameTokenKey = (v: any): string =>
     String(v ?? '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
 
+const TEACHING_ROLES = new Set([
+    'teacher', 'lecturer', 'instructor', 'tutor', 'trainer', 'hod',
+    'head_teacher', 'principal', 'deputy', 'deputy_hoi_academics',
+    'cao', 'dos', 'dean', 'professor', 'academics_officer', 'class_supervisor'
+]);
+
+const isTeachingRole = (role?: string): boolean =>
+    TEACHING_ROLES.has(String(role || '').toLowerCase().trim());
+
 const VERIFY_LABELS: Record<number, string> = {
     0: 'Fingerprint',
     1: 'Card',
@@ -65,6 +74,13 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     });
+    const [rangeMode, setRangeMode] = useState<'month' | 'range'>('month');
+    const [rangeStart, setRangeStart] = useState(() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+    });
+    const [rangeEnd, setRangeEnd] = useState(() => new Date().toISOString().split('T')[0]);
+    const [staffCategoryFilter, setStaffCategoryFilter] = useState<'all' | 'teachers' | 'other'>('all');
     const [monthlyRecords, setMonthlyRecords] = useState<StaffAttendanceDaily[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -130,7 +146,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
 
     useEffect(() => {
         if (subTab === 'monthly') loadMonthlyAttendance();
-    }, [subTab, selectedMonth, institution.id]);
+    }, [subTab, selectedMonth, rangeMode, rangeStart, rangeEnd, institution.id]);
 
     const loadDevices = async () => {
         try {
@@ -166,53 +182,77 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         return s.slice(0, 10);
     };
 
+    const fetchDailyFromServer = async (startDate: string, endDate: string): Promise<any[]> => {
+        try {
+            const params = new URLSearchParams({
+                action: 'daily_records',
+                institutionId: institution.id,
+            });
+            if (startDate) params.set('startDate', startDate);
+            if (endDate) params.set('endDate', endDate);
+            const res = await fetch(`/api/dahua-webhook?${params.toString()}`);
+            if (res.ok) {
+                const json = await res.json();
+                if (json?.success && Array.isArray(json.records)) {
+                    return json.records;
+                }
+            }
+        } catch (err) {
+            console.warn('[BiometricAttendance] server daily_records fallback:', err);
+        }
+        const fallback = await apiService.fetchModuleRecords<any>('staff_attendance_daily', institution.id, { bypassCache: true }).catch(() => []);
+        return (fallback || []).filter(r => {
+            const d = normalizeAttendanceDate(r.attendanceDate || r.attendance_date);
+            if (!d) return false;
+            if (startDate && d < startDate) return false;
+            if (endDate && d > endDate) return false;
+            return true;
+        });
+    };
+
+    const normalizeDailyRow = (r: any) => ({
+        ...r,
+        staffId: r.staffId || r.staff_id,
+        staffName: r.staffName || r.staff_name || '',
+        staffRole: r.staffRole || r.staff_role || '',
+        attendanceDate: normalizeAttendanceDate(r.attendanceDate || r.attendance_date),
+        firstIn: r.firstIn || r.first_in,
+        lastOut: r.lastOut || r.last_out,
+        totalHours: Number(r.totalHours ?? r.total_hours ?? 0) || 0,
+        overtimeHours: Number(r.overtimeHours ?? r.overtime_hours ?? 0) || 0,
+        lateMinutes: Number(r.lateMinutes ?? r.late_minutes ?? 0) || 0,
+        earlyLeaveMinutes: Number(r.earlyLeaveMinutes ?? r.early_leave_minutes ?? 0) || 0,
+        punchCount: Number(r.punchCount ?? r.punch_count ?? 1) || 1,
+        status: r.status || 'present'
+    });
+
     const loadTodayAttendance = async () => {
         setLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<any>('staff_attendance_daily', institution.id, { bypassCache: true });
-            const filtered = (data || []).filter(r => {
-                const dateVal = normalizeAttendanceDate(r.attendanceDate || r.attendance_date);
-                return dateVal === selectedDate;
-            }).map(r => ({
-                ...r,
-                staffId: r.staffId || r.staff_id,
-                attendanceDate: normalizeAttendanceDate(r.attendanceDate || r.attendance_date),
-                firstIn: r.firstIn || r.first_in,
-                lastOut: r.lastOut || r.last_out,
-                totalHours: Number(r.totalHours ?? r.total_hours ?? 0) || 0,
-                overtimeHours: Number(r.overtimeHours ?? r.overtime_hours ?? 0) || 0,
-                lateMinutes: Number(r.lateMinutes ?? r.late_minutes ?? 0) || 0,
-                earlyLeaveMinutes: Number(r.earlyLeaveMinutes ?? r.early_leave_minutes ?? 0) || 0,
-                punchCount: Number(r.punchCount ?? r.punch_count ?? 1) || 1,
-                status: r.status || 'present'
-            }));
-            setDailyRecords(filtered);
+            const data = await fetchDailyFromServer(selectedDate, selectedDate);
+            setDailyRecords((data || []).map(normalizeDailyRow));
         } catch { setDailyRecords([]); }
         setLoading(false);
+    };
+
+    const getActiveRangeBounds = (): { start: string; end: string } => {
+        if (rangeMode === 'range') {
+            return { start: rangeStart, end: rangeEnd };
+        }
+        const [year, month] = selectedMonth.split('-');
+        const lastDay = new Date(Number(year), Number(month), 0).getDate();
+        return {
+            start: `${selectedMonth}-01`,
+            end: `${selectedMonth}-${String(lastDay).padStart(2, '0')}`,
+        };
     };
 
     const loadMonthlyAttendance = async () => {
         setLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<any>('staff_attendance_daily', institution.id, { bypassCache: true });
-            const [year, month] = selectedMonth.split('-');
-            const filtered = (data || []).filter(r => {
-                const d = normalizeAttendanceDate(r.attendanceDate || r.attendance_date);
-                return d.startsWith(`${year}-${month}`);
-            }).map(r => ({
-                ...r,
-                staffId: r.staffId || r.staff_id,
-                attendanceDate: normalizeAttendanceDate(r.attendanceDate || r.attendance_date),
-                firstIn: r.firstIn || r.first_in,
-                lastOut: r.lastOut || r.last_out,
-                totalHours: Number(r.totalHours ?? r.total_hours ?? 0) || 0,
-                overtimeHours: Number(r.overtimeHours ?? r.overtime_hours ?? 0) || 0,
-                lateMinutes: Number(r.lateMinutes ?? r.late_minutes ?? 0) || 0,
-                earlyLeaveMinutes: Number(r.earlyLeaveMinutes ?? r.early_leave_minutes ?? 0) || 0,
-                punchCount: Number(r.punchCount ?? r.punch_count ?? 1) || 1,
-                status: r.status || 'present'
-            }));
-            setMonthlyRecords(filtered);
+            const { start, end } = getActiveRangeBounds();
+            const data = await fetchDailyFromServer(start, end);
+            setMonthlyRecords((data || []).map(normalizeDailyRow));
         } catch { setMonthlyRecords([]); }
         setLoading(false);
     };
@@ -947,15 +987,30 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         return { present, late, absent, avgHours, total: staff.length };
     }, [dailyRecords, staff]);
 
-    // Monthly summary per staff
+    const matchesStaffCategory = (role?: string) => {
+        if (staffCategoryFilter === 'all') return true;
+        const teaching = isTeachingRole(role);
+        return staffCategoryFilter === 'teachers' ? teaching : !teaching;
+    };
+
+    const filteredDailyRecords = useMemo(() => {
+        return dailyRecords.filter(rec => {
+            const s = staff.find(u => u.id === rec.staffId);
+            const role = s?.role || (rec as any).staffRole || '';
+            return matchesStaffCategory(role);
+        });
+    }, [dailyRecords, staff, staffCategoryFilter]);
+
+    // Monthly / Range summary per staff
     const monthlySummary = useMemo(() => {
-        const map = new Map<string, { name: string; role: string; days: number; late: number; totalHours: number; overtime: number }>();
+        const map = new Map<string, { name: string; role: string; isTeacher: boolean; days: number; late: number; totalHours: number; overtime: number }>();
         for (const rec of monthlyRecords) {
             const s = staff.find(u => u.id === rec.staffId);
-            const name = s?.name || rec.staffName || 'Unknown';
-            const role = s?.role || rec.staffRole || '';
+            const name = s?.name || (rec as any).staffName || 'Unknown';
+            const role = s?.role || (rec as any).staffRole || '';
+            if (!matchesStaffCategory(role)) continue;
             if (!map.has(rec.staffId)) {
-                map.set(rec.staffId, { name, role, days: 0, late: 0, totalHours: 0, overtime: 0 });
+                map.set(rec.staffId, { name, role, isTeacher: isTeachingRole(role), days: 0, late: 0, totalHours: 0, overtime: 0 });
             }
             const entry = map.get(rec.staffId)!;
             if (rec.status === 'present' || rec.status === 'half-day') entry.days++;
@@ -964,9 +1019,9 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             entry.overtime += (Number(rec.overtimeHours) || 0);
         }
         return Array.from(map.entries()).map(([staffId, data]) => ({ staffId, ...data }));
-    }, [monthlyRecords, staff]);
+    }, [monthlyRecords, staff, staffCategoryFilter]);
 
-    const getStaffName = (staffId: string) => staff.find(s => s.id === staffId)?.name || 'Unknown';
+    const getStaffName = (staffId: string, fallbackName?: string) => staff.find(s => s.id === staffId)?.name || fallbackName || 'Unknown';
 
     const webhookUrl = typeof window !== 'undefined'
         ? `${window.location.origin}/zk`
@@ -1050,6 +1105,22 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                         </div>
                         <div className="flex items-center gap-3 flex-wrap">
+                            <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+                                {(['all', 'teachers', 'other'] as const).map(cat => (
+                                    <button
+                                        key={cat}
+                                        type="button"
+                                        onClick={() => setStaffCategoryFilter(cat)}
+                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                                            staffCategoryFilter === cat
+                                                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                                                : 'text-slate-400 hover:text-slate-600'
+                                        }`}
+                                    >
+                                        {cat === 'all' ? 'All Staff' : cat === 'teachers' ? 'Teachers' : 'Other Staff'}
+                                    </button>
+                                ))}
+                            </div>
                             <button
                                 onClick={() => handleSyncPreviousLogs()}
                                 disabled={syncingPreviousLogs}
@@ -1088,7 +1159,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                             <tbody>
                                 {loading ? (
                                     <tr><td colSpan={7} className="py-12 text-center text-slate-400 text-sm font-bold">Loading...</td></tr>
-                                ) : dailyRecords.length === 0 ? (
+                                ) : filteredDailyRecords.length === 0 ? (
                                     <tr>
                                         <td colSpan={7} className="py-16 text-center">
                                             <div className="space-y-3">
@@ -1101,15 +1172,24 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                         </td>
                                     </tr>
                                 ) : (
-                                    dailyRecords.map((rec, i) => (
+                                    filteredDailyRecords.map((rec, i) => {
+                                        const displayName = getStaffName(rec.staffId, (rec as any).staffName);
+                                        const roleStr = staff.find(s => s.id === rec.staffId)?.role || (rec as any).staffRole || '';
+                                        const teacher = isTeachingRole(roleStr);
+                                        return (
                                         <tr key={i} className="border-t border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
                                             <td className="px-8 py-4">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-9 h-9 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl flex items-center justify-center text-sm font-black text-indigo-600 dark:text-indigo-400">
-                                                        {getStaffName(rec.staffId).charAt(0)}
+                                                        {displayName.charAt(0)}
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-black text-slate-900 dark:text-white">{getStaffName(rec.staffId)}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-sm font-black text-slate-900 dark:text-white">{displayName}</p>
+                                                            <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase ${teacher ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                                                {teacher ? 'Teacher' : 'Other Staff'}
+                                                            </span>
+                                                        </div>
                                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{rec.punchCount} punches</p>
                                                     </div>
                                                 </div>
@@ -1129,7 +1209,8 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                                 </span>
                                             </td>
                                         </tr>
-                                    ))
+                                        );
+                                    })
                                 )}
                             </tbody>
                         </table>
@@ -1142,30 +1223,80 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                 <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
                     <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div>
-                            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Monthly Attendance Register</h3>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Aggregated staff attendance for payroll</p>
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Monthly / Date-Range Register</h3>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Aggregated attendance for teachers & other staff</p>
                         </div>
                         <div className="flex items-center gap-3 flex-wrap">
+                            <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+                                {(['all', 'teachers', 'other'] as const).map(cat => (
+                                    <button
+                                        key={cat}
+                                        type="button"
+                                        onClick={() => setStaffCategoryFilter(cat)}
+                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                                            staffCategoryFilter === cat
+                                                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                                                : 'text-slate-400 hover:text-slate-600'
+                                        }`}
+                                    >
+                                        {cat === 'all' ? 'All Staff' : cat === 'teachers' ? 'Teachers' : 'Other Staff'}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+                                <button
+                                    type="button"
+                                    onClick={() => setRangeMode('month')}
+                                    className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                                        rangeMode === 'month' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400'
+                                    }`}
+                                >
+                                    Month
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setRangeMode('range')}
+                                    className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                                        rangeMode === 'range' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400'
+                                    }`}
+                                >
+                                    Custom Range
+                                </button>
+                            </div>
+                            {rangeMode === 'month' ? (
+                                <input
+                                    type="month"
+                                    value={selectedMonth}
+                                    onChange={e => setSelectedMonth(e.target.value)}
+                                    className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="date"
+                                        value={rangeStart}
+                                        onChange={e => setRangeStart(e.target.value)}
+                                        className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <span className="text-xs font-black text-slate-400">→</span>
+                                    <input
+                                        type="date"
+                                        value={rangeEnd}
+                                        onChange={e => setRangeEnd(e.target.value)}
+                                        className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            )}
                             <button
                                 onClick={() => {
-                                    const [yr, mo] = selectedMonth.split('-');
-                                    const lastDay = new Date(Number(yr), Number(mo), 0).getDate();
-                                    handleSyncPreviousLogs({
-                                        startDate: `${selectedMonth}-01`,
-                                        endDate: `${selectedMonth}-${String(lastDay).padStart(2, '0')}`,
-                                    });
+                                    const { start, end } = getActiveRangeBounds();
+                                    handleSyncPreviousLogs({ startDate: start, endDate: end });
                                 }}
                                 disabled={syncingPreviousLogs}
                                 className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
                             >
-                                {syncingPreviousLogs ? '⏳ Syncing...' : '🔄 Sync Month Logs'}
+                                {syncingPreviousLogs ? '⏳ Syncing...' : rangeMode === 'month' ? '🔄 Sync Month Logs' : '🔄 Sync Range Logs'}
                             </button>
-                            <input
-                                type="month"
-                                value={selectedMonth}
-                                onChange={e => setSelectedMonth(e.target.value)}
-                                className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500"
-                            />
                         </div>
                     </div>
                     <div className="overflow-x-auto">
@@ -1202,7 +1333,12 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                                         {row.name.charAt(0)}
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-black text-slate-900 dark:text-white">{row.name}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-sm font-black text-slate-900 dark:text-white">{row.name}</p>
+                                                            <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase ${row.isTeacher ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                                                {row.isTeacher ? 'Teacher' : 'Other Staff'}
+                                                            </span>
+                                                        </div>
                                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{row.role}</p>
                                                     </div>
                                                 </div>
