@@ -266,6 +266,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const institutionId = (req.query.institutionId || req.query.institution_id || '').toString();
         const sn = (req.query.SN || req.query.sn || '').toString();
 
+        if (action === 'device_users' || action === 'unmatched_users') {
+            if (!institutionId) {
+                return res.status(400).json({ success: false, error: 'institutionId is required' });
+            }
+            const supabase = getSupabase(req);
+            const pool = await getPgPool();
+            if (pool) await ensureDahuaTables(pool).catch(() => {});
+            if (!supabase && !pool) {
+                return res.status(500).json({ success: false, error: 'DB not configured' });
+            }
+            try {
+                const result = await listDahuaDeviceUsers(supabase, pool, institutionId);
+                return res.status(200).json(result);
+            } catch (err: any) {
+                console.error('[Dahua Webhook] device_users error:', err);
+                return res.status(500).json({ success: false, error: err?.message || 'Failed to load device users' });
+            }
+        }
+
         if (action === 'discover') {
             const supabase = getSupabase(req);
             const pool = await getPgPool();
@@ -1321,5 +1340,211 @@ async function reprocessHistoricalDahuaLogs({
         datesSynced: Array.from(datesSyncedSet).sort(),
         unmatchedPins: Array.from(unmatchedPinsSet).slice(0, 30),
         ...(syncErrors.length > 0 ? { syncErrors } : {}),
+    };
+}
+
+/**
+ * Scans raw staff_attendance_logs for an institution using the exact same
+ * queries and matching rules as reprocessDahuaAttendanceLogs, and returns every
+ * distinct person (PIN + CardName) seen on the terminal along with match status.
+ */
+async function listDahuaDeviceUsers(supabase: any, pool: any, institutionId: string) {
+    const cleanInst = institutionId.replace(/^inst_/, '');
+    const instCandidates = Array.from(new Set([institutionId, cleanInst, `inst_${cleanInst}`].filter(Boolean)));
+    const normalizeKey = (v: any): string => String(v ?? '').trim().toLowerCase();
+    const stripLeadingZeros = (v: string): string => v.replace(/^0+/, '') || v;
+
+    let enrollments: any[] = [];
+    let users: any[] = [];
+    let devices: any[] = [];
+    let rawLogs: any[] = [];
+
+    if (supabase) {
+        const instFilter = instCandidates.map(id => `institution_id.eq.${id}`).join(',');
+        const [enrRes, usrRes, devRes, logRes] = await Promise.all([
+            supabase.from('biometric_enrollments').select('*').or(instFilter),
+            supabase.from('users').select('id, staff_id, phone_number, name').or(instFilter),
+            supabase.from('biometric_devices').select('id, serial_number, device_name').or(instFilter),
+            supabase.from('staff_attendance_logs').select('*').or(`${instFilter},institution_id.is.null`).order('punch_time', { ascending: false }).limit(5000),
+        ]);
+        enrollments = enrRes.data || [];
+        users = usrRes.data || [];
+        devices = devRes.data || [];
+        rawLogs = logRes.data || [];
+    } else if (pool) {
+        const [enrRes, usrRes, devRes, logRes] = await Promise.all([
+            pool.query('SELECT * FROM public.biometric_enrollments WHERE institution_id = ANY($1::text[]) OR "institutionId" = ANY($1::text[])', [instCandidates]).catch(() => ({ rows: [] })),
+            pool.query('SELECT id, staff_id, phone_number, name FROM public.users WHERE institution_id = ANY($1::text[])', [instCandidates]).catch(() => ({ rows: [] })),
+            pool.query('SELECT id, serial_number, device_name FROM public.biometric_devices WHERE institution_id = ANY($1::text[]) OR "institutionId" = ANY($1::text[])', [instCandidates]).catch(() => ({ rows: [] })),
+            pool.query('SELECT * FROM public.staff_attendance_logs WHERE institution_id = ANY($1::text[]) OR "institutionId" = ANY($1::text[]) OR institution_id IS NULL ORDER BY COALESCE(punch_time, created_at) DESC LIMIT 5000', [instCandidates]).catch(() => ({ rows: [] })),
+        ]);
+        enrollments = enrRes.rows || [];
+        users = usrRes.rows || [];
+        devices = devRes.rows || [];
+        rawLogs = logRes.rows || [];
+    }
+
+    const pinToStaff = new Map<string, string>();
+    const registerPin = (rawKey: any, staffId: string) => {
+        const k = normalizeKey(rawKey);
+        if (!k || !staffId) return;
+        if (!pinToStaff.has(k)) pinToStaff.set(k, staffId);
+        const stripped = stripLeadingZeros(k);
+        if (stripped && !pinToStaff.has(stripped)) pinToStaff.set(stripped, staffId);
+    };
+
+    for (const enr of enrollments) {
+        const isActive = enr.is_active !== false && enr.isActive !== false;
+        if (!isActive) continue;
+        const sid = enr.staff_id || enr.staffId;
+        if (!sid) continue;
+        registerPin(enr.device_pin ?? enr.devicePin, sid);
+        registerPin(enr.card_number ?? enr.cardNumber, sid);
+    }
+
+    const validUserIds = new Set<string>();
+    const nameKey = (v: any): string =>
+        String(v ?? '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
+    const nameToStaff = new Map<string, string>();
+    const ambiguousNames = new Set<string>();
+
+    for (const u of users) {
+        if (!u.id) continue;
+        validUserIds.add(String(u.id));
+        registerPin(u.id, String(u.id));
+        if (u.staff_id) registerPin(u.staff_id, String(u.id));
+        if (u.phone_number) {
+            const digits = String(u.phone_number).replace(/\D/g, '');
+            if (digits.length >= 9) {
+                registerPin(digits, String(u.id));
+                registerPin(digits.slice(-9), String(u.id));
+                registerPin('0' + digits.slice(-9), String(u.id));
+            }
+        }
+        const nk = nameKey(u.name);
+        if (nk) {
+            if (nameToStaff.has(nk) && nameToStaff.get(nk) !== String(u.id)) ambiguousNames.add(nk);
+            else nameToStaff.set(nk, String(u.id));
+        }
+    }
+    ambiguousNames.forEach(k => nameToStaff.delete(k));
+
+    const deviceSns = new Set<string>();
+    for (const d of devices) {
+        if (d.serial_number) deviceSns.add(normalizeKey(d.serial_number));
+        if (d.id) deviceSns.add(normalizeKey(d.id));
+    }
+
+    const byPin = new Map<string, {
+        pin: string;
+        name: string;
+        punches: number;
+        lastSeen: string;
+        deviceId: string;
+        matchedStaffId: string | null;
+        matchedBy: 'enrollment' | 'name' | 'log' | 'none';
+    }>();
+
+    let totalLogsScanned = 0;
+
+    for (const log of rawLogs) {
+        const logInst = log.institution_id || log.institutionId || '';
+        const logDevRaw = String(log.device_id || log.deviceId || '').trim();
+        const logDev = normalizeKey(logDevRaw);
+        if (logInst && !instCandidates.includes(logInst)) continue;
+        if (!logInst && deviceSns.size > 0 && logDev && !deviceSns.has(logDev)) continue;
+
+        totalLogsScanned++;
+
+        let rawObj: any = {};
+        try {
+            rawObj = typeof (log.raw_data ?? log.rawData) === 'string'
+                ? JSON.parse(log.raw_data ?? log.rawData)
+                : (log.raw_data ?? log.rawData ?? {});
+        } catch (_) {}
+
+        const candidatePins = [
+            rawObj.UserID,
+            rawObj.userId,
+            log.device_pin,
+            log.devicePin,
+            rawObj.UserCode,
+            rawObj.PersonID,
+            rawObj.EmployeeNo,
+            rawObj.CardNo,
+            rawObj.cardNo,
+            rawObj.PIN,
+            rawObj.pin,
+        ]
+            .map(v => String(v ?? '').trim())
+            .filter(v => v && v.toLowerCase() !== 'unknown_user' && v.toLowerCase() !== logDev);
+
+        if (candidatePins.length === 0) continue;
+
+        const pin = candidatePins[0];
+        const cardName = String(rawObj.CardName || '').trim();
+        const when = String(log.punch_time || log.punchTime || log.created_at || log.createdAt || '');
+
+        let matchedStaffId: string | null = null;
+        let matchedBy: 'enrollment' | 'name' | 'log' | 'none' = 'none';
+
+        for (const p of candidatePins) {
+            const m = pinToStaff.get(normalizeKey(p)) || pinToStaff.get(stripLeadingZeros(normalizeKey(p)));
+            if (m) {
+                matchedStaffId = m;
+                matchedBy = 'enrollment';
+                break;
+            }
+        }
+        if (!matchedStaffId && cardName) {
+            const nk = nameKey(cardName);
+            if (nk && nameToStaff.has(nk)) {
+                matchedStaffId = nameToStaff.get(nk) || null;
+                matchedBy = 'name';
+            }
+        }
+        if (!matchedStaffId) {
+            const existingSid = log.staff_id || log.staffId;
+            if (existingSid && validUserIds.has(String(existingSid))) {
+                matchedStaffId = String(existingSid);
+                matchedBy = 'log';
+            }
+        }
+
+        const key = normalizeKey(pin);
+        const existing = byPin.get(key);
+        if (existing) {
+            existing.punches++;
+            if (when && (!existing.lastSeen || when > existing.lastSeen)) existing.lastSeen = when;
+            if (!existing.name && cardName) existing.name = cardName;
+            if (!existing.matchedStaffId && matchedStaffId) {
+                existing.matchedStaffId = matchedStaffId;
+                existing.matchedBy = matchedBy;
+            }
+        } else {
+            byPin.set(key, {
+                pin,
+                name: cardName,
+                punches: 1,
+                lastSeen: when,
+                deviceId: logDevRaw,
+                matchedStaffId,
+                matchedBy,
+            });
+        }
+    }
+
+    const deviceUsers = Array.from(byPin.values()).sort((a, b) => {
+        // Unmatched first, then most recently seen
+        if ((a.matchedStaffId ? 1 : 0) !== (b.matchedStaffId ? 1 : 0)) {
+            return (a.matchedStaffId ? 1 : 0) - (b.matchedStaffId ? 1 : 0);
+        }
+        return b.lastSeen.localeCompare(a.lastSeen);
+    });
+
+    return {
+        success: true,
+        totalLogsScanned,
+        deviceUsers,
     };
 }

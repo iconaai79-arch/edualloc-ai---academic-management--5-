@@ -19,6 +19,8 @@ interface DevicePerson {
     lastSeen: string;
     deviceId: string;
     suggestedStaffId: string;
+    matchedStaffId?: string | null;
+    matchedBy?: 'enrollment' | 'name' | 'log' | 'none';
 }
 
 const nameTokenKey = (v: any): string =>
@@ -857,30 +859,27 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const loadDevicePersons = async () => {
         setLoadingPersons(true);
         try {
-            const rawLogs = await apiService.fetchModuleRecords<any>('staff_attendance_logs', institution.id, { bypassCache: true });
-            const byPin = new Map<string, DevicePerson>();
-            for (const l of (rawLogs || [])) {
-                let raw: any = {};
-                try { raw = typeof (l.raw_data ?? l.rawData) === 'string' ? JSON.parse(l.raw_data ?? l.rawData) : (l.raw_data ?? l.rawData ?? {}); } catch { raw = {}; }
-                const devId = String(l.device_id || l.deviceId || '').trim();
-                const pin = String(raw.UserID ?? raw.userId ?? l.device_pin ?? l.devicePin ?? '').trim();
-                const name = String(raw.CardName || '').trim();
-                if (!pin || pin.toLowerCase() === 'unknown_user' || pin.toLowerCase() === devId.toLowerCase()) continue;
-                if (!name && !/^\d+$/.test(pin)) continue;
-                const when = String(l.punch_time || l.punchTime || l.created_at || l.createdAt || '');
-                const existing = byPin.get(pin);
-                if (existing) {
-                    existing.punches++;
-                    if (when > existing.lastSeen) existing.lastSeen = when;
-                    if (!existing.name && name) existing.name = name;
-                } else {
-                    byPin.set(pin, { pin, name, punches: 1, lastSeen: when, deviceId: devId, suggestedStaffId: '' });
-                }
-            }
+            const params = new URLSearchParams({
+                action: 'device_users',
+                institutionId: institution.id,
+            });
+            const res = await fetch(`/api/dahua-webhook?${params.toString()}`);
+            const data = await res.json();
+            const rawUsers: any[] = (res.ok && data?.success && Array.isArray(data.deviceUsers)) ? data.deviceUsers : [];
+
             const staffByName = new Map<string, string>();
             staff.forEach(s => { const k = nameTokenKey(s.name); if (k && !staffByName.has(k)) staffByName.set(k, s.id); });
-            const list = Array.from(byPin.values()).map(p => ({ ...p, suggestedStaffId: staffByName.get(nameTokenKey(p.name)) || '' }));
-            list.sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
+
+            const list: DevicePerson[] = rawUsers.map(u => ({
+                pin: String(u.pin || '').trim(),
+                name: String(u.name || '').trim(),
+                punches: Number(u.punches || 0),
+                lastSeen: String(u.lastSeen || ''),
+                deviceId: String(u.deviceId || ''),
+                matchedStaffId: u.matchedStaffId || null,
+                matchedBy: u.matchedBy || 'none',
+                suggestedStaffId: u.matchedStaffId || staffByName.get(nameTokenKey(u.name)) || '',
+            }));
             setDevicePersons(list);
         } catch (err) {
             console.warn('[Unmatched Users] load failed:', err);
@@ -1413,7 +1412,11 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
 
             {/* ═══════════ UNMATCHED USERS ═══════════ */}
             {subTab === 'unmatched' && (() => {
-                const rows = devicePersons.map(p => ({ p, linked: enrolledStaffForPin(p.pin) }));
+                const rows = devicePersons.map(p => {
+                    const enrolled = enrolledStaffForPin(p.pin);
+                    const linked = enrolled || p.matchedStaffId || undefined;
+                    return { p, linked, isEnrolled: !!enrolled };
+                });
                 const unmatched = rows.filter(r => !r.linked);
                 const shown = showMatchedPersons ? rows : unmatched;
                 return (
@@ -1461,7 +1464,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                             </td>
                                         </tr>
                                     )}
-                                    {shown.map(({ p, linked }) => {
+                                    {shown.map(({ p, linked, isEnrolled }) => {
                                         const linkedStaff = linked ? staff.find(s => s.id === linked) : undefined;
                                         const choice = personLinkChoice[p.pin] ?? p.suggestedStaffId;
                                         return (
@@ -1472,7 +1475,9 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                                 <td className="px-6 py-3 text-slate-500">{p.lastSeen ? new Date(p.lastSeen).toLocaleString() : '-'}</td>
                                                 <td className="px-6 py-3">
                                                     {linked
-                                                        ? <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-black text-[9px] uppercase">Linked{linkedStaff ? `: ${linkedStaff.name}` : ''}</span>
+                                                        ? <span className={`px-2 py-1 rounded-lg font-black text-[9px] uppercase ${isEnrolled ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'}`}>
+                                                            {isEnrolled ? 'Linked' : 'Auto-matched'}{linkedStaff ? `: ${linkedStaff.name}` : ''}
+                                                          </span>
                                                         : <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-black text-[9px] uppercase">Unmatched</span>}
                                                 </td>
                                                 <td className="px-6 py-3">
