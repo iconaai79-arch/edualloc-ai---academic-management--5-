@@ -652,14 +652,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         ).catch(() => ({ rows: [] }));
                         devices = devRes.rows || [];
 
-                        const logRes = await pool.query(
+                        const logRes: any = await pool.query(
                             `SELECT l.*, i.name as institution_name, u.name as staff_name
                              FROM public.staff_attendance_logs l
                              LEFT JOIN public.institutions i ON (i.id = l.institution_id OR i.id = l."institutionId")
                              LEFT JOIN public.users u ON (u.id = l.staff_id OR u.id = l."staffId")
                              ORDER BY l.punch_time DESC NULLS LAST LIMIT 250`
-                        ).catch(() => ({ rows: [] }));
-                        logs = logRes.rows || [];
+                        ).catch((e: any) => {
+                            console.warn('[get_biometric_telemetry] joined log query failed, using fallback:', e?.message || e);
+                            return null;
+                        });
+                        if (logRes && logRes.rows) {
+                            logs = logRes.rows;
+                        } else {
+                            // Fallback: schema may lack some columns (e.g. camelCase variants). Select plainly and enrich in JS.
+                            const q = async (sql: string) => pool.query(sql).then((r: any) => r.rows || []).catch(() => null);
+                            const rawLogs =
+                                (await q(`SELECT * FROM public.staff_attendance_logs ORDER BY punch_time DESC NULLS LAST LIMIT 250`)) ||
+                                (await q(`SELECT * FROM public.staff_attendance_logs ORDER BY created_at DESC NULLS LAST LIMIT 250`)) ||
+                                (await q(`SELECT * FROM public.staff_attendance_logs LIMIT 250`)) ||
+                                [];
+                            const insts = (await q(`SELECT id, name FROM public.institutions`)) || [];
+                            const usrs = (await q(`SELECT id, name FROM public.users`)) || [];
+                            const instMap = new Map(insts.map((r: any): [string, any] => [String(r.id), r.name]));
+                            const userMap = new Map(usrs.map((r: any): [string, any] => [String(r.id), r.name]));
+                            logs = rawLogs.map((l: any) => {
+                                const iid = l.institution_id || l.institutionId;
+                                const sid = l.staff_id || l.staffId;
+                                return {
+                                    ...l,
+                                    institution_name: iid ? instMap.get(String(iid)) || null : null,
+                                    staff_name: sid ? userMap.get(String(sid)) || null : null,
+                                };
+                            });
+                        }
                     } catch (pgErr) {
                         console.error('[get_biometric_telemetry PG error]:', pgErr);
                     }
