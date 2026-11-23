@@ -24672,21 +24672,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 setPdfPreviewModal({
                                                                     title: `DAILY FEE COLLECTION SUMMARY REPORT`,
                                                                     subtitle: `${props.institution.name} — Period: ${dailyColPeriod.toUpperCase()} (Total Collections: KSh ${totalCollectionsSum.toLocaleString()})`,
-                                                                    studentName: `Daily Summary (${collectionList.length} Days)`,
-                                                                    admNo: `RECEIPTS: ${totalReceiptsSum}`,
-                                                                    className: `Term: ${dailyColTerm.toUpperCase()}`,
+                                                                    studentName: `Daily Fee Collection Summary (${collectionList.length} Days)`,
+                                                                    admNo: `RECEIPTS: ${totalReceiptsSum.toLocaleString()}`,
+                                                                    className: `Term: ${dailyColTerm.toUpperCase()} • Period: ${dailyColPeriod.toUpperCase()}`,
                                                                     invoiced: totalCollectionsSum,
                                                                     paid: totalCollectionsSum,
                                                                     balance: 0,
+                                                                    isCollectionSummary: true,
+                                                                    voteHeads: allVoteHeads,
+                                                                    totalReceiptsCount: totalReceiptsSum,
+                                                                    activeDaysCount: collectionList.length,
                                                                     items: collectionList.map((day: any) => ({
-                                                                        name: `Date: ${day.date}`,
-                                                                        adm: day.minRcpt === day.maxRcpt ? String(day.minRcpt) : `${day.minRcpt} - ${day.maxRcpt}`,
-                                                                        cls: `${day.receipts?.length || 1} Receipts`,
-                                                                        inv: day.total,
-                                                                        pd: day.total,
-                                                                        bal: 0
+                                                                        date: day.date,
+                                                                        receiptRange: day.minRcpt === day.maxRcpt ? String(day.minRcpt) : `${day.minRcpt} · ${day.maxRcpt}`,
+                                                                        voteMap: day.voteMap || {},
+                                                                        general: Math.round(day.voteMap?.['General'] || 0),
+                                                                        total: day.total || 0,
                                                                     }))
-                                                                });
+                                                                } as any);
                                                             }}
                                                             className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-rose-600/20 active:scale-95"
                                                         >
@@ -24698,21 +24701,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 setPdfPreviewModal({
                                                                     title: `DAILY FEE COLLECTION SUMMARY REPORT`,
                                                                     subtitle: `${props.institution.name} — Period: ${dailyColPeriod.toUpperCase()} (Total Collections: KSh ${totalCollectionsSum.toLocaleString()})`,
-                                                                    studentName: `Daily Summary (${collectionList.length} Days)`,
-                                                                    admNo: `RECEIPTS: ${totalReceiptsSum}`,
-                                                                    className: `Term: ${dailyColTerm.toUpperCase()}`,
+                                                                    studentName: `Daily Fee Collection Summary (${collectionList.length} Days)`,
+                                                                    admNo: `RECEIPTS: ${totalReceiptsSum.toLocaleString()}`,
+                                                                    className: `Term: ${dailyColTerm.toUpperCase()} • Period: ${dailyColPeriod.toUpperCase()}`,
                                                                     invoiced: totalCollectionsSum,
                                                                     paid: totalCollectionsSum,
                                                                     balance: 0,
+                                                                    isCollectionSummary: true,
+                                                                    voteHeads: allVoteHeads,
+                                                                    totalReceiptsCount: totalReceiptsSum,
+                                                                    activeDaysCount: collectionList.length,
                                                                     items: collectionList.map((day: any) => ({
-                                                                        name: `Date: ${day.date}`,
-                                                                        adm: day.minRcpt === day.maxRcpt ? String(day.minRcpt) : `${day.minRcpt} - ${day.maxRcpt}`,
-                                                                        cls: `${day.receipts?.length || 1} Receipts`,
-                                                                        inv: day.total,
-                                                                        pd: day.total,
-                                                                        bal: 0
+                                                                        date: day.date,
+                                                                        receiptRange: day.minRcpt === day.maxRcpt ? String(day.minRcpt) : `${day.minRcpt} · ${day.maxRcpt}`,
+                                                                        voteMap: day.voteMap || {},
+                                                                        general: Math.round(day.voteMap?.['General'] || 0),
+                                                                        total: day.total || 0,
                                                                     }))
-                                                                });
+                                                                } as any);
                                                                 setTimeout(() => window.print(), 350);
                                                             }}
                                                             className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
@@ -28609,6 +28615,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             {/* On-Screen Interactive PDF Preview Modal */}
             {pdfPreviewModal && (() => {
+                const isCollectionSummary = Boolean((pdfPreviewModal as any).isCollectionSummary);
+                const isLandscapeReport = Boolean(pdfPreviewModal.isCashBook || isCollectionSummary);
                 const rawItems = pdfPreviewModal.items || [];
                 const paginatePreviewItems = () => {
                     if (rawItems.length === 0) {
@@ -28619,9 +28627,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     }
 
                     const pagesResult: { pageNumber: number; items: any[]; isFirst: boolean; isLast: boolean }[] = [];
-                    const PAGE_1_LIMIT = pdfPreviewModal.isCashBook ? 15 : 24;
-                    const SUBSEQUENT_PAGE_LIMIT = pdfPreviewModal.isCashBook ? 18 : 30;
-                    const LAST_PAGE_WITH_TOTALS_LIMIT = pdfPreviewModal.isCashBook ? 12 : 20;
+                    const PAGE_1_LIMIT = isLandscapeReport ? 15 : 24;
+                    const SUBSEQUENT_PAGE_LIMIT = isLandscapeReport ? 18 : 30;
+                    const LAST_PAGE_WITH_TOTALS_LIMIT = isLandscapeReport ? 12 : 20;
 
                     let idx = 0;
                     // Page 1
@@ -28675,7 +28683,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         <style>{`
                             @media print {
                                 @page {
-                                    size: ${pdfPreviewModal.isCashBook ? 'A4 landscape' : 'A4 portrait'};
+                                    size: ${isLandscapeReport ? 'A4 landscape' : 'A4 portrait'};
                                     margin: 8mm;
                                 }
                                 html, body {
@@ -28739,7 +28747,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     justify-content: space-between !important;
                                     width: 100% !important;
                                     max-width: 100% !important;
-                                    min-height: ${pdfPreviewModal.isCashBook ? '190mm' : '275mm'} !important;
+                                    min-height: ${isLandscapeReport ? '190mm' : '275mm'} !important;
                                     height: auto !important;
                                     margin: 0 !important;
                                     padding: 8mm 12mm !important;
@@ -28777,7 +28785,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 }
                             }
                         `}</style>
-                        <div className={`bg-slate-900 border border-slate-700 rounded-[2.5rem] shadow-2xl w-full ${pdfPreviewModal.isCashBook ? 'max-w-6xl' : 'max-w-4xl'} overflow-hidden max-h-[92vh] flex flex-col print-modal-inner`}>
+                        <div className={`bg-slate-900 border border-slate-700 rounded-[2.5rem] shadow-2xl w-full ${isLandscapeReport ? 'max-w-6xl' : 'max-w-4xl'} overflow-hidden max-h-[92vh] flex flex-col print-modal-inner`}>
                             {/* Modal Navigation Header */}
                             <div className="bg-slate-950 p-5 sm:p-6 border-b border-slate-800 flex justify-between items-center no-print">
                                 <div className="flex items-center gap-3">
@@ -28808,7 +28816,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <div
                                         key={pIdx}
                                         id={page.isFirst ? "printable-pdf-document" : undefined}
-                                        className={`pdf-page-sheet mx-auto bg-white text-slate-900 p-6 sm:p-8 md:p-10 rounded-2xl shadow-2xl ${pdfPreviewModal.isCashBook ? 'max-w-5xl' : 'max-w-3xl'} font-sans relative border border-slate-200 flex flex-col justify-between ${pdfPreviewModal.isCashBook ? 'min-h-[640px]' : 'min-h-[950px]'} transition-all overflow-hidden`}
+                                        className={`pdf-page-sheet mx-auto bg-white text-slate-900 p-6 sm:p-8 md:p-10 rounded-2xl shadow-2xl ${isLandscapeReport ? 'max-w-5xl' : 'max-w-3xl'} font-sans relative border border-slate-200 flex flex-col justify-between ${isLandscapeReport ? 'min-h-[640px]' : 'min-h-[950px]'} transition-all overflow-hidden`}
                                     >
                                         {/* Watermark */}
                                         <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none select-none no-print">
@@ -28928,6 +28936,73 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     );
                                                 }
 
+                                                if (isCollectionSummary) {
+                                                    const vhCols: string[] = (pdfPreviewModal as any).voteHeads || [];
+                                                    const totalRcpts: number = Number((pdfPreviewModal as any).totalReceiptsCount || 0);
+                                                    return (
+                                                        <div className="mb-4 overflow-x-auto">
+                                                            <table className="w-full text-left text-xs border-collapse">
+                                                                <thead>
+                                                                    <tr className="border-b-2 border-slate-900 text-[9px] font-black uppercase tracking-wider text-slate-700 bg-slate-50">
+                                                                        <th className="py-2 px-2">Date</th>
+                                                                        <th className="py-2 px-2">Receipt Range</th>
+                                                                        {vhCols.map(vh => (
+                                                                            <th key={vh} className="py-2 px-2 text-right whitespace-nowrap">{vh}</th>
+                                                                        ))}
+                                                                        <th className="py-2 px-2 text-right whitespace-nowrap">General</th>
+                                                                        <th className="py-2 px-2 text-right whitespace-nowrap">Total Collected</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-slate-200 text-[10px]">
+                                                                    {page.items.map((it: any, idx: number) => (
+                                                                        <tr key={idx} className="border-b border-slate-100">
+                                                                            <td className="py-1.5 px-2 font-bold text-slate-900 whitespace-nowrap">{it.date}</td>
+                                                                            <td className="py-1.5 px-2 font-bold text-slate-600 whitespace-nowrap">{it.receiptRange || '—'}</td>
+                                                                            {vhCols.map(vh => {
+                                                                                const val = Math.round(Number(it.voteMap?.[vh] || 0));
+                                                                                return (
+                                                                                    <td key={vh} className="py-1.5 px-2 text-right font-medium text-slate-700 whitespace-nowrap">
+                                                                                        {val > 0 ? `KSh ${val.toLocaleString()}` : '—'}
+                                                                                    </td>
+                                                                                );
+                                                                            })}
+                                                                            <td className="py-1.5 px-2 text-right font-medium text-slate-700 whitespace-nowrap">
+                                                                                {Number(it.general || 0) > 0 ? `KSh ${Math.round(Number(it.general)).toLocaleString()}` : '—'}
+                                                                            </td>
+                                                                            <td className="py-1.5 px-2 text-right font-black text-emerald-700 whitespace-nowrap">
+                                                                                KSh {Number(it.total || 0).toLocaleString()}
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                    {page.isLast && rawItems.length > 0 && (
+                                                                        <tr className="border-t-2 border-slate-900 bg-emerald-50/70 font-black">
+                                                                            <td className="py-2 px-2 uppercase text-[10px] text-slate-900">TOTALS</td>
+                                                                            <td className="py-2 px-2 text-[10px] text-slate-600">{totalRcpts.toLocaleString()} receipts</td>
+                                                                            {vhCols.map(vh => {
+                                                                                const vhSum = rawItems.reduce((acc: number, d: any) => acc + Math.round(Number(d.voteMap?.[vh] || 0)), 0);
+                                                                                return (
+                                                                                    <td key={vh} className="py-2 px-2 text-right text-slate-900 whitespace-nowrap">
+                                                                                        {vhSum > 0 ? `KSh ${vhSum.toLocaleString()}` : '—'}
+                                                                                    </td>
+                                                                                );
+                                                                            })}
+                                                                            <td className="py-2 px-2 text-right text-slate-900 whitespace-nowrap">
+                                                                                {(() => {
+                                                                                    const genSum = rawItems.reduce((acc: number, d: any) => acc + Math.round(Number(d.general || 0)), 0);
+                                                                                    return genSum > 0 ? `KSh ${genSum.toLocaleString()}` : '—';
+                                                                                })()}
+                                                                            </td>
+                                                                            <td className="py-2 px-2 text-right text-emerald-700 whitespace-nowrap">
+                                                                                KSh {Number(pdfPreviewModal.invoiced || 0).toLocaleString()}
+                                                                            </td>
+                                                                        </tr>
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    );
+                                                }
+
                                                 const hasArrearsCol = page.items.some((it: any) => it.arrears !== undefined);
                                                 return (
                                                     <div className="mb-4 overflow-x-auto">
@@ -28982,7 +29057,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             {page.isLast && (
                                                 <div className="space-y-4 mt-3">
                                                     {/* Summary Totals Box */}
-                                                    {pdfPreviewModal.isCashBook ? (
+                                                    {isCollectionSummary ? (
+                                                        <div className="grid grid-cols-3 gap-3 p-3.5 bg-slate-900 text-white rounded-xl text-xs shadow-md">
+                                                            <div>
+                                                                <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Total Collected</span>
+                                                                <span className="font-mono font-black text-emerald-400 text-base">KSh {Number(pdfPreviewModal.invoiced || 0).toLocaleString()}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Receipts Processed</span>
+                                                                <span className="font-mono font-black text-indigo-300 text-base">{Number((pdfPreviewModal as any).totalReceiptsCount || 0).toLocaleString()} receipts</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Active Transaction Days</span>
+                                                                <span className="font-mono font-black text-white text-base">{Number((pdfPreviewModal as any).activeDaysCount || rawItems.length)} days</span>
+                                                            </div>
+                                                        </div>
+                                                    ) : pdfPreviewModal.isCashBook ? (
                                                         <div className="p-3.5 bg-slate-900 text-white rounded-xl space-y-2 text-xs shadow-md">
                                                             <div className="flex justify-between">
                                                                 <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px]">Total Cash Inflow (Debit)</span>
