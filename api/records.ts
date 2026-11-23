@@ -565,8 +565,70 @@ const ensureEssentialSchema = async (pool: any) => {
             "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );
 
+        CREATE TABLE IF NOT EXISTS public.car_test_drives (
+            id TEXT PRIMARY KEY DEFAULT ('ctd_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+            institution_id TEXT,
+            "institutionId" TEXT,
+            listing_id TEXT,
+            "listingId" TEXT,
+            buyer_id TEXT,
+            "buyerId" TEXT,
+            buyer_name TEXT,
+            "buyerName" TEXT,
+            buyer_phone TEXT,
+            "buyerPhone" TEXT,
+            booking_date TIMESTAMPTZ,
+            "bookingDate" TIMESTAMPTZ,
+            delivery_address TEXT,
+            "deliveryAddress" TEXT,
+            status TEXT DEFAULT 'pending',
+            notes TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_car_test_drives_inst ON public.car_test_drives(institution_id);
+        CREATE INDEX IF NOT EXISTS idx_car_test_drives_listing ON public.car_test_drives(listing_id);
+
+        CREATE TABLE IF NOT EXISTS public.ng_cdf_school_grants (
+            id TEXT PRIMARY KEY DEFAULT ('cdfg_' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+            institution_id TEXT,
+            "institutionId" TEXT,
+            constituency_name TEXT,
+            "constituencyName" TEXT,
+            cheque_number TEXT,
+            "chequeNumber" TEXT,
+            amount DOUBLE PRECISION DEFAULT 0.0,
+            received_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "receivedDate" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            financial_year TEXT,
+            "financialYear" TEXT,
+            purpose TEXT,
+            notes TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_ng_cdf_school_grants_inst ON public.ng_cdf_school_grants(institution_id);
+
         DO $$
         BEGIN
+            -- 0. Ensure county_id exists on core county-scoped tables (institutions, users, county_bursary_funds)
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'institutions') THEN
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS county_id TEXT;
+                ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "countyId" TEXT;
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') THEN
+                ALTER TABLE public.users ADD COLUMN IF NOT EXISTS county_id TEXT;
+                ALTER TABLE public.users ADD COLUMN IF NOT EXISTS "countyId" TEXT;
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'county_bursary_funds') THEN
+                ALTER TABLE public.county_bursary_funds ADD COLUMN IF NOT EXISTS county_id TEXT;
+                ALTER TABLE public.county_bursary_funds ADD COLUMN IF NOT EXISTS "countyId" TEXT;
+            END IF;
+
             -- 1. ds_students, ds_invoices, ds_payments missing columns & relaxed constraints
             IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_students') THEN
                 ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS full_name TEXT DEFAULT 'Student';
@@ -1868,7 +1930,7 @@ const fetchViaDirectPg = async (
     const errMsgStr = String(err?.message || '');
     const isMissingTableError = err?.code === '42P01' || (/relation ".*" does not exist/i.test(errMsgStr) && err?.code !== '42703');
     if (isMissingTableError) {
-      if (['system_settings', 'invoices', 'receipts', 'bank_feed_transactions', 'observation_notes', 'building_offices', 'building_floors', 'building_visitor_logs', 'building_visitor_assets'].includes(table)) {
+      if (['system_settings', 'invoices', 'receipts', 'bank_feed_transactions', 'observation_notes', 'building_offices', 'building_floors', 'building_visitor_logs', 'building_visitor_assets', 'car_test_drives', 'ng_cdf_school_grants'].includes(table)) {
         try {
           _schemaMigrationDone = false;
           _schemaMigrationPromise = null;
@@ -1884,9 +1946,12 @@ const fetchViaDirectPg = async (
     if (err?.code === '42703' || errMsgStr.includes('column') || errMsgStr.includes('does not exist')) {
       const errMsg = errMsgStr;
 
-      // 0. If invoices, receipts, courses, or biometric_enrollments has missing columns, trigger full schema & data heal
-      if (table === 'invoices' || table === 'receipts' || table === 'biometric_enrollments' || table === 'courses') {
+      // 0. If invoices, receipts, courses, biometric_enrollments, or county_id is missing, trigger schema heal
+      if (table === 'invoices' || table === 'receipts' || table === 'biometric_enrollments' || table === 'courses' || errMsg.includes('county_id')) {
         try {
+          if (errMsg.includes('county_id')) {
+            await pool.query(`ALTER TABLE public."${table}" ADD COLUMN IF NOT EXISTS county_id TEXT`).catch(() => {});
+          }
           _schemaMigrationDone = false;
           _schemaMigrationPromise = null;
           await ensureEssentialSchema(pool);
