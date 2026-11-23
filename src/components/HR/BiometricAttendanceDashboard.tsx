@@ -10,7 +10,19 @@ interface BiometricAttendanceDashboardProps {
     institution: Institution;
 }
 
-type SubTab = 'today' | 'monthly' | 'devices' | 'enrollment';
+type SubTab = 'today' | 'monthly' | 'devices' | 'enrollment' | 'unmatched';
+
+interface DevicePerson {
+    pin: string;
+    name: string;
+    punches: number;
+    lastSeen: string;
+    deviceId: string;
+    suggestedStaffId: string;
+}
+
+const nameTokenKey = (v: any): string =>
+    String(v ?? '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
 
 const VERIFY_LABELS: Record<number, string> = {
     0: 'Fingerprint',
@@ -96,6 +108,13 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const [discoveredDevices, setDiscoveredDevices] = useState<any[]>([]);
     const [registeredDahuaDevices, setRegisteredDahuaDevices] = useState<any[]>([]);
     const [claimingDeviceId, setClaimingDeviceId] = useState<string | null>(null);
+
+    // Unmatched device persons (people seen on the terminal that are not linked to staff)
+    const [devicePersons, setDevicePersons] = useState<DevicePerson[]>([]);
+    const [loadingPersons, setLoadingPersons] = useState(false);
+    const [personLinkChoice, setPersonLinkChoice] = useState<Record<string, string>>({});
+    const [linkingPin, setLinkingPin] = useState<string | null>(null);
+    const [showMatchedPersons, setShowMatchedPersons] = useState(false);
 
     // Fetch data
     useEffect(() => {
@@ -835,6 +854,79 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         }
     };
 
+    const loadDevicePersons = async () => {
+        setLoadingPersons(true);
+        try {
+            const rawLogs = await apiService.fetchModuleRecords<any>('staff_attendance_logs', institution.id, { bypassCache: true });
+            const byPin = new Map<string, DevicePerson>();
+            for (const l of (rawLogs || [])) {
+                let raw: any = {};
+                try { raw = typeof (l.raw_data ?? l.rawData) === 'string' ? JSON.parse(l.raw_data ?? l.rawData) : (l.raw_data ?? l.rawData ?? {}); } catch { raw = {}; }
+                const devId = String(l.device_id || l.deviceId || '').trim();
+                const pin = String(raw.UserID ?? raw.userId ?? l.device_pin ?? l.devicePin ?? '').trim();
+                const name = String(raw.CardName || '').trim();
+                if (!pin || pin.toLowerCase() === 'unknown_user' || pin.toLowerCase() === devId.toLowerCase()) continue;
+                if (!name && !/^\d+$/.test(pin)) continue;
+                const when = String(l.punch_time || l.punchTime || l.created_at || l.createdAt || '');
+                const existing = byPin.get(pin);
+                if (existing) {
+                    existing.punches++;
+                    if (when > existing.lastSeen) existing.lastSeen = when;
+                    if (!existing.name && name) existing.name = name;
+                } else {
+                    byPin.set(pin, { pin, name, punches: 1, lastSeen: when, deviceId: devId, suggestedStaffId: '' });
+                }
+            }
+            const staffByName = new Map<string, string>();
+            staff.forEach(s => { const k = nameTokenKey(s.name); if (k && !staffByName.has(k)) staffByName.set(k, s.id); });
+            const list = Array.from(byPin.values()).map(p => ({ ...p, suggestedStaffId: staffByName.get(nameTokenKey(p.name)) || '' }));
+            list.sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
+            setDevicePersons(list);
+        } catch (err) {
+            console.warn('[Unmatched Users] load failed:', err);
+            setDevicePersons([]);
+        }
+        setLoadingPersons(false);
+    };
+
+    const stripZeros = (v: any) => String(v ?? '').trim().replace(/^0+/, '') || String(v ?? '').trim();
+    const enrolledStaffForPin = (pin: string): string | undefined => {
+        const e = enrollments.find(en => (en as any).isActive !== false && stripZeros(en.devicePin) === stripZeros(pin));
+        return e?.staffId;
+    };
+
+    const handleLinkPerson = async (person: DevicePerson) => {
+        const staffId = personLinkChoice[person.pin] || person.suggestedStaffId;
+        if (!staffId) { alert('Select a staff member to link first.'); return; }
+        setLinkingPin(person.pin);
+        try {
+            const existing = enrollments.find(en => stripZeros(en.devicePin) === stripZeros(person.pin));
+            await apiService.saveModuleRecord('biometric_enrollments', {
+                ...(existing?.id ? { id: existing.id } : {}),
+                institution_id: institution.id,
+                institutionId: institution.id,
+                staff_id: staffId,
+                staffId: staffId,
+                device_pin: person.pin,
+                devicePin: person.pin,
+                fingerprint_index: 0,
+                is_active: true,
+            });
+            await loadEnrollments();
+            await handleSyncPreviousLogs({ silent: true });
+            await loadDevicePersons();
+            alert(`Device ID #${person.pin}${person.name ? ` (${person.name})` : ''} linked and attendance recomputed.`);
+        } catch (err: any) {
+            alert('Failed to link: ' + (err?.message || err));
+        } finally {
+            setLinkingPin(null);
+        }
+    };
+
+    useEffect(() => {
+        if (subTab === 'unmatched') loadDevicePersons();
+    }, [subTab, institution.id, enrollments.length]);
+
     const handleRemoveEnrollment = async (id: string) => {
         if (!confirm('Remove this enrollment?')) return;
         try {
@@ -890,6 +982,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         { id: 'monthly', label: 'Monthly Register' },
         { id: 'devices', label: 'Device Fleet' },
         { id: 'enrollment', label: 'Staff Enrollment' },
+        { id: 'unmatched', label: 'Unmatched Users' },
     ];
 
     return (
@@ -1317,6 +1410,104 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                     </div>
                 </div>
             )}
+
+            {/* ═══════════ UNMATCHED USERS ═══════════ */}
+            {subTab === 'unmatched' && (() => {
+                const rows = devicePersons.map(p => ({ p, linked: enrolledStaffForPin(p.pin) }));
+                const unmatched = rows.filter(r => !r.linked);
+                const shown = showMatchedPersons ? rows : unmatched;
+                return (
+                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Unmatched Device Users</h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                    People seen on the terminal ({unmatched.length} unmatched of {rows.length}) — link each to a staff member
+                                </p>
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                                <button
+                                    onClick={() => setShowMatchedPersons(v => !v)}
+                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl"
+                                >
+                                    {showMatchedPersons ? 'Show unmatched only' : 'Show all'}
+                                </button>
+                                <button
+                                    onClick={loadDevicePersons}
+                                    disabled={loadingPersons}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-[10px] font-black uppercase tracking-widest rounded-xl"
+                                >
+                                    {loadingPersons ? 'Loading...' : 'Refresh'}
+                                </button>
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs">
+                                <thead>
+                                    <tr className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
+                                        <th className="px-6 py-3">Device ID</th>
+                                        <th className="px-6 py-3">Name on Device</th>
+                                        <th className="px-6 py-3">Punches</th>
+                                        <th className="px-6 py-3">Last Seen</th>
+                                        <th className="px-6 py-3">Status</th>
+                                        <th className="px-6 py-3">Match to Staff</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {shown.length === 0 && (
+                                        <tr>
+                                            <td colSpan={6} className="px-6 py-10 text-center text-slate-400 font-bold">
+                                                {loadingPersons ? 'Loading device users...' : 'No unmatched device users 🎉'}
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {shown.map(({ p, linked }) => {
+                                        const linkedStaff = linked ? staff.find(s => s.id === linked) : undefined;
+                                        const choice = personLinkChoice[p.pin] ?? p.suggestedStaffId;
+                                        return (
+                                            <tr key={p.pin} className="border-b border-slate-50 dark:border-slate-700/50">
+                                                <td className="px-6 py-3 font-black text-slate-900 dark:text-white">#{p.pin}</td>
+                                                <td className="px-6 py-3 font-bold text-slate-700 dark:text-slate-200">{p.name || <span className="text-slate-400">(no name)</span>}</td>
+                                                <td className="px-6 py-3">{p.punches}</td>
+                                                <td className="px-6 py-3 text-slate-500">{p.lastSeen ? new Date(p.lastSeen).toLocaleString() : '-'}</td>
+                                                <td className="px-6 py-3">
+                                                    {linked
+                                                        ? <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-black text-[9px] uppercase">Linked{linkedStaff ? `: ${linkedStaff.name}` : ''}</span>
+                                                        : <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-black text-[9px] uppercase">Unmatched</span>}
+                                                </td>
+                                                <td className="px-6 py-3">
+                                                    <div className="flex gap-2 items-center">
+                                                        <select
+                                                            value={choice || ''}
+                                                            onChange={e => setPersonLinkChoice(prev => ({ ...prev, [p.pin]: e.target.value }))}
+                                                            className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 max-w-[220px]"
+                                                        >
+                                                            <option value="">Select staff...</option>
+                                                            {staff.map(s => (
+                                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                                            ))}
+                                                        </select>
+                                                        <button
+                                                            onClick={() => handleLinkPerson(p)}
+                                                            disabled={linkingPin === p.pin || !choice}
+                                                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[10px] font-black uppercase tracking-widest rounded-xl"
+                                                        >
+                                                            {linkingPin === p.pin ? '...' : linked ? 'Re-link' : 'Link'}
+                                                        </button>
+                                                    </div>
+                                                    {!linked && p.suggestedStaffId && (
+                                                        <p className="text-[9px] text-indigo-500 font-bold mt-1">Suggested by name</p>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* ═══════════ STAFF ENROLLMENT ═══════════ */}
             {subTab === 'enrollment' && (
