@@ -35,6 +35,11 @@ import { DispenseMedicationModal } from './DispenseMedicationModal';
 import { PdfViewer } from '../PdfViewer';
 import { SubscriptionExpiryBanner } from '../common/SubscriptionExpiryBanner';
 import { PharmacyProcurementAndExpensesPanel } from './PharmacyProcurementAndExpensesPanel';
+import {
+    PharmacyClientsAndCategoriesPanel,
+    DEFAULT_PHARMACY_CATEGORIES,
+    type PharmacyProductCategory,
+} from './PharmacyClientsAndCategoriesPanel';
 
 
 export function ModernPharmacyManager({ institutionId, currentInstitution, currentUser }: { 
@@ -42,7 +47,9 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
     currentInstitution?: Institution | null;
     currentUser: User;
 }) {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'receiving' | 'prescriptions' | 'hr' | 'accounting' | 'expenses' | 'automation' | 'reports' | 'sales' | 'config'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'categories' | 'receiving' | 'clients' | 'prescriptions' | 'hr' | 'accounting' | 'expenses' | 'automation' | 'reports' | 'sales' | 'config'>('dashboard');
+    const [productCategories, setProductCategories] = useState<PharmacyProductCategory[]>([]);
+    const [posCategoryFilter, setPosCategoryFilter] = useState<string>('ALL');
     const [configSubTab, setConfigSubTab] = useState<'branding' | 'contact' | 'operations'>('branding');
     const [reportsSubTab, setReportsSubTab] = useState<'general' | 'sales'>('general');
     const [salesFilter, setSalesFilter] = useState<'day' | 'week' | 'month' | 'period'>('day');
@@ -111,6 +118,63 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
             setStaff(staffRecords || []);
             setPatients(patientRecords || []);
             setAlerts(alertRecords || []);
+
+            // Load Product Categories (remote + localStorage fallback + defaults + any existing inventory categories)
+            try {
+                let remoteCats: PharmacyProductCategory[] = [];
+                try {
+                    const fetched = await apiService.fetchModuleRecords('pharmacy_product_categories', institutionId);
+                    if (Array.isArray(fetched)) remoteCats = fetched;
+                } catch {
+                    // fallback to localStorage
+                }
+                let localCats: PharmacyProductCategory[] = [];
+                try {
+                    const raw = localStorage.getItem(`pharmacy_product_categories_${institutionId}`);
+                    if (raw) localCats = JSON.parse(raw);
+                } catch {
+                    // ignore
+                }
+                const byName = new Map<string, PharmacyProductCategory>();
+                const addCat = (c: PharmacyProductCategory) => {
+                    const key = (c.name || '').trim().toLowerCase();
+                    if (key && !byName.has(key)) byName.set(key, c);
+                };
+                remoteCats.forEach(addCat);
+                localCats.forEach(addCat);
+                if (byName.size === 0) {
+                    DEFAULT_PHARMACY_CATEGORIES.forEach((d, idx) =>
+                        addCat({
+                            id: `pcat_def_${idx + 1}`,
+                            institutionId,
+                            name: d.name,
+                            code: d.code,
+                            description: d.description,
+                            color: d.color,
+                            requiresPrescription: d.requiresPrescription,
+                            status: 'active',
+                        })
+                    );
+                }
+                (inv || []).forEach((item: any, idx: number) => {
+                    const cname = (item.category || '').trim();
+                    if (cname && !byName.has(cname.toLowerCase())) {
+                        addCat({
+                            id: `pcat_inv_${idx}_${Date.now()}`,
+                            institutionId,
+                            name: cname,
+                            code: cname.slice(0, 3).toUpperCase(),
+                            description: 'Imported from existing inventory',
+                            color: 'slate',
+                            requiresPrescription: false,
+                            status: 'active',
+                        });
+                    }
+                });
+                setProductCategories(Array.from(byName.values()));
+            } catch {
+                // ignore
+            }
             
             const pharmStore = (stores || []).find((s: any) => s.storeType === 'pharmacy_store' || s.name.toLowerCase().includes('pharmacy'));
             if (pharmStore) {
@@ -182,13 +246,13 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
 
         switch (pharmRole) {
             case 'Pharmacist':
-                return ['dashboard', 'pos', 'inventory', 'receiving', 'prescriptions', 'expenses', 'automation', 'reports'].includes(tab);
+                return ['dashboard', 'pos', 'inventory', 'categories', 'receiving', 'clients', 'prescriptions', 'expenses', 'automation', 'reports'].includes(tab);
             case 'Technician':
-                return ['inventory', 'receiving', 'prescriptions'].includes(tab);
+                return ['inventory', 'categories', 'receiving', 'prescriptions'].includes(tab);
             case 'Cashier':
-                return ['pos'].includes(tab);
+                return ['pos', 'clients'].includes(tab);
             case 'Store Manager':
-                return ['dashboard', 'inventory', 'receiving', 'expenses', 'reports'].includes(tab);
+                return ['dashboard', 'inventory', 'categories', 'receiving', 'expenses', 'reports'].includes(tab);
             default:
                 // If they are a generic staff member but not in the pharmacy_staff table specifically, 
                 // give them minimal access if they have the retail_agent role (handled above).
@@ -197,7 +261,7 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
     };
 
     const accessibleTabs = useMemo(() => {
-        const allTabs = ['dashboard', 'pos', 'inventory', 'receiving', 'prescriptions', 'expenses', 'hr', 'accounting', 'automation', 'reports', 'sales', 'config'] as const;
+        const allTabs = ['dashboard', 'pos', 'inventory', 'categories', 'receiving', 'clients', 'prescriptions', 'expenses', 'hr', 'accounting', 'automation', 'reports', 'sales', 'config'] as const;
         return allTabs.filter(tab => canAccessTab(tab as any));
     }, [currentUser.role, staff]);
 
@@ -738,7 +802,9 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
         dashboard: { label: 'Overview', subtitle: 'Daily KPIs & AI stock alerts' },
         pos: { label: 'POS Terminal', subtitle: 'Counter sales & M-Pesa' },
         inventory: { label: 'Drug Inventory', subtitle: 'Stock, FEFO batches & expiry' },
+        categories: { label: 'Product Categories', subtitle: 'Drug classes & OTC/Rx tags' },
         receiving: { label: 'Receive Stock', subtitle: 'Supplier GRN & batch intake' },
+        clients: { label: 'Clients', subtitle: 'Customers, insurance & credit' },
         prescriptions: { label: 'Prescriptions', subtitle: 'Clinical Rx queue & audit' },
         expenses: { label: 'Expenses', subtitle: 'Operating bills & stock outlays' },
         sales: { label: 'Sales Ledger', subtitle: 'Receipts & shift history' },
@@ -816,7 +882,9 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
                                             {tab === 'dashboard' && <ChartBarIcon className="w-4 h-4" />}
                                             {tab === 'pos' && <CreditCardIcon className="w-4 h-4" />}
                                             {tab === 'inventory' && <ArchiveBoxIcon className="w-4 h-4" />}
+                                            {tab === 'categories' && <BeakerIcon className="w-4 h-4" />}
                                             {tab === 'receiving' && <PlusIcon className="w-4 h-4" />}
+                                            {tab === 'clients' && <UserIcon className="w-4 h-4" />}
                                             {tab === 'prescriptions' && <DocumentTextIcon className="w-4 h-4" />}
                                             {tab === 'expenses' && <CurrencyIcon className="w-4 h-4" />}
                                             {tab === 'hr' && <UsersIcon className="w-4 h-4" />}
@@ -905,6 +973,42 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
                     pharmacyName={settings?.pharmacyName || currentInstitution?.name || 'Pharmacy & Chemist'}
                     currentUser={currentUser}
                     inventory={inventory}
+                    onRefreshData={loadData}
+                />
+            )}
+
+            {/* MANAGE CLIENTS */}
+            {activeTab === 'clients' && (
+                <PharmacyClientsAndCategoriesPanel
+                    mode="clients"
+                    institutionId={institutionId}
+                    pharmacyName={settings?.pharmacyName || currentInstitution?.name || 'Pharmacy & Chemist'}
+                    currentUser={currentUser}
+                    patients={patients}
+                    inventory={inventory}
+                    sales={sales}
+                    categories={productCategories}
+                    onCategoriesChange={setProductCategories}
+                    onRefreshData={loadData}
+                    onSelectClientForPos={(patient) => {
+                        setSelectedPatient(patient);
+                        setActiveTab('pos');
+                    }}
+                />
+            )}
+
+            {/* MANAGE PRODUCT CATEGORIES */}
+            {activeTab === 'categories' && (
+                <PharmacyClientsAndCategoriesPanel
+                    mode="categories"
+                    institutionId={institutionId}
+                    pharmacyName={settings?.pharmacyName || currentInstitution?.name || 'Pharmacy & Chemist'}
+                    currentUser={currentUser}
+                    patients={patients}
+                    inventory={inventory}
+                    sales={sales}
+                    categories={productCategories}
+                    onCategoriesChange={setProductCategories}
                     onRefreshData={loadData}
                 />
             )}
@@ -1041,8 +1145,21 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
                                 </div>
+                                <select
+                                    value={posCategoryFilter}
+                                    onChange={(e) => setPosCategoryFilter(e.target.value)}
+                                    className="px-3 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-700 outline-none focus:border-emerald-500 shadow-xs"
+                                >
+                                    <option value="ALL">All Categories</option>
+                                    {productCategories.map(cat => (
+                                        <option key={cat.id} value={cat.name}>{cat.name}</option>
+                                    ))}
+                                </select>
                                 <span className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black uppercase tracking-wider shrink-0">
-                                    {inventory.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()) || (i.category || '').toLowerCase().includes(searchTerm.toLowerCase())).length} Drugs
+                                    {inventory.filter(i =>
+                                        (posCategoryFilter === 'ALL' || (i.category || 'General').toLowerCase() === posCategoryFilter.toLowerCase()) &&
+                                        (i.name.toLowerCase().includes(searchTerm.toLowerCase()) || (i.category || '').toLowerCase().includes(searchTerm.toLowerCase()))
+                                    ).length} Drugs
                                 </span>
                             </div>
                         </div>
@@ -1062,8 +1179,9 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
                                 <tbody className="divide-y divide-slate-100 bg-white">
                                     {inventory
                                         .filter(i =>
-                                            i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                            (i.category || '').toLowerCase().includes(searchTerm.toLowerCase())
+                                            (posCategoryFilter === 'ALL' || (i.category || 'General').toLowerCase() === posCategoryFilter.toLowerCase()) &&
+                                            (i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                            (i.category || '').toLowerCase().includes(searchTerm.toLowerCase()))
                                         )
                                         .map(item => {
                                             const isOut = (item.stockQuantity || 0) <= 0;
@@ -1164,13 +1282,14 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
                                      </div>
                                      <div className="flex-1">
                                          <select 
+                                            value={selectedPatient?.id || ''}
                                             className="bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-widest w-full text-slate-900 appearance-none"
                                             onChange={(e) => {
                                                 const p = patients.find(pat => pat.id === e.target.value);
                                                 setSelectedPatient(p || null);
                                             }}
                                          >
-                                             <option value="">Walk-in Intelligence</option>
+                                             <option value="">Walk-in Client</option>
                                              {patients.map(p => (
                                                  <option key={p.id} value={p.id}>{p.fullName}</option>
                                              ))}
@@ -2510,6 +2629,7 @@ export function ModernPharmacyManager({ institutionId, currentInstitution, curre
                 <AddPharmacyInventoryModal 
                     institutionId={institutionId}
                     item={editingInventory || undefined}
+                    categories={productCategories.map(c => c.name)}
                     onClose={() => { setIsAddInventoryOpen(false); setEditingInventory(null); }}
                     onAdd={handleAddInventory}
                 />

@@ -10,11 +10,21 @@ interface AddPharmacyInventoryModalProps {
     onAdd: (item: Partial<HISPharmacyInventory>) => Promise<void>;
     institutionId: string;
     item?: Partial<HISPharmacyInventory>;
+    categories?: string[];
 }
 
+const FALLBACK_CATEGORIES = ['General', 'Antibiotics', 'Analgesics', 'Antipyretics', 'Narcotics', 'Consumables'];
+
 export function AddPharmacyInventoryModal({
-    onClose, onAdd, institutionId, item
+    onClose, onAdd, institutionId, item, categories
 }: AddPharmacyInventoryModalProps) {
+    const categoryOptions = React.useMemo(() => {
+        const list = (categories && categories.length > 0 ? categories : FALLBACK_CATEGORIES).slice();
+        if (item?.category && !list.includes(item.category)) {
+            list.unshift(item.category);
+        }
+        return list;
+    }, [categories, item?.category]);
     const [formData, setFormData] = useState({
         name: item?.name || '',
         category: item?.category || 'General',
@@ -92,12 +102,9 @@ export function AddPharmacyInventoryModal({
                                 onChange={e => setFormData({ ...formData, category: e.target.value })}
                                 className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-bold"
                             >
-                                <option value="General">General</option>
-                                <option value="Antibiotics">Antibiotics</option>
-                                <option value="Analgesics">Analgesics</option>
-                                <option value="Antipyretics">Antipyretics</option>
-                                <option value="Narcotics">Narcotics</option>
-                                <option value="Consumables">Consumables</option>
+                                {categoryOptions.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
                             </select>
                         </div>
 
