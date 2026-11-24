@@ -8786,6 +8786,30 @@ export const apiService = {
             return { success: false, message: e.message };
         }
     },
+    async checkNcbaTransactionChecker(txnReferenceNo: string, debitAccountNumber?: string, config?: any, clientReference?: string) {
+        try {
+            const response = await fetch('/api/openBanking?action=transactionChecker', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ txnReferenceNo, debitAccountNumber, clientReference, config })
+            });
+            return await response.json();
+        } catch (e: any) {
+            return { success: false, message: e.message };
+        }
+    },
+    async checkNcbaTransactionStatus(transactionId: string, config?: any) {
+        try {
+            const response = await fetch('/api/openBanking?action=transactionStatus', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transactionId, config })
+            });
+            return await response.json();
+        } catch (e: any) {
+            return { success: false, message: e.message };
+        }
+    },
     async testFtpConnection(config?: any) {
         try {
             const token = await apiService.getAuthToken();

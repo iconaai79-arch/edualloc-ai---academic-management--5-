@@ -996,6 +996,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [ncbaBeneficiaryName, setNcbaBeneficiaryName] = useState('Test Recipient');
     const [ncbaTransferNarration, setNcbaTransferNarration] = useState('Test Funds Transfer');
     const [ncbaTransferResult, setNcbaTransferResult] = useState<any | null>(null);
+    const [lastNcbaFtRef, setLastNcbaFtRef] = useState<string>('');
+    const [isCheckingTxStatus, setIsCheckingTxStatus] = useState(false);
     const [isExecutingTransfer, setIsExecutingTransfer] = useState(false);
     const [isValidatingRecipient, setIsValidatingRecipient] = useState(false);
     const [isCheckingBalance, setIsCheckingBalance] = useState(false);
@@ -1601,9 +1603,15 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             }, localNcbaConfig);
 
             setNcbaTransferResult(res);
-            if (res.success || res.succeeded) {
-                const ref = res.data?.bankRef || res.data?.channelRef || res.cbxReferenceNumber || res.txnReferenceNo || 'SUCCESS';
-                alert(`🎉 Funds Transfer Successful!\n\nReference: ${ref}\nStatus: ${res.message || 'Completed'}`);
+            const ftRef = res.ftReference || res.data?.bankRef || res.txnReferenceNo || '';
+            const clientRef = res.clientReference || res.data?.channelRef || res.cbxReferenceNumber || '';
+            if (ftRef) setLastNcbaFtRef(ftRef);
+
+            if (res.isDuplicate) {
+                alert(`⚠️ Duplicate Reference (Code 115) — Already Processed\n\nOriginal FT Reference: ${ftRef || 'N/A'}\nClient Ref: ${clientRef || 'N/A'}\nMessage: ${res.message || 'Already processed — reconcile on original FT.'}`);
+            } else if (res.success || res.succeeded) {
+                const ref = ftRef || clientRef || 'ACCEPTED';
+                alert(`✅ Transfer Accepted & Posted (Pending Final Confirmation)\n\nFT Reference: ${ref}${clientRef && clientRef !== ref ? `\nClient Ref: ${clientRef}` : ''}\nStatus: ${res.message || 'Accepted'}\n\nPer NCBA V2 Rule R11, click "Check Final Status (Transaction Checker)" below or await callback for final confirmation.`);
                 if (props.onRefreshData) props.onRefreshData();
             } else {
                 alert(`❌ Transfer Rejected by Bank (${res.statusCode || 'Error'}):\n${res.message || JSON.stringify(res)}`);
@@ -1614,6 +1622,43 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             alert(`Transfer Error: ${err.message}`);
         } finally {
             setIsExecutingTransfer(false);
+        }
+    };
+
+    const handleCheckTransactionChecker = async (ftOverride?: string) => {
+        const debitAcc = (localNcbaConfig.debitAccount || '').trim();
+        if (!debitAcc) {
+            alert('Please enter a Debit Account Number in the NCBA Open Banking configuration.');
+            return;
+        }
+        const ftInput = ftOverride || window.prompt('Enter NCBA FT Reference to check on Transaction Checker:', lastNcbaFtRef || '');
+        const ftRef = (ftInput || '').trim();
+        if (!ftRef) return;
+        setLastNcbaFtRef(ftRef);
+        setIsCheckingTxStatus(true);
+        try {
+            const res = await apiService.checkNcbaTransactionChecker(ftRef, debitAcc, localNcbaConfig);
+            setNcbaTransferResult(res);
+            const badge = res.statusClass === 'final_success'
+                ? '✅ FINAL SUCCESS'
+                : res.statusClass === 'final_failure'
+                    ? '❌ FINAL FAILURE'
+                    : res.statusClass === 'not_yet_known'
+                        ? '⏳ NOT YET IN BATCH (404)'
+                        : '⏳ PENDING (NON-FINAL)';
+            alert(
+                `${badge}\n\n` +
+                `FT Reference: ${res.txnReferenceNo || ftRef}\n` +
+                `Client Ref: ${res.cbxReferenceNumber || 'N/A'}\n` +
+                `Transaction Status: ${res.transactionStatus || 'N/A'}\n` +
+                `isSuccessful: ${String(res.isSuccessful)}\n` +
+                `Provider Receipt (thirdPartyId): ${res.thirdPartyId || 'N/A'}\n` +
+                `Scheme Status (thirdPartyStatus): ${res.thirdPartyStatus || 'N/A'}`
+            );
+        } catch (err: any) {
+            alert(`Transaction Checker Error: ${err.message}`);
+        } finally {
+            setIsCheckingTxStatus(false);
         }
     };
 
@@ -6636,6 +6681,16 @@ Please change it after login.`;
 
                                                         <button
                                                             type="button"
+                                                            onClick={() => handleCheckTransactionChecker()}
+                                                            disabled={isCheckingTxStatus}
+                                                            className="h-12 px-5 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2"
+                                                        >
+                                                            <ShieldCheckIcon className="w-4 h-4 text-indigo-500" />
+                                                            {isCheckingTxStatus ? 'Checking Status...' : 'Check Final Status (Checker)'}
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
                                                             onClick={async () => {
                                                                 setIsTestingNcba(true);
                                                                 try {
@@ -6690,17 +6745,37 @@ Please change it after login.`;
                                                             ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
                                                             : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
                                                     }`}>
-                                                        <div className="flex items-center justify-between font-bold mb-1">
+                                                        <div className="flex items-center justify-between font-bold mb-1 gap-2 flex-wrap">
                                                             <span className="uppercase tracking-wider">
-                                                                {ncbaTransferResult.success || ncbaTransferResult.succeeded ? '✅ Succeeded / Active' : 'ℹ️ Bank Response / Status'}
+                                                                {ncbaTransferResult.statusClass === 'final_success'
+                                                                    ? '✅ Final Success (Transaction Checker)'
+                                                                    : ncbaTransferResult.statusClass === 'final_failure'
+                                                                        ? '❌ Final Failure (Transaction Checker)'
+                                                                        : ncbaTransferResult.statusClass === 'pending' || ncbaTransferResult.statusClass === 'accepted'
+                                                                            ? '⏳ Accepted — Pending Final Confirmation (Rule R11)'
+                                                                            : ncbaTransferResult.isDuplicate
+                                                                                ? '⚠️ Duplicate Reference (Code 115)'
+                                                                                : (ncbaTransferResult.success || ncbaTransferResult.succeeded ? '✅ Succeeded / Active' : 'ℹ️ Bank Response / Status')}
                                                             </span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setNcbaTransferResult(null)}
-                                                                className="text-slate-400 hover:text-slate-600 text-[10px] uppercase tracking-widest"
-                                                            >
-                                                                Dismiss
-                                                            </button>
+                                                            <div className="flex items-center gap-3">
+                                                                {(ncbaTransferResult.ftReference || ncbaTransferResult.data?.bankRef || ncbaTransferResult.txnReferenceNo) && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleCheckTransactionChecker(ncbaTransferResult.ftReference || ncbaTransferResult.data?.bankRef || ncbaTransferResult.txnReferenceNo)}
+                                                                        disabled={isCheckingTxStatus}
+                                                                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider"
+                                                                    >
+                                                                        {isCheckingTxStatus ? 'Checking...' : 'Verify on Transaction Checker'}
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setNcbaTransferResult(null)}
+                                                                    className="text-slate-400 hover:text-slate-600 text-[10px] uppercase tracking-widest"
+                                                                >
+                                                                    Dismiss
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                         <p className="font-mono text-[11px] mb-2">{ncbaTransferResult.message || 'Response received'}</p>
                                                         <pre className="p-3 bg-black/5 dark:bg-black/30 rounded-xl overflow-x-auto text-[10px] font-mono leading-relaxed">

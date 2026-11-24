@@ -568,6 +568,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [isTestingStk, setIsTestingStk] = useState(false);
     const [isTestingNcba, setIsTestingNcba] = useState(false);
     const [ncbaTestPhone, setNcbaTestPhone] = useState('');
+    const [lastNcbaFtRef, setLastNcbaFtRef] = useState('');
+    const [isCheckingNcbaTx, setIsCheckingNcbaTx] = useState(false);
     const [isTestingFtp, setIsTestingFtp] = useState(false);
 
     const handleTestNcbaStkPush = async (configToUse: NcbaConfig, institutionId?: string) => {
@@ -5540,9 +5542,15 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                 debitAccount: debitAcc
                                                             }, localInstNcbaConfig);
 
-                                                            if (res.success || res.succeeded) {
-                                                                const ref = res.data?.bankRef || res.data?.channelRef || 'SUCCESS';
-                                                                alert(`🎉 Funds Transfer Successful!\n\nReference: ${ref}\nStatus: ${res.message || 'Completed'}`);
+                                                            const ftRef = res.ftReference || res.data?.bankRef || res.txnReferenceNo || '';
+                                                            const clientRef = res.clientReference || res.data?.channelRef || '';
+                                                            if (ftRef) setLastNcbaFtRef(ftRef);
+
+                                                            if (res.isDuplicate) {
+                                                                alert(`⚠️ Duplicate Reference (Code 115) — Already Processed\n\nOriginal FT Reference: ${ftRef || 'N/A'}\nClient Ref: ${clientRef || 'N/A'}\nStatus: ${res.message || 'Already processed'}`);
+                                                            } else if (res.success || res.succeeded) {
+                                                                const ref = ftRef || clientRef || 'ACCEPTED';
+                                                                alert(`✅ Transfer Accepted & Posted (Pending Final Confirmation)\n\nFT Reference: ${ref}${clientRef && clientRef !== ref ? `\nClient Ref: ${clientRef}` : ''}\nStatus: ${res.message || 'Accepted'}\n\nPer NCBA V2 Rule R11, click "Check Final Status (Transaction Checker)" below or await callback for final confirmation.`);
                                                             } else {
                                                                 alert(`❌ Transfer Rejected by Bank: ${res.message || JSON.stringify(res)}`);
                                                             }
@@ -5556,6 +5564,49 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     className="sm:col-span-2 h-12 px-6 bg-slate-900 hover:bg-black text-emerald-400 border border-emerald-500/40 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"
                                                 >
                                                     {isTestingNcba ? 'Processing...' : '💸 Test Real Funds Transfer (KES 50 B2C Outflow)'}
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        const debitAcc = (localInstNcbaConfig.debitAccount || '').trim();
+                                                        if (!debitAcc) {
+                                                            alert('Please enter Debit Account Number in your NCBA configuration first.');
+                                                            return;
+                                                        }
+                                                        const ftInput = window.prompt('Enter NCBA FT Reference to verify on Transaction Checker:', lastNcbaFtRef || '');
+                                                        const ftRef = (ftInput || '').trim();
+                                                        if (!ftRef) return;
+                                                        setLastNcbaFtRef(ftRef);
+                                                        setIsCheckingNcbaTx(true);
+                                                        try {
+                                                            const res = await apiService.checkNcbaTransactionChecker(ftRef, debitAcc, localInstNcbaConfig);
+                                                            const badge = res.statusClass === 'final_success'
+                                                                ? '✅ FINAL SUCCESS'
+                                                                : res.statusClass === 'final_failure'
+                                                                    ? '❌ FINAL FAILURE'
+                                                                    : res.statusClass === 'not_yet_known'
+                                                                        ? '⏳ NOT YET IN BATCH (404)'
+                                                                        : '⏳ PENDING (NON-FINAL)';
+                                                            alert(
+                                                                `${badge}\n\n` +
+                                                                `FT Reference: ${res.txnReferenceNo || ftRef}\n` +
+                                                                `Client Ref: ${res.cbxReferenceNumber || 'N/A'}\n` +
+                                                                `Transaction Status: ${res.transactionStatus || 'N/A'}\n` +
+                                                                `isSuccessful: ${String(res.isSuccessful)}\n` +
+                                                                `M-Pesa / Provider Ref (thirdPartyId): ${res.thirdPartyId || 'N/A'}\n` +
+                                                                `Scheme Status: ${res.thirdPartyStatus || 'N/A'}`
+                                                            );
+                                                        } catch (err: any) {
+                                                            alert(`Transaction Checker Error: ${err.message}`);
+                                                        } finally {
+                                                            setIsCheckingNcbaTx(false);
+                                                        }
+                                                    }}
+                                                    disabled={isCheckingNcbaTx}
+                                                    className="sm:col-span-2 h-12 px-6 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"
+                                                >
+                                                    {isCheckingNcbaTx ? 'Checking Transaction Checker...' : '🔍 Check Final Status (Transaction Checker)'}
                                                 </button>
                                             </div>
                                         </div>
