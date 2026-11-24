@@ -66,6 +66,14 @@
     {
       "path": "/api/cron-billing",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/dahua-webhook?action=cron_daily_digest",
+      "schedule": "30 6 * * 1-6"
+    },
+    {
+      "path": "/api/dahua-webhook?action=cron_missed_clockout",
+      "schedule": "0 15 * * 1-6"
     }
   ]
 }

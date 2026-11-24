@@ -494,9 +494,13 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                         overtimePay: otPay,
                     };
                 });
+                const authToken = await apiService.getAuthToken();
                 fetch('/api/dahua-webhook?action=send_payslip_notifications', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
+                    },
                     body: JSON.stringify({ institutionId: institution.id, month: selectedMonth, items: payslipItems }),
                 }).catch(() => {});
             } catch (_) {}
@@ -513,9 +517,13 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
         if (!confirm(`Send Pre-Payroll Attendance Summary SMS/WhatsApp for ${selectedMonth} to staff with recorded biometric attendance?`)) return;
         setIsSendingPrePayrollSms(true);
         try {
+            const authToken = await apiService.getAuthToken();
             const res = await fetch('/api/dahua-webhook?action=send_pre_payroll_summaries', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
+                },
                 body: JSON.stringify({ institutionId: institution.id, month: selectedMonth }),
             });
             const data = await res.json();

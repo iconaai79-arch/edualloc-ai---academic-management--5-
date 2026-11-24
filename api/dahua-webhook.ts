@@ -312,12 +312,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const institutionId = (req.query.institutionId || req.query.institution_id || '').toString();
         const sn = (req.query.SN || req.query.sn || '').toString();
 
+        if (action === 'cron_daily_digest' || action === 'cron_missed_clockout') {
+            if (!verifyCronSecret(req)) {
+                return res.status(401).json({ success: false, error: 'Unauthorized cron trigger' });
+            }
+            const supabase = getSupabase(req);
+            const pool = await getPgPool();
+            if (pool) await ensureDahuaTables(pool).catch(() => {});
+            if (!supabase && !pool) {
+                return res.status(500).json({ success: false, error: 'Database not configured' });
+            }
+            try {
+                const instIds = await listCronEnabledInstitutions(
+                    supabase,
+                    pool,
+                    action === 'cron_daily_digest' ? 'daily_digest' : 'missed_clockout'
+                );
+                const targetDate = String(req.query.date || '').trim() || undefined;
+                const results: any[] = [];
+                for (const instId of instIds) {
+                    try {
+                        const r = action === 'cron_daily_digest'
+                            ? await runDailyDigestAndAbsenceAlerts(supabase, pool, instId, targetDate)
+                            : await runMissedClockOutReminders(supabase, pool, instId, targetDate, true);
+                        results.push({ institutionId: instId, ok: true, ...r });
+                    } catch (instErr: any) {
+                        results.push({ institutionId: instId, ok: false, error: instErr?.message || String(instErr) });
+                    }
+                }
+                return res.status(200).json({
+                    success: true,
+                    action,
+                    institutionsProcessed: instIds.length,
+                    results,
+                });
+            } catch (err: any) {
+                console.error(`[Dahua Cron] ${action} error:`, err);
+                return res.status(500).json({ success: false, error: err?.message || `Failed to run ${action}` });
+            }
+        }
+
         if (action === 'get_notification_config') {
             if (!institutionId) {
                 return res.status(400).json({ success: false, error: 'institutionId is required' });
             }
             const supabase = getSupabase(req);
             const pool = await getPgPool();
+            const authOk = await verifyHrAdminOrCronAuth(req, supabase, pool);
+            if (!authOk) {
+                return res.status(401).json({ success: false, error: 'Unauthorized: valid staff session required' });
+            }
             if (pool) await ensureDahuaTables(pool).catch(() => {});
             try {
                 const config = await loadAttendanceNotificationConfig(supabase, pool, institutionId);
@@ -633,6 +677,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ) {
             const supabase = getSupabase(req);
             const pool = await getPgPool();
+            const authOk = await verifyHrAdminOrCronAuth(req, supabase, pool);
+            if (!authOk) {
+                return res.status(401).json({ success: false, error: 'Unauthorized: valid HR/admin session required' });
+            }
             if (pool) await ensureDahuaTables(pool).catch(() => {});
             if (!supabase && !pool) {
                 return res.status(500).json({ success: false, error: 'Database not configured' });
@@ -2343,6 +2391,140 @@ async function claimDedupKey(supabase: any, pool: any, dedupKey: string, institu
     return true;
 }
 
+function verifyCronSecret(req: VercelRequest): boolean {
+    const authHeader = String(req.headers.authorization || '').trim();
+    const cronSecret = String(process.env.CRON_SECRET || '').trim();
+    if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true;
+    // Allow local/non-production manual testing when CRON_SECRET is not set
+    if (process.env.NODE_ENV !== 'production' && !cronSecret) return true;
+    return false;
+}
+
+async function verifyHrAdminOrCronAuth(req: VercelRequest, supabase: any, pool: any): Promise<boolean> {
+    if (verifyCronSecret(req)) return true;
+
+    const authHeader = String(req.headers.authorization || '').trim();
+    if (!authHeader) return false;
+    const token = authHeader.replace(/^bearer\s+/i, '').trim();
+    if (!token || token === 'undefined' || token === 'null') return false;
+
+    // 1. Internal super-admin / local admin session tokens (matches api/ai.ts & apiService.getAuthToken)
+    if (token === 'temp_admin_bypass' || token.startsWith('temp_admin_') || token === 'super_admin' || token === 'admin') {
+        return true;
+    }
+
+    // 2. Supabase JWT verification
+    if (supabase && token.includes('.') && token.split('.').length === 3) {
+        try {
+            const { data, error } = await supabase.auth.getUser(token);
+            if (!error && data?.user) return true;
+        } catch (_) {}
+    }
+
+    // 3. Direct EduAI tenant staff/admin user ID verification
+    try {
+        if (pool) {
+            const r = await pool.query(
+                `SELECT id, role FROM public.users WHERE id = $1 OR id = $2 LIMIT 1`,
+                [token, `u_${token}`]
+            );
+            const u = r.rows?.[0];
+            if (u) {
+                const role = String(u.role || '').toLowerCase();
+                if (!['student', 'learner', 'pupil', 'parent'].includes(role)) return true;
+            }
+        } else if (supabase) {
+            const { data: u } = await supabase
+                .from('users')
+                .select('id, role')
+                .or(`id.eq.${token},id.eq.u_${token}`)
+                .maybeSingle();
+            if (u) {
+                const role = String(u.role || '').toLowerCase();
+                if (!['student', 'learner', 'pupil', 'parent'].includes(role)) return true;
+            }
+        }
+    } catch (e: any) {
+        console.warn('[Dahua Auth] User lookup warning:', e?.message || e);
+    }
+
+    return false;
+}
+
+async function listCronEnabledInstitutions(
+    supabase: any,
+    pool: any,
+    mode: 'daily_digest' | 'missed_clockout'
+): Promise<string[]> {
+    const ids = new Set<string>();
+    try {
+        if (pool) {
+            const sql = mode === 'daily_digest'
+                ? `SELECT institution_id FROM public.hr_attendance_notification_config WHERE notify_daily_digest = TRUE OR notify_unexplained_absence = TRUE`
+                : `SELECT institution_id FROM public.hr_attendance_notification_config WHERE notify_missed_clockout = TRUE`;
+            const r = await pool.query(sql).catch(() => ({ rows: [] }));
+            for (const row of (r.rows || [])) {
+                if (row.institution_id) ids.add(String(row.institution_id));
+            }
+        } else if (supabase) {
+            const q = supabase.from('hr_attendance_notification_config').select('institution_id');
+            const { data } = mode === 'daily_digest'
+                ? await q.or('notify_daily_digest.eq.true,notify_unexplained_absence.eq.true')
+                : await q.eq('notify_missed_clockout', true);
+            for (const row of (data || [])) {
+                if (row.institution_id) ids.add(String(row.institution_id));
+            }
+        }
+    } catch (e: any) {
+        console.warn('[Dahua Cron] Failed to list enabled institutions:', e?.message || e);
+    }
+    return Array.from(ids);
+}
+
+async function dispatchSematimeSms(
+    supabase: any,
+    pool: any,
+    institutionId: string,
+    phones: string[],
+    message: string
+): Promise<number> {
+    if (phones.length === 0) return 0;
+    let smsCfg: any = null;
+    if (pool) {
+        const [iRes, sRes] = await Promise.all([
+            pool.query('SELECT sms_config FROM public.institutions WHERE id = $1 LIMIT 1', [institutionId]).catch(() => ({ rows: [] })),
+            pool.query("SELECT data FROM public.system_settings WHERE id::text IN ('1','global') ORDER BY updated_at DESC NULLS LAST LIMIT 1").catch(() => ({ rows: [] })),
+        ]);
+        const instSms = iRes.rows?.[0]?.sms_config;
+        const sysSms = sRes.rows?.[0]?.data?.sms_config || sRes.rows?.[0]?.data?.smsConfig;
+        smsCfg = (instSms && (instSms.authToken || instSms.apiSecret || instSms.apiKey)) ? instSms : sysSms;
+    } else if (supabase) {
+        const { data: inst } = await supabase.from('institutions').select('sms_config').eq('id', institutionId).maybeSingle();
+        smsCfg = inst?.sms_config || null;
+        if (!smsCfg?.authToken && !smsCfg?.apiKey) {
+            const { data: sys } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
+            smsCfg = sys?.data?.sms_config || sys?.data?.smsConfig || smsCfg;
+        }
+    }
+
+    const accId = String(smsCfg?.accountId || smsCfg?.account_id || smsCfg?.apiKey || process.env.SEMATIME_ACCOUNT_ID || '').trim();
+    const authToken = String(smsCfg?.authToken || smsCfg?.auth_token || smsCfg?.apiSecret || process.env.SEMATIME_AUTH_TOKEN || process.env.SEMATIME_API_KEY || '').trim();
+    if (!accId || !authToken) return 0;
+
+    try {
+        const res = await fetch(`https://apis.sematime.com/v1/${accId}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'AuthToken': authToken },
+            body: JSON.stringify({ message, recipients: phones.join(',') }),
+        });
+        if (res.ok) return phones.length;
+        console.warn('[HR Attendance SMS] Sematime non-OK response:', res.status);
+    } catch (e: any) {
+        console.warn('[HR Attendance SMS] Sematime error:', e?.message || e);
+    }
+    return 0;
+}
+
 async function dispatchHrNotification(
     supabase: any,
     pool: any,
@@ -2350,51 +2532,16 @@ async function dispatchHrNotification(
     phones: string[],
     message: string,
     channel: 'sms' | 'whatsapp' | 'both'
-): Promise<{ sentSms: number; sentWhatsapp: number }> {
+): Promise<{ sentSms: number; sentWhatsapp: number; fallbackSms: number }> {
     const cleanPhones = Array.from(new Set(phones.map(p => normalizeKePhone(p)).filter(p => p.length >= 10)));
-    if (cleanPhones.length === 0) return { sentSms: 0, sentWhatsapp: 0 };
+    if (cleanPhones.length === 0) return { sentSms: 0, sentWhatsapp: 0, fallbackSms: 0 };
 
     let sentSms = 0;
     let sentWhatsapp = 0;
+    let fallbackSms = 0;
+    const waFailedPhones: string[] = [];
 
-    // 1. SMS Dispatch via Institution / Global Sematime Gateway
-    if (channel === 'sms' || channel === 'both') {
-        let smsCfg: any = null;
-        if (pool) {
-            const [iRes, sRes] = await Promise.all([
-                pool.query('SELECT sms_config FROM public.institutions WHERE id = $1 LIMIT 1', [institutionId]).catch(() => ({ rows: [] })),
-                pool.query("SELECT data FROM public.system_settings WHERE id::text IN ('1','global') ORDER BY updated_at DESC NULLS LAST LIMIT 1").catch(() => ({ rows: [] })),
-            ]);
-            const instSms = iRes.rows?.[0]?.sms_config;
-            const sysSms = sRes.rows?.[0]?.data?.sms_config || sRes.rows?.[0]?.data?.smsConfig;
-            smsCfg = (instSms && (instSms.authToken || instSms.apiSecret || instSms.apiKey)) ? instSms : sysSms;
-        } else if (supabase) {
-            const { data: inst } = await supabase.from('institutions').select('sms_config').eq('id', institutionId).maybeSingle();
-            smsCfg = inst?.sms_config || null;
-            if (!smsCfg?.authToken && !smsCfg?.apiKey) {
-                const { data: sys } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
-                smsCfg = sys?.data?.sms_config || sys?.data?.smsConfig || smsCfg;
-            }
-        }
-
-        const accId = String(smsCfg?.accountId || smsCfg?.account_id || smsCfg?.apiKey || process.env.SEMATIME_ACCOUNT_ID || '').trim();
-        const authToken = String(smsCfg?.authToken || smsCfg?.auth_token || smsCfg?.apiSecret || process.env.SEMATIME_AUTH_TOKEN || process.env.SEMATIME_API_KEY || '').trim();
-
-        if (accId && authToken) {
-            try {
-                const res = await fetch(`https://apis.sematime.com/v1/${accId}/messages`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'AuthToken': authToken },
-                    body: JSON.stringify({ message, recipients: cleanPhones.join(',') }),
-                });
-                if (res.ok) sentSms = cleanPhones.length;
-            } catch (e: any) {
-                console.warn('[HR Attendance SMS] Sematime error:', e?.message || e);
-            }
-        }
-    }
-
-    // 2. WhatsApp Dispatch via Meta Cloud API / Evolution Gateway
+    // 1. WhatsApp Dispatch via Meta Cloud API (with per-recipient failure tracking for SMS fallback)
     if (channel === 'whatsapp' || channel === 'both') {
         let waCfg: any = null;
         if (pool) {
@@ -2415,13 +2562,35 @@ async function dispatchHrNotification(
                         headers: { 'Authorization': `Bearer ${metaToken}`, 'Content-Type': 'application/json' },
                         body: JSON.stringify({ messaging_product: 'whatsapp', to: phone, type: 'text', text: { body: message } }),
                     });
-                    if (r.ok) sentWhatsapp++;
-                } catch (_) {}
+                    if (r.ok) {
+                        sentWhatsapp++;
+                    } else {
+                        const errBody = await r.json().catch(() => ({} as any));
+                        const errCode = errBody?.error?.code;
+                        console.warn(`[HR Attendance WA] Meta delivery failed for ${phone} (HTTP ${r.status}, code=${errCode || 'unknown'}) — queuing SMS fallback.`);
+                        waFailedPhones.push(phone);
+                    }
+                } catch (e: any) {
+                    console.warn(`[HR Attendance WA] Meta network error for ${phone}:`, e?.message || e);
+                    waFailedPhones.push(phone);
+                }
             }
+        } else {
+            // WhatsApp credentials not configured — mark all phones for SMS fallback if channel === 'whatsapp'
+            waFailedPhones.push(...cleanPhones);
         }
     }
 
-    return { sentSms, sentWhatsapp };
+    // 2. SMS Dispatch via Institution / Global Sematime Gateway
+    if (channel === 'sms' || channel === 'both') {
+        sentSms = await dispatchSematimeSms(supabase, pool, institutionId, cleanPhones, message);
+    } else if (channel === 'whatsapp' && waFailedPhones.length > 0) {
+        // Automatic WhatsApp -> SMS fallback (handles Meta 24h window error 131047 or unconfigured WA)
+        fallbackSms = await dispatchSematimeSms(supabase, pool, institutionId, waFailedPhones, message);
+        sentSms += fallbackSms;
+    }
+
+    return { sentSms, sentWhatsapp, fallbackSms };
 }
 
 async function handleRealTimePunchNotification(
@@ -2581,8 +2750,11 @@ async function runDailyDigestAndAbsenceAlerts(supabase: any, pool: any, institut
     };
 }
 
-async function runMissedClockOutReminders(supabase: any, pool: any, institutionId: string, dateOpt?: string) {
+async function runMissedClockOutReminders(supabase: any, pool: any, institutionId: string, dateOpt?: string, respectToggle = false) {
     const cfg = await loadAttendanceNotificationConfig(supabase, pool, institutionId);
+    if (respectToggle && !cfg.notifyMissedClockOut) {
+        return { date: dateOpt || '', singlePunchCount: 0, remindersSent: 0, skipped: true };
+    }
     const eatNow = new Date(Date.now() + 3 * 60 * 60 * 1000);
     const targetDate = (dateOpt && /^\d{4}-\d{2}-\d{2}$/.test(dateOpt)) ? dateOpt : eatNow.toISOString().slice(0, 10);
     const dailyRes = await fetchDahuaDailyAttendance(supabase, pool, institutionId, { startDate: targetDate, endDate: targetDate });

@@ -234,7 +234,10 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
 
     const loadNotifConfig = async () => {
         try {
-            const res = await fetch(`/api/dahua-webhook?action=get_notification_config&institutionId=${encodeURIComponent(institution.id)}`);
+            const token = await apiService.getAuthToken();
+            const res = await fetch(`/api/dahua-webhook?action=get_notification_config&institutionId=${encodeURIComponent(institution.id)}`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            });
             if (res.ok) {
                 const data = await res.json();
                 if (data.success && data.config) setNotifConfig(prev => ({ ...prev, ...data.config }));
@@ -245,9 +248,13 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const handleSaveNotifConfig = async () => {
         setSavingNotifConfig(true);
         try {
+            const token = await apiService.getAuthToken();
             const res = await fetch('/api/dahua-webhook?action=save_notification_config', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                },
                 body: JSON.stringify({ institutionId: institution.id, config: notifConfig }),
             });
             const data = await res.json();
@@ -267,9 +274,13 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const handleTriggerNotifAction = async (action: 'send_daily_digest' | 'send_missed_clockout_reminders') => {
         setRunningNotifAction(action);
         try {
+            const token = await apiService.getAuthToken();
             const res = await fetch(`/api/dahua-webhook?action=${action}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                },
                 body: JSON.stringify({ institutionId: institution.id, date: selectedDate }),
             });
             const data = await res.json();
