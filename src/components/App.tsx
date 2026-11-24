@@ -10921,7 +10921,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                                         Promise.all([
                                             userEmail ? apiService.sendEmail(userEmail, `${portalName} - Verification Code`, otpMessage, effectiveEmailCfg, u.id, undefined, targetInstId) : Promise.resolve({ success: true }),
-                                            formattedPhone ? apiService.sendSms(formattedPhone, otpMessage, effectiveSmsCfg, 1, targetInstId, u.id, true) : Promise.resolve({ success: true })
+                                            formattedPhone ? apiService.sendSms(formattedPhone, otpMessage, effectiveSmsCfg, 1, targetInstId, u.id, true) : Promise.resolve({ success: true }),
+                                            formattedPhone ? fetch('/api/integrations?action=sendWhatsAppOtp', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ recipient: formattedPhone, otp, message: otpMessage, institutionId: targetInstId || 'global' })
+                                            }).then(r => r.json()).catch(() => ({ success: false })) : Promise.resolve({ success: false })
                                         ]).then((results: any) => {
                                             const emailResult = results[0];
                                             const smsResult = results[1];
@@ -11030,7 +11035,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                                 Promise.all([
                                     userEmail ? apiService.sendEmail(userEmail, `${portalName} - New Verification Code`, otpMessage, effectiveEmailCfg, otpPendingUser.id, undefined, targetInstId) : Promise.resolve({ success: true }),
-                                    formattedPhone ? apiService.sendSms(formattedPhone, otpMessage, effectiveSmsCfg, 1, targetInstId, otpPendingUser.id, true) : Promise.resolve({ success: true })
+                                    formattedPhone ? apiService.sendSms(formattedPhone, otpMessage, effectiveSmsCfg, 1, targetInstId, otpPendingUser.id, true) : Promise.resolve({ success: true }),
+                                    formattedPhone ? fetch('/api/integrations?action=sendWhatsAppOtp', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ recipient: formattedPhone, otp, message: otpMessage, institutionId: targetInstId || 'global' })
+                                    }).then(r => r.json()).catch(() => ({ success: false })) : Promise.resolve({ success: false })
                                 ]).then(results => {
                                     const emailResult = (results[0] || {}) as any;
                                     const smsResult = (results[1] || {}) as any;

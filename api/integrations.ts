@@ -1153,7 +1153,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Priority 4: Special bypass for Unauthenticated Actions (Callbacks, Payments, WhatsApp, Inquiries & Recovery)
         const isPublicAction = [
             'forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 
-            'sendWhatsApp', 'getWhatsAppStatus', 'getWhatsAppLogs', 'provisionWhatsAppInstance', 
+            'sendWhatsApp', 'sendWhatsAppOtp', 'getWhatsAppStatus', 'getWhatsAppLogs', 'provisionWhatsAppInstance', 
             'disconnectWhatsApp', 'saveWhatsAppConfig', 'mpesa-callback', 'ncbaWebhook', 
             'ncbaInitiateStk', 'ncbaGenerateQr', 'ncbaQueryStk', 'ncbaQueryStatus', 'testNcbaAuth', 'reconcileInternal',
             'initiateStkPush', 'generateMpesaQr', 'queryPaymentStatus', 'stkPushQuery', 'queryStkStatus',
@@ -1172,7 +1172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 action === 'ncbaGenerateQr' || action === 'ncbaQueryStk' || action === 'ncbaQueryStatus' || action === 'testNcbaAuth' || action === 'reconcileInternal' ||
                 action === 'initiateStkPush' || action === 'generateMpesaQr' || action === 'queryPaymentStatus' || action === 'stkPushQuery' || action === 'queryStkStatus' || action === 'sendAlumnaWelcome' || 
                 action === 'provisionWhatsAppInstance' || action === 'saveWhatsAppConfig' || 
-                action === 'getWhatsAppStatus' || action === 'getWhatsAppLogs' || action === 'sendWhatsApp' || 
+                action === 'getWhatsAppStatus' || action === 'getWhatsAppLogs' || action === 'sendWhatsApp' || action === 'sendWhatsAppOtp' || 
                 action === 'disconnectWhatsApp'
             ) {
                 user = { id: 'system', role: 'super_admin', user_metadata: { institutionId: 'GLOBAL' } };
@@ -2069,6 +2069,160 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 qrCode: config?.qr_code_data,
                 providerType: config?.provider_type || 'gateway'
             });
+        }
+
+        // Reusable helper to dispatch OTP codes via WhatsApp (supports Meta Cloud API Authentication Templates, Meta Text, & Evolution Gateway)
+        const dispatchWhatsAppOtp = async (
+            targetInstId: string,
+            rawPhone: string,
+            otpCode: string,
+            messageText: string
+        ): Promise<{ sent: boolean; provider?: string; error?: string }> => {
+            if (!rawPhone) return { sent: false, error: 'Missing recipient phone' };
+            let cleanPhone = String(rawPhone).replace(/[^0-9]/g, '');
+            if (cleanPhone.startsWith('0') && cleanPhone.length === 10) cleanPhone = '254' + cleanPhone.substring(1);
+            else if ((cleanPhone.startsWith('7') || cleanPhone.startsWith('1')) && cleanPhone.length === 9) cleanPhone = '254' + cleanPhone;
+            if (cleanPhone.length < 9) return { sent: false, error: 'Invalid phone number' };
+
+            const instKey = targetInstId && targetInstId !== 'SYSTEM' && targetInstId !== 'GLOBAL' ? targetInstId : 'global';
+            let config: any = null;
+            try {
+                const { data: instCfg } = await supabase
+                    .from('whatsapp_configs')
+                    .select('*')
+                    .eq('institution_id', instKey)
+                    .maybeSingle();
+                config = instCfg || null;
+
+                if ((!config || (!config.gateway_url && !config.meta_access_token)) && instKey !== 'global') {
+                    const { data: globalCfg } = await supabase
+                        .from('whatsapp_configs')
+                        .select('*')
+                        .or('institution_id.eq.global,institution_id.eq.SYSTEM')
+                        .order('updated_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    if (globalCfg && (globalCfg.allow_institution_failover ?? true)) {
+                        config = globalCfg;
+                    }
+                }
+            } catch (_) {}
+
+            const envMetaToken = process.env.META_WA_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || '';
+            const envMetaPhoneId = process.env.META_WA_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID || '';
+            const otpTemplateName = (config?.otp_template_name || process.env.META_WA_OTP_TEMPLATE_NAME || '').trim();
+            const otpTemplateLang = (config?.otp_template_lang || process.env.META_WA_OTP_TEMPLATE_LANG || 'en_US').trim();
+
+            const rawGatewayUrl = (config?.gateway_url || '').trim();
+            const isPlaceholderGateway = rawGatewayUrl.includes('wa.eduai.platform') || rawGatewayUrl.includes('example.com');
+            const formattedWaText = `*Verification Code:* \`${otpCode}\`\n\n${messageText}`;
+
+            let sent = false;
+            let provider = 'none';
+            let error = '';
+
+            try {
+                // 1. Evolution / Self-Hosted WhatsApp Gateway
+                if (config && config.provider_type === 'gateway' && rawGatewayUrl && !isPlaceholderGateway) {
+                    provider = 'whatsapp_gateway';
+                    const instName = config.instance_name || (config.institution_id === 'global' ? 'eduai_master' : `eduai_${(config.institution_id || instKey).replace(/[^a-zA-Z0-9]/g, '_')}`);
+                    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                    if (config.api_key) headers['apikey'] = config.api_key;
+                    const gatewayBase = rawGatewayUrl.replace(/\/$/, '');
+                    const gwRes = await fetch(`${gatewayBase}/message/sendText/${instName}`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ number: cleanPhone, text: formattedWaText })
+                    });
+                    sent = gwRes.ok;
+                    if (!sent) error = await gwRes.text().catch(() => `HTTP ${gwRes.status}`);
+                } else {
+                    // 2. Meta WhatsApp Cloud API (Institution config OR environment fallback)
+                    const metaToken = config?.meta_access_token || envMetaToken;
+                    const metaPhoneId = config?.meta_phone_number_id || envMetaPhoneId;
+                    if (metaToken && metaPhoneId) {
+                        provider = 'meta_cloud';
+                        // Prefer Meta Authentication Template if configured (works outside 24h customer service window)
+                        if (otpTemplateName && otpCode) {
+                            const tplRes = await fetch(`https://graph.facebook.com/v19.0/${metaPhoneId}/messages`, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${metaToken}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    messaging_product: 'whatsapp',
+                                    to: cleanPhone,
+                                    type: 'template',
+                                    template: {
+                                        name: otpTemplateName,
+                                        language: { code: otpTemplateLang },
+                                        components: [
+                                            { type: 'body', parameters: [{ type: 'text', text: otpCode }] },
+                                            { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: otpCode }] }
+                                        ]
+                                    }
+                                })
+                            });
+                            if (tplRes.ok) {
+                                sent = true;
+                            } else {
+                                error = await tplRes.text().catch(() => `Template HTTP ${tplRes.status}`);
+                            }
+                        }
+
+                        // Fallback to standard WhatsApp text message if no template or template failed
+                        if (!sent) {
+                            const txtRes = await fetch(`https://graph.facebook.com/v19.0/${metaPhoneId}/messages`, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${metaToken}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    messaging_product: 'whatsapp',
+                                    to: cleanPhone,
+                                    type: 'text',
+                                    text: { body: formattedWaText }
+                                })
+                            });
+                            sent = txtRes.ok;
+                            if (!sent) error = await txtRes.text().catch(() => `HTTP ${txtRes.status}`);
+                        }
+                    } else {
+                        error = 'No WhatsApp gateway or Meta Cloud API credentials configured.';
+                    }
+                }
+            } catch (e: any) {
+                error = e?.message || String(e);
+            }
+
+            try {
+                await supabase.from('whatsapp_logs').insert({
+                    id: `waotp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                    institution_id: instKey,
+                    recipient: cleanPhone,
+                    message_type: 'otp',
+                    content: '[OTP Verification Code]',
+                    status: sent ? 'sent' : 'failed',
+                    error_message: sent ? null : (error || null),
+                    created_at: new Date().toISOString()
+                });
+            } catch (_) {}
+
+            return { sent, provider, ...(error && !sent ? { error } : {}) };
+        };
+
+        if (action === 'sendWhatsAppOtp') {
+            const requestedInstId = getParam('institutionId') || user?.institutionId || user?.user_metadata?.institutionId || 'global';
+            const recipient = getParam('recipient') || getParam('phone');
+            const otpCode = getParam('otp') || getParam('code') || '';
+            const message = getParam('message') || `Your EduAI Verification Code is: ${otpCode}. Do not share this code with anyone.`;
+            if (!recipient || (!otpCode && !message)) {
+                return res.status(400).json({ success: false, message: 'Recipient phone and otp/message are required' });
+            }
+            const result = await dispatchWhatsAppOtp(requestedInstId, recipient, otpCode, message);
+            return res.status(200).json({ success: result.sent, ...result });
         }
 
         if (action === 'sendWhatsApp') {
@@ -2970,7 +3124,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 })();
 
-                const [smsOutcome, emailOutcome] = await Promise.allSettled([sendSmsPromise, sendEmailPromise]);
+                const sendWhatsAppPromise = dispatchWhatsAppOtp(targetInstId || 'global', phone, otp, otpMessage)
+                    .then(r => r.sent)
+                    .catch(() => false);
+
+                const [smsOutcome, emailOutcome, waOutcome] = await Promise.allSettled([sendSmsPromise, sendEmailPromise, sendWhatsAppPromise]);
 
                 const dispatchResult = smsOutcome.status === 'fulfilled' ? smsOutcome.value : {
                     success: true,
@@ -2981,6 +3139,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     failoverHistory: ['FailSafeSimulated: ENGAGED']
                 };
                 const emailSent = emailOutcome.status === 'fulfilled' && emailOutcome.value === true;
+                const whatsappSent = waOutcome.status === 'fulfilled' && waOutcome.value === true;
 
                 // Deduct 1 unit from the user's institution SMS balance and log
                 if (targetInstId && targetInstId !== 'SYSTEM' && targetInstId !== 'GLOBAL') {
@@ -3011,7 +3170,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             provider: dispatchResult.provider,
                             gateway_response: {
                                 failover_history: dispatchResult.failoverHistory,
-                                dual_email_sent: emailSent
+                                dual_email_sent: emailSent,
+                                whatsapp_otp_sent: whatsappSent
                             }
                         });
                     } catch (logErr: any) {
