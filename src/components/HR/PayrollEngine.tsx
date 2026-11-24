@@ -171,6 +171,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
         return `${['January','February','March','April','May','June','July','August','September','October','November','December'][d.getMonth()]} ${d.getFullYear()}`;
     });
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isSendingPrePayrollSms, setIsSendingPrePayrollSms] = useState(false);
     const [useBiometric, setUseBiometric] = useState(false);
     const [autoSyncSacco, setAutoSyncSacco] = useState(true);
     const [autoSyncShiftAllowances, setAutoSyncShiftAllowances] = useState(true);
@@ -477,11 +478,56 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
             });
             await onProcessPayroll(newRecords);
             setLocalRecords(prev => [...prev.filter(r => !(r.month === selectedMonth && newRecords.find(n => n.staffId === r.staffId))), ...newRecords]);
+
+            // Fire Payslip Ready + Shift Allowance SMS/WhatsApp notifications in background (respects HR notification config)
+            try {
+                const payslipItems = activeStaffCalculations.map(c => {
+                    const member = staff.find(s => s.id === c.staffId);
+                    const nightAlw = c.assignedAllowances.filter(a => a.name.toLowerCase().includes('night shift')).reduce((s, a) => s + (Number(a.amount) || 0), 0);
+                    const otPay = c.assignedAllowances.filter(a => a.name.toLowerCase().includes('overtime')).reduce((s, a) => s + (Number(a.amount) || 0), 0);
+                    return {
+                        staffId: c.staffId,
+                        staffName: c.name,
+                        phone: member?.phoneNumber || (member as any)?.phone_number || '',
+                        netSalary: Math.round(c.adjustedNetSalary),
+                        nightAllowance: nightAlw,
+                        overtimePay: otPay,
+                    };
+                });
+                fetch('/api/dahua-webhook?action=send_payslip_notifications', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ institutionId: institution.id, month: selectedMonth, items: payslipItems }),
+                }).catch(() => {});
+            } catch (_) {}
+
             alert(`Payroll processed for ${staff.length} staff.`);
         } catch (error) {
             alert('Failed to process payroll records.');
         } finally {
             setIsProcessing(false);
+        }
+    };
+
+    const handleSendPrePayrollAttendanceSms = async () => {
+        if (!confirm(`Send Pre-Payroll Attendance Summary SMS/WhatsApp for ${selectedMonth} to staff with recorded biometric attendance?`)) return;
+        setIsSendingPrePayrollSms(true);
+        try {
+            const res = await fetch('/api/dahua-webhook?action=send_pre_payroll_summaries', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ institutionId: institution.id, month: selectedMonth }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                alert(`Pre-Payroll Attendance Summaries (${data.month}):\n• Staff summarized: ${data.staffCount}\n• Messages dispatched: ${data.notificationsSent}`);
+            } else {
+                alert(data.error || 'Failed to send pre-payroll summaries.');
+            }
+        } catch (err: any) {
+            alert('Failed to dispatch pre-payroll summaries: ' + (err?.message || err));
+        } finally {
+            setIsSendingPrePayrollSms(false);
         }
     };
 
@@ -950,6 +996,14 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                         >
                             <DocumentTextIcon className="w-4 h-4" />
                             <span>Bulk P9 ({staff.length})</span>
+                        </button>
+                        <button
+                            onClick={handleSendPrePayrollAttendanceSms}
+                            disabled={isSendingPrePayrollSms || staff.length === 0}
+                            className="flex items-center justify-center gap-2 px-5 py-3.5 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-violet-500/20 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                            title="Send monthly biometric attendance, night shifts & overtime summary SMS to staff before locking payroll"
+                        >
+                            <span>{isSendingPrePayrollSms ? 'Sending...' : '📩 Pre-Payroll SMS'}</span>
                         </button>
                         <button
                             onClick={handleRunPayroll}

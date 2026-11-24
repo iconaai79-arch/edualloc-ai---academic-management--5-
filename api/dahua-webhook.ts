@@ -274,6 +274,22 @@ const ensureDahuaTables = async (pool: any) => {
             );
             CREATE INDEX IF NOT EXISTS idx_hr_staff_shifts_inst ON public.hr_staff_shifts(institution_id);
             CREATE INDEX IF NOT EXISTS idx_hr_staff_shifts_staff ON public.hr_staff_shifts(staff_id);
+
+            CREATE TABLE IF NOT EXISTS public.hr_attendance_notification_config (
+                institution_id TEXT PRIMARY KEY,
+                config JSONB DEFAULT '{}'::jsonb,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS public.hr_attendance_sms_log (
+                dedup_key TEXT PRIMARY KEY,
+                institution_id TEXT,
+                alert_type TEXT,
+                recipient TEXT,
+                message TEXT,
+                channel TEXT DEFAULT 'sms',
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
         `);
         _dahuaTablesEnsured = true;
     } catch (e: any) {
@@ -295,6 +311,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const action = (req.query.action || '').toString().toLowerCase();
         const institutionId = (req.query.institutionId || req.query.institution_id || '').toString();
         const sn = (req.query.SN || req.query.sn || '').toString();
+
+        if (action === 'get_notification_config') {
+            if (!institutionId) {
+                return res.status(400).json({ success: false, error: 'institutionId is required' });
+            }
+            const supabase = getSupabase(req);
+            const pool = await getPgPool();
+            if (pool) await ensureDahuaTables(pool).catch(() => {});
+            try {
+                const config = await loadAttendanceNotificationConfig(supabase, pool, institutionId);
+                return res.status(200).json({ success: true, config });
+            } catch (err: any) {
+                return res.status(500).json({ success: false, error: err?.message || 'Failed to load notification config' });
+            }
+        }
 
         if (action === 'get_shifts' || action === 'shifts') {
             if (!institutionId) {
@@ -593,6 +624,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'POST') {
         const postAction = (req.query.action || (req.body && typeof req.body === 'object' ? (req.body as any).action : '') || '').toString().toLowerCase();
+        if (
+            postAction === 'save_notification_config' ||
+            postAction === 'send_daily_digest' ||
+            postAction === 'send_missed_clockout_reminders' ||
+            postAction === 'send_pre_payroll_summaries' ||
+            postAction === 'send_payslip_notifications'
+        ) {
+            const supabase = getSupabase(req);
+            const pool = await getPgPool();
+            if (pool) await ensureDahuaTables(pool).catch(() => {});
+            if (!supabase && !pool) {
+                return res.status(500).json({ success: false, error: 'Database not configured' });
+            }
+            const bodyObj = (req.body && typeof req.body === 'object') ? (req.body as any) : {};
+            const instId = (req.query.institutionId || req.query.institution_id || bodyObj.institutionId || bodyObj.institution_id || '').toString().trim();
+            if (!instId) {
+                return res.status(400).json({ success: false, error: 'institutionId is required' });
+            }
+            try {
+                if (postAction === 'save_notification_config') {
+                    const saved = await saveAttendanceNotificationConfig(supabase, pool, instId, bodyObj.config || bodyObj);
+                    return res.status(200).json({ success: true, config: saved });
+                }
+                if (postAction === 'send_daily_digest') {
+                    const targetDate = String(bodyObj.date || req.query.date || '').trim() || undefined;
+                    const result = await runDailyDigestAndAbsenceAlerts(supabase, pool, instId, targetDate);
+                    return res.status(200).json({ success: true, ...result });
+                }
+                if (postAction === 'send_missed_clockout_reminders') {
+                    const targetDate = String(bodyObj.date || req.query.date || '').trim() || undefined;
+                    const result = await runMissedClockOutReminders(supabase, pool, instId, targetDate);
+                    return res.status(200).json({ success: true, ...result });
+                }
+                if (postAction === 'send_pre_payroll_summaries') {
+                    const monthStr = String(bodyObj.month || '').trim();
+                    const result = await runPrePayrollAttendanceSummaries(supabase, pool, instId, monthStr);
+                    return res.status(200).json({ success: true, ...result });
+                }
+                if (postAction === 'send_payslip_notifications') {
+                    const monthStr = String(bodyObj.month || '').trim();
+                    const items = Array.isArray(bodyObj.items) ? bodyObj.items : [];
+                    const result = await runPayslipReadyNotifications(supabase, pool, instId, monthStr, items);
+                    return res.status(200).json({ success: true, ...result });
+                }
+            } catch (err: any) {
+                console.error(`[Dahua Webhook] ${postAction} error:`, err);
+                return res.status(500).json({ success: false, error: err?.message || `Failed to run ${postAction}` });
+            }
+        }
+
         if (postAction === 'save_shift' || postAction === 'delete_shift' || postAction === 'assign_staff_shift') {
             const supabase = getSupabase(req);
             const pool = await getPgPool();
@@ -1008,6 +1089,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             processedCount++;
                         }
                     }
+                }
+
+                // Real-time Attendance SMS / WhatsApp Alerts (Clock-In/Out confirmation & Shift-Aware Late Arrival)
+                if (matchedUserId && matchedInstitutionId) {
+                    await handleRealTimePunchNotification(supabase, pool, matchedInstitutionId, matchedUserId, punchTime).catch((e: any) => {
+                        console.warn('[Dahua Webhook] Real-time punch notification warn:', e?.message || e);
+                    });
                 }
             }
 
@@ -2133,4 +2221,479 @@ async function assignStaffShift(supabase: any, pool: any, institutionId: string,
             );
         }
     }
+}
+
+// ─── HR & Payroll Attendance SMS / WhatsApp Notification Suite ───────────────
+
+export interface HrAttendanceNotificationConfig {
+    channel: 'sms' | 'whatsapp' | 'both';
+    principalPhones: string;
+    hrAlertPhones: string;
+    notifyDailyDigest: boolean;
+    notifyUnexplainedAbsence: boolean;
+    notifyRepeatedLateness: boolean;
+    repeatedLateThreshold: number;
+    notifyLateArrival: boolean;
+    ccHrOnLateArrival: boolean;
+    notifyMissedClockOut: boolean;
+    notifyClockInOut: boolean;
+    notifyPrePayrollSummary: boolean;
+    notifyPayslipReady: boolean;
+}
+
+const DEFAULT_NOTIFICATION_CONFIG: HrAttendanceNotificationConfig = {
+    channel: 'sms',
+    principalPhones: '',
+    hrAlertPhones: '',
+    notifyDailyDigest: true,
+    notifyUnexplainedAbsence: true,
+    notifyRepeatedLateness: true,
+    repeatedLateThreshold: 3,
+    notifyLateArrival: true,
+    ccHrOnLateArrival: false,
+    notifyMissedClockOut: true,
+    notifyClockInOut: false,
+    notifyPrePayrollSummary: true,
+    notifyPayslipReady: true,
+};
+
+async function loadAttendanceNotificationConfig(supabase: any, pool: any, institutionId: string): Promise<HrAttendanceNotificationConfig> {
+    let raw: any = null;
+    if (pool) {
+        const r = await pool.query('SELECT config FROM public.hr_attendance_notification_config WHERE institution_id = $1 LIMIT 1', [institutionId]).catch(() => ({ rows: [] }));
+        raw = r.rows?.[0]?.config || null;
+    } else if (supabase) {
+        const { data } = await supabase.from('hr_attendance_notification_config').select('config').eq('institution_id', institutionId).maybeSingle();
+        raw = data?.config || null;
+    }
+    if (typeof raw === 'string') {
+        try { raw = JSON.parse(raw); } catch { raw = {}; }
+    }
+    return { ...DEFAULT_NOTIFICATION_CONFIG, ...(raw && typeof raw === 'object' ? raw : {}) };
+}
+
+async function saveAttendanceNotificationConfig(supabase: any, pool: any, institutionId: string, incoming: any): Promise<HrAttendanceNotificationConfig> {
+    const merged: HrAttendanceNotificationConfig = {
+        channel: (['sms', 'whatsapp', 'both'].includes(incoming?.channel) ? incoming.channel : 'sms'),
+        principalPhones: String(incoming?.principalPhones ?? '').trim(),
+        hrAlertPhones: String(incoming?.hrAlertPhones ?? '').trim(),
+        notifyDailyDigest: incoming?.notifyDailyDigest !== false,
+        notifyUnexplainedAbsence: incoming?.notifyUnexplainedAbsence !== false,
+        notifyRepeatedLateness: incoming?.notifyRepeatedLateness !== false,
+        repeatedLateThreshold: Math.max(2, Number(incoming?.repeatedLateThreshold) || 3),
+        notifyLateArrival: incoming?.notifyLateArrival !== false,
+        ccHrOnLateArrival: Boolean(incoming?.ccHrOnLateArrival),
+        notifyMissedClockOut: incoming?.notifyMissedClockOut !== false,
+        notifyClockInOut: Boolean(incoming?.notifyClockInOut),
+        notifyPrePayrollSummary: incoming?.notifyPrePayrollSummary !== false,
+        notifyPayslipReady: incoming?.notifyPayslipReady !== false,
+    };
+
+    if (pool) {
+        await pool.query(
+            `INSERT INTO public.hr_attendance_notification_config (institution_id, config, updated_at)
+             VALUES ($1, $2::jsonb, CURRENT_TIMESTAMP)
+             ON CONFLICT (institution_id) DO UPDATE SET config = EXCLUDED.config, updated_at = CURRENT_TIMESTAMP`,
+            [institutionId, JSON.stringify(merged)]
+        );
+    } else if (supabase) {
+        await supabase.from('hr_attendance_notification_config').upsert({
+            institution_id: institutionId,
+            config: merged,
+            updated_at: new Date().toISOString(),
+        });
+    }
+    return merged;
+}
+
+function normalizeKePhone(raw?: string | null): string {
+    const d = String(raw || '').replace(/\D/g, '');
+    if (d.length === 10 && d.startsWith('0')) return '254' + d.slice(1);
+    if (d.length === 9 && (d.startsWith('7') || d.startsWith('1'))) return '254' + d;
+    if (d.length >= 12 && d.startsWith('254')) return d.slice(0, 12);
+    return d;
+}
+
+function parsePhoneList(raw?: string): string[] {
+    return Array.from(new Set(
+        String(raw || '')
+            .split(/[,;\n]+/)
+            .map(p => normalizeKePhone(p))
+            .filter(p => p.length >= 10)
+    ));
+}
+
+async function claimDedupKey(supabase: any, pool: any, dedupKey: string, institutionId: string, alertType: string, recipient: string, message: string, channel: string): Promise<boolean> {
+    if (pool) {
+        const res = await pool.query(
+            `INSERT INTO public.hr_attendance_sms_log (dedup_key, institution_id, alert_type, recipient, message, channel)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (dedup_key) DO NOTHING
+             RETURNING dedup_key`,
+            [dedupKey, institutionId, alertType, recipient, message, channel]
+        ).catch(() => ({ rows: [{ dedup_key: dedupKey }] }));
+        return Boolean(res.rows?.length);
+    }
+    if (supabase) {
+        const { data: existing } = await supabase.from('hr_attendance_sms_log').select('dedup_key').eq('dedup_key', dedupKey).maybeSingle();
+        if (existing?.dedup_key) return false;
+        await supabase.from('hr_attendance_sms_log').insert({ dedup_key: dedupKey, institution_id: institutionId, alert_type: alertType, recipient, message, channel }).catch(() => {});
+        return true;
+    }
+    return true;
+}
+
+async function dispatchHrNotification(
+    supabase: any,
+    pool: any,
+    institutionId: string,
+    phones: string[],
+    message: string,
+    channel: 'sms' | 'whatsapp' | 'both'
+): Promise<{ sentSms: number; sentWhatsapp: number }> {
+    const cleanPhones = Array.from(new Set(phones.map(p => normalizeKePhone(p)).filter(p => p.length >= 10)));
+    if (cleanPhones.length === 0) return { sentSms: 0, sentWhatsapp: 0 };
+
+    let sentSms = 0;
+    let sentWhatsapp = 0;
+
+    // 1. SMS Dispatch via Institution / Global Sematime Gateway
+    if (channel === 'sms' || channel === 'both') {
+        let smsCfg: any = null;
+        if (pool) {
+            const [iRes, sRes] = await Promise.all([
+                pool.query('SELECT sms_config FROM public.institutions WHERE id = $1 LIMIT 1', [institutionId]).catch(() => ({ rows: [] })),
+                pool.query("SELECT data FROM public.system_settings WHERE id::text IN ('1','global') ORDER BY updated_at DESC NULLS LAST LIMIT 1").catch(() => ({ rows: [] })),
+            ]);
+            const instSms = iRes.rows?.[0]?.sms_config;
+            const sysSms = sRes.rows?.[0]?.data?.sms_config || sRes.rows?.[0]?.data?.smsConfig;
+            smsCfg = (instSms && (instSms.authToken || instSms.apiSecret || instSms.apiKey)) ? instSms : sysSms;
+        } else if (supabase) {
+            const { data: inst } = await supabase.from('institutions').select('sms_config').eq('id', institutionId).maybeSingle();
+            smsCfg = inst?.sms_config || null;
+            if (!smsCfg?.authToken && !smsCfg?.apiKey) {
+                const { data: sys } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
+                smsCfg = sys?.data?.sms_config || sys?.data?.smsConfig || smsCfg;
+            }
+        }
+
+        const accId = String(smsCfg?.accountId || smsCfg?.account_id || smsCfg?.apiKey || process.env.SEMATIME_ACCOUNT_ID || '').trim();
+        const authToken = String(smsCfg?.authToken || smsCfg?.auth_token || smsCfg?.apiSecret || process.env.SEMATIME_AUTH_TOKEN || process.env.SEMATIME_API_KEY || '').trim();
+
+        if (accId && authToken) {
+            try {
+                const res = await fetch(`https://apis.sematime.com/v1/${accId}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'AuthToken': authToken },
+                    body: JSON.stringify({ message, recipients: cleanPhones.join(',') }),
+                });
+                if (res.ok) sentSms = cleanPhones.length;
+            } catch (e: any) {
+                console.warn('[HR Attendance SMS] Sematime error:', e?.message || e);
+            }
+        }
+    }
+
+    // 2. WhatsApp Dispatch via Meta Cloud API / Evolution Gateway
+    if (channel === 'whatsapp' || channel === 'both') {
+        let waCfg: any = null;
+        if (pool) {
+            const r = await pool.query("SELECT * FROM public.whatsapp_configs WHERE institution_id IN ($1, 'global', 'SYSTEM') ORDER BY CASE WHEN institution_id = $1 THEN 0 ELSE 1 END LIMIT 1", [institutionId]).catch(() => ({ rows: [] }));
+            waCfg = r.rows?.[0] || null;
+        } else if (supabase) {
+            const { data } = await supabase.from('whatsapp_configs').select('*').eq('institution_id', institutionId).maybeSingle();
+            waCfg = data || null;
+        }
+        const metaToken = waCfg?.meta_access_token || process.env.META_WA_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || '';
+        const metaPhoneId = waCfg?.meta_phone_number_id || process.env.META_WA_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID || '';
+
+        if (metaToken && metaPhoneId) {
+            for (const phone of cleanPhones) {
+                try {
+                    const r = await fetch(`https://graph.facebook.com/v19.0/${metaPhoneId}/messages`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${metaToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ messaging_product: 'whatsapp', to: phone, type: 'text', text: { body: message } }),
+                    });
+                    if (r.ok) sentWhatsapp++;
+                } catch (_) {}
+            }
+        }
+    }
+
+    return { sentSms, sentWhatsapp };
+}
+
+async function handleRealTimePunchNotification(
+    supabase: any,
+    pool: any,
+    institutionId: string,
+    staffId: string,
+    punchTime: Date
+) {
+    const cfg = await loadAttendanceNotificationConfig(supabase, pool, institutionId);
+    if (!cfg.notifyLateArrival && !cfg.notifyClockInOut) return;
+
+    let staffUser: any = null;
+    let instName = 'EduAI';
+    if (pool) {
+        const [uRes, iRes] = await Promise.all([
+            pool.query('SELECT id, name, role, phone_number, metadata FROM public.users WHERE id = $1 LIMIT 1', [staffId]).catch(() => ({ rows: [] })),
+            pool.query('SELECT name FROM public.institutions WHERE id = $1 LIMIT 1', [institutionId]).catch(() => ({ rows: [] })),
+        ]);
+        staffUser = uRes.rows?.[0] || null;
+        if (iRes.rows?.[0]?.name) instName = iRes.rows[0].name;
+    } else if (supabase) {
+        const [uRes, iRes] = await Promise.all([
+            supabase.from('users').select('id, name, role, phone_number, metadata').eq('id', staffId).maybeSingle(),
+            supabase.from('institutions').select('name').eq('id', institutionId).maybeSingle(),
+        ]);
+        staffUser = uRes.data || null;
+        if (iRes.data?.name) instName = iRes.data.name;
+    }
+
+    if (!staffUser) return;
+    const staffPhone = normalizeKePhone(staffUser.phone_number);
+    const eatMs = punchTime.getTime() + 3 * 60 * 60 * 1000;
+    const eat = new Date(eatMs);
+    const dateStr = eat.toISOString().slice(0, 10);
+    const timeStr = `${String(eat.getUTCHours()).padStart(2, '0')}:${String(eat.getUTCMinutes()).padStart(2, '0')}`;
+
+    const { shifts, staffAssignments } = await loadInstitutionShifts(supabase, pool, institutionId, false);
+    const meta = typeof staffUser.metadata === 'string' ? (() => { try { return JSON.parse(staffUser.metadata); } catch { return {}; } })() : (staffUser.metadata || {});
+    const combinedRole = [staffUser.role, meta?.designation, meta?.jobTitle].filter(Boolean).join(' ').toLowerCase();
+    const shift = resolveShiftForStaff(staffId, combinedRole, shifts, staffAssignments);
+
+    // 1. Optional Instant Clock-In / Clock-Out Confirmation
+    if (cfg.notifyClockInOut && staffPhone) {
+        const bucket = `${dateStr}_${eat.getUTCHours() < 12 ? 'am' : 'pm'}`;
+        const ok = await claimDedupKey(supabase, pool, `punch|${institutionId}|${staffId}|${bucket}`, institutionId, 'clock_confirm', staffPhone, `Punch at ${timeStr}`, cfg.channel);
+        if (ok) {
+            await dispatchHrNotification(supabase, pool, institutionId, [staffPhone], `${instName}: Hi ${staffUser.name}, your biometric punch (${shift.name}) was recorded at ${timeStr} on ${dateStr}.`, cfg.channel);
+        }
+    }
+
+    // 2. Shift-Aware Real-Time Late Arrival Notice (1 per staff per day)
+    if (cfg.notifyLateArrival) {
+        const startMin = parseHHMM(shift.startTime, 8 * 60);
+        const punchMin = eat.getUTCHours() * 60 + eat.getUTCMinutes();
+        const graceMin = Number(shift.graceMinutes) || 0;
+        const lateMins = punchMin - startMin;
+        // Only flag if within 4 hours after shift start (so evening clock-outs aren't flagged as late morning punches)
+        if (lateMins > graceMin && lateMins <= 240) {
+            const ok = await claimDedupKey(supabase, pool, `late|${institutionId}|${staffId}|${dateStr}`, institutionId, 'late_arrival', staffPhone || staffId, `${lateMins}m late`, cfg.channel);
+            if (ok) {
+                const msg = `${instName}: Hi ${staffUser.name}, you clocked in at ${timeStr} for ${shift.name} (${lateMins} mins late; shift starts ${shift.startTime}).`;
+                const recipients: string[] = [];
+                if (staffPhone) recipients.push(staffPhone);
+                if (cfg.ccHrOnLateArrival) {
+                    recipients.push(...parsePhoneList(cfg.hrAlertPhones));
+                }
+                if (recipients.length > 0) {
+                    await dispatchHrNotification(supabase, pool, institutionId, recipients, msg, cfg.channel);
+                }
+            }
+        }
+    }
+}
+
+async function runDailyDigestAndAbsenceAlerts(supabase: any, pool: any, institutionId: string, dateOpt?: string) {
+    const cfg = await loadAttendanceNotificationConfig(supabase, pool, institutionId);
+    const eatNow = new Date(Date.now() + 3 * 60 * 60 * 1000);
+    const targetDate = (dateOpt && /^\d{4}-\d{2}-\d{2}$/.test(dateOpt)) ? dateOpt : eatNow.toISOString().slice(0, 10);
+
+    const dailyRes = await fetchDahuaDailyAttendance(supabase, pool, institutionId, { startDate: targetDate, endDate: targetDate });
+    const todayRecs = dailyRes.records || [];
+    const presentIds = new Set(todayRecs.map(r => String(r.staffId)));
+
+    // Fetch all staff & approved leaves + institution name
+    let allStaff: any[] = [];
+    let approvedLeaveStaffIds = new Set<string>();
+    let instName = 'EduAI';
+
+    const cleanInst = institutionId.replace(/^inst_/, '');
+    const instCandidates = Array.from(new Set([institutionId, cleanInst, `inst_${cleanInst}`]));
+    if (pool) {
+        const [uRes, iRes, lRes] = await Promise.all([
+            pool.query(`SELECT id, name, role, phone_number FROM public.users WHERE institution_id = ANY($1::text[]) AND LOWER(COALESCE(role,'')) NOT IN ('student','learner','pupil','parent','super_admin') AND LOWER(COALESCE(status,'active')) <> 'deleted'`, [instCandidates]).catch(() => ({ rows: [] })),
+            pool.query('SELECT name FROM public.institutions WHERE id = $1 LIMIT 1', [institutionId]).catch(() => ({ rows: [] })),
+            pool.query(`SELECT user_id, staff_id FROM public.time_off_requests WHERE institution_id = ANY($1::text[]) AND LOWER(COALESCE(status,'')) = 'approved' AND start_date::text <= $2 AND end_date::text >= $2`, [instCandidates, targetDate]).catch(() => ({ rows: [] })),
+        ]);
+        allStaff = uRes.rows || [];
+        if (iRes.rows?.[0]?.name) instName = iRes.rows[0].name;
+        for (const lv of (lRes.rows || [])) {
+            if (lv.user_id) approvedLeaveStaffIds.add(String(lv.user_id));
+            if (lv.staff_id) approvedLeaveStaffIds.add(String(lv.staff_id));
+        }
+    }
+
+    const lateRecs = todayRecs.filter(r => r.lateMinutes > 0);
+    const nightRecs = todayRecs.filter(r => r.isNightShift);
+    const absentNoLeave = allStaff.filter(s => !presentIds.has(String(s.id)) && !approvedLeaveStaffIds.has(String(s.id)));
+
+    // Weekly repeated lateness check (past 7 days)
+    const weekStart = new Date(`${targetDate}T00:00:00Z`);
+    weekStart.setUTCDate(weekStart.getUTCDate() - 6);
+    const weekRes = await fetchDahuaDailyAttendance(supabase, pool, institutionId, { startDate: weekStart.toISOString().slice(0, 10), endDate: targetDate });
+    const lateCounts = new Map<string, { name: string; count: number }>();
+    for (const r of (weekRes.records || [])) {
+        if (r.lateMinutes > 0) {
+            const cur = lateCounts.get(r.staffId) || { name: r.staffName || r.staffId, count: 0 };
+            cur.count++;
+            lateCounts.set(r.staffId, cur);
+        }
+    }
+    const repeatLateStaff = Array.from(lateCounts.values()).filter(x => x.count >= cfg.repeatedLateThreshold);
+
+    const adminPhones = Array.from(new Set([...parsePhoneList(cfg.principalPhones), ...parsePhoneList(cfg.hrAlertPhones)]));
+    let totalSent = 0;
+
+    if (cfg.notifyDailyDigest && adminPhones.length > 0) {
+        const absentNames = absentNoLeave.slice(0, 5).map(s => s.name).join(', ');
+        const repeatNote = cfg.notifyRepeatedLateness && repeatLateStaff.length > 0
+            ? ` Repeat late (${cfg.repeatedLateThreshold}+/wk): ${repeatLateStaff.slice(0, 3).map(r => `${r.name}(${r.count})`).join(', ')}.`
+            : '';
+        const digestMsg = `${instName} Attendance (${targetDate}): ${todayRecs.length}/${allStaff.length || todayRecs.length} present, ${lateRecs.length} late, ${absentNoLeave.length} absent (no leave), ${nightRecs.length} night shift.${absentNames ? ` Absent: ${absentNames}.` : ''}${repeatNote}`;
+        const r = await dispatchHrNotification(supabase, pool, institutionId, adminPhones, digestMsg, cfg.channel);
+        totalSent += r.sentSms + r.sentWhatsapp;
+    }
+
+    if (cfg.notifyUnexplainedAbsence && absentNoLeave.length > 0) {
+        for (const st of absentNoLeave.slice(0, 30)) {
+            const ph = normalizeKePhone(st.phone_number);
+            if (!ph) continue;
+            const ok = await claimDedupKey(supabase, pool, `absent|${institutionId}|${st.id}|${targetDate}`, institutionId, 'unexplained_absence', ph, 'Absent notice', cfg.channel);
+            if (ok) {
+                const r = await dispatchHrNotification(supabase, pool, institutionId, [ph], `${instName}: Hi ${st.name}, no biometric clock-in has been recorded for you today (${targetDate}). Please clock in or notify HR if on leave.`, cfg.channel);
+                totalSent += r.sentSms + r.sentWhatsapp;
+            }
+        }
+    }
+
+    return {
+        date: targetDate,
+        presentCount: todayRecs.length,
+        lateCount: lateRecs.length,
+        absentNoLeaveCount: absentNoLeave.length,
+        repeatLateCount: repeatLateStaff.length,
+        notificationsSent: totalSent,
+        adminRecipientsCount: adminPhones.length,
+    };
+}
+
+async function runMissedClockOutReminders(supabase: any, pool: any, institutionId: string, dateOpt?: string) {
+    const cfg = await loadAttendanceNotificationConfig(supabase, pool, institutionId);
+    const eatNow = new Date(Date.now() + 3 * 60 * 60 * 1000);
+    const targetDate = (dateOpt && /^\d{4}-\d{2}-\d{2}$/.test(dateOpt)) ? dateOpt : eatNow.toISOString().slice(0, 10);
+    const dailyRes = await fetchDahuaDailyAttendance(supabase, pool, institutionId, { startDate: targetDate, endDate: targetDate });
+    const singlePunchRecs = (dailyRes.records || []).filter(r => r.punchCount === 1);
+
+    let instName = 'EduAI';
+    const userPhoneMap = new Map<string, string>();
+    if (pool) {
+        const [uRes, iRes] = await Promise.all([
+            pool.query('SELECT id, phone_number FROM public.users WHERE institution_id = $1', [institutionId]).catch(() => ({ rows: [] })),
+            pool.query('SELECT name FROM public.institutions WHERE id = $1 LIMIT 1', [institutionId]).catch(() => ({ rows: [] })),
+        ]);
+        for (const u of (uRes.rows || [])) if (u.id && u.phone_number) userPhoneMap.set(String(u.id), u.phone_number);
+        if (iRes.rows?.[0]?.name) instName = iRes.rows[0].name;
+    }
+
+    let sentCount = 0;
+    for (const rec of singlePunchRecs) {
+        const ph = normalizeKePhone(userPhoneMap.get(rec.staffId));
+        if (!ph) continue;
+        const ok = await claimDedupKey(supabase, pool, `clockout|${institutionId}|${rec.staffId}|${targetDate}`, institutionId, 'missed_clockout', ph, 'Missed clock-out', cfg.channel);
+        if (ok) {
+            const r = await dispatchHrNotification(supabase, pool, institutionId, [ph], `${instName}: Hi ${rec.staffName || 'Staff'}, reminder to clock out on the biometric terminal for ${targetDate} so your full hours are captured for payroll.`, cfg.channel);
+            sentCount += r.sentSms + r.sentWhatsapp;
+        }
+    }
+
+    return { date: targetDate, singlePunchCount: singlePunchRecs.length, remindersSent: sentCount };
+}
+
+async function runPrePayrollAttendanceSummaries(supabase: any, pool: any, institutionId: string, monthLabel: string) {
+    const cfg = await loadAttendanceNotificationConfig(supabase, pool, institutionId);
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const [mName, yStr] = (monthLabel || '').split(' ');
+    const mIdx = monthNames.indexOf(mName);
+    const now = new Date();
+    const yr = parseInt(yStr, 10) || now.getFullYear();
+    const m = mIdx >= 0 ? mIdx : now.getMonth();
+    const mm = String(m + 1).padStart(2, '0');
+    const lastDay = new Date(yr, m + 1, 0).getDate();
+    const startDate = `${yr}-${mm}-01`;
+    const endDate = `${yr}-${mm}-${String(lastDay).padStart(2, '0')}`;
+    const displayMonth = `${monthNames[m]} ${yr}`;
+
+    const dailyRes = await fetchDahuaDailyAttendance(supabase, pool, institutionId, { startDate, endDate });
+    const byStaff = new Map<string, { name: string; days: number; nightShifts: number; overtime: number; late: number }>();
+    for (const r of (dailyRes.records || [])) {
+        const cur = byStaff.get(r.staffId) || { name: r.staffName || 'Staff', days: 0, nightShifts: 0, overtime: 0, late: 0 };
+        cur.days++;
+        if (r.isNightShift) cur.nightShifts++;
+        cur.overtime += Number(r.overtimeHours) || 0;
+        if (r.lateMinutes > 0) cur.late++;
+        byStaff.set(r.staffId, cur);
+    }
+
+    let instName = 'EduAI';
+    const userPhoneMap = new Map<string, string>();
+    if (pool) {
+        const [uRes, iRes] = await Promise.all([
+            pool.query('SELECT id, phone_number FROM public.users WHERE institution_id = $1', [institutionId]).catch(() => ({ rows: [] })),
+            pool.query('SELECT name FROM public.institutions WHERE id = $1 LIMIT 1', [institutionId]).catch(() => ({ rows: [] })),
+        ]);
+        for (const u of (uRes.rows || [])) if (u.id && u.phone_number) userPhoneMap.set(String(u.id), u.phone_number);
+        if (iRes.rows?.[0]?.name) instName = iRes.rows[0].name;
+    }
+
+    let sentCount = 0;
+    for (const [staffId, s] of byStaff.entries()) {
+        const ph = normalizeKePhone(userPhoneMap.get(staffId));
+        if (!ph) continue;
+        const ot = Math.round(s.overtime * 10) / 10;
+        const msg = `${instName} Pre-Payroll Attendance (${displayMonth}): Hi ${s.name}, recorded ${s.days} days, ${s.nightShifts} night shifts, +${ot}h OT, ${s.late} late arrivals. Contact HR within 24h for any correction.`;
+        const r = await dispatchHrNotification(supabase, pool, institutionId, [ph], msg, cfg.channel);
+        sentCount += r.sentSms + r.sentWhatsapp;
+    }
+
+    return { month: displayMonth, staffCount: byStaff.size, notificationsSent: sentCount };
+}
+
+async function runPayslipReadyNotifications(
+    supabase: any,
+    pool: any,
+    institutionId: string,
+    monthLabel: string,
+    items: Array<{ staffId: string; staffName: string; phone?: string; netSalary: number; overtimePay?: number; nightAllowance?: number }>
+) {
+    const cfg = await loadAttendanceNotificationConfig(supabase, pool, institutionId);
+    if (!cfg.notifyPayslipReady) return { skipped: true, notificationsSent: 0 };
+
+    let instName = 'EduAI';
+    const userPhoneMap = new Map<string, string>();
+    if (pool) {
+        const [uRes, iRes] = await Promise.all([
+            pool.query('SELECT id, phone_number FROM public.users WHERE institution_id = $1', [institutionId]).catch(() => ({ rows: [] })),
+            pool.query('SELECT name FROM public.institutions WHERE id = $1 LIMIT 1', [institutionId]).catch(() => ({ rows: [] })),
+        ]);
+        for (const u of (uRes.rows || [])) if (u.id && u.phone_number) userPhoneMap.set(String(u.id), u.phone_number);
+        if (iRes.rows?.[0]?.name) instName = iRes.rows[0].name;
+    }
+
+    let sentCount = 0;
+    for (const item of items) {
+        const ph = normalizeKePhone(item.phone || userPhoneMap.get(item.staffId));
+        if (!ph) continue;
+        const extras: string[] = [];
+        if ((Number(item.nightAllowance) || 0) > 0) extras.push(`Night Allowance: KES ${Math.round(Number(item.nightAllowance)).toLocaleString()}`);
+        if ((Number(item.overtimePay) || 0) > 0) extras.push(`Overtime: KES ${Math.round(Number(item.overtimePay)).toLocaleString()}`);
+        const extraStr = extras.length > 0 ? ` (${extras.join(', ')})` : '';
+        const msg = `${instName} Payroll (${monthLabel}): Hi ${item.staffName}, your payslip is ready. Net Pay: KES ${Math.round(Number(item.netSalary) || 0).toLocaleString()}${extraStr}.`;
+        const r = await dispatchHrNotification(supabase, pool, institutionId, [ph], msg, cfg.channel);
+        sentCount += r.sentSms + r.sentWhatsapp;
+    }
+    return { month: monthLabel, notificationsSent: sentCount };
 }

@@ -160,6 +160,39 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const [savingShift, setSavingShift] = useState(false);
     const [assigningStaffId, setAssigningStaffId] = useState<string | null>(null);
     const [staffShiftSearch, setStaffShiftSearch] = useState('');
+
+    // Attendance SMS / WhatsApp Notification Settings states
+    const [notifConfig, setNotifConfig] = useState<{
+        channel: 'sms' | 'whatsapp' | 'both';
+        principalPhones: string;
+        hrAlertPhones: string;
+        notifyDailyDigest: boolean;
+        notifyUnexplainedAbsence: boolean;
+        notifyRepeatedLateness: boolean;
+        repeatedLateThreshold: number;
+        notifyLateArrival: boolean;
+        ccHrOnLateArrival: boolean;
+        notifyMissedClockOut: boolean;
+        notifyClockInOut: boolean;
+        notifyPrePayrollSummary: boolean;
+        notifyPayslipReady: boolean;
+    }>({
+        channel: 'sms',
+        principalPhones: '',
+        hrAlertPhones: '',
+        notifyDailyDigest: true,
+        notifyUnexplainedAbsence: true,
+        notifyRepeatedLateness: true,
+        repeatedLateThreshold: 3,
+        notifyLateArrival: true,
+        ccHrOnLateArrival: false,
+        notifyMissedClockOut: true,
+        notifyClockInOut: false,
+        notifyPrePayrollSummary: true,
+        notifyPayslipReady: true,
+    });
+    const [savingNotifConfig, setSavingNotifConfig] = useState(false);
+    const [runningNotifAction, setRunningNotifAction] = useState<string | null>(null);
     const [shiftForm, setShiftForm] = useState<{
         id?: string;
         name: string;
@@ -193,8 +226,68 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     }, [institution.id]);
 
     useEffect(() => {
-        if (subTab === 'shifts') loadShifts();
+        if (subTab === 'shifts') {
+            loadShifts();
+            loadNotifConfig();
+        }
     }, [subTab, institution.id]);
+
+    const loadNotifConfig = async () => {
+        try {
+            const res = await fetch(`/api/dahua-webhook?action=get_notification_config&institutionId=${encodeURIComponent(institution.id)}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && data.config) setNotifConfig(prev => ({ ...prev, ...data.config }));
+            }
+        } catch (_) {}
+    };
+
+    const handleSaveNotifConfig = async () => {
+        setSavingNotifConfig(true);
+        try {
+            const res = await fetch('/api/dahua-webhook?action=save_notification_config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ institutionId: institution.id, config: notifConfig }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                if (data.config) setNotifConfig(data.config);
+                alert('Attendance SMS / WhatsApp notification settings saved!');
+            } else {
+                alert(data.error || 'Failed to save notification settings.');
+            }
+        } catch (e: any) {
+            alert('Error saving settings: ' + (e?.message || e));
+        } finally {
+            setSavingNotifConfig(false);
+        }
+    };
+
+    const handleTriggerNotifAction = async (action: 'send_daily_digest' | 'send_missed_clockout_reminders') => {
+        setRunningNotifAction(action);
+        try {
+            const res = await fetch(`/api/dahua-webhook?action=${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ institutionId: institution.id, date: selectedDate }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                if (action === 'send_daily_digest') {
+                    alert(`Daily Digest & Absence Alerts complete for ${data.date}:\n• Present: ${data.presentCount}\n• Late: ${data.lateCount}\n• Absent (no leave): ${data.absentNoLeaveCount}\n• Repeat Late Alerts: ${data.repeatLateCount}\n• Messages Sent: ${data.notificationsSent}`);
+                } else {
+                    alert(`Missed Clock-Out Reminders (${data.date}):\n• Single-punch staff found: ${data.singlePunchCount}\n• Reminders sent: ${data.remindersSent}`);
+                }
+            } else {
+                alert(data.error || 'Failed to dispatch notifications.');
+            }
+        } catch (e: any) {
+            alert('Notification dispatch error: ' + (e?.message || e));
+        } finally {
+            setRunningNotifAction(null);
+        }
+    };
 
     const loadShifts = async () => {
         setLoadingShifts(true);
@@ -2311,6 +2404,123 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                         })}
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+
+                    {/* Attendance SMS & WhatsApp Notification Settings */}
+                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm p-8 space-y-6">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Attendance SMS & WhatsApp Notifications</h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                    Control automated staff alerts, Principal digests, and payroll attendance notices (1-per-day deduped)
+                                </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => handleTriggerNotifAction('send_daily_digest')}
+                                    disabled={runningNotifAction !== null}
+                                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md transition-all cursor-pointer"
+                                >
+                                    {runningNotifAction === 'send_daily_digest' ? 'Sending...' : '📩 Send Daily Digest & Absence Alerts'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleTriggerNotifAction('send_missed_clockout_reminders')}
+                                    disabled={runningNotifAction !== null}
+                                    className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md transition-all cursor-pointer"
+                                >
+                                    {runningNotifAction === 'send_missed_clockout_reminders' ? 'Sending...' : '⏰ Missed Clock-Out Reminders'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Delivery Channel</label>
+                                <select
+                                    value={notifConfig.channel}
+                                    onChange={e => setNotifConfig(c => ({ ...c, channel: e.target.value as any }))}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    <option value="sms">SMS Only</option>
+                                    <option value="whatsapp">WhatsApp Only (Zero SMS cost)</option>
+                                    <option value="both">SMS + WhatsApp</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Principal / Admin Alert Phones</label>
+                                <input
+                                    type="text"
+                                    value={notifConfig.principalPhones}
+                                    onChange={e => setNotifConfig(c => ({ ...c, principalPhones: e.target.value }))}
+                                    placeholder="e.g. 0712345678, 0722000000"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">HR Officer Alert Phones</label>
+                                <input
+                                    type="text"
+                                    value={notifConfig.hrAlertPhones}
+                                    onChange={e => setNotifConfig(c => ({ ...c, hrAlertPhones: e.target.value }))}
+                                    placeholder="e.g. 0733111222"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {[
+                                { key: 'notifyDailyDigest', label: 'Daily Attendance Digest (Principal/HR)', desc: 'Present, late, absent & night shift summary' },
+                                { key: 'notifyUnexplainedAbsence', label: 'Unexplained Absence Alert', desc: 'Skips staff with approved leave' },
+                                { key: 'notifyRepeatedLateness', label: `Repeated Lateness (${notifConfig.repeatedLateThreshold}+/wk)`, desc: 'Flags frequent late arrivals to HR' },
+                                { key: 'notifyLateArrival', label: 'Real-Time Late Arrival Notice', desc: 'Shift-aware SMS on late biometric punch' },
+                                { key: 'ccHrOnLateArrival', label: 'CC HR on Late Arrivals', desc: 'Also copy HR phone on late notices' },
+                                { key: 'notifyMissedClockOut', label: 'Missed Clock-Out Reminder', desc: 'Reminds single-punch staff to clock out' },
+                                { key: 'notifyClockInOut', label: 'Instant Clock-In/Out Confirmation', desc: 'Confirms every punch (uses more SMS)' },
+                                { key: 'notifyPrePayrollSummary', label: 'Pre-Payroll Attendance Summary', desc: 'Monthly days, night shifts & OT before payday' },
+                                { key: 'notifyPayslipReady', label: 'Payslip & Shift Allowance SMS', desc: 'Sent automatically when Payroll is run' },
+                            ].map(item => (
+                                <label
+                                    key={item.key}
+                                    className="flex items-start gap-3 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/40 cursor-pointer hover:border-indigo-300 transition-all"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={Boolean((notifConfig as any)[item.key])}
+                                        onChange={e => setNotifConfig(c => ({ ...c, [item.key]: e.target.checked }))}
+                                        className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                    />
+                                    <div>
+                                        <p className="text-xs font-black text-slate-800 dark:text-white">{item.label}</p>
+                                        <p className="text-[10px] font-medium text-slate-400">{item.desc}</p>
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-100 dark:border-slate-700">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Repeated Late Threshold (per week):</span>
+                                <input
+                                    type="number"
+                                    min="2"
+                                    max="7"
+                                    value={notifConfig.repeatedLateThreshold}
+                                    onChange={e => setNotifConfig(c => ({ ...c, repeatedLateThreshold: Math.max(2, Number(e.target.value) || 3) }))}
+                                    className="w-16 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-black text-center"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleSaveNotifConfig}
+                                disabled={savingNotifConfig}
+                                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-all cursor-pointer"
+                            >
+                                {savingNotifConfig ? 'Saving...' : 'Save Notification Settings'}
+                            </button>
                         </div>
                     </div>
                 </div>
