@@ -247,9 +247,11 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
         }
     }, [config.gateway_url, config.api_key, config.instance_name, checkLiveStatus]);
 
-    // Auto-poll QR code every 15s if waiting for connection
+    // Auto-poll QR code every 15s only when a gateway URL is actually configured and waiting to pair
     useEffect(() => {
         if (liveStatus?.isConnected) return;
+        const hasGateway = config.provider_type === 'gateway' && Boolean((config.gateway_url || '').trim());
+        if (!hasGateway) return;
         const interval = setInterval(() => {
             setPollCountdown(prev => {
                 if (prev <= 1) {
@@ -260,7 +262,7 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
             });
         }, 1000);
         return () => clearInterval(interval);
-    }, [liveStatus?.isConnected, checkLiveStatus]);
+    }, [liveStatus?.isConnected, config.provider_type, config.gateway_url, checkLiveStatus]);
 
     // Save configuration
     const handleSaveConfig = async () => {
@@ -923,12 +925,16 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                             </div>
 
                             <h3 className="text-lg font-black uppercase tracking-tight text-white mb-1">
-                                {isLiveConnected ? 'Device Connected' : 'Device Pairing Station'}
+                                {isLiveConnected
+                                    ? (config.provider_type === 'meta_cloud' ? 'Meta Cloud API Active' : 'Device Connected')
+                                    : (config.provider_type === 'meta_cloud' ? 'Meta Cloud API Verification' : 'Device Pairing Station')}
                             </h3>
                             <p className="text-xs text-slate-400 max-w-sm mb-6">
                                 {isLiveConnected
                                     ? `Master session active. Messages will dispatch directly from ${config.phone_number || liveStatus?.phoneNumber || 'handset'}.`
-                                    : 'Scan this QR code with your master WhatsApp phone to link the platform gateway.'}
+                                    : config.provider_type === 'meta_cloud'
+                                        ? 'Meta Cloud API requires no QR scan and no VPS server. Save your Phone Number ID & Access Token to connect.'
+                                        : 'Scan this QR code with your master WhatsApp phone to link the platform gateway.'}
                             </p>
 
                             {/* QR Code Container */}

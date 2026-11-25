@@ -1919,9 +1919,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     throw new Error(err?.message || err?.error || `Gateway returned HTTP ${createRes.status}`);
                 }
 
+                const createdData = await createRes.json().catch(() => ({}));
+                const initialQr = createdData?.qrcode?.base64 || createdData?.base64 || createdData?.qrcode?.code || undefined;
+
                 return res.status(200).json({
                     success: true,
                     created: true,
+                    qrCode: initialQr,
                     message: `Instance "${instanceName}" provisioned successfully on Evolution API server!`
                 });
             } catch (err: any) {
@@ -1995,23 +1999,96 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (action === 'getWhatsAppStatus') {
             const institutionId = getParam('institutionId') || user?.institutionId || user?.user_metadata?.institutionId || 'global';
 
-            const { data: config } = await supabase
-                .from('whatsapp_configs')
-                .select('*')
-                .eq('institution_id', institutionId)
-                .maybeSingle();
+            let config: any = null;
+            try {
+                if (supabase) {
+                    if (institutionId === 'global' || institutionId === 'SYSTEM') {
+                        const { data } = await supabase
+                            .from('whatsapp_configs')
+                            .select('*')
+                            .or('institution_id.eq.global,institution_id.eq.SYSTEM')
+                            .order('updated_at', { ascending: false })
+                            .limit(1)
+                            .maybeSingle();
+                        config = data || null;
+                    } else {
+                        const { data } = await supabase
+                            .from('whatsapp_configs')
+                            .select('*')
+                            .eq('institution_id', institutionId)
+                            .maybeSingle();
+                        config = data || null;
+                    }
+                }
+            } catch (dbLookupErr: any) {
+                console.warn('[WhatsApp Status] DB lookup warning:', dbLookupErr?.message || dbLookupErr);
+            }
 
+            // 1. Meta Cloud API Mode (Zero-server, no QR needed — verify directly with Meta Graph API)
+            const metaToken = String(config?.meta_access_token || process.env.META_WA_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || '').trim();
+            const metaPhoneId = String(config?.meta_phone_number_id || process.env.META_WA_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim();
             const rawGwUrl = (config?.gateway_url || '').trim();
+            const isMetaMode = config?.provider_type === 'meta_cloud' || (!rawGwUrl && Boolean(metaToken && metaPhoneId));
+
+            if (isMetaMode) {
+                if (!metaToken || !metaPhoneId) {
+                    return res.status(200).json({
+                        success: true,
+                        isConnected: false,
+                        providerType: 'meta_cloud',
+                        message: 'Meta Cloud API selected. Enter your Phone Number ID and Permanent Access Token, then click Save Configuration.'
+                    });
+                }
+
+                try {
+                    const metaRes = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(metaPhoneId)}?fields=display_phone_number,verified_name,quality_rating`, {
+                        method: 'GET',
+                        headers: { Authorization: `Bearer ${metaToken}` },
+                        signal: AbortSignal.timeout(6000)
+                    });
+                    const metaData: any = await metaRes.json().catch(() => ({}));
+                    if (metaRes.ok && (metaData?.id || metaData?.display_phone_number)) {
+                        const displayPhone = metaData.display_phone_number || config?.phone_number || metaPhoneId;
+                        if (supabase && config?.id) {
+                            await supabase
+                                .from('whatsapp_configs')
+                                .update({ is_connected: true, phone_number: displayPhone, updated_at: new Date().toISOString() })
+                                .eq('id', config.id)
+                                .then(() => {}, () => {});
+                        }
+                        return res.status(200).json({
+                            success: true,
+                            isConnected: true,
+                            phoneNumber: displayPhone,
+                            providerType: 'meta_cloud',
+                            message: `Meta Cloud API Active${metaData.verified_name ? ` (${metaData.verified_name})` : ''}`
+                        });
+                    }
+                    return res.status(200).json({
+                        success: true,
+                        isConnected: false,
+                        providerType: 'meta_cloud',
+                        message: `Meta API verification failed: ${metaData?.error?.message || `HTTP ${metaRes.status}`}`
+                    });
+                } catch (metaErr: any) {
+                    return res.status(200).json({
+                        success: true,
+                        isConnected: false,
+                        providerType: 'meta_cloud',
+                        message: `Meta API unreachable: ${metaErr?.message || 'Network timeout'}`
+                    });
+                }
+            }
+
+            // 2. Evolution / Baileys Gateway Mode
             if (!config || !rawGwUrl || rawGwUrl.includes('wa.eduai.platform') || rawGwUrl.includes('example.com') || rawGwUrl.includes('whatsapp-webhook')) {
                 return res.status(200).json({
                     success: true,
                     isConnected: false,
                     providerType: config?.provider_type || 'gateway',
                     message: rawGwUrl.includes('whatsapp-webhook')
-                        ? 'Gateway URL is currently set to the webhook endpoint (/api/whatsapp-webhook). Please enter the address of your Evolution API server (e.g. http://YOUR_VPS_IP:8080 or https://wa.yourdomain.com).'
-                        : (institutionId === 'global'
-                            ? 'No Super Admin Global WhatsApp Gateway configured. Enter your Gateway URL in Super Admin settings.'
-                            : 'No WhatsApp Gateway configured. Enter your Gateway URL in Settings.')
+                        ? 'Gateway URL is set to the webhook endpoint (/api/whatsapp-webhook). Enter your Evolution API server URL (e.g. http://YOUR_VPS_IP:8080) or switch to Meta Cloud API (no server required).'
+                        : 'No Evolution Gateway URL configured yet. Enter your Evolution API VPS URL + Token, or switch to Meta Cloud API (works immediately without a VPS).'
                 });
             }
 
@@ -2020,41 +2097,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const instName = config.instance_name || (institutionId === 'global' ? 'eduai_master' : `eduai_${institutionId.replace(/[^a-zA-Z0-9]/g, '_')}`);
                     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                     if (config.api_key) headers['apikey'] = config.api_key;
+                    const cleanBase = config.gateway_url.replace(/\/$/, '');
 
-                    const statusRes = await fetch(`${config.gateway_url.replace(/\/$/, '')}/instance/connectionState/${instName}`, {
+                    const statusRes = await fetch(`${cleanBase}/instance/connectionState/${instName}`, {
                         method: 'GET',
                         headers,
                         signal: AbortSignal.timeout(5000)
                     }).catch(() => null);
 
-                    if (statusRes && statusRes.ok) {
+                    if (!statusRes) {
+                        return res.status(200).json({
+                            success: true,
+                            isConnected: false,
+                            providerType: 'gateway',
+                            message: `Cannot reach Evolution server at ${cleanBase}. Check that your Evolution API container is running and publicly accessible.`
+                        });
+                    }
+
+                    if (statusRes.ok) {
                         const statusData = await statusRes.json().catch(() => ({}));
                         const isConnected = statusData?.state === 'open' || statusData?.status === 'CONNECTED' || statusData?.instance?.state === 'open';
                         
                         let qrCode = config.qr_code_data;
                         if (!isConnected) {
-                            const qrRes = await fetch(`${config.gateway_url.replace(/\/$/, '')}/instance/connect/${instName}`, {
+                            const qrRes = await fetch(`${cleanBase}/instance/connect/${instName}`, {
                                 method: 'GET',
                                 headers,
-                                signal: AbortSignal.timeout(5000)
+                                signal: AbortSignal.timeout(6000)
                             }).catch(() => null);
                             if (qrRes && qrRes.ok) {
                                 const qrData = await qrRes.json().catch(() => ({}));
-                                qrCode = qrData?.base64 || qrData?.qrcode?.base64 || qrData?.code;
+                                qrCode = qrData?.base64 || qrData?.qrcode?.base64 || qrData?.code || qrData?.pairingCode;
                             }
                         }
 
-                        await supabase
-                            .from('whatsapp_configs')
-                            .update({ is_connected: isConnected, qr_code_data: qrCode, updated_at: new Date().toISOString() })
-                            .eq('institution_id', institutionId);
+                        if (supabase) {
+                            await supabase
+                                .from('whatsapp_configs')
+                                .update({ is_connected: isConnected, qr_code_data: qrCode, updated_at: new Date().toISOString() })
+                                .eq('institution_id', config.institution_id || institutionId)
+                                .then(() => {}, () => {});
+                        }
 
                         return res.status(200).json({
                             success: true,
                             isConnected,
                             phoneNumber: config.phone_number,
                             qrCode,
-                            providerType: 'gateway'
+                            providerType: 'gateway',
+                            message: !isConnected && !qrCode ? 'Instance found, waiting for Evolution API to emit QR code. Click Refresh Now.' : undefined
+                        });
+                    } else {
+                        return res.status(200).json({
+                            success: true,
+                            isConnected: false,
+                            providerType: 'gateway',
+                            message: statusRes.status === 404
+                                ? `Instance "${instName}" not created yet on ${cleanBase}. Click "Auto-Provision / Sync Instance" to generate QR.`
+                                : `Evolution Gateway returned HTTP ${statusRes.status}. Verify API Key and server logs.`
                         });
                     }
                 }
