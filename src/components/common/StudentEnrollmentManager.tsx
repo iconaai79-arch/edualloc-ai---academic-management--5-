@@ -63,7 +63,8 @@ import {
     resolveRealStudentAdmNo,
     resolveRealStudentClass,
     resolveStudentCourseAndClassId,
-    isSyntheticAdmNo
+    isSyntheticAdmNo,
+    isGradeOrClassName
 } from '../../utils/academicUtils';
 
 const teacherRoles = [
@@ -400,39 +401,47 @@ export const getEnrollmentStream = (enr?: any, user?: any, courses?: any[]): str
     const rawG = meta.gradeLevel || meta.studentClass || meta.className || enr?.studentClass || '';
     const parsedG = extractClassAndStream(rawG);
 
-    let strm = (
-        meta.stream || 
-        meta.streamName || 
-        meta.stream_name || 
-        meta.streams || 
-        meta.classStream || 
-        enr?.stream || 
-        (enr as any)?.stream_name ||
-        enr?.streamName || 
-        user?.stream || 
-        (user as any)?.streamName || 
-        (user as any)?.stream_name ||
-        userMeta.stream || 
-        parsedG.stream || 
-        ''
-    );
+    const streamCandidates = [
+        meta.stream,
+        meta.streamName,
+        meta.stream_name,
+        meta.streams,
+        meta.classStream,
+        enr?.stream,
+        (enr as any)?.stream_name,
+        enr?.streamName,
+        user?.stream,
+        (user as any)?.streamName,
+        (user as any)?.stream_name,
+        userMeta.stream,
+        parsedG.stream,
+    ];
 
-    // Fallback 1: check leadershipPosition if formatted like stream / class (e.g. JSS8)
+    let strm = '';
+    for (const cand of streamCandidates) {
+        const val = String(cand || '').trim();
+        if (val && !isGradeOrClassName(val)) {
+            strm = val;
+            break;
+        }
+    }
+
+    // Fallback 1: check leadershipPosition only if it is NOT a role title and NOT a grade/class name
     if (!strm) {
         const lead = String(meta.leadershipPosition || (enr as any)?.leadership_position || userMeta.leadershipPosition || '').trim();
-        if (lead && lead.length <= 15 && !['president', 'prefect', 'captain', 'leader'].includes(lead.toLowerCase())) {
+        if (lead && lead.length <= 15 && !['president', 'prefect', 'captain', 'leader'].includes(lead.toLowerCase()) && !isGradeOrClassName(lead)) {
             strm = lead;
         }
     }
 
-    // Fallback 2: resolve from classId / courseLevelId inside courses.levels
+    // Fallback 2: resolve from classId / courseLevelId inside courses.levels (skipping grade/class names)
     if (!strm && Array.isArray(courses) && courses.length > 0) {
         const clsId = enr?.classId || (enr as any)?.class_id || (enr as any)?.courseLevelId || meta?.classId || meta?.courseLevelId;
         if (clsId) {
             for (const c of courses) {
                 if (c && Array.isArray(c.levels)) {
                     const matchedLvl = c.levels.find((l: any) => l && (l.id === clsId || l.classId === clsId));
-                    if (matchedLvl && matchedLvl.name) {
+                    if (matchedLvl && matchedLvl.name && !isGradeOrClassName(matchedLvl.name)) {
                         strm = matchedLvl.name;
                         break;
                     }
@@ -441,7 +450,7 @@ export const getEnrollmentStream = (enr?: any, user?: any, courses?: any[]): str
         }
     }
 
-    return strm;
+    return isGradeOrClassName(strm) ? '' : strm;
 };
 
 export interface ParentContactInfo {
@@ -6417,35 +6426,36 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         return getDefaultGradesForInstitution(currentInstitution);
     }, [context, courses, academicLevels, enrollments, users, currentInstitution]);
 
-    // Available Streams fallback
+    // Available Streams fallback (never include grade or class names)
     const streamsList = useMemo(() => {
         if (currentInstitution?.streamDefinitions && currentInstitution.streamDefinitions.length > 0) {
-            return currentInstitution.streamDefinitions;
+            const cleanDefs = currentInstitution.streamDefinitions.filter(s => s && !isGradeOrClassName(s));
+            if (cleanDefs.length > 0) return cleanDefs;
         }
         return ['North', 'South', 'East', 'West', 'Main Stream'];
     }, [currentInstitution?.streamDefinitions]);
 
-    // Available Streams for the Enrollment Form
+    // Available Streams for the Enrollment Form (never include grade or class names)
     const formStreamsList = useMemo(() => {
         let list: string[] = [];
         if (formData.metadata.gradeLevel) {
             const normGrade = getNormalizedGradeKey(formData.metadata.gradeLevel);
             const selectedCourse = courses.find(c => getNormalizedGradeKey(c.name || (c as any).title || c.code || '') === normGrade);
             if (selectedCourse?.levels && selectedCourse.levels.length > 0) {
-                list = selectedCourse.levels.map(lvl => lvl.name);
+                list = selectedCourse.levels.map(lvl => lvl.name).filter(name => name && !isGradeOrClassName(name));
             }
         }
         if (list.length === 0) {
             list = streamsList;
         }
-        // Force include current stream if not present to avoid select element fallback mismatch
-        if (formData.metadata.stream && !list.includes(formData.metadata.stream)) {
+        // Force include current stream only if it is a genuine stream (never a grade/class name)
+        if (formData.metadata.stream && !isGradeOrClassName(formData.metadata.stream) && !list.includes(formData.metadata.stream)) {
             list = [...list, formData.metadata.stream];
         }
         return list;
     }, [formData.metadata.gradeLevel, formData.metadata.stream, courses, streamsList]);
 
-    // Available Streams for the registry filter
+    // Available Streams for the registry filter (never include grade or class names)
     const filterStreamsList = useMemo(() => {
         if (gradeFilter) {
             const normGrade = getNormalizedGradeKey(gradeFilter);
@@ -6455,7 +6465,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const cName = c.name || (c as any).title || c.code || '';
                 return getNormalizedGradeKey(cName) === normGrade;
             });
-            const courseStreams = matchedCourses.flatMap(c => (c.levels || []).map(lvl => lvl.name)).filter(Boolean);
+            const courseStreams = matchedCourses
+                .flatMap(c => (c.levels || []).map(lvl => lvl.name))
+                .filter(name => name && !isGradeOrClassName(name));
 
             // 2. Streams from enrolled students in this grade (using fast O(1) userMaps)
             const studentStreams: string[] = [];
@@ -6465,7 +6477,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const stGrade = enr.metadata?.gradeLevel || u?.studentClass || (u as any)?.classLevel || (u as any)?.class || '';
                 if (getNormalizedGradeKey(stGrade) === normGrade) {
                     const stStream = enr.metadata?.stream || (u as any)?.stream || (u as any)?.streamName || '';
-                    if (stStream && stStream.trim() && stStream !== '—' && stStream.toLowerCase() !== 'all') {
+                    if (stStream && stStream.trim() && stStream !== '—' && stStream.toLowerCase() !== 'all' && !isGradeOrClassName(stStream)) {
                         studentStreams.push(stStream.trim());
                     }
                 }
@@ -6476,8 +6488,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
 
         // When "All Grades" is selected:
-        const allCourseStreams = courses.flatMap(c => (c.levels || []).map(lvl => lvl.name)).filter(Boolean);
-        const allStudentStreams = enrollments.map(e => e.metadata?.stream).filter(Boolean) as string[];
+        const allCourseStreams = courses
+            .flatMap(c => (c.levels || []).map(lvl => lvl.name))
+            .filter(name => name && !isGradeOrClassName(name));
+        const allStudentStreams = enrollments
+            .map(e => e.metadata?.stream)
+            .filter((s): s is string => Boolean(s) && !isGradeOrClassName(s));
         const all = Array.from(new Set([...allCourseStreams, ...allStudentStreams]));
         if (all.length > 0) {
             return all;
@@ -6485,13 +6501,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         return streamsList;
     }, [gradeFilter, courses, enrollments, userMaps, streamsList]);
 
-    // Available Streams for the Import default settings
+    // Available Streams for the Import default settings (never include grade or class names)
     const importStreamsList = useMemo(() => {
         if (importGradeLevel) {
             const normGrade = getNormalizedGradeKey(importGradeLevel);
             const selectedCourse = courses.find(c => getNormalizedGradeKey(c.name || (c as any).title || c.code || '') === normGrade);
             if (selectedCourse?.levels && selectedCourse.levels.length > 0) {
-                return selectedCourse.levels.map(lvl => lvl.name);
+                const cleanLevels = selectedCourse.levels.map(lvl => lvl.name).filter(name => name && !isGradeOrClassName(name));
+                if (cleanLevels.length > 0) return cleanLevels;
             }
         }
         return streamsList;
@@ -9818,7 +9835,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         <div>
                                             <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Stream / Allocation</label>
                                             <select
-                                                value={formData.metadata.stream}
+                                                value={isGradeOrClassName(formData.metadata.stream) ? '' : formData.metadata.stream}
                                                 onChange={e => setFormData({ 
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, stream: e.target.value } 

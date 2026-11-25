@@ -500,7 +500,39 @@ export const normalizeClassName = (raw?: any): string => {
 };
 
 /**
+ * Returns true if the given string looks like a grade, class, form, standard, or school stage name
+ * (e.g. "GRADE 9", "Grade 7", "Form 4", "PP1", "Playgroup", "Class 8", "Std 6", "Year 2", "JSS 8")
+ * so that grade/class labels are NEVER loaded into Stream / Allocation fields or dropdowns.
+ */
+export const isGradeOrClassName = (raw?: any): boolean => {
+    if (raw === null || raw === undefined) return false;
+    const str = String(raw).trim();
+    if (!str) return false;
+    // Strip trailing year/term brackets like "(2026)" before testing
+    const clean = str.replace(/\s*\(\s*\d{4}\s*\)\s*$/i, '').replace(/\s+/g, ' ').trim();
+    if (!clean) return false;
+
+    // Early childhood & non-stream stage labels
+    if (/^(?:play\s*group|pg|day\s*care|baby\s*class|nursery|pp\s*[12]|pre[\s-]*primary\s*[12]|kindergarten|kg\s*[123]?|ecde|reception|creche|toddler|unclassified|alumni|graduated)$/i.test(clean)) {
+        return true;
+    }
+
+    // Explicit Grade / Form / Class / Standard / Year / Level / JSS / SSS labels (e.g. "GRADE 9", "Form 2", "Class 6", "JSS8")
+    if (/^(?:grade|grd|gr|form|frm|class|cls|std|standard|year|yr|level|lvl|jss|sss)\s*[-:]?\s*\d+$/i.test(clean)) {
+        return true;
+    }
+
+    // Also catch "Grade 9 ..." / "Form 1 ..." / "Class 8 ..." / "PP1 ..." prefixed labels
+    if (/^(?:grade|form|class|standard|std|pre[\s-]*primary|play\s*group|day\s*care|pp\s*[12]|jss|sss)\s+\d+/i.test(clean)) {
+        return true;
+    }
+
+    return false;
+};
+
+/**
  * Normalizes stream names (e.g. "b" -> "B", "stream b" -> "B", "NORTH" -> "North").
+ * Never returns a grade or class name (e.g. "GRADE 9", "Form 2", "PP1") as a stream.
  */
 export const normalizeStreamName = (raw?: any): string => {
     if (raw === null || raw === undefined) return '';
@@ -513,6 +545,11 @@ export const normalizeStreamName = (raw?: any): string => {
     // Strip "Stream" prefix: "Stream B" -> "B", "Stream East" -> "East"
     str = str.replace(/^stream\s+/i, '').replace(/^[-–—:]+\s*/, '').trim();
     if (!str) return '';
+
+    // Never allow a grade or class name (e.g. "GRADE 9", "Form 1", "PP2") to be treated as a stream
+    if (isGradeOrClassName(str)) {
+        return '';
+    }
 
     // If stream was registered in all caps (e.g. "WEST", "EAST", "A", "BLUE"), preserve the exact uppercase registration!
     if (str === str.toUpperCase()) {
