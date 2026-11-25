@@ -49,13 +49,19 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
     const initialConfig: WhatsAppConfig = useMemo(() => {
         const raw = (companyDetails as any)?.whatsappConfig;
         const cleanUrl = (raw?.gateway_url || '').includes('wa.eduai.platform') ? '' : (raw?.gateway_url || '');
+        const resolvedProvider = (raw?.provider_type === 'meta_cloud' || (!cleanUrl && (raw?.meta_phone_number_id || raw?.meta_access_token)))
+            ? 'meta_cloud'
+            : (raw?.provider_type || 'gateway');
         return {
             institution_id: 'global',
-            provider_type: 'gateway',
+            provider_type: resolvedProvider,
             gateway_url: cleanUrl,
             api_key: raw?.api_key || '',
             instance_name: raw?.instance_name || 'eduai_master',
             phone_number: raw?.phone_number || '',
+            meta_phone_number_id: raw?.meta_phone_number_id || '',
+            meta_access_token: raw?.meta_access_token || '',
+            meta_waba_id: raw?.meta_waba_id || '',
             auto_send_receipts: raw?.auto_send_receipts ?? true,
             auto_send_fee_reminders: raw?.auto_send_fee_reminders ?? false,
             auto_send_academic_results: raw?.auto_send_academic_results ?? false,
@@ -144,41 +150,59 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
         }
     }, []);
 
-    // Initial load: Fetch config from DB if present, and check status
+    // Initial load: Fetch config from server DB (Direct PG / Supabase) and check status
     useEffect(() => {
         const init = async () => {
-            if (supabase) {
+            let dbConfig: any = null;
+
+            // 1. Always load from server API first (works on Direct PostgreSQL & Supabase)
+            try {
+                const apiCfgRes = await whatsappService.getConfig('global');
+                if (apiCfgRes?.success && apiCfgRes?.config) {
+                    dbConfig = apiCfgRes.config;
+                }
+            } catch (apiErr) {
+                console.warn('[SuperAdmin WA] Server config load warning:', apiErr);
+            }
+
+            // 2. Client-side Supabase fallback if server returned nothing
+            if (!dbConfig && supabase) {
                 try {
-                    const { data: dbConfig } = await supabase
+                    const { data } = await supabase
                         .from('whatsapp_configs')
                         .select('*')
                         .or('institution_id.eq.global,institution_id.eq.SYSTEM')
                         .order('updated_at', { ascending: false })
                         .limit(1)
                         .maybeSingle();
-
-                    if (dbConfig) {
-                        let cleanUrl = (dbConfig.gateway_url || '').includes('wa.eduai.platform') ? '' : (dbConfig.gateway_url || '');
-                        if (cleanUrl.includes('whatsapp-webhook') || cleanUrl.endsWith('/api')) {
-                            cleanUrl = '';
-                        }
-                        const resolvedProvider = (dbConfig.provider_type === 'meta_cloud' || (!cleanUrl && (dbConfig.meta_phone_number_id || dbConfig.meta_access_token)))
-                            ? 'meta_cloud'
-                            : (dbConfig.provider_type || 'gateway');
-
-                        setConfig(prev => ({
-                            ...prev,
-                            ...dbConfig,
-                            gateway_url: cleanUrl,
-                            provider_type: resolvedProvider
-                        }));
-                        // Detect if the saved URL matches the platform gateway
-                        if (cleanUrl && cleanUrl === PLATFORM_GATEWAY_URL) {
-                            setUsePlatformGateway(true);
-                        }
-                    }
+                    if (data) dbConfig = data;
                 } catch (sbErr) {
                     console.warn('[SuperAdmin WA] Direct Supabase load warning:', sbErr);
+                }
+            }
+
+            if (dbConfig) {
+                let cleanUrl = (dbConfig.gateway_url || '').includes('wa.eduai.platform') ? '' : (dbConfig.gateway_url || '');
+                if (cleanUrl.includes('whatsapp-webhook') || cleanUrl.endsWith('/api')) {
+                    cleanUrl = '';
+                }
+                const resolvedProvider = (dbConfig.provider_type === 'meta_cloud' || (!cleanUrl && (dbConfig.meta_phone_number_id || dbConfig.meta_access_token)))
+                    ? 'meta_cloud'
+                    : (dbConfig.provider_type || 'gateway');
+
+                setConfig(prev => ({
+                    ...prev,
+                    ...dbConfig,
+                    gateway_url: cleanUrl,
+                    api_key: dbConfig.api_key || '',
+                    instance_name: dbConfig.instance_name || 'eduai_master',
+                    meta_phone_number_id: dbConfig.meta_phone_number_id || '',
+                    meta_access_token: dbConfig.meta_access_token || '',
+                    meta_waba_id: dbConfig.meta_waba_id || '',
+                    provider_type: resolvedProvider
+                }));
+                if (cleanUrl && cleanUrl === PLATFORM_GATEWAY_URL) {
+                    setUsePlatformGateway(true);
                 }
             }
             checkLiveStatus();

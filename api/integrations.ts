@@ -1153,7 +1153,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Priority 4: Special bypass for Unauthenticated Actions (Callbacks, Payments, WhatsApp, Inquiries & Recovery)
         const isPublicAction = [
             'forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 
-            'sendWhatsApp', 'sendWhatsAppOtp', 'getWhatsAppStatus', 'getWhatsAppLogs', 'provisionWhatsAppInstance', 
+            'sendWhatsApp', 'sendWhatsAppOtp', 'getWhatsAppStatus', 'getWhatsAppConfig', 'getWhatsAppLogs', 'provisionWhatsAppInstance', 
             'disconnectWhatsApp', 'saveWhatsAppConfig', 'mpesa-callback', 'ncbaWebhook', 
             'ncbaInitiateStk', 'ncbaGenerateQr', 'ncbaQueryStk', 'ncbaQueryStatus', 'testNcbaAuth', 'reconcileInternal',
             'initiateStkPush', 'generateMpesaQr', 'queryPaymentStatus', 'stkPushQuery', 'queryStkStatus',
@@ -1172,7 +1172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 action === 'ncbaGenerateQr' || action === 'ncbaQueryStk' || action === 'ncbaQueryStatus' || action === 'testNcbaAuth' || action === 'reconcileInternal' ||
                 action === 'initiateStkPush' || action === 'generateMpesaQr' || action === 'queryPaymentStatus' || action === 'stkPushQuery' || action === 'queryStkStatus' || action === 'sendAlumnaWelcome' || 
                 action === 'provisionWhatsAppInstance' || action === 'saveWhatsAppConfig' || 
-                action === 'getWhatsAppStatus' || action === 'getWhatsAppLogs' || action === 'sendWhatsApp' || action === 'sendWhatsAppOtp' || 
+                action === 'getWhatsAppStatus' || action === 'getWhatsAppConfig' || action === 'getWhatsAppLogs' || action === 'sendWhatsApp' || action === 'sendWhatsAppOtp' || 
                 action === 'disconnectWhatsApp'
             ) {
                 user = { id: 'system', role: 'super_admin', user_metadata: { institutionId: 'GLOBAL' } };
@@ -1880,6 +1880,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     created_at TIMESTAMPTZ DEFAULT NOW(),
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 );
+                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS allow_institution_failover BOOLEAN DEFAULT TRUE;
+                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS global_dispatch_enabled BOOLEAN DEFAULT TRUE;
+                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS meta_phone_number_id TEXT;
+                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS meta_access_token TEXT;
+                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS meta_waba_id TEXT;
+                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS is_connected BOOLEAN DEFAULT FALSE;
+                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS qr_code_data TEXT;
                 CREATE TABLE IF NOT EXISTS public.whatsapp_logs (
                     id TEXT PRIMARY KEY,
                     institution_id TEXT,
@@ -2065,6 +2072,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
+        if (action === 'getWhatsAppConfig') {
+            const institutionId = getParam('institutionId') || user?.institutionId || user?.user_metadata?.institutionId || 'global';
+            try {
+                const config = await loadWhatsAppConfigRecord(institutionId, false);
+                return res.status(200).json({ success: true, config: config || null });
+            } catch (err: any) {
+                console.warn('[API getWhatsAppConfig] warning:', err?.message || err);
+                return res.status(200).json({ success: false, config: null, message: err?.message || 'Failed to load config' });
+            }
+        }
+
         if (action === 'saveWhatsAppConfig') {
             const configPayload = req.body?.config || req.body?.data || req.body;
             const targetInstitutionId = configPayload?.institution_id || configPayload?.institutionId || 'global';
@@ -2097,42 +2115,81 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const pool = await getPgPool();
                 if (pool) {
                     await ensureWhatsAppTablesPg(pool);
-                    const upsertRes = await pool.query(
-                        `INSERT INTO public.whatsapp_configs (
-                            id, institution_id, provider_type, gateway_url, api_key, instance_name, phone_number,
-                            meta_phone_number_id, meta_access_token, meta_waba_id,
-                            auto_send_receipts, auto_send_fee_reminders, auto_send_academic_results,
-                            allow_institution_failover, global_dispatch_enabled, updated_at
-                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-                        ON CONFLICT (id) DO UPDATE SET
-                            institution_id = EXCLUDED.institution_id,
-                            provider_type = EXCLUDED.provider_type,
-                            gateway_url = EXCLUDED.gateway_url,
-                            api_key = EXCLUDED.api_key,
-                            instance_name = EXCLUDED.instance_name,
-                            phone_number = EXCLUDED.phone_number,
-                            meta_phone_number_id = EXCLUDED.meta_phone_number_id,
-                            meta_access_token = EXCLUDED.meta_access_token,
-                            meta_waba_id = EXCLUDED.meta_waba_id,
-                            auto_send_receipts = EXCLUDED.auto_send_receipts,
-                            auto_send_fee_reminders = EXCLUDED.auto_send_fee_reminders,
-                            auto_send_academic_results = EXCLUDED.auto_send_academic_results,
-                            allow_institution_failover = EXCLUDED.allow_institution_failover,
-                            global_dispatch_enabled = EXCLUDED.global_dispatch_enabled,
-                            updated_at = EXCLUDED.updated_at
-                        RETURNING *`,
-                        [
-                            cleanPayload.id, cleanPayload.institution_id, cleanPayload.provider_type,
-                            cleanPayload.gateway_url, cleanPayload.api_key, cleanPayload.instance_name, cleanPayload.phone_number,
-                            cleanPayload.meta_phone_number_id, cleanPayload.meta_access_token, cleanPayload.meta_waba_id,
-                            cleanPayload.auto_send_receipts, cleanPayload.auto_send_fee_reminders, cleanPayload.auto_send_academic_results,
-                            cleanPayload.allow_institution_failover, cleanPayload.global_dispatch_enabled, cleanPayload.updated_at
-                        ]
-                    );
+                    // Check if a row already exists for this institution_id (avoids UNIQUE(institution_id) vs PRIMARY KEY(id) conflicts)
+                    const existingRes = await pool.query(
+                        `SELECT id FROM public.whatsapp_configs WHERE institution_id = $1 ORDER BY updated_at DESC NULLS LAST LIMIT 1`,
+                        [cleanPayload.institution_id]
+                    ).catch(() => ({ rows: [] }));
+                    const existingId = existingRes.rows?.[0]?.id;
+
+                    let savedRow: any = null;
+                    if (existingId) {
+                        const updRes = await pool.query(
+                            `UPDATE public.whatsapp_configs SET
+                                provider_type = $1,
+                                gateway_url = $2,
+                                api_key = $3,
+                                instance_name = $4,
+                                phone_number = $5,
+                                meta_phone_number_id = $6,
+                                meta_access_token = $7,
+                                meta_waba_id = $8,
+                                auto_send_receipts = $9,
+                                auto_send_fee_reminders = $10,
+                                auto_send_academic_results = $11,
+                                allow_institution_failover = $12,
+                                global_dispatch_enabled = $13,
+                                updated_at = $14
+                             WHERE id = $15
+                             RETURNING *`,
+                            [
+                                cleanPayload.provider_type, cleanPayload.gateway_url, cleanPayload.api_key,
+                                cleanPayload.instance_name, cleanPayload.phone_number,
+                                cleanPayload.meta_phone_number_id, cleanPayload.meta_access_token, cleanPayload.meta_waba_id,
+                                cleanPayload.auto_send_receipts, cleanPayload.auto_send_fee_reminders, cleanPayload.auto_send_academic_results,
+                                cleanPayload.allow_institution_failover, cleanPayload.global_dispatch_enabled, cleanPayload.updated_at,
+                                existingId
+                            ]
+                        );
+                        savedRow = updRes.rows?.[0] || { ...cleanPayload, id: existingId };
+                    } else {
+                        const insRes = await pool.query(
+                            `INSERT INTO public.whatsapp_configs (
+                                id, institution_id, provider_type, gateway_url, api_key, instance_name, phone_number,
+                                meta_phone_number_id, meta_access_token, meta_waba_id,
+                                auto_send_receipts, auto_send_fee_reminders, auto_send_academic_results,
+                                allow_institution_failover, global_dispatch_enabled, updated_at
+                            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+                            ON CONFLICT (id) DO UPDATE SET
+                                provider_type = EXCLUDED.provider_type,
+                                gateway_url = EXCLUDED.gateway_url,
+                                api_key = EXCLUDED.api_key,
+                                instance_name = EXCLUDED.instance_name,
+                                phone_number = EXCLUDED.phone_number,
+                                meta_phone_number_id = EXCLUDED.meta_phone_number_id,
+                                meta_access_token = EXCLUDED.meta_access_token,
+                                meta_waba_id = EXCLUDED.meta_waba_id,
+                                auto_send_receipts = EXCLUDED.auto_send_receipts,
+                                auto_send_fee_reminders = EXCLUDED.auto_send_fee_reminders,
+                                auto_send_academic_results = EXCLUDED.auto_send_academic_results,
+                                allow_institution_failover = EXCLUDED.allow_institution_failover,
+                                global_dispatch_enabled = EXCLUDED.global_dispatch_enabled,
+                                updated_at = EXCLUDED.updated_at
+                            RETURNING *`,
+                            [
+                                cleanPayload.id, cleanPayload.institution_id, cleanPayload.provider_type,
+                                cleanPayload.gateway_url, cleanPayload.api_key, cleanPayload.instance_name, cleanPayload.phone_number,
+                                cleanPayload.meta_phone_number_id, cleanPayload.meta_access_token, cleanPayload.meta_waba_id,
+                                cleanPayload.auto_send_receipts, cleanPayload.auto_send_fee_reminders, cleanPayload.auto_send_academic_results,
+                                cleanPayload.allow_institution_failover, cleanPayload.global_dispatch_enabled, cleanPayload.updated_at
+                            ]
+                        );
+                        savedRow = insRes.rows?.[0] || cleanPayload;
+                    }
                     return res.status(200).json({
                         success: true,
                         message: 'WhatsApp configuration saved successfully',
-                        data: upsertRes.rows?.[0] || cleanPayload
+                        data: savedRow
                     });
                 }
 

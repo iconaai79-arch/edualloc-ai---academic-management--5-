@@ -177,6 +177,29 @@ export const whatsappService = {
     },
 
     /**
+     * Load saved WhatsApp configuration from server database (Direct PG / Supabase)
+     */
+    async getConfig(institutionId = 'global'): Promise<{ success: boolean; config: WhatsAppConfig | null; message?: string }> {
+        try {
+            const res = await apiService.post('/api/integrations', {
+                action: 'getWhatsAppConfig',
+                institutionId
+            });
+            return {
+                success: res?.success ?? true,
+                config: res?.config || null,
+                message: res?.message
+            };
+        } catch (error: any) {
+            return {
+                success: false,
+                config: null,
+                message: error?.message || 'Failed to load WhatsApp configuration'
+            };
+        }
+    },
+
+    /**
      * Save WhatsApp configuration to database via server API (using Service Role)
      */
     async saveConfig(config: Partial<WhatsAppConfig>): Promise<{ success: boolean; data?: any; message?: string }> {
