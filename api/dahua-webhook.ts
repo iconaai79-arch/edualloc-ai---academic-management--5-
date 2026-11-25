@@ -51,6 +51,7 @@ let _pgPool: any = null;
 let _directPgDisabledUntil = 0;
 let _forcePlaintextPg = false;
 let _fallbackDatabaseName: string | null = null;
+const _lastAutoSyncByKey = new Map<string, number>();
 
 const getPgPool = async () => {
     if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
@@ -403,6 +404,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             try {
                 const startDate = (req.query.startDate || req.query.start_date || '').toString().trim();
                 const endDate = (req.query.endDate || req.query.end_date || '').toString().trim();
+                const skipSync = String(req.query.skipSync || '').toLowerCase() === 'true';
+
+                // Automatically sync any unprocessed raw biometric punches for the requested range
+                // so Today's Roll Call and attendance reports show live logs without clicking "Sync Previous Logs"
+                if (!skipSync) {
+                    const syncKey = `${institutionId}|${startDate}|${endDate}`;
+                    const lastSync = _lastAutoSyncByKey.get(syncKey) || 0;
+                    if (Date.now() - lastSync > 10000) {
+                        _lastAutoSyncByKey.set(syncKey, Date.now());
+                        await reprocessHistoricalDahuaLogs({
+                            supabase,
+                            pool,
+                            institutionId,
+                            startDate: startDate || undefined,
+                            endDate: endDate || undefined,
+                        }).catch((syncErr: any) => {
+                            console.warn('[Dahua Webhook] Auto-sync before daily_records warning:', syncErr?.message || syncErr);
+                        });
+                    }
+                }
+
                 const result = await fetchDahuaDailyAttendance(supabase, pool, institutionId, { startDate, endDate });
                 return res.status(200).json(result);
             } catch (err: any) {

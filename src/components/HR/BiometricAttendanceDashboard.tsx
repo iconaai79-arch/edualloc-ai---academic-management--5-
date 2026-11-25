@@ -88,7 +88,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const [devices, setDevices] = useState<BiometricDevice[]>([]);
     const [enrollments, setEnrollments] = useState<BiometricEnrollment[]>([]);
     const [dailyRecords, setDailyRecords] = useState<StaffAttendanceDaily[]>([]);
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [selectedDate, setSelectedDate] = useState(() => new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10));
     const [selectedMonth, setSelectedMonth] = useState(() => {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
