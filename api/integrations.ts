@@ -1856,6 +1856,135 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // --- WHATSAPP GATEWAY & META CLOUD DISPATCHERS ---
+        const ensureWhatsAppTablesPg = async (pool: any) => {
+            if (!pool) return;
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS public.whatsapp_configs (
+                    id TEXT PRIMARY KEY,
+                    institution_id TEXT NOT NULL,
+                    provider_type TEXT DEFAULT 'gateway',
+                    gateway_url TEXT,
+                    api_key TEXT,
+                    instance_name TEXT,
+                    phone_number TEXT,
+                    is_connected BOOLEAN DEFAULT FALSE,
+                    qr_code_data TEXT,
+                    meta_phone_number_id TEXT,
+                    meta_access_token TEXT,
+                    meta_waba_id TEXT,
+                    auto_send_receipts BOOLEAN DEFAULT FALSE,
+                    auto_send_fee_reminders BOOLEAN DEFAULT FALSE,
+                    auto_send_academic_results BOOLEAN DEFAULT FALSE,
+                    allow_institution_failover BOOLEAN DEFAULT TRUE,
+                    global_dispatch_enabled BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                CREATE TABLE IF NOT EXISTS public.whatsapp_logs (
+                    id TEXT PRIMARY KEY,
+                    institution_id TEXT,
+                    recipient TEXT,
+                    recipient_name TEXT,
+                    message_type TEXT DEFAULT 'text',
+                    content TEXT,
+                    media_url TEXT,
+                    file_name TEXT,
+                    status TEXT DEFAULT 'sent',
+                    response_payload JSONB,
+                    error_message TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+            `).catch(() => {});
+        };
+
+        const loadWhatsAppConfigRecord = async (targetInstId: string, allowGlobalFallback = false): Promise<any | null> => {
+            const pool = await getPgPool();
+            if (pool) {
+                await ensureWhatsAppTablesPg(pool);
+                if (targetInstId === 'global' || targetInstId === 'SYSTEM') {
+                    const r = await pool.query(
+                        `SELECT * FROM public.whatsapp_configs WHERE institution_id IN ('global','SYSTEM') ORDER BY updated_at DESC NULLS LAST LIMIT 1`
+                    ).catch(() => ({ rows: [] }));
+                    return r.rows?.[0] || null;
+                }
+                const r = await pool.query(
+                    `SELECT * FROM public.whatsapp_configs WHERE institution_id = $1 ORDER BY updated_at DESC NULLS LAST LIMIT 1`,
+                    [targetInstId]
+                ).catch(() => ({ rows: [] }));
+                let cfg = r.rows?.[0] || null;
+                if (allowGlobalFallback && (!cfg || (!cfg.gateway_url && !cfg.meta_access_token))) {
+                    const g = await pool.query(
+                        `SELECT * FROM public.whatsapp_configs WHERE institution_id IN ('global','SYSTEM') ORDER BY updated_at DESC NULLS LAST LIMIT 1`
+                    ).catch(() => ({ rows: [] }));
+                    const gCfg = g.rows?.[0] || null;
+                    if (gCfg && (gCfg.allow_institution_failover ?? true)) cfg = gCfg;
+                }
+                return cfg;
+            }
+            if (supabase) {
+                if (targetInstId === 'global' || targetInstId === 'SYSTEM') {
+                    const { data } = await supabase
+                        .from('whatsapp_configs')
+                        .select('*')
+                        .or('institution_id.eq.global,institution_id.eq.SYSTEM')
+                        .order('updated_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    return data || null;
+                }
+                const { data } = await supabase
+                    .from('whatsapp_configs')
+                    .select('*')
+                    .eq('institution_id', targetInstId)
+                    .maybeSingle();
+                let cfg = data || null;
+                if (allowGlobalFallback && (!cfg || (!cfg.gateway_url && !cfg.meta_access_token))) {
+                    const { data: gCfg } = await supabase
+                        .from('whatsapp_configs')
+                        .select('*')
+                        .or('institution_id.eq.global,institution_id.eq.SYSTEM')
+                        .order('updated_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    if (gCfg && (gCfg.allow_institution_failover ?? true)) cfg = gCfg;
+                }
+                return cfg;
+            }
+            return null;
+        };
+
+        const insertWhatsAppLogRecord = async (logRow: any) => {
+            try {
+                const pool = await getPgPool();
+                if (pool) {
+                    await ensureWhatsAppTablesPg(pool);
+                    await pool.query(
+                        `INSERT INTO public.whatsapp_logs (id, institution_id, recipient, recipient_name, message_type, content, media_url, file_name, status, response_payload, error_message, created_at)
+                         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12)
+                         ON CONFLICT (id) DO NOTHING`,
+                        [
+                            logRow.id,
+                            logRow.institution_id || 'global',
+                            logRow.recipient || '',
+                            logRow.recipient_name || null,
+                            logRow.message_type || 'text',
+                            logRow.content || '',
+                            logRow.media_url || null,
+                            logRow.file_name || null,
+                            logRow.status || 'sent',
+                            JSON.stringify(logRow.response_payload || null),
+                            logRow.error_message || null,
+                            logRow.created_at || new Date().toISOString()
+                        ]
+                    );
+                    return;
+                }
+                if (supabase) {
+                    await supabase.from('whatsapp_logs').insert(logRow);
+                }
+            } catch (_) {}
+        };
+
         if (action === 'provisionWhatsAppInstance') {
             const institutionId = getParam('institutionId') || 'global';
             const gatewayUrl = (getParam('gatewayUrl') || '').trim().replace(/\/$/, '');
@@ -1965,6 +2094,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
 
             try {
+                const pool = await getPgPool();
+                if (pool) {
+                    await ensureWhatsAppTablesPg(pool);
+                    const upsertRes = await pool.query(
+                        `INSERT INTO public.whatsapp_configs (
+                            id, institution_id, provider_type, gateway_url, api_key, instance_name, phone_number,
+                            meta_phone_number_id, meta_access_token, meta_waba_id,
+                            auto_send_receipts, auto_send_fee_reminders, auto_send_academic_results,
+                            allow_institution_failover, global_dispatch_enabled, updated_at
+                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+                        ON CONFLICT (id) DO UPDATE SET
+                            institution_id = EXCLUDED.institution_id,
+                            provider_type = EXCLUDED.provider_type,
+                            gateway_url = EXCLUDED.gateway_url,
+                            api_key = EXCLUDED.api_key,
+                            instance_name = EXCLUDED.instance_name,
+                            phone_number = EXCLUDED.phone_number,
+                            meta_phone_number_id = EXCLUDED.meta_phone_number_id,
+                            meta_access_token = EXCLUDED.meta_access_token,
+                            meta_waba_id = EXCLUDED.meta_waba_id,
+                            auto_send_receipts = EXCLUDED.auto_send_receipts,
+                            auto_send_fee_reminders = EXCLUDED.auto_send_fee_reminders,
+                            auto_send_academic_results = EXCLUDED.auto_send_academic_results,
+                            allow_institution_failover = EXCLUDED.allow_institution_failover,
+                            global_dispatch_enabled = EXCLUDED.global_dispatch_enabled,
+                            updated_at = EXCLUDED.updated_at
+                        RETURNING *`,
+                        [
+                            cleanPayload.id, cleanPayload.institution_id, cleanPayload.provider_type,
+                            cleanPayload.gateway_url, cleanPayload.api_key, cleanPayload.instance_name, cleanPayload.phone_number,
+                            cleanPayload.meta_phone_number_id, cleanPayload.meta_access_token, cleanPayload.meta_waba_id,
+                            cleanPayload.auto_send_receipts, cleanPayload.auto_send_fee_reminders, cleanPayload.auto_send_academic_results,
+                            cleanPayload.allow_institution_failover, cleanPayload.global_dispatch_enabled, cleanPayload.updated_at
+                        ]
+                    );
+                    return res.status(200).json({
+                        success: true,
+                        message: 'WhatsApp configuration saved successfully',
+                        data: upsertRes.rows?.[0] || cleanPayload
+                    });
+                }
+
+                if (!supabase) {
+                    return res.status(200).json({
+                        success: false,
+                        message: 'Database not configured (neither PostgreSQL nor Supabase available)',
+                        payload: cleanPayload
+                    });
+                }
+
                 // Upsert into whatsapp_configs using service-role supabase client
                 const { data: savedData, error: dbErr } = await supabase
                     .from('whatsapp_configs')
@@ -1998,31 +2177,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'getWhatsAppStatus') {
             const institutionId = getParam('institutionId') || user?.institutionId || user?.user_metadata?.institutionId || 'global';
-
-            let config: any = null;
-            try {
-                if (supabase) {
-                    if (institutionId === 'global' || institutionId === 'SYSTEM') {
-                        const { data } = await supabase
-                            .from('whatsapp_configs')
-                            .select('*')
-                            .or('institution_id.eq.global,institution_id.eq.SYSTEM')
-                            .order('updated_at', { ascending: false })
-                            .limit(1)
-                            .maybeSingle();
-                        config = data || null;
-                    } else {
-                        const { data } = await supabase
-                            .from('whatsapp_configs')
-                            .select('*')
-                            .eq('institution_id', institutionId)
-                            .maybeSingle();
-                        config = data || null;
-                    }
-                }
-            } catch (dbLookupErr: any) {
-                console.warn('[WhatsApp Status] DB lookup warning:', dbLookupErr?.message || dbLookupErr);
-            }
+            const pool = await getPgPool();
+            const config = await loadWhatsAppConfigRecord(institutionId, false);
 
             // 1. Meta Cloud API Mode (Zero-server, no QR needed — verify directly with Meta Graph API)
             const metaToken = String(config?.meta_access_token || process.env.META_WA_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || '').trim();
@@ -2049,7 +2205,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const metaData: any = await metaRes.json().catch(() => ({}));
                     if (metaRes.ok && (metaData?.id || metaData?.display_phone_number)) {
                         const displayPhone = metaData.display_phone_number || config?.phone_number || metaPhoneId;
-                        if (supabase && config?.id) {
+                        if (pool && config?.id) {
+                            await pool.query(
+                                `UPDATE public.whatsapp_configs SET is_connected = TRUE, phone_number = $1, updated_at = NOW() WHERE id = $2`,
+                                [displayPhone, config.id]
+                            ).catch(() => {});
+                        } else if (supabase && config?.id) {
                             await supabase
                                 .from('whatsapp_configs')
                                 .update({ is_connected: true, phone_number: displayPhone, updated_at: new Date().toISOString() })
@@ -2131,7 +2292,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                         }
 
-                        if (supabase) {
+                        if (pool) {
+                            await pool.query(
+                                `UPDATE public.whatsapp_configs SET is_connected = $1, qr_code_data = $2, updated_at = NOW() WHERE institution_id = $3`,
+                                [isConnected, qrCode || null, config.institution_id || institutionId]
+                            ).catch(() => {});
+                        } else if (supabase) {
                             await supabase
                                 .from('whatsapp_configs')
                                 .update({ is_connected: isConnected, qr_code_data: qrCode, updated_at: new Date().toISOString() })
@@ -2185,28 +2351,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (cleanPhone.length < 9) return { sent: false, error: 'Invalid phone number' };
 
             const instKey = targetInstId && targetInstId !== 'SYSTEM' && targetInstId !== 'GLOBAL' ? targetInstId : 'global';
-            let config: any = null;
-            try {
-                const { data: instCfg } = await supabase
-                    .from('whatsapp_configs')
-                    .select('*')
-                    .eq('institution_id', instKey)
-                    .maybeSingle();
-                config = instCfg || null;
-
-                if ((!config || (!config.gateway_url && !config.meta_access_token)) && instKey !== 'global') {
-                    const { data: globalCfg } = await supabase
-                        .from('whatsapp_configs')
-                        .select('*')
-                        .or('institution_id.eq.global,institution_id.eq.SYSTEM')
-                        .order('updated_at', { ascending: false })
-                        .limit(1)
-                        .maybeSingle();
-                    if (globalCfg && (globalCfg.allow_institution_failover ?? true)) {
-                        config = globalCfg;
-                    }
-                }
-            } catch (_) {}
+            const config: any = await loadWhatsAppConfigRecord(instKey, true);
 
             const envMetaToken = process.env.META_WA_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || '';
             const envMetaPhoneId = process.env.META_WA_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID || '';
@@ -2297,18 +2442,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 error = e?.message || String(e);
             }
 
-            try {
-                await supabase.from('whatsapp_logs').insert({
-                    id: `waotp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-                    institution_id: instKey,
-                    recipient: cleanPhone,
-                    message_type: 'otp',
-                    content: '[OTP Verification Code]',
-                    status: sent ? 'sent' : 'failed',
-                    error_message: sent ? null : (error || null),
-                    created_at: new Date().toISOString()
-                });
-            } catch (_) {}
+            await insertWhatsAppLogRecord({
+                id: `waotp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                institution_id: instKey,
+                recipient: cleanPhone,
+                message_type: 'otp',
+                content: '[OTP Verification Code]',
+                status: sent ? 'sent' : 'failed',
+                error_message: sent ? null : (error || null),
+                created_at: new Date().toISOString()
+            });
 
             return { sent, provider, ...(error && !sent ? { error } : {}) };
         };
@@ -2345,25 +2488,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 cleanPhone = '254' + cleanPhone;
             }
 
-            let { data: config } = await supabase
-                .from('whatsapp_configs')
-                .select('*')
-                .eq('institution_id', requestedInstId)
-                .maybeSingle();
-
-            // Institutional fallback to Super Admin Global Gateway if institution has no gateway URL
-            if ((!config || (!config.gateway_url && !config.meta_access_token)) && requestedInstId !== 'global') {
-                const { data: globalConfig } = await supabase
-                    .from('whatsapp_configs')
-                    .select('*')
-                    .or('institution_id.eq.global,institution_id.eq.SYSTEM')
-                    .order('updated_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
-                if (globalConfig && (globalConfig.allow_institution_failover ?? true)) {
-                    config = globalConfig;
-                }
-            }
+            const config = await loadWhatsAppConfigRecord(requestedInstId, true);
 
             let sendSuccess = false;
             let responsePayload: any = {};
@@ -2456,23 +2581,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.error('[WhatsApp Gateway Error]:', err);
             }
 
-            try {
-                await supabase.from('whatsapp_logs').insert({
-                    id: `walog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                    institution_id: requestedInstId || 'global',
-                    recipient: cleanPhone,
-                    recipient_name: recipientName || null,
-                    message_type: messageType,
-                    content: message,
-                    media_url: mediaUrl || null,
-                    file_name: fileName || null,
-                    status: sendSuccess ? 'sent' : 'failed',
-                    response_payload: responsePayload,
-                    error_message: errorMessage || null
-                });
-            } catch {
-                // Ignore background log insert failure
-            }
+            await insertWhatsAppLogRecord({
+                id: `walog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                institution_id: requestedInstId || 'global',
+                recipient: cleanPhone,
+                recipient_name: recipientName || null,
+                message_type: messageType,
+                content: message,
+                media_url: mediaUrl || null,
+                file_name: fileName || null,
+                status: sendSuccess ? 'sent' : 'failed',
+                response_payload: responsePayload,
+                error_message: errorMessage || null
+            });
 
             return res.status(200).json({
                 success: sendSuccess,
@@ -2485,30 +2606,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (action === 'getWhatsAppLogs') {
             const institutionId = getParam('institutionId') || user?.institutionId || user?.user_metadata?.institutionId;
             const limit = Math.min(Number(getParam('limit')) || 50, 100);
-            
-            let query = supabase
-                .from('whatsapp_logs')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(limit);
 
-            if (institutionId && institutionId !== 'global' && institutionId !== 'all') {
-                query = query.eq('institution_id', institutionId);
-            }
+            try {
+                const pool = await getPgPool();
+                if (pool) {
+                    await ensureWhatsAppTablesPg(pool);
+                    const filterByInst = institutionId && institutionId !== 'global' && institutionId !== 'all';
+                    const qRes = filterByInst
+                        ? await pool.query(`SELECT * FROM public.whatsapp_logs WHERE institution_id = $1 ORDER BY created_at DESC LIMIT $2`, [institutionId, limit])
+                        : await pool.query(`SELECT * FROM public.whatsapp_logs ORDER BY created_at DESC LIMIT $1`, [limit]);
+                    return res.status(200).json({ success: true, logs: qRes.rows || [] });
+                }
 
-            const { data: logs, error: logsErr } = await query;
-            if (logsErr) {
-                return res.status(500).json({ success: false, message: logsErr.message });
+                if (supabase) {
+                    let query = supabase
+                        .from('whatsapp_logs')
+                        .select('*')
+                        .order('created_at', { ascending: false })
+                        .limit(limit);
+
+                    if (institutionId && institutionId !== 'global' && institutionId !== 'all') {
+                        query = query.eq('institution_id', institutionId);
+                    }
+
+                    const { data: logs, error: logsErr } = await query;
+                    if (logsErr) {
+                        console.warn('[WhatsApp Logs] Supabase query warning:', logsErr.message);
+                        return res.status(200).json({ success: true, logs: [] });
+                    }
+                    return res.status(200).json({ success: true, logs: logs || [] });
+                }
+
+                return res.status(200).json({ success: true, logs: [] });
+            } catch (logErr: any) {
+                console.warn('[WhatsApp Logs] Query warning:', logErr?.message || logErr);
+                return res.status(200).json({ success: true, logs: [] });
             }
-            return res.status(200).json({ success: true, logs: logs || [] });
         }
 
         if (action === 'disconnectWhatsApp') {
             const institutionId = getParam('institutionId') || user?.institutionId || user?.user_metadata?.institutionId || 'global';
-            await supabase
-                .from('whatsapp_configs')
-                .update({ is_connected: false, qr_code_data: null, updated_at: new Date().toISOString() })
-                .eq('institution_id', institutionId);
+            try {
+                const pool = await getPgPool();
+                if (pool) {
+                    await ensureWhatsAppTablesPg(pool);
+                    await pool.query(
+                        `UPDATE public.whatsapp_configs SET is_connected = FALSE, qr_code_data = NULL, updated_at = NOW() WHERE institution_id = $1`,
+                        [institutionId]
+                    );
+                } else if (supabase) {
+                    await supabase
+                        .from('whatsapp_configs')
+                        .update({ is_connected: false, qr_code_data: null, updated_at: new Date().toISOString() })
+                        .eq('institution_id', institutionId);
+                }
+            } catch (discErr: any) {
+                console.warn('[WhatsApp Disconnect] warning:', discErr?.message || discErr);
+            }
             return res.status(200).json({ success: true, message: 'WhatsApp session disconnected' });
         }
 
