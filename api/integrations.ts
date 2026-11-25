@@ -2370,107 +2370,86 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let errorMessage = '';
 
             try {
-                const rawGatewayUrl = (config?.gateway_url || '').trim();
-                const isPlaceholderGateway = rawGatewayUrl.includes('wa.eduai.platform') || rawGatewayUrl.includes('example.com');
+                const rawGatewayUrl = String(config?.gateway_url || process.env.EVOLUTION_API_URL || '').trim();
+                const isPlaceholderGateway = !rawGatewayUrl || rawGatewayUrl.includes('wa.eduai.platform') || rawGatewayUrl.includes('example.com') || rawGatewayUrl.includes('whatsapp-webhook');
+                const gwApiKey = String(config?.api_key || process.env.EVOLUTION_API_KEY || '').trim();
+                const hasEvolution = !isPlaceholderGateway && Boolean(gwApiKey);
 
-                if (config && config.provider_type === 'gateway' && rawGatewayUrl && !isPlaceholderGateway) {
-                    const instName = config.instance_name || (config.institution_id === 'global' ? 'eduai_master' : `eduai_${(config.institution_id || requestedInstId).replace(/[^a-zA-Z0-9]/g, '_')}`);
-                    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                    if (config.api_key) headers['apikey'] = config.api_key;
+                const metaToken = String(config?.meta_access_token || process.env.META_WA_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || '').trim();
+                const metaPhoneId = String(config?.meta_phone_number_id || process.env.META_WA_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim();
+                const hasMeta = Boolean(metaToken && metaPhoneId);
+
+                const tryEvolutionSend = async (): Promise<{ ok: boolean; payload: any; error: string }> => {
+                    const instName = config?.instance_name || (config?.institution_id === 'global' ? 'eduai_master' : `eduai_${(config?.institution_id || requestedInstId).replace(/[^a-zA-Z0-9]/g, '_')}`);
+                    const headers: Record<string, string> = { 'Content-Type': 'application/json', apikey: gwApiKey };
                     const gatewayBase = rawGatewayUrl.replace(/\/$/, '');
-                    
-                    if (mediaUrl) {
-                        const docPayload = {
-                            number: cleanPhone,
-                            mediatype: 'document',
-                            mimetype: 'application/pdf',
-                            caption: message,
-                            media: mediaUrl,
-                            fileName: fileName || 'Document.pdf'
-                        };
-                        const sendRes = await fetch(`${gatewayBase}/message/sendMedia/${instName}`, {
-                            method: 'POST',
-                            headers,
-                            body: JSON.stringify(docPayload)
-                        });
-                        responsePayload = await sendRes.json().catch(() => ({ status: sendRes.status }));
-                        sendSuccess = sendRes.ok;
-                        if (!sendRes.ok) {
-                            const raw = responsePayload?.response?.message || 
-                                        responsePayload?.message || 
-                                        responsePayload?.error?.message || 
-                                        (typeof responsePayload?.error === 'string' ? responsePayload.error : null) || 
-                                        (sendRes.status === 404 ? `Instance "${instName}" not found on Gateway server. Please provision or create it in Settings.` : null) ||
-                                        (sendRes.status === 400 ? `WhatsApp session "${instName}" is not connected or phone is un-paired. Please scan the QR code first.` : null) ||
-                                        `Gateway returned HTTP ${sendRes.status}`;
-                            errorMessage = Array.isArray(raw) ? raw.join(', ') : String(raw);
-                        }
-                    } else {
-                        const textPayload = {
-                            number: cleanPhone,
-                            text: message
-                        };
-                        const sendRes = await fetch(`${gatewayBase}/message/sendText/${instName}`, {
-                            method: 'POST',
-                            headers,
-                            body: JSON.stringify(textPayload)
-                        });
-                        responsePayload = await sendRes.json().catch(() => ({ status: sendRes.status }));
-                        sendSuccess = sendRes.ok;
-                        if (!sendRes.ok) {
-                            const raw = responsePayload?.response?.message || 
-                                        responsePayload?.message || 
-                                        responsePayload?.error?.message || 
-                                        (typeof responsePayload?.error === 'string' ? responsePayload.error : null) || 
-                                        (sendRes.status === 404 ? `Instance "${instName}" not found on Gateway server. Please provision or create it in Settings.` : null) ||
-                                        (sendRes.status === 400 ? `WhatsApp session "${instName}" is not connected or phone is un-paired. Please scan the QR code first.` : null) ||
-                                        `Gateway returned HTTP ${sendRes.status}`;
-                            errorMessage = Array.isArray(raw) ? raw.join(', ') : String(raw);
-                        }
-                    }
-                } else if (config && config.provider_type === 'gateway' && isPlaceholderGateway) {
-                    sendSuccess = false;
-                    errorMessage = 'Gateway URL is set to placeholder (wa.eduai.platform). Enter your live Evolution API server address or switch to Meta Cloud API in Settings.';
-                    responsePayload = { error: errorMessage };
-                } else if (config && config.provider_type === 'meta_cloud' && config.meta_access_token && config.meta_phone_number_id) {
-                    const metaRes = await fetch(`https://graph.facebook.com/v19.0/${config.meta_phone_number_id}/messages`, {
+                    const url = mediaUrl ? `${gatewayBase}/message/sendMedia/${instName}` : `${gatewayBase}/message/sendText/${instName}`;
+                    const bodyObj = mediaUrl
+                        ? { number: cleanPhone, mediatype: 'document', mimetype: 'application/pdf', caption: message, media: mediaUrl, fileName: fileName || 'Document.pdf' }
+                        : { number: cleanPhone, text: message };
+                    const sendRes = await fetch(url, { method: 'POST', headers, body: JSON.stringify(bodyObj), signal: AbortSignal.timeout(10000) });
+                    const payload = await sendRes.json().catch(() => ({ status: sendRes.status }));
+                    if (sendRes.ok) return { ok: true, payload, error: '' };
+                    const raw = payload?.response?.message || payload?.message || payload?.error?.message ||
+                        (typeof payload?.error === 'string' ? payload.error : null) ||
+                        (sendRes.status === 404 ? `Instance "${instName}" not found on Gateway server. Please provision or create it in Settings.` : null) ||
+                        (sendRes.status === 400 ? `WhatsApp session "${instName}" is not connected or phone is un-paired. Please scan the QR code first.` : null) ||
+                        `Gateway returned HTTP ${sendRes.status}`;
+                    return { ok: false, payload, error: Array.isArray(raw) ? raw.join(', ') : String(raw) };
+                };
+
+                const tryMetaSend = async (): Promise<{ ok: boolean; payload: any; error: string }> => {
+                    const metaRes = await fetch(`https://graph.facebook.com/v19.0/${metaPhoneId}/messages`, {
                         method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${config.meta_access_token}`,
-                            'Content-Type': 'application/json'
-                        },
+                        headers: { 'Authorization': `Bearer ${metaToken}`, 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             messaging_product: 'whatsapp',
                             to: cleanPhone,
                             type: 'text',
                             text: { body: message }
-                        })
+                        }),
+                        signal: AbortSignal.timeout(10000)
                     });
-                    responsePayload = await metaRes.json().catch(() => ({ status: metaRes.status }));
-                    sendSuccess = metaRes.ok;
-                    if (!metaRes.ok) {
-                        const metaErr = responsePayload?.error;
-                        if (metaErr) {
-                            let msg = metaErr.message || `Meta Cloud API error (${metaErr.code || metaRes.status})`;
-                            if (metaErr.code === 131030) {
-                                msg += ' — Sandbox mode: Ensure this recipient number (+254...) is added to the allowed "To" phone numbers in Meta Developer Portal.';
-                            } else if (metaErr.code === 190) {
-                                msg += ' — Meta Access Token is expired or invalid. Please generate a fresh System User Token in Meta Developer Portal.';
-                            } else if (metaErr.code === 133010) {
-                                msg = 'Meta Account Not Registered (#133010): This business phone number has not completed verification on Meta. In Meta Developer / Business Suite, verify the phone number via 6-digit SMS OTP and set a PIN, or select Meta\'s sandbox test number (+1 555...).';
-                            }
-                            errorMessage = msg;
-                        } else {
-                            errorMessage = responsePayload?.message || `Meta Cloud API returned HTTP ${metaRes.status}`;
-                        }
+                    const payload = await metaRes.json().catch(() => ({ status: metaRes.status }));
+                    if (metaRes.ok) return { ok: true, payload, error: '' };
+                    const metaErr = payload?.error;
+                    let msg = metaErr?.message || payload?.message || `Meta Cloud API returned HTTP ${metaRes.status}`;
+                    if (metaErr?.code === 131030) {
+                        msg += ' — Sandbox mode: Ensure this recipient number (+254...) is added to the allowed "To" phone numbers in Meta Developer Portal.';
+                    } else if (metaErr?.code === 190) {
+                        msg += ' — Meta Access Token is expired or invalid. Please generate a fresh System User Token in Meta Developer Portal.';
+                    } else if (metaErr?.code === 133010) {
+                        msg = 'Meta Account Not Registered (#133010): Verify the business phone number via SMS OTP and PIN in Meta Business Suite, or use Meta\'s test number.';
                     }
-                } else if (config && config.provider_type === 'meta_cloud') {
-                    sendSuccess = false;
-                    errorMessage = 'Meta Cloud API is selected, but Meta Access Token or Phone Number ID is missing in Settings.';
-                    responsePayload = { error: errorMessage };
-                } else {
-                    sendSuccess = true;
-                    responsePayload = { simulated: true, note: 'WhatsApp message queued. Connect a Gateway or Meta Cloud API in Settings to dispatch directly to handset.' };
+                    return { ok: false, payload, error: msg };
+                };
+
+                // Dual-engine dispatch with automatic failover between Evolution/Baileys and Meta Cloud API
+                const primaryIsMeta = config?.provider_type === 'meta_cloud' || (!hasEvolution && hasMeta);
+                const order: Array<'meta' | 'evolution'> = primaryIsMeta ? ['meta', 'evolution'] : ['evolution', 'meta'];
+
+                const errors: string[] = [];
+                for (const engine of order) {
+                    if (engine === 'evolution' && hasEvolution) {
+                        const r = await tryEvolutionSend().catch((e: any) => ({ ok: false, payload: {}, error: e?.message || 'Evolution network error' }));
+                        responsePayload = r.payload;
+                        if (r.ok) { sendSuccess = true; break; }
+                        errors.push(`Evolution: ${r.error}`);
+                    } else if (engine === 'meta' && hasMeta) {
+                        const r = await tryMetaSend().catch((e: any) => ({ ok: false, payload: {}, error: e?.message || 'Meta network error' }));
+                        responsePayload = r.payload;
+                        if (r.ok) { sendSuccess = true; break; }
+                        errors.push(`Meta Cloud: ${r.error}`);
+                    }
+                }
+
+                if (!sendSuccess) {
+                    errorMessage = errors.length > 0
+                        ? errors.join(' | ')
+                        : 'No active WhatsApp provider configured. Configure Meta Cloud API (Phone Number ID + Access Token) or an Evolution API server URL + API Key in Super Admin → WhatsApp Gateway.';
+                    if (!responsePayload || Object.keys(responsePayload).length === 0) {
+                        responsePayload = { error: errorMessage };
+                    }
                 }
             } catch (err: any) {
                 errorMessage = err.message ? `Connection error: ${err.message}` : 'Gateway network error';
