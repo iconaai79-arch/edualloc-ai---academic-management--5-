@@ -2408,15 +2408,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [openingBalancePerPage, setOpeningBalancePerPage] = useState<number | 'All'>(25);
 
     useEffect(() => {
-        const handler = setTimeout(() => {
-            setOpeningBalanceSearch(openingBalanceSearchInput);
-        }, 150);
-        return () => clearTimeout(handler);
+        setOpeningBalanceSearch(openingBalanceSearchInput);
+        setOpeningBalancePage(1);
     }, [openingBalanceSearchInput]);
 
     useEffect(() => {
         setOpeningBalancePage(1);
-    }, [openingBalanceSearch, openingBalanceClassFilter, openingBalanceStatusFilter]);
+    }, [openingBalanceClassFilter, openingBalanceStatusFilter]);
 
     const modifiedOpeningBalancesRef = useRef<Set<string>>(new Set());
     const [unsavedOpeningBalancesCount, setUnsavedOpeningBalancesCount] = useState<number>(0);
@@ -5528,29 +5526,51 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [studentListForOpeningBalances, studentClassGroup]);
 
     const filteredOpeningBalanceStudents = useMemo(() => {
-        const q = (openingBalanceSearch || '').trim().toLowerCase();
-        return studentListForOpeningBalances.filter((student: any) => {
+        const q = (openingBalanceSearchInput || '').trim().toLowerCase();
+        const isNumericQuery = /^\d+$/.test(q);
+        const qNum = isNumericQuery ? (q.replace(/^0+/, '') || '0') : '';
+
+        const getMatchRank = (sAdm: string, sName: string): number => {
+            if (!q) return 0;
+            const admTrim = sAdm.trim();
+            if (admTrim) {
+                if (admTrim === q) return 0;
+                if (isNumericQuery && /^\d+$/.test(admTrim) && (admTrim.replace(/^0+/, '') || '0') === qNum) return 0;
+                const tokens = admTrim.split(/[\s\-\/]+/).filter(Boolean);
+                const lastTok = tokens[tokens.length - 1] || '';
+                if (lastTok === q || (isNumericQuery && /^\d+$/.test(lastTok) && (lastTok.replace(/^0+/, '') || '0') === qNum)) return 1;
+                if (admTrim.startsWith(q)) return 2;
+                if (admTrim.includes(q)) return 3;
+            }
+            if (sName.startsWith(q)) return 4;
+            if (sName.includes(q)) return 5;
+            return 99;
+        };
+
+        const matched: Array<{ student: any; rank: number }> = [];
+        for (const student of studentListForOpeningBalances) {
             const sName = (student.name || '').toLowerCase();
-            const sAdm = (student.admissionNumber || student.admission_number || getStudentAdmNumber(student) || '').toLowerCase();
-            const matchesSearch = !q || sName.includes(q) || sAdm.includes(q);
-            if (!matchesSearch) return false;
+            const sAdm = String(student.admissionNumber || student.admission_number || getStudentAdmNumber(student) || '').trim().toLowerCase();
+            const rank = getMatchRank(sAdm, sName);
+            if (q && rank === 99) continue;
 
             const cls = student.className || studentClassGroup(student);
             const matchesClass = openingBalanceClassFilter === 'All' || (cls && cls.toLowerCase() === openingBalanceClassFilter.toLowerCase());
-            if (!matchesClass) return false;
+            if (!matchesClass) continue;
 
             const currentOb = openingBalancesMap[student.id] !== undefined ? openingBalancesMap[student.id] : extractStudentOpeningBalance(student);
-            if (openingBalanceStatusFilter === 'has_balance') {
-                return currentOb > 0;
-            } else if (openingBalanceStatusFilter === 'zero_balance') {
-                return currentOb === 0;
-            } else if (openingBalanceStatusFilter === 'prepayment') {
-                return currentOb < 0;
-            }
+            if (openingBalanceStatusFilter === 'has_balance' && !(currentOb > 0)) continue;
+            if (openingBalanceStatusFilter === 'zero_balance' && !(currentOb === 0)) continue;
+            if (openingBalanceStatusFilter === 'prepayment' && !(currentOb < 0)) continue;
 
-            return true;
-        });
-    }, [studentListForOpeningBalances, openingBalanceSearch, openingBalanceClassFilter, openingBalanceStatusFilter, openingBalancesMap, extractStudentOpeningBalance, getStudentAdmNumber, studentClassGroup]);
+            matched.push({ student, rank });
+        }
+
+        if (q) {
+            matched.sort((a, b) => a.rank - b.rank);
+        }
+        return matched.map(m => m.student);
+    }, [studentListForOpeningBalances, openingBalanceSearchInput, openingBalanceClassFilter, openingBalanceStatusFilter, openingBalancesMap, extractStudentOpeningBalance, getStudentAdmNumber, studentClassGroup]);
 
     const paginatedOpeningBalanceStudents = useMemo(() => {
         if (openingBalancePerPage === 'All') return filteredOpeningBalanceStudents;

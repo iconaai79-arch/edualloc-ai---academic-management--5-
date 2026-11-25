@@ -5803,51 +5803,87 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
     const filteredEnrollments = useMemo(() => {
         const search = searchTerm.trim().toLowerCase();
+        const isNumericQuery = /^\d+$/.test(search);
+        const searchNum = isNumericQuery ? (search.replace(/^0+/, '') || '0') : '';
         const normFilterGrade = gradeFilter ? getNormalizedGradeKey(gradeFilter) : '';
         const lowerFilterGrade = gradeFilter ? gradeFilter.trim().toLowerCase() : '';
         const lowerStreamFilter = streamFilter ? streamFilter.trim().toLowerCase() : '';
 
-        return enrollments.filter(enr => {
+        const getAdmMatchRank = (admCandidates: string[], sNameLower: string, assessmentLower: string, phone: string): number => {
+            if (!search) return 0;
+            let best = 99;
+            for (const rawAdm of admCandidates) {
+                const adm = (rawAdm || '').trim().toLowerCase();
+                if (!adm) continue;
+                if (adm === search) return 0;
+                if (isNumericQuery && /^\d+$/.test(adm) && (adm.replace(/^0+/, '') || '0') === searchNum) return 0;
+                const tokens = adm.split(/[\s\-\/]+/).filter(Boolean);
+                const lastTok = tokens[tokens.length - 1] || '';
+                if (lastTok === search || (isNumericQuery && /^\d+$/.test(lastTok) && (lastTok.replace(/^0+/, '') || '0') === searchNum)) {
+                    best = Math.min(best, 1);
+                } else if (adm.startsWith(search)) {
+                    best = Math.min(best, 2);
+                } else if (adm.includes(search)) {
+                    best = Math.min(best, 3);
+                }
+            }
+            if (best < 99) return best;
+            if (sNameLower.startsWith(search)) return 4;
+            if (sNameLower.includes(search)) return 5;
+            if (assessmentLower && assessmentLower.includes(search)) return 6;
+            if (phone && phone.includes(search)) return 7;
+            return 99;
+        };
+
+        const matched: Array<{ enr: StudentEnrollment; rank: number }> = [];
+        for (const enr of enrollments) {
             if (statusFilter !== 'All' && enr.status !== statusFilter) {
-                return false;
+                continue;
             }
 
             const associatedUser = findStudentUser(enr);
             const admNo = getEnrollmentAdmNo(enr, associatedUser);
-            
+            let rank = 0;
+
             if (search) {
-                const assessmentNo = enr.metadata?.assessmentNo || enr.metadata?.assessmentNumber || associatedUser?.metadata?.assessmentNo || associatedUser?.metadata?.assessmentNumber || (enr as any).assessmentNo || (associatedUser as any)?.assessmentNo || '';
-                const sName = associatedUser?.name || (enr as any).name || (enr as any).studentName || enr.metadata?.studentName || enr.metadata?.fullName || '';
-                const matchesSearch = 
-                    sName.toLowerCase().includes(search) ||
-                    admNo.toLowerCase().includes(search) ||
-                    (enr.admissionNumber || '').toLowerCase().includes(search) ||
-                    (assessmentNo || '').toLowerCase().includes(search) ||
-                    (associatedUser?.phoneNumber || '').includes(search);
-                if (!matchesSearch) return false;
+                const assessmentNo = String(enr.metadata?.assessmentNo || enr.metadata?.assessmentNumber || associatedUser?.metadata?.assessmentNo || associatedUser?.metadata?.assessmentNumber || (enr as any).assessmentNo || (associatedUser as any)?.assessmentNo || '').toLowerCase();
+                const sName = String(associatedUser?.name || (enr as any).name || (enr as any).studentName || enr.metadata?.studentName || enr.metadata?.fullName || '').toLowerCase();
+                const phone = String(associatedUser?.phoneNumber || '');
+                rank = getAdmMatchRank(
+                    [admNo, enr.admissionNumber || '', (enr as any).admission_number || '', associatedUser?.admissionNumber || ''],
+                    sName,
+                    assessmentNo,
+                    phone
+                );
+                if (rank === 99) continue;
             }
-            
+
             if (gradeFilter) {
                 const rawStGrade = getEnrollmentGrade(enr, associatedUser);
                 const normStGrade = getNormalizedGradeKey(rawStGrade);
-                const matchesGrade = 
-                    (normFilterGrade && normStGrade === normFilterGrade) || 
+                const matchesGrade =
+                    (normFilterGrade && normStGrade === normFilterGrade) ||
                     rawStGrade.toLowerCase() === lowerFilterGrade ||
                     (normFilterGrade && rawStGrade.toLowerCase().startsWith(normFilterGrade));
-                if (!matchesGrade) return false;
+                if (!matchesGrade) continue;
             }
-            
+
             if (streamFilter) {
                 const rawStStream = getEnrollmentStream(enr, associatedUser);
                 const rawStGrade = getEnrollmentGrade(enr, associatedUser);
-                const matchesStream = 
+                const matchesStream =
                     rawStStream.toLowerCase() === lowerStreamFilter ||
                     rawStGrade.toLowerCase().endsWith(lowerStreamFilter);
-                if (!matchesStream) return false;
+                if (!matchesStream) continue;
             }
-            
-            return true;
-        });
+
+            matched.push({ enr, rank });
+        }
+
+        if (search) {
+            matched.sort((a, b) => a.rank - b.rank);
+        }
+        return matched.map(m => m.enr);
     }, [enrollments, findStudentUser, searchTerm, statusFilter, gradeFilter, streamFilter]);
 
     const paginatedEnrollments = useMemo(() => {
