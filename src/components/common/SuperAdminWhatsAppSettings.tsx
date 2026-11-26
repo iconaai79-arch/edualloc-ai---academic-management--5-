@@ -310,7 +310,7 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                 auto_send_fee_reminders: Boolean(config.auto_send_fee_reminders),
                 auto_send_academic_results: Boolean(config.auto_send_academic_results),
                 allow_institution_failover: config.allow_institution_failover ?? true,
-                global_dispatch_enabled: config.global_dispatch_enabled ?? true,
+                global_dispatch_enabled: true,
                 updated_at: new Date().toISOString()
             };
 
@@ -379,23 +379,37 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
 
     // Disconnect active session
     const handleDisconnect = async () => {
-        if (!window.confirm('Are you sure you want to disconnect this master WhatsApp session? Outbound automated messages will fall back to simulation mode.')) {
+        if (!window.confirm('Are you sure you want to disconnect this master WhatsApp session? Outbound automated messages will pause until reconnected.')) {
             return;
         }
         setIsDisconnecting(true);
         try {
-            await whatsappService.disconnect('global');
+            const res = await whatsappService.disconnect('global');
             if (supabase) {
                 try {
                     await supabase
                         .from('whatsapp_configs')
-                        .update({ is_connected: false, qr_code_data: null, updated_at: new Date().toISOString() })
+                        .update({ is_connected: false, qr_code_data: null, global_dispatch_enabled: false, updated_at: new Date().toISOString() })
                         .eq('institution_id', 'global');
                 } catch (sbErr) {
                     console.warn('[SuperAdmin WA] Direct Supabase disconnect update notice:', sbErr);
                 }
             }
-            await checkLiveStatus();
+            setLiveStatus({
+                success: true,
+                isConnected: false,
+                providerType: config.provider_type || 'gateway',
+                message: res?.message || 'WhatsApp session disconnected. Click Save Configuration to reconnect.'
+            });
+            setConfig(prev => ({
+                ...prev,
+                is_connected: false,
+                global_dispatch_enabled: false,
+                qr_code_data: undefined
+            }));
+            setSaveStatus('success');
+            setSaveMessage('WhatsApp session disconnected successfully.');
+            setTimeout(() => setSaveStatus('idle'), 4000);
         } catch (err: any) {
             alert('Failed to disconnect WhatsApp session: ' + err.message);
         } finally {

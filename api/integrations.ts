@@ -2308,6 +2308,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const isMetaMode = config?.provider_type === 'meta_cloud' || (!rawGwUrl && Boolean(metaToken && metaPhoneId));
 
             if (isMetaMode) {
+                if (config && config.global_dispatch_enabled === false && config.is_connected === false) {
+                    return res.status(200).json({
+                        success: true,
+                        isConnected: false,
+                        providerType: 'meta_cloud',
+                        message: 'WhatsApp session disconnected. Click Save Configuration to reconnect.'
+                    });
+                }
                 if (!metaToken || !metaPhoneId) {
                     return res.status(200).json({
                         success: true,
@@ -2781,23 +2789,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (action === 'disconnectWhatsApp') {
             const institutionId = getParam('institutionId') || user?.institutionId || user?.user_metadata?.institutionId || 'global';
             try {
+                const existingCfg = await loadWhatsAppConfigRecord(institutionId, false);
+                // If Evolution/Baileys gateway is configured, attempt remote instance logout
+                const rawGw = String(existingCfg?.gateway_url || '').trim();
+                const gwKey = String(existingCfg?.api_key || '').trim();
+                if (rawGw && gwKey && !rawGw.includes('wa.eduai.platform') && !rawGw.includes('example.com')) {
+                    const instName = existingCfg?.instance_name || (institutionId === 'global' ? 'eduai_master' : `eduai_${institutionId.replace(/[^a-zA-Z0-9]/g, '_')}`);
+                    await fetch(`${rawGw.replace(/\/$/, '')}/instance/logout/${encodeURIComponent(instName)}`, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json', apikey: gwKey },
+                        signal: AbortSignal.timeout(5000)
+                    }).catch(() => {});
+                }
+
                 const pool = await getPgPool();
                 if (pool) {
                     await ensureWhatsAppTablesPg(pool);
+                    const whereClause = (institutionId === 'global' || institutionId === 'SYSTEM')
+                        ? `WHERE institution_id IN ('global','SYSTEM')`
+                        : `WHERE institution_id = $1`;
+                    const params = (institutionId === 'global' || institutionId === 'SYSTEM') ? [] : [institutionId];
                     await pool.query(
-                        `UPDATE public.whatsapp_configs SET is_connected = FALSE, qr_code_data = NULL, updated_at = NOW() WHERE institution_id = $1`,
-                        [institutionId]
+                        `UPDATE public.whatsapp_configs SET is_connected = FALSE, qr_code_data = NULL, global_dispatch_enabled = FALSE, updated_at = NOW() ${whereClause}`,
+                        params
                     );
+                    // Also clear legacy camelCase columns if present on older schemas
+                    await pool.query(
+                        `UPDATE public.whatsapp_configs SET "isConnected" = FALSE, "qrCodeData" = NULL, "globalDispatchEnabled" = FALSE ${whereClause}`,
+                        params
+                    ).catch(() => {});
                 } else if (supabase) {
                     await supabase
                         .from('whatsapp_configs')
-                        .update({ is_connected: false, qr_code_data: null, updated_at: new Date().toISOString() })
+                        .update({ is_connected: false, qr_code_data: null, global_dispatch_enabled: false, updated_at: new Date().toISOString() })
                         .eq('institution_id', institutionId);
                 }
             } catch (discErr: any) {
                 console.warn('[WhatsApp Disconnect] warning:', discErr?.message || discErr);
             }
-            return res.status(200).json({ success: true, message: 'WhatsApp session disconnected' });
+            return res.status(200).json({ success: true, isConnected: false, message: 'WhatsApp session disconnected' });
         }
 
         if (action === 'sendSms') {

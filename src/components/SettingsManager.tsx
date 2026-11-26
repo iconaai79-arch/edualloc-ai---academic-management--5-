@@ -6156,10 +6156,15 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <button
                                                 type="button"
                                                 onClick={async () => {
-                                                    if (!props.currentInstitution?.id) return;
-                                                    if (confirm('Disconnect this WhatsApp session? Messages will pause until repaired.')) {
-                                                        await whatsappService.disconnect(props.currentInstitution.id);
-                                                        await loadWhatsAppStatus();
+                                                    const targetId = props.currentInstitution?.id || 'global';
+                                                    if (window.confirm('Disconnect this WhatsApp session? Messages will pause until reconnected.')) {
+                                                        await whatsappService.disconnect(targetId);
+                                                        setWaLiveStatus({
+                                                            success: true,
+                                                            isConnected: false,
+                                                            providerType: waLiveStatus?.providerType || 'gateway',
+                                                            message: 'WhatsApp session disconnected.'
+                                                        });
                                                     }
                                                 }}
                                                 className="px-4 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-600 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
