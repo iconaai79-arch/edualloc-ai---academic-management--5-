@@ -8926,6 +8926,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                 setSelectedAnalysisEvent(event);
                                                                 setAnalysisSearchTerm('');
                                                                 setAnalysisStatusFilter('All');
+                                                                setAnalysisTab('rsvp');
+                                                            }}
+                                                            className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm shadow-emerald-500/20 flex items-center justify-center gap-1.5"
+                                                        >
+                                                            <UserCheck className="w-3 h-3" /> Attendance &amp; Analysis
+                                                        </button>
+                                                        <div
                                                             className="relative px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 overflow-hidden"
                                                         >
                                                             <FileSpreadsheet className="w-3 h-3 pointer-events-none" />
