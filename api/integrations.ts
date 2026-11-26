@@ -1923,6 +1923,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 );
             `).catch(() => {});
+
+            const alterLogCols = [
+                `ALTER TABLE public.whatsapp_logs ADD COLUMN IF NOT EXISTS institution_id TEXT`,
+                `ALTER TABLE public.whatsapp_logs ADD COLUMN IF NOT EXISTS recipient TEXT`,
+                `ALTER TABLE public.whatsapp_logs ADD COLUMN IF NOT EXISTS recipient_name TEXT`,
+                `ALTER TABLE public.whatsapp_logs ADD COLUMN IF NOT EXISTS message_type TEXT DEFAULT 'text'`,
+                `ALTER TABLE public.whatsapp_logs ADD COLUMN IF NOT EXISTS content TEXT`,
+                `ALTER TABLE public.whatsapp_logs ADD COLUMN IF NOT EXISTS media_url TEXT`,
+                `ALTER TABLE public.whatsapp_logs ADD COLUMN IF NOT EXISTS file_name TEXT`,
+                `ALTER TABLE public.whatsapp_logs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'sent'`,
+                `ALTER TABLE public.whatsapp_logs ADD COLUMN IF NOT EXISTS response_payload JSONB`,
+                `ALTER TABLE public.whatsapp_logs ADD COLUMN IF NOT EXISTS error_message TEXT`,
+                `ALTER TABLE public.whatsapp_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`,
+            ];
+            for (const stmt of alterLogCols) {
+                await pool.query(stmt).catch(() => {});
+            }
         };
 
         const normalizeWhatsAppConfigRow = (row: any) => {
@@ -2580,9 +2597,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const fileName = getParam('fileName');
             const messageType = getParam('messageType') || (mediaUrl ? 'document' : 'text');
             const recipientName = getParam('recipientName');
+            const templateName = String(getParam('templateName') || '').trim();
+            const templateLang = String(getParam('templateLang') || 'en_US').trim();
 
-            if (!recipient || !message) {
-                return res.status(400).json({ success: false, message: 'Recipient and message are required' });
+            if (!recipient || (!message && !templateName)) {
+                return res.status(400).json({ success: false, message: 'Recipient and message (or templateName) are required' });
             }
 
             let cleanPhone = recipient.replace(/[^0-9]/g, '');
@@ -2628,15 +2647,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 };
 
                 const tryMetaSend = async (): Promise<{ ok: boolean; payload: any; error: string }> => {
-                    const metaRes = await fetch(`https://graph.facebook.com/v19.0/${metaPhoneId}/messages`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${metaToken}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
+                    const metaBody: any = templateName
+                        ? {
+                            messaging_product: 'whatsapp',
+                            to: cleanPhone,
+                            type: 'template',
+                            template: {
+                                name: templateName,
+                                language: { code: templateLang || 'en_US' }
+                            }
+                        }
+                        : {
                             messaging_product: 'whatsapp',
                             to: cleanPhone,
                             type: 'text',
                             text: { body: message }
-                        }),
+                        };
+                    const metaRes = await fetch(`https://graph.facebook.com/v19.0/${metaPhoneId}/messages`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${metaToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify(metaBody),
                         signal: AbortSignal.timeout(10000)
                     });
                     const payload = await metaRes.json().catch(() => ({ status: metaRes.status }));

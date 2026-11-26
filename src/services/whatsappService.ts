@@ -51,6 +51,8 @@ export interface SendWhatsAppParams {
     mediaUrl?: string;
     fileName?: string;
     messageType?: 'text' | 'document' | 'receipt' | 'fee_reminder' | 'academic_results' | 'broadcast';
+    templateName?: string;
+    templateLang?: string;
     configOverride?: Partial<WhatsAppConfig>;
 }
 

@@ -91,7 +91,7 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
     // ── 3. Sandbox / Live Test Dispatch State ──
     const [testRecipient, setTestRecipient] = useState('');
     const [testRecipientName, setTestRecipientName] = useState('John Doe');
-    const [testMessageType, setTestMessageType] = useState<'custom' | 'receipt' | 'fee_reminder' | 'academic_results'>('custom');
+    const [testMessageType, setTestMessageType] = useState<'meta_template' | 'custom' | 'receipt' | 'fee_reminder' | 'academic_results'>('meta_template');
     const [testCustomMessage, setTestCustomMessage] = useState(
         '🌟 Hello! This is a test dispatch from the EDUAI Master WhatsApp Gateway. Your platform messaging integration is operational.'
     );
@@ -421,12 +421,14 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                 messageBody = `🎓 *ACADEMIC REPORT CARD*\n━━━━━━━━━━━━━━━━━━━━\n🏫 *EDUAI ACADEMIC DISPATCH*\nLearner: *${testRecipientName}*\n⭐ *Mean Grade:* *A- (78 Points)*\n🏅 *Rank:* 3 / 85\n\nOfficial term progress report verified.\n━━━━━━━━━━━━━━━━━━━━`;
             }
 
+            const isMetaTemplate = testMessageType === 'meta_template';
             const res = await whatsappService.sendMessage({
                 institutionId: 'global',
                 recipient: testRecipient,
                 recipientName: testRecipientName,
-                message: messageBody,
-                messageType: testMessageType === 'custom' ? 'text' : testMessageType
+                message: isMetaTemplate ? '[Meta Template: hello_world]' : messageBody,
+                messageType: (testMessageType === 'custom' || isMetaTemplate) ? 'text' : testMessageType,
+                ...(isMetaTemplate ? { templateName: 'hello_world', templateLang: 'en_US' } : {})
             });
 
             setTestResult({
@@ -1192,7 +1194,8 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                                     onChange={e => setTestMessageType(e.target.value as any)}
                                     className="w-full px-4 h-12 bg-slate-950 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                                 >
-                                    <option value="custom">Custom Text Message</option>
+                                    <option value="meta_template">Meta Template: hello_world (Works Cold / Outside 24h Window)</option>
+                                    <option value="custom">Custom Text Message (Requires 24h Window on Meta)</option>
                                     <option value="receipt">Official Payment Receipt (Demo)</option>
                                     <option value="fee_reminder">Fee Balance Reminder (Demo)</option>
                                     <option value="academic_results">Academic Report Card (Demo)</option>
