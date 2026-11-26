@@ -804,6 +804,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [academicLevels, setAcademicLevels] = useState<AcademicLevel[]>(() => initialCached.academicLevels);
     const [importGradeLevel, setImportGradeLevel] = useState('');
     const [importStream, setImportStream] = useState('');
+    const [importAcademicYear, setImportAcademicYear] = useState('');
+    const [importDefaultStatus, setImportDefaultStatus] = useState<'' | 'Active' | 'Graduated' | 'Enrolled'>('');
     const [pinExecutionReport, setPinExecutionReport] = useState<{
         title: string;
         items: {
@@ -1034,6 +1036,36 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [statusFilter, setStatusFilter] = useState<'All' | 'Enrolled' | 'Active' | 'Graduated' | 'Suspended' | 'Dropped'>('All');
     const [gradeFilter, setGradeFilter] = useState<string>(() => defaultGradeFilter || '');
     const [streamFilter, setStreamFilter] = useState('');
+    const [yearFilter, setYearFilter] = useState('');
+    const [groupByYear, setGroupByYear] = useState(false);
+
+    const getEnrollmentAcademicYear = useCallback((enr?: any, user?: any): string => {
+        const extractYear = (v: any): string => {
+            if (v === null || v === undefined) return '';
+            const m = String(v).trim().match(/\b(19\d{2}|20\d{2})\b/);
+            return m ? m[1] : '';
+        };
+        const candidates = [
+            enr?.metadata?.academicYear,
+            enr?.metadata?.academic_year,
+            enr?.metadata?.enrollmentYear,
+            enr?.metadata?.admissionYear,
+            enr?.metadata?.cohortYear,
+            (enr as any)?.academicYear,
+            (enr as any)?.academic_year,
+            user?.metadata?.academicYear,
+            user?.metadata?.admissionYear,
+            enr?.enrollmentDate,
+            (enr as any)?.enrollment_date,
+            enr?.createdAt,
+            (enr as any)?.created_at,
+        ];
+        for (const c of candidates) {
+            const yr = extractYear(c);
+            if (yr) return yr;
+        }
+        return 'Unspecified';
+    }, []);
 
     useEffect(() => {
         if (defaultGradeFilter && !gradeFilter) {
@@ -1047,7 +1079,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     // Reset pagination to first page when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, statusFilter, gradeFilter, streamFilter]);
+    }, [searchTerm, statusFilter, gradeFilter, streamFilter, yearFilter, groupByYear]);
 
     // Parent Invite Modal State
     const [inviteModalEnrollment, setInviteModalEnrollment] = useState<StudentEnrollment | null>(null);
@@ -1427,7 +1459,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             ? [{ key: 'licenseCategory', label: 'License Class / Category' }]
             : [
                 { key: 'gradeLevel', label: 'Grade Level' },
-                { key: 'stream', label: 'Class Stream / Allocation' }
+                { key: 'stream', label: 'Class Stream / Allocation' },
+                { key: 'academicYear', label: 'Academic / Admission Year (e.g. 2024, 2025, 2026)' }
               ]
         ),
         { key: 'parentName', label: 'Guardian / Parent Name' },
@@ -2943,6 +2976,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         const assessmentNoVal = inputAssessNo || existingEnrollment?.assessmentNo || existingEnrollment?.metadata?.assessmentNo || (existingEnrollment as any)?.assessmentNo || '';
                         const resolvedEnrollmentDob = dobImportVal || existingEnrollment?.dateOfBirth || existingEnrollment?.metadata?.dateOfBirth || '';
                         const leadershipImportVal = item.leadershipPosition || item.leadership_position || item.leadershipRole || item.leadership_role || item.position || item.prefectRole || item.leadership || existingEnrollment?.leadershipPosition || existingEnrollment?.metadata?.leadershipPosition || '';
+                        const rawImportYear = String(item.academicYear || item.year || item.admissionYear || item.enrollmentYear || importAcademicYear || existingEnrollment?.metadata?.academicYear || '').trim();
+                        const matchedYear = rawImportYear.match(/\b(19\d{2}|20\d{2})\b/)?.[1] || '';
+                        const currentYrStr = String(new Date().getFullYear());
+                        const resolvedEnrollmentDate = matchedYear && matchedYear !== currentYrStr
+                            ? `${matchedYear}-01-10`
+                            : (existingEnrollment?.enrollmentDate || new Date().toISOString().split('T')[0]);
 
                         const metadataObj = {
                             ...(existingEnrollment?.metadata || {}),
@@ -2953,6 +2992,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             licenseCategory: item.licenseCategory || existingEnrollment?.metadata?.licenseCategory || '',
                             gradeLevel: item.gradeLevel || importGradeLevel || existingEnrollment?.metadata?.gradeLevel || '',
                             stream: item.stream || importStream || existingEnrollment?.metadata?.stream || '',
+                            ...(matchedYear ? { academicYear: matchedYear } : {}),
                             leadershipPosition: leadershipImportVal,
                             assessmentNo: assessmentNoVal,
                             dateOfBirth: resolvedEnrollmentDob,
@@ -2994,6 +3034,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 dateOfBirth: resolvedEnrollmentDob,
                                 dob: resolvedEnrollmentDob,
                                 leadershipPosition: leadershipImportVal,
+                                ...(matchedYear ? { enrollmentDate: resolvedEnrollmentDate } : {}),
+                                ...(importDefaultStatus ? { status: importDefaultStatus } : {}),
                                 metadata: metadataObj,
                                 updatedAt: new Date().toISOString()
                             };
@@ -3016,8 +3058,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 dateOfBirth: resolvedEnrollmentDob,
                                 dob: resolvedEnrollmentDob,
                                 leadershipPosition: leadershipImportVal,
-                                status: 'Enrolled',
-                                enrollmentDate: new Date().toISOString().split('T')[0],
+                                status: (importDefaultStatus || (requireStudentApproval ? 'Enrolled' : 'Active')) as any,
+                                enrollmentDate: resolvedEnrollmentDate,
                                 metadata: metadataObj,
                                 createdAt: new Date().toISOString()
                             };
@@ -5810,6 +5852,21 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
     };
 
+    const availableYearsData = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const enr of enrollments) {
+            const u = findStudentUser(enr);
+            const yr = getEnrollmentAcademicYear(enr, u);
+            counts.set(yr, (counts.get(yr) || 0) + 1);
+        }
+        const years = Array.from(counts.keys()).sort((a, b) => {
+            if (a === 'Unspecified') return 1;
+            if (b === 'Unspecified') return -1;
+            return b.localeCompare(a, undefined, { numeric: true });
+        });
+        return { years, counts };
+    }, [enrollments, findStudentUser, getEnrollmentAcademicYear]);
+
     const filteredEnrollments = useMemo(() => {
         const search = searchTerm.trim().toLowerCase();
         const isNumericQuery = /^\d+$/.test(search);
@@ -5886,14 +5943,28 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 if (!matchesStream) continue;
             }
 
+            if (yearFilter) {
+                const yr = getEnrollmentAcademicYear(enr, associatedUser);
+                if (yr !== yearFilter) continue;
+            }
+
             matched.push({ enr, rank });
         }
 
         if (search) {
             matched.sort((a, b) => a.rank - b.rank);
+        } else if (groupByYear) {
+            matched.sort((a, b) => {
+                const yrA = getEnrollmentAcademicYear(a.enr, findStudentUser(a.enr));
+                const yrB = getEnrollmentAcademicYear(b.enr, findStudentUser(b.enr));
+                if (yrA === yrB) return 0;
+                if (yrA === 'Unspecified') return 1;
+                if (yrB === 'Unspecified') return -1;
+                return yrB.localeCompare(yrA, undefined, { numeric: true });
+            });
         }
         return matched.map(m => m.enr);
-    }, [enrollments, findStudentUser, searchTerm, statusFilter, gradeFilter, streamFilter]);
+    }, [enrollments, findStudentUser, searchTerm, statusFilter, gradeFilter, streamFilter, yearFilter, groupByYear, getEnrollmentAcademicYear]);
 
     const paginatedEnrollments = useMemo(() => {
         const startIndex = (currentPage - 1) * itemsPerPage;
@@ -6968,6 +7039,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         setImportMode('new_enroll');
                         setImportGradeLevel('');
                         setImportStream('');
+                        setImportAcademicYear('');
+                        setImportDefaultStatus('');
                     }}
                     title={importMode === 'update_secondary_phone' ? 'Update Contacts, Grade Level & Class Stream from Excel' : undefined}
                     description={importMode === 'update_secondary_phone' ? 'Map Admission Number (or Student Full Name) plus Primary Phone, Secondary Phone, Parent Name, Grade Level, and/or Class Stream. Matched student records will be updated.' : undefined}
@@ -7003,6 +7076,32 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         {importStreamsList.map(stream => (
                                             <option key={stream} value={stream}>{stream}</option>
                                         ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-455 uppercase tracking-widest ml-1">Default Academic / Admission Year</label>
+                                    <select
+                                        value={importAcademicYear}
+                                        onChange={e => setImportAcademicYear(e.target.value)}
+                                        className="form-select mt-1 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500"
+                                    >
+                                        <option value="">-- Current Year ({new Date().getFullYear()}) --</option>
+                                        {Array.from({ length: 12 }, (_, idx) => String(new Date().getFullYear() + 1 - idx)).map(yr => (
+                                            <option key={yr} value={yr}>{yr}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-455 uppercase tracking-widest ml-1">Default Enrollment Status</label>
+                                    <select
+                                        value={importDefaultStatus}
+                                        onChange={e => setImportDefaultStatus(e.target.value as any)}
+                                        className="form-select mt-1 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500"
+                                    >
+                                        <option value="">-- Auto ({requireStudentApproval ? 'Enrolled' : 'Active'}) --</option>
+                                        <option value="Active">Active</option>
+                                        <option value="Graduated">Graduated (Previous Cohort)</option>
+                                        <option value="Enrolled">Enrolled (Pending Approval)</option>
                                     </select>
                                 </div>
                             </div>
@@ -7279,6 +7378,36 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 </select>
                             )}
 
+                            {/* Academic / Admission Year filter */}
+                            <select
+                                value={yearFilter}
+                                onChange={e => setYearFilter(e.target.value)}
+                                className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                                title="Filter students by Academic / Admission Year"
+                            >
+                                <option value="">All Years</option>
+                                {availableYearsData.years.map(yr => (
+                                    <option key={yr} value={yr}>
+                                        {yr} ({availableYearsData.counts.get(yr) || 0})
+                                    </option>
+                                ))}
+                            </select>
+
+                            {/* Group by Year toggle */}
+                            <button
+                                type="button"
+                                onClick={() => setGroupByYear(g => !g)}
+                                className={`py-2.5 px-3.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition-colors shrink-0 cursor-pointer ${
+                                    groupByYear
+                                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm'
+                                        : 'bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                                title="Group students in the registry by Academic / Admission Year"
+                            >
+                                <Calendar className="w-3.5 h-3.5" />
+                                {groupByYear ? 'Grouped by Year' : 'Group by Year'}
+                            </button>
+
                             {/* Quick Class List PDF preview button */}
                             <button
                                 onClick={handleGenerateClassListPdf}
@@ -7291,11 +7420,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             </button>
 
                             {/* Clear filters button — only visible when a filter is active */}
-                            {(gradeFilter || streamFilter || statusFilter !== 'All' || searchTerm) && (
+                            {(gradeFilter || streamFilter || yearFilter || statusFilter !== 'All' || searchTerm) && (
                                 <button
                                     onClick={() => {
                                         setGradeFilter('');
                                         setStreamFilter('');
+                                        setYearFilter('');
                                         setStatusFilter('All');
                                         setSearchTerm('');
                                     }}
@@ -7307,8 +7437,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         </div>
 
                         {/* Active filter summary chips */}
-                        {(gradeFilter || streamFilter) && (
+                        {(gradeFilter || streamFilter || yearFilter) && (
                             <div className="flex flex-wrap gap-2 pt-1">
+                                {yearFilter && (
+                                    <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 dark:text-emerald-400 px-3 py-1 rounded-full">
+                                        Year: {yearFilter}
+                                        <button onClick={() => setYearFilter('')} className="text-emerald-400 hover:text-white transition-colors ml-0.5">×</button>
+                                    </span>
+                                )}
                                 {gradeFilter && (
                                     <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-3 py-1 rounded-full">
                                         Grade: {gradeFilter}
@@ -7430,9 +7566,37 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         };
                                         const statusCls = statusCfg[enr.status] || 'bg-slate-50 border-slate-200 text-slate-600';
 
+                                        const enrYear = getEnrollmentAcademicYear(enr, user);
+                                        const prevEnr = i > 0 ? paginatedEnrollments[i - 1] : null;
+                                        const prevYear = prevEnr ? getEnrollmentAcademicYear(prevEnr, findStudentUser(prevEnr)) : null;
+                                        const showYearHeader = groupByYear && enrYear !== prevYear;
+                                        const totalInYear = availableYearsData.counts.get(enrYear) || 0;
+
                                         return (
+                                            <React.Fragment key={enr.id}>
+                                            {showYearHeader && (
+                                                <div className="flex items-center justify-between px-4 py-2.5 mt-2 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60">
+                                                    <div className="flex items-center gap-2">
+                                                        <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                                        <span className="text-xs font-black uppercase tracking-widest text-indigo-800 dark:text-indigo-200">
+                                                            Academic Year {enrYear}
+                                                        </span>
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-600/10 text-indigo-700 dark:text-indigo-300">
+                                                            {totalInYear} student{totalInYear !== 1 ? 's' : ''}
+                                                        </span>
+                                                    </div>
+                                                    {!yearFilter && enrYear !== 'Unspecified' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setYearFilter(enrYear)}
+                                                            className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                                                        >
+                                                            View Only {enrYear} →
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
                                             <div
-                                                key={enr.id}
                                                 onClick={() => handleToggleSelectStudent(enr.id)}
                                                 className={`rounded-2xl px-5 py-4 flex flex-wrap md:flex-nowrap items-center gap-4 transition-all group cursor-pointer ${
                                                     isSelected
@@ -7600,8 +7764,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     )}
                                                 </div>
 
-                                                {/* ── Status ── */}
+                                                {/* ── Status & Year ── */}
                                                 <div className="shrink-0 flex items-center gap-1.5">
+                                                    {enrYear && enrYear !== 'Unspecified' && (
+                                                        <span className="text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300" title="Academic / Admission Year">
+                                                            {enrYear}
+                                                        </span>
+                                                    )}
                                                     <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider border ${statusCls}`}>
                                                         {enr.status === 'Enrolled'
                                                             ? (requireStudentApproval ? '⏳ Approval Stage' : 'Active')
@@ -7684,6 +7853,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     </button>
                                                 </div>
                                             </div>
+                                            </React.Fragment>
                                         );
                                     })}
 
@@ -8756,13 +8926,6 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                 setSelectedAnalysisEvent(event);
                                                                 setAnalysisSearchTerm('');
                                                                 setAnalysisStatusFilter('All');
-                                                                setAnalysisTab('rsvp');
-                                                            }}
-                                                            className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm shadow-emerald-500/20 flex items-center justify-center gap-1.5"
-                                                        >
-                                                            <UserCheck className="w-3 h-3" /> Attendance &amp; Analysis
-                                                        </button>
-                                                        <div
                                                             className="relative px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 overflow-hidden"
                                                         >
                                                             <FileSpreadsheet className="w-3 h-3 pointer-events-none" />
