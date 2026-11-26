@@ -1925,26 +1925,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             `).catch(() => {});
         };
 
+        const normalizeWhatsAppConfigRow = (row: any) => {
+            if (!row) return null;
+            return {
+                ...row,
+                institution_id: row.institution_id || row.institutionId || 'global',
+                provider_type: row.provider_type || row.providerType || 'gateway',
+                gateway_url: row.gateway_url || row.gatewayUrl || null,
+                api_key: row.api_key || row.apiKey || null,
+                instance_name: row.instance_name || row.instanceName || 'eduai_master',
+                phone_number: row.phone_number || row.phoneNumber || null,
+                is_connected: Boolean(row.is_connected ?? row.isConnected ?? false),
+                qr_code_data: row.qr_code_data || row.qrCodeData || null,
+                meta_phone_number_id: row.meta_phone_number_id || row.metaPhoneNumberId || null,
+                meta_access_token: row.meta_access_token || row.metaAccessToken || null,
+                meta_waba_id: row.meta_waba_id || row.metaWabaId || null,
+                auto_send_receipts: Boolean(row.auto_send_receipts ?? row.autoSendReceipts ?? false),
+                auto_send_fee_reminders: Boolean(row.auto_send_fee_reminders ?? row.autoSendFeeReminders ?? false),
+                auto_send_academic_results: Boolean(row.auto_send_academic_results ?? row.autoSendAcademicResults ?? false),
+                allow_institution_failover: row.allow_institution_failover ?? row.allowInstitutionFailover ?? true,
+                global_dispatch_enabled: row.global_dispatch_enabled ?? row.globalDispatchEnabled ?? true,
+            };
+        };
+
         const loadWhatsAppConfigRecord = async (targetInstId: string, allowGlobalFallback = false): Promise<any | null> => {
             const pool = await getPgPool();
             if (pool) {
                 await ensureWhatsAppTablesPg(pool);
                 if (targetInstId === 'global' || targetInstId === 'SYSTEM') {
                     const r = await pool.query(
-                        `SELECT * FROM public.whatsapp_configs WHERE institution_id IN ('global','SYSTEM') ORDER BY updated_at DESC NULLS LAST LIMIT 1`
-                    ).catch(() => ({ rows: [] }));
-                    return r.rows?.[0] || null;
+                        `SELECT * FROM public.whatsapp_configs WHERE COALESCE(institution_id, "institutionId") IN ('global','SYSTEM') ORDER BY COALESCE(updated_at, "updatedAt") DESC NULLS LAST LIMIT 1`
+                    ).catch(() =>
+                        pool.query(`SELECT * FROM public.whatsapp_configs WHERE institution_id IN ('global','SYSTEM') ORDER BY updated_at DESC NULLS LAST LIMIT 1`).catch(() => ({ rows: [] }))
+                    );
+                    return normalizeWhatsAppConfigRow(r.rows?.[0] || null);
                 }
                 const r = await pool.query(
                     `SELECT * FROM public.whatsapp_configs WHERE institution_id = $1 ORDER BY updated_at DESC NULLS LAST LIMIT 1`,
                     [targetInstId]
                 ).catch(() => ({ rows: [] }));
-                let cfg = r.rows?.[0] || null;
+                let cfg = normalizeWhatsAppConfigRow(r.rows?.[0] || null);
                 if (allowGlobalFallback && (!cfg || (!cfg.gateway_url && !cfg.meta_access_token))) {
                     const g = await pool.query(
                         `SELECT * FROM public.whatsapp_configs WHERE institution_id IN ('global','SYSTEM') ORDER BY updated_at DESC NULLS LAST LIMIT 1`
                     ).catch(() => ({ rows: [] }));
-                    const gCfg = g.rows?.[0] || null;
+                    const gCfg = normalizeWhatsAppConfigRow(g.rows?.[0] || null);
                     if (gCfg && (gCfg.allow_institution_failover ?? true)) cfg = gCfg;
                 }
                 return cfg;
@@ -1958,14 +1983,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         .order('updated_at', { ascending: false })
                         .limit(1)
                         .maybeSingle();
-                    return data || null;
+                    return normalizeWhatsAppConfigRow(data || null);
                 }
                 const { data } = await supabase
                     .from('whatsapp_configs')
                     .select('*')
                     .eq('institution_id', targetInstId)
                     .maybeSingle();
-                let cfg = data || null;
+                let cfg = normalizeWhatsAppConfigRow(data || null);
                 if (allowGlobalFallback && (!cfg || (!cfg.gateway_url && !cfg.meta_access_token))) {
                     const { data: gCfg } = await supabase
                         .from('whatsapp_configs')
@@ -1974,7 +1999,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         .order('updated_at', { ascending: false })
                         .limit(1)
                         .maybeSingle();
-                    if (gCfg && (gCfg.allow_institution_failover ?? true)) cfg = gCfg;
+                    const normG = normalizeWhatsAppConfigRow(gCfg || null);
+                    if (normG && (normG.allow_institution_failover ?? true)) cfg = normG;
                 }
                 return cfg;
             }
