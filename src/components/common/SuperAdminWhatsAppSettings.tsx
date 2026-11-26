@@ -315,16 +315,19 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
             };
 
             let dbSaved = false;
+            let dbErrorMessage = '';
 
-            // 1. Try server-side integration API first (uses Service Role, bypasses RLS and direct network connection drops)
+            // 1. Try server-side integration API first (Direct PostgreSQL / Service Role)
             try {
                 const apiRes = await whatsappService.saveConfig(payload);
                 if (apiRes?.success) {
                     dbSaved = true;
                 } else if (apiRes?.message) {
+                    dbErrorMessage = apiRes.message;
                     console.warn('[SuperAdmin WA] Server API save note:', apiRes.message);
                 }
-            } catch (apiErr) {
+            } catch (apiErr: any) {
+                dbErrorMessage = apiErr?.message || 'Server API error';
                 console.warn('[SuperAdmin WA] Server API save fallback warning:', apiErr);
             }
 
@@ -355,12 +358,14 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                 } as CompanyDetails);
             }
 
-            setSaveStatus('success');
-            setSaveMessage(dbSaved 
-                ? 'Super Admin WhatsApp settings saved & synchronized successfully.' 
-                : 'Super Admin WhatsApp settings saved to platform cache (run migration 382 to sync DB).'
-            );
-            setTimeout(() => setSaveStatus('idle'), 4000);
+            if (dbSaved) {
+                setSaveStatus('success');
+                setSaveMessage('Super Admin WhatsApp settings saved to database successfully.');
+            } else {
+                setSaveStatus('error');
+                setSaveMessage(`Database save failed: ${dbErrorMessage || 'Could not persist to whatsapp_configs table.'}`);
+            }
+            setTimeout(() => setSaveStatus('idle'), 5000);
             await checkLiveStatus();
         } catch (err: any) {
             console.error('[SuperAdmin WA] Save error:', err);

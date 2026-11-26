@@ -1880,13 +1880,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     created_at TIMESTAMPTZ DEFAULT NOW(),
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 );
-                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS allow_institution_failover BOOLEAN DEFAULT TRUE;
-                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS global_dispatch_enabled BOOLEAN DEFAULT TRUE;
-                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS meta_phone_number_id TEXT;
-                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS meta_access_token TEXT;
-                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS meta_waba_id TEXT;
-                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS is_connected BOOLEAN DEFAULT FALSE;
-                ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS qr_code_data TEXT;
+            `).catch(() => {});
+
+            // Ensure EVERY column exists on pre-existing whatsapp_configs tables (run individually so one cannot block others)
+            const alterCols = [
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS institution_id TEXT`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS provider_type TEXT DEFAULT 'gateway'`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS gateway_url TEXT`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS api_key TEXT`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS instance_name TEXT`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS phone_number TEXT`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS is_connected BOOLEAN DEFAULT FALSE`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS qr_code_data TEXT`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS meta_phone_number_id TEXT`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS meta_access_token TEXT`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS meta_waba_id TEXT`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS auto_send_receipts BOOLEAN DEFAULT FALSE`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS auto_send_fee_reminders BOOLEAN DEFAULT FALSE`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS auto_send_academic_results BOOLEAN DEFAULT FALSE`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS allow_institution_failover BOOLEAN DEFAULT TRUE`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS global_dispatch_enabled BOOLEAN DEFAULT TRUE`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`,
+                `ALTER TABLE public.whatsapp_configs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`,
+            ];
+            for (const stmt of alterCols) {
+                await pool.query(stmt).catch(() => {});
+            }
+
+            await pool.query(`
                 CREATE TABLE IF NOT EXISTS public.whatsapp_logs (
                     id TEXT PRIMARY KEY,
                     institution_id TEXT,
