@@ -29513,7 +29513,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
                                     <span>📄 {totalPagesCount} {totalPagesCount === 1 ? 'Page Sheet' : 'Page Sheets'}</span>
                                     <span>•</span>
-                                    <span>{rawItems.length} {pdfPreviewModal.isCashBook ? 'Journal Entries' : 'Student Records'}</span>
+                                    <span>{isCashFlow ? '3 Statement Sections' : `${rawItems.length} ${pdfPreviewModal.isCashBook ? 'Journal Entries' : isCollectionSummary ? 'Transaction Days' : 'Student Records'}`}</span>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <button
@@ -29524,7 +29524,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 const autoTable = (autoTableModule as any).default || autoTableModule;
 
                                                 const doc = new jsPDF({
-                                                    orientation: pdfPreviewModal.isCashBook ? 'landscape' : 'portrait',
+                                                    orientation: isLandscapeReport ? 'landscape' : 'portrait',
                                                     unit: 'mm',
                                                     format: 'a4'
                                                 });
@@ -29545,6 +29545,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 doc.text(`${pdfPreviewModal.subtitle || ''} | Generated: ${new Date().toLocaleDateString('en-KE')}`, 14, 28);
 
                                                 const pageWidth = doc.internal.pageSize.getWidth();
+                                                const rightColX = isLandscapeReport ? 150 : 110;
                                                 doc.setDrawColor(226, 232, 240);
                                                 doc.setFillColor(248, 250, 252);
                                                 doc.roundedRect(14, 31, pageWidth - 28, 16, 2, 2, 'FD');
@@ -29555,18 +29556,85 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 if (pdfPreviewModal.isCashBook) {
                                                     doc.text(`Account / Journal: Cash Book General Ledger`, 18, 37);
                                                     doc.text(`Period: ${pdfPreviewModal.admNo}`, 18, 43);
-                                                    doc.text(`Ledger View: ${pdfPreviewModal.className}`, 130, 37);
-                                                    doc.text(`Status: Verified Financial Journal`, 130, 43);
+                                                    doc.text(`Ledger View: ${pdfPreviewModal.className}`, rightColX, 37);
+                                                    doc.text(`Status: Verified Financial Journal`, rightColX, 43);
+                                                } else if (isCollectionSummary) {
+                                                    doc.text(`Report: ${pdfPreviewModal.studentName || 'Collection Summary Ledger'}`, 18, 37);
+                                                    doc.text(`Period / Ref: ${pdfPreviewModal.admNo}`, 18, 43);
+                                                    doc.text(`Ledger View: ${pdfPreviewModal.className}`, rightColX, 37);
+                                                    doc.text(`Status: Verified Collection Summary`, rightColX, 43);
+                                                } else if (isFeeRegister) {
+                                                    doc.text(`Report: ${pdfPreviewModal.studentName || 'Fee Payment Register'}`, 18, 37);
+                                                    doc.text(`Scope: ${pdfPreviewModal.admNo}`, 18, 43);
+                                                    doc.text(`View: ${pdfPreviewModal.className}`, rightColX, 37);
+                                                    doc.text(`Status: Verified Fee Register`, rightColX, 43);
+                                                } else if (isFeeInstallment) {
+                                                    doc.text(`Report: ${pdfPreviewModal.studentName || 'Fees Installments Summary'}`, 18, 37);
+                                                    doc.text(`Scope: ${pdfPreviewModal.admNo}`, 18, 43);
+                                                    doc.text(`View: ${pdfPreviewModal.className}`, rightColX, 37);
+                                                    doc.text(`Status: Verified Installment Schedule`, rightColX, 43);
+                                                } else if (isCashFlow) {
+                                                    doc.text(`Report: ${pdfPreviewModal.studentName || 'Statement of Cash Flows'}`, 18, 37);
+                                                    doc.text(`Period: ${pdfPreviewModal.admNo}`, 18, 43);
+                                                    doc.text(`View: ${pdfPreviewModal.className}`, rightColX, 37);
+                                                    doc.text(`Status: Verified Cash Flow Statement`, rightColX, 43);
                                                 } else {
                                                     doc.text(`Account / Student: ${pdfPreviewModal.studentName}`, 18, 37);
                                                     doc.text(`Adm / Ref: ${pdfPreviewModal.admNo}`, 18, 43);
-                                                    doc.text(`Class: ${pdfPreviewModal.className}`, 110, 37);
-                                                    doc.text(`Status: Verified Ledger Record`, 110, 43);
+                                                    doc.text(`Class: ${pdfPreviewModal.className}`, rightColX, 37);
+                                                    doc.text(`Status: Verified Ledger Record`, rightColX, 43);
                                                 }
+
+                                                const footerTitle = pdfPreviewModal.title || 'Official Financial Report';
+                                                const drawPageFooter = (data: any) => {
+                                                    const pageSize = doc.internal.pageSize;
+                                                    const pHeight = pageSize.height || pageSize.getHeight();
+                                                    const pWidth = pageSize.width || pageSize.getWidth();
+                                                    doc.setFontSize(8);
+                                                    doc.setFont('helvetica', 'normal');
+                                                    doc.setTextColor(148, 163, 184);
+                                                    doc.setDrawColor(226, 232, 240);
+                                                    doc.line(14, pHeight - 10, pWidth - 14, pHeight - 10);
+                                                    doc.text(`${props.institution.name || 'EduAI'} • ${footerTitle}`, 14, pHeight - 5);
+                                                    doc.text(`Page ${data.pageNumber}`, pWidth - 14, pHeight - 5, { align: 'right' });
+                                                };
 
                                                 let currentY = 52;
 
-                                                if (pdfPreviewModal.items && pdfPreviewModal.items.length > 0) {
+                                                if (isCashFlow) {
+                                                    const cf = (pdfPreviewModal as any).cashFlowData || {};
+                                                    const fmtCf = (v: number) => (v < 0 ? `(KSh ${Math.abs(v).toLocaleString()})` : `KSh ${Number(v || 0).toLocaleString()}`);
+                                                    const body: any[] = [
+                                                        [{ content: '1. CASH FLOWS FROM OPERATING ACTIVITIES', colSpan: 2, styles: { fillColor: [241, 245, 249], fontStyle: 'bold', textColor: [71, 85, 105] } }],
+                                                        ['Cash Inflow: Fee Collections', { content: fmtCf(cf.totalInflows || 0), styles: { halign: 'right', fontStyle: 'bold', textColor: [4, 120, 87] } }],
+                                                        ['Cash Outflow: Operating Expenses', { content: fmtCf(-(cf.operatingOutflow || 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [190, 18, 60] } }],
+                                                        [{ content: 'Net Cash from Operating Activities', styles: { fontStyle: 'bold', fillColor: [248, 250, 252] } }, { content: fmtCf(cf.netOperating || 0), styles: { halign: 'right', fontStyle: 'bold', fillColor: [248, 250, 252] } }],
+
+                                                        [{ content: '2. CASH FLOWS FROM INVESTING ACTIVITIES', colSpan: 2, styles: { fillColor: [241, 245, 249], fontStyle: 'bold', textColor: [71, 85, 105] } }],
+                                                        ['Capital / Asset & Equipment Purchases', { content: fmtCf(-(cf.investingOutflow || 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [190, 18, 60] } }],
+                                                        [{ content: 'Net Cash from Investing Activities', styles: { fontStyle: 'bold', fillColor: [248, 250, 252] } }, { content: fmtCf(cf.netInvesting || 0), styles: { halign: 'right', fontStyle: 'bold', fillColor: [248, 250, 252] } }],
+
+                                                        [{ content: '3. CASH FLOWS FROM FINANCING ACTIVITIES', colSpan: 2, styles: { fillColor: [241, 245, 249], fontStyle: 'bold', textColor: [71, 85, 105] } }],
+                                                        ['Loans, Bank Financing & Capital Outflows', { content: fmtCf(-(cf.financingOutflow || 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [190, 18, 60] } }],
+                                                        [{ content: 'Net Cash from Financing Activities', styles: { fontStyle: 'bold', fillColor: [248, 250, 252] } }, { content: fmtCf(cf.netFinancing || 0), styles: { halign: 'right', fontStyle: 'bold', fillColor: [248, 250, 252] } }],
+
+                                                        [{ content: 'NET INCREASE / (DECREASE) IN CASH', styles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5 } }, { content: fmtCf(cf.netCashChange || 0), styles: { halign: 'right', fillColor: [15, 23, 42], textColor: [52, 211, 153], fontStyle: 'bold', fontSize: 9.5 } }]
+                                                    ];
+                                                    autoTable(doc, {
+                                                        head: [['Cash Flow Statement Component', 'Amount (KSh)']],
+                                                        body,
+                                                        startY: 50,
+                                                        theme: 'grid',
+                                                        styles: { fontSize: 8.5, cellPadding: 3 },
+                                                        headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+                                                        columnStyles: {
+                                                            0: { halign: 'left' },
+                                                            1: { halign: 'right', cellWidth: 55 }
+                                                        },
+                                                        didDrawPage: drawPageFooter
+                                                    });
+                                                    currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : 160;
+                                                } else if (pdfPreviewModal.items && pdfPreviewModal.items.length > 0) {
                                                     if (pdfPreviewModal.isCashBook) {
                                                         const head = [['#', 'Date', 'Balance B/F (KSh)', 'Receipts Range', 'Bank Transfer (KSh)', 'M-Pesa (KSh)', 'Cheque (KSh)', 'Cash (KSh)', 'Inflow (Dr) (KSh)', 'Outflow (Cr) (KSh)', 'Balance C/F (KSh)']];
                                                         const body = pdfPreviewModal.items.map((it: any, idx: number) => {
@@ -29607,18 +29675,218 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 9: { cellWidth: 24, halign: 'right', textColor: [225, 29, 72] },
                                                                 10: { cellWidth: 26, halign: 'right', fontStyle: 'bold' }
                                                             },
-                                                            didDrawPage: (data: any) => {
-                                                                const pageSize = doc.internal.pageSize;
-                                                                const pageHeight = pageSize.height || pageSize.getHeight();
-                                                                const pWidth = pageSize.width || pageSize.getWidth();
-                                                                doc.setFontSize(8);
-                                                                doc.setFont('helvetica', 'normal');
-                                                                doc.setTextColor(148, 163, 184);
-                                                                doc.setDrawColor(226, 232, 240);
-                                                                doc.line(14, pageHeight - 10, pWidth - 14, pageHeight - 10);
-                                                                doc.text(`${props.institution.name || 'EduAI'} • Cash Book General Ledger`, 14, pageHeight - 5);
-                                                                doc.text(`Page ${data.pageNumber}`, pWidth - 14, pageHeight - 5, { align: 'right' });
-                                                            }
+                                                            didDrawPage: drawPageFooter
+                                                        });
+                                                    } else if (isCollectionSummary) {
+                                                        const vhCols: string[] = (pdfPreviewModal as any).voteHeads || [];
+                                                        const totalRcpts: number = Number((pdfPreviewModal as any).totalReceiptsCount || 0);
+                                                        const head = [['Date', 'Receipt Range', ...vhCols, 'General', 'Total Collected']];
+                                                        const body = pdfPreviewModal.items.map((it: any) => [
+                                                            it.date || '',
+                                                            it.receiptRange || '—',
+                                                            ...vhCols.map(vh => {
+                                                                const val = Math.round(Number(it.voteMap?.[vh] || 0));
+                                                                return val > 0 ? `KSh ${val.toLocaleString()}` : '—';
+                                                            }),
+                                                            Number(it.general || 0) > 0 ? `KSh ${Math.round(Number(it.general)).toLocaleString()}` : '—',
+                                                            `KSh ${Number(it.total || 0).toLocaleString()}`
+                                                        ]);
+                                                        const genSum = pdfPreviewModal.items.reduce((acc: number, d: any) => acc + Math.round(Number(d.general || 0)), 0);
+                                                        body.push([
+                                                            'TOTALS',
+                                                            `${totalRcpts.toLocaleString()} receipts`,
+                                                            ...vhCols.map(vh => {
+                                                                const vhSum = pdfPreviewModal.items.reduce((acc: number, d: any) => acc + Math.round(Number(d.voteMap?.[vh] || 0)), 0);
+                                                                return vhSum > 0 ? `KSh ${vhSum.toLocaleString()}` : '—';
+                                                            }),
+                                                            genSum > 0 ? `KSh ${genSum.toLocaleString()}` : '—',
+                                                            `KSh ${Number(pdfPreviewModal.invoiced || 0).toLocaleString()}`
+                                                        ]);
+
+                                                        const colStyles: Record<number, any> = {
+                                                            0: { halign: 'left', fontStyle: 'bold' },
+                                                            1: { halign: 'left' }
+                                                        };
+                                                        for (let c = 2; c < 2 + vhCols.length + 1; c++) {
+                                                            colStyles[c] = { halign: 'right' };
+                                                        }
+                                                        colStyles[2 + vhCols.length + 1] = { halign: 'right', fontStyle: 'bold', textColor: [4, 120, 87] };
+
+                                                        autoTable(doc, {
+                                                            head,
+                                                            body,
+                                                            startY: 50,
+                                                            theme: 'grid',
+                                                            styles: { fontSize: vhCols.length > 6 ? 6.5 : 7.5, cellPadding: 1.8 },
+                                                            headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+                                                            columnStyles: colStyles,
+                                                            didParseCell: (data: any) => {
+                                                                if (data.section === 'body' && data.row.index === body.length - 1) {
+                                                                    data.cell.styles.fontStyle = 'bold';
+                                                                    data.cell.styles.fillColor = [236, 253, 245];
+                                                                }
+                                                            },
+                                                            didDrawPage: drawPageFooter
+                                                        });
+                                                    } else if (isFeeRegister) {
+                                                        const sumBf = pdfPreviewModal.items.reduce((a: number, s: any) => a + Number(s.bf || 0), 0);
+                                                        const sumT1 = pdfPreviewModal.items.reduce((a: number, s: any) => a + Number(s.t1Amount || 0), 0);
+                                                        const sumT2 = pdfPreviewModal.items.reduce((a: number, s: any) => a + Number(s.t2Amount || 0), 0);
+                                                        const sumT3 = pdfPreviewModal.items.reduce((a: number, s: any) => a + Number(s.t3Amount || 0), 0);
+                                                        const sumTotal = pdfPreviewModal.items.reduce((a: number, s: any) => a + Number(s.totalPaid || 0), 0);
+                                                        const sumPrepaid = pdfPreviewModal.items.reduce((a: number, s: any) => a + Number(s.prepaid || 0), 0);
+                                                        const sumArrears = pdfPreviewModal.items.reduce((a: number, s: any) => a + Number(s.arrears || 0), 0);
+
+                                                        const head: any[] = [
+                                                            [
+                                                                { content: 'Name', rowSpan: 2, styles: { valign: 'middle' } },
+                                                                { content: 'Adm.No', rowSpan: 2, styles: { valign: 'middle' } },
+                                                                { content: 'Amount Bf.', rowSpan: 2, styles: { valign: 'middle', halign: 'right' } },
+                                                                { content: '1st Term', colSpan: 2, styles: { halign: 'center' } },
+                                                                { content: '2nd Term', colSpan: 2, styles: { halign: 'center' } },
+                                                                { content: '3rd Term', colSpan: 2, styles: { halign: 'center' } },
+                                                                { content: 'TOTAL', rowSpan: 2, styles: { valign: 'middle', halign: 'right' } },
+                                                                { content: 'PREPAID', rowSpan: 2, styles: { valign: 'middle', halign: 'right' } },
+                                                                { content: 'ARREARS', rowSpan: 2, styles: { valign: 'middle', halign: 'right' } }
+                                                            ],
+                                                            [
+                                                                { content: 'Inst.', styles: { halign: 'center' } },
+                                                                { content: 'Amount', styles: { halign: 'right' } },
+                                                                { content: 'Inst.', styles: { halign: 'center' } },
+                                                                { content: 'Amount', styles: { halign: 'right' } },
+                                                                { content: 'Inst.', styles: { halign: 'center' } },
+                                                                { content: 'Amount', styles: { halign: 'right' } }
+                                                            ]
+                                                        ];
+
+                                                        const body: any[] = pdfPreviewModal.items.map((s: any) => [
+                                                            s.name || '',
+                                                            s.adm || '',
+                                                            Number(s.bf || 0) !== 0 ? `KSh ${Number(s.bf).toLocaleString()}` : '0',
+                                                            s.t1Count || 0,
+                                                            Number(s.t1Amount || 0) > 0 ? Number(s.t1Amount).toLocaleString() : '—',
+                                                            s.t2Count || 0,
+                                                            Number(s.t2Amount || 0) > 0 ? Number(s.t2Amount).toLocaleString() : '—',
+                                                            s.t3Count || 0,
+                                                            Number(s.t3Amount || 0) > 0 ? Number(s.t3Amount).toLocaleString() : '—',
+                                                            Number(s.totalPaid || 0).toLocaleString(),
+                                                            Number(s.prepaid || 0) > 0 ? Number(s.prepaid).toLocaleString() : '—',
+                                                            Number(s.arrears || 0) > 0 ? Number(s.arrears).toLocaleString() : '0'
+                                                        ]);
+
+                                                        body.push([
+                                                            `TOTALS (${pdfPreviewModal.items.length} Students)`,
+                                                            '',
+                                                            sumBf.toLocaleString(),
+                                                            '—',
+                                                            sumT1.toLocaleString(),
+                                                            '—',
+                                                            sumT2.toLocaleString(),
+                                                            '—',
+                                                            sumT3.toLocaleString(),
+                                                            `KSh ${sumTotal.toLocaleString()}`,
+                                                            `KSh ${sumPrepaid.toLocaleString()}`,
+                                                            `KSh ${sumArrears.toLocaleString()}`
+                                                        ]);
+
+                                                        autoTable(doc, {
+                                                            head,
+                                                            body,
+                                                            startY: 50,
+                                                            theme: 'grid',
+                                                            styles: { fontSize: 7.2, cellPadding: 1.8 },
+                                                            headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+                                                            columnStyles: {
+                                                                0: { halign: 'left', fontStyle: 'bold' },
+                                                                1: { halign: 'left' },
+                                                                2: { halign: 'right' },
+                                                                3: { halign: 'center' },
+                                                                4: { halign: 'right' },
+                                                                5: { halign: 'center' },
+                                                                6: { halign: 'right' },
+                                                                7: { halign: 'center' },
+                                                                8: { halign: 'right' },
+                                                                9: { halign: 'right', fontStyle: 'bold', textColor: [4, 120, 87] },
+                                                                10: { halign: 'right', textColor: [67, 56, 202] },
+                                                                11: { halign: 'right', fontStyle: 'bold', textColor: [190, 18, 60] }
+                                                            },
+                                                            didParseCell: (data: any) => {
+                                                                if (data.section === 'body' && data.row.index === body.length - 1) {
+                                                                    data.cell.styles.fontStyle = 'bold';
+                                                                    data.cell.styles.fillColor = [241, 245, 249];
+                                                                }
+                                                            },
+                                                            didDrawPage: drawPageFooter
+                                                        });
+                                                    } else if (isFeeInstallment) {
+                                                        const sumExpected = pdfPreviewModal.items.reduce((a: number, s: any) => a + Number(s.expectedFees || 0), 0);
+                                                        const sumTotals = pdfPreviewModal.items.reduce((a: number, s: any) => a + Number(s.totals || 0), 0);
+                                                        const sumBalance = pdfPreviewModal.items.reduce((a: number, s: any) => a + Number(s.balance || 0), 0);
+                                                        const overallPct = sumExpected > 0 ? Math.round((sumTotals / sumExpected) * 100) : 0;
+
+                                                        const head: any[] = [
+                                                            [
+                                                                { content: 'Adm.No', rowSpan: 2, styles: { valign: 'middle' } },
+                                                                { content: 'Names', rowSpan: 2, styles: { valign: 'middle' } },
+                                                                { content: 'Expected', rowSpan: 2, styles: { valign: 'middle', halign: 'right' } },
+                                                                { content: 'All Installments Since Beginning of Year', colSpan: 12, styles: { halign: 'center' } },
+                                                                { content: 'Totals', rowSpan: 2, styles: { valign: 'middle', halign: 'right' } },
+                                                                { content: 'Balance', rowSpan: 2, styles: { valign: 'middle', halign: 'right' } },
+                                                                { content: '% Paid', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }
+                                                            ],
+                                                            Array.from({ length: 12 }).map((_, c) => ({ content: String(c + 1), styles: { halign: 'center' } }))
+                                                        ];
+
+                                                        const body: any[] = pdfPreviewModal.items.map((s: any) => [
+                                                            s.adm || '',
+                                                            s.name || '',
+                                                            Number(s.expectedFees || 0).toLocaleString(),
+                                                            ...(s.installments || Array(12).fill(0)).slice(0, 12).map((val: number) => Number(val || 0) > 0 ? Number(val).toLocaleString() : '—'),
+                                                            Number(s.totals || 0).toLocaleString(),
+                                                            Number(s.balance || 0).toLocaleString(),
+                                                            `${s.pctPaid || 0}%`
+                                                        ]);
+
+                                                        body.push([
+                                                            `TOTALS (${pdfPreviewModal.items.length})`,
+                                                            '',
+                                                            sumExpected.toLocaleString(),
+                                                            ...Array.from({ length: 12 }).map((_, c) => {
+                                                                const colSum = pdfPreviewModal.items.reduce((a: number, s: any) => a + Number(s.installments?.[c] || 0), 0);
+                                                                return colSum > 0 ? colSum.toLocaleString() : '—';
+                                                            }),
+                                                            sumTotals.toLocaleString(),
+                                                            sumBalance.toLocaleString(),
+                                                            `${overallPct}%`
+                                                        ]);
+
+                                                        const colStyles: Record<number, any> = {
+                                                            0: { halign: 'left' },
+                                                            1: { halign: 'left', fontStyle: 'bold' },
+                                                            2: { halign: 'right' },
+                                                            15: { halign: 'right', fontStyle: 'bold', textColor: [4, 120, 87] },
+                                                            16: { halign: 'right', fontStyle: 'bold', textColor: [190, 18, 60] },
+                                                            17: { halign: 'center', fontStyle: 'bold' }
+                                                        };
+                                                        for (let c = 3; c <= 14; c++) {
+                                                            colStyles[c] = { halign: 'right' };
+                                                        }
+
+                                                        autoTable(doc, {
+                                                            head,
+                                                            body,
+                                                            startY: 50,
+                                                            theme: 'grid',
+                                                            styles: { fontSize: 6.5, cellPadding: 1.3 },
+                                                            headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+                                                            columnStyles: colStyles,
+                                                            didParseCell: (data: any) => {
+                                                                if (data.section === 'body' && data.row.index === body.length - 1) {
+                                                                    data.cell.styles.fontStyle = 'bold';
+                                                                    data.cell.styles.fillColor = [241, 245, 249];
+                                                                }
+                                                            },
+                                                            didDrawPage: drawPageFooter
                                                         });
                                                     } else {
                                                         const hasArrearsCol = pdfPreviewModal.items.some((it: any) => it.arrears !== undefined);
@@ -29677,52 +29945,55 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 5: { halign: 'right', textColor: [16, 185, 129] },
                                                                 6: { halign: 'right', fontStyle: 'bold', textColor: [225, 29, 72] }
                                                             },
-                                                            didDrawPage: (data: any) => {
-                                                                const pageSize = doc.internal.pageSize;
-                                                                const pageHeight = pageSize.height || pageSize.getHeight();
-                                                                const pWidth = pageSize.width || pageSize.getWidth();
-                                                                
-                                                                // Bottom footer on every page
-                                                                doc.setFontSize(8);
-                                                                doc.setFont('helvetica', 'normal');
-                                                                doc.setTextColor(148, 163, 184);
-                                                                doc.setDrawColor(226, 232, 240);
-                                                                doc.line(14, pageHeight - 10, pWidth - 14, pageHeight - 10);
-                                                                doc.text(`${props.institution.name || 'EduAI'} • Official Fee Balance Statement`, 14, pageHeight - 5);
-                                                                doc.text(`Page ${data.pageNumber}`, pWidth - 14, pageHeight - 5, { align: 'right' });
-                                                            }
+                                                            didDrawPage: drawPageFooter
                                                         });
                                                     }
 
                                                     currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : 120;
                                                 }
 
-                                                if (currentY > 245) {
+                                                const currentPageHeight = doc.internal.pageSize.getHeight();
+                                                if (currentY > currentPageHeight - 38) {
                                                     doc.addPage();
                                                     currentY = 20;
                                                 }
 
-                                                doc.setDrawColor(15, 23, 42);
-                                                doc.setFillColor(15, 23, 42);
-                                                doc.roundedRect(14, currentY, pageWidth - 28, 22, 2, 2, 'FD');
+                                                if (!isCashFlow) {
+                                                    doc.setDrawColor(15, 23, 42);
+                                                    doc.setFillColor(15, 23, 42);
+                                                    doc.roundedRect(14, currentY, pageWidth - 28, 22, 2, 2, 'FD');
 
-                                                doc.setFontSize(9);
-                                                doc.setFont('helvetica', 'normal');
-                                                doc.setTextColor(203, 213, 225);
-                                                if (pdfPreviewModal.isCashBook) {
-                                                    doc.text(`Total Inflows (Dr): KSh ${Number(pdfPreviewModal.invoiced || 0).toLocaleString()}`, 20, currentY + 8);
-                                                    doc.text(`Total Outflows (Cr): KSh ${Number(pdfPreviewModal.paid || 0).toLocaleString()}`, 20, currentY + 16);
-                                                    doc.setFontSize(11);
-                                                    doc.setFont('helvetica', 'bold');
-                                                    doc.setTextColor(165, 180, 252);
-                                                    doc.text(`Net Period Balance: KSh ${Number(pdfPreviewModal.balance || 0).toLocaleString()}`, 130, currentY + 13);
-                                                } else {
-                                                    doc.text(`Total Invoiced: KSh ${Number(pdfPreviewModal.invoiced || 0).toLocaleString()}`, 20, currentY + 8);
-                                                    doc.text(`Total Paid: KSh ${Number(pdfPreviewModal.paid || 0).toLocaleString()}`, 20, currentY + 16);
-                                                    doc.setFontSize(11);
-                                                    doc.setFont('helvetica', 'bold');
-                                                    doc.setTextColor(253, 164, 175);
-                                                    doc.text(`Total Balance Due: KSh ${Number(pdfPreviewModal.balance || 0).toLocaleString()}`, 105, currentY + 13);
+                                                    doc.setFontSize(9);
+                                                    doc.setFont('helvetica', 'normal');
+                                                    doc.setTextColor(203, 213, 225);
+                                                    if (isCollectionSummary) {
+                                                        doc.setFontSize(8);
+                                                        doc.text('TOTAL COLLECTED', 20, currentY + 8);
+                                                        doc.text('RECEIPTS PROCESSED', 110, currentY + 8);
+                                                        doc.text('ACTIVE TRANSACTION DAYS', 195, currentY + 8);
+                                                        doc.setFontSize(11);
+                                                        doc.setFont('helvetica', 'bold');
+                                                        doc.setTextColor(52, 211, 153);
+                                                        doc.text(`KSh ${Number(pdfPreviewModal.invoiced || 0).toLocaleString()}`, 20, currentY + 16);
+                                                        doc.setTextColor(165, 180, 252);
+                                                        doc.text(`${Number((pdfPreviewModal as any).totalReceiptsCount || 0).toLocaleString()} receipts`, 110, currentY + 16);
+                                                        doc.setTextColor(255, 255, 255);
+                                                        doc.text(`${Number((pdfPreviewModal as any).activeDaysCount || rawItems.length)} days`, 195, currentY + 16);
+                                                    } else if (pdfPreviewModal.isCashBook) {
+                                                        doc.text(`Total Inflows (Dr): KSh ${Number(pdfPreviewModal.invoiced || 0).toLocaleString()}`, 20, currentY + 8);
+                                                        doc.text(`Total Outflows (Cr): KSh ${Number(pdfPreviewModal.paid || 0).toLocaleString()}`, 20, currentY + 16);
+                                                        doc.setFontSize(11);
+                                                        doc.setFont('helvetica', 'bold');
+                                                        doc.setTextColor(165, 180, 252);
+                                                        doc.text(`Net Period Balance: KSh ${Number(pdfPreviewModal.balance || 0).toLocaleString()}`, 145, currentY + 13);
+                                                    } else {
+                                                        doc.text(`Total Billed / Invoiced: KSh ${Number(pdfPreviewModal.invoiced || 0).toLocaleString()}`, 20, currentY + 8);
+                                                        doc.text(`Total Amount Paid: KSh ${Number(pdfPreviewModal.paid || 0).toLocaleString()}`, 20, currentY + 16);
+                                                        doc.setFontSize(11);
+                                                        doc.setFont('helvetica', 'bold');
+                                                        doc.setTextColor(253, 164, 175);
+                                                        doc.text(`Total Balance Due: KSh ${Number(pdfPreviewModal.balance || 0).toLocaleString()}`, isLandscapeReport ? 145 : 105, currentY + 13);
+                                                    }
                                                 }
 
                                                 const safeFilename = `${(pdfPreviewModal.title || 'fee_balance_report').toLowerCase().replace(/[^a-z0-9]+/g, '_')}.pdf`;
