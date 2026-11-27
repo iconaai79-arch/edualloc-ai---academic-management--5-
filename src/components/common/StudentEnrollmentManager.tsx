@@ -806,6 +806,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [importStream, setImportStream] = useState('');
     const [importAcademicYear, setImportAcademicYear] = useState('');
     const [importDefaultStatus, setImportDefaultStatus] = useState<'' | 'Active' | 'Graduated' | 'Enrolled'>('');
+    const importAcademicYearRef = useRef('');
+    const importDefaultStatusRef = useRef<'' | 'Active' | 'Graduated' | 'Enrolled'>('');
+    importAcademicYearRef.current = importAcademicYear;
+    importDefaultStatusRef.current = importDefaultStatus;
     const [pinExecutionReport, setPinExecutionReport] = useState<{
         title: string;
         items: {
@@ -1040,21 +1044,33 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [groupByYear, setGroupByYear] = useState(false);
 
     const getEnrollmentAcademicYear = useCallback((enr?: any, user?: any): string => {
+        const parseMeta = (m: any) => {
+            if (!m) return {};
+            if (typeof m === 'string') {
+                try { return JSON.parse(m); } catch { return {}; }
+            }
+            return typeof m === 'object' ? m : {};
+        };
+        const enrMeta = parseMeta(enr?.metadata);
+        const userMeta = parseMeta(user?.metadata);
+
         const extractYear = (v: any): string => {
             if (v === null || v === undefined) return '';
             const m = String(v).trim().match(/\b(19\d{2}|20\d{2})\b/);
             return m ? m[1] : '';
         };
         const candidates = [
-            enr?.metadata?.academicYear,
-            enr?.metadata?.academic_year,
-            enr?.metadata?.enrollmentYear,
-            enr?.metadata?.admissionYear,
-            enr?.metadata?.cohortYear,
+            enrMeta?.academicYear,
+            enrMeta?.academic_year,
+            enrMeta?.enrollmentYear,
+            enrMeta?.admissionYear,
+            enrMeta?.cohortYear,
             (enr as any)?.academicYear,
             (enr as any)?.academic_year,
-            user?.metadata?.academicYear,
-            user?.metadata?.admissionYear,
+            userMeta?.academicYear,
+            userMeta?.academic_year,
+            userMeta?.admissionYear,
+            userMeta?.enrollmentYear,
             enr?.enrollmentDate,
             (enr as any)?.enrollment_date,
             enr?.createdAt,
@@ -2814,6 +2830,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setIsUploading(false);
         setStatusMsg({ type: 'info', message: `Ingesting ${data.length} students from spreadsheet...` });
         setIsLoading(true);
+        const selectedDefaultYear = (importAcademicYearRef.current || importAcademicYear || '').trim();
+        const selectedDefaultStatus = importDefaultStatusRef.current || importDefaultStatus || '';
 
         try {
             // Keep a local copy of users and enrollments to match against for duplicates / batch upserts
@@ -2888,6 +2906,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             finalName = 'Student';
                         }
 
+                        const rowImportYearRaw = String(item.academicYear || item.year || item.admissionYear || item.enrollmentYear || selectedDefaultYear || existingEnrollment?.metadata?.academicYear || '').trim();
+                        const rowMatchedYear = rowImportYearRaw.match(/\b(19\d{2}|20\d{2})\b/)?.[1] || '';
+
                         if (existingUser) {
                             userId = existingUser.id;
                             const finalDob = dobImportVal || existingUser.dateOfBirth || existingUser.metadata?.dateOfBirth || '';
@@ -2901,7 +2922,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     ...(existingUser.metadata || {}),
                                     studentName: (hasValidInputName || isNameUnknown(existingUser.name)) ? finalName : (existingUser.metadata?.studentName || existingUser.name),
                                     dateOfBirth: finalDob,
-                                    dob: finalDob
+                                    dob: finalDob,
+                                    ...(rowMatchedYear ? { academicYear: rowMatchedYear, admissionYear: rowMatchedYear } : {})
                                 }
                             };
                             if (updatedUser.institutionId !== currentInstitution.id) {
@@ -2928,7 +2950,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 metadata: {
                                     studentName: finalName,
                                     dateOfBirth: dobImportVal,
-                                    dob: dobImportVal
+                                    dob: dobImportVal,
+                                    ...(rowMatchedYear ? { academicYear: rowMatchedYear, admissionYear: rowMatchedYear } : {})
                                 }
                             };
                             if (item.gender) {
@@ -2976,11 +2999,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         const assessmentNoVal = inputAssessNo || existingEnrollment?.assessmentNo || existingEnrollment?.metadata?.assessmentNo || (existingEnrollment as any)?.assessmentNo || '';
                         const resolvedEnrollmentDob = dobImportVal || existingEnrollment?.dateOfBirth || existingEnrollment?.metadata?.dateOfBirth || '';
                         const leadershipImportVal = item.leadershipPosition || item.leadership_position || item.leadershipRole || item.leadership_role || item.position || item.prefectRole || item.leadership || existingEnrollment?.leadershipPosition || existingEnrollment?.metadata?.leadershipPosition || '';
-                        const rawImportYear = String(item.academicYear || item.year || item.admissionYear || item.enrollmentYear || importAcademicYear || existingEnrollment?.metadata?.academicYear || '').trim();
+                        const rawImportYear = String(item.academicYear || item.year || item.admissionYear || item.enrollmentYear || selectedDefaultYear || existingEnrollment?.metadata?.academicYear || '').trim();
                         const matchedYear = rawImportYear.match(/\b(19\d{2}|20\d{2})\b/)?.[1] || '';
                         const currentYrStr = String(new Date().getFullYear());
-                        const resolvedEnrollmentDate = matchedYear && matchedYear !== currentYrStr
-                            ? `${matchedYear}-01-10`
+                        const resolvedEnrollmentDate = matchedYear
+                            ? (matchedYear !== currentYrStr ? `${matchedYear}-01-10` : (existingEnrollment?.enrollmentDate || new Date().toISOString().split('T')[0]))
                             : (existingEnrollment?.enrollmentDate || new Date().toISOString().split('T')[0]);
 
                         const metadataObj = {
@@ -2992,7 +3015,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             licenseCategory: item.licenseCategory || existingEnrollment?.metadata?.licenseCategory || '',
                             gradeLevel: item.gradeLevel || importGradeLevel || existingEnrollment?.metadata?.gradeLevel || '',
                             stream: item.stream || importStream || existingEnrollment?.metadata?.stream || '',
-                            ...(matchedYear ? { academicYear: matchedYear } : {}),
+                            ...(matchedYear ? { academicYear: matchedYear, enrollmentYear: matchedYear, admissionYear: matchedYear } : {}),
                             leadershipPosition: leadershipImportVal,
                             assessmentNo: assessmentNoVal,
                             dateOfBirth: resolvedEnrollmentDob,
@@ -3035,7 +3058,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 dob: resolvedEnrollmentDob,
                                 leadershipPosition: leadershipImportVal,
                                 ...(matchedYear ? { enrollmentDate: resolvedEnrollmentDate } : {}),
-                                ...(importDefaultStatus ? { status: importDefaultStatus } : {}),
+                                ...(selectedDefaultStatus ? { status: selectedDefaultStatus } : {}),
                                 metadata: metadataObj,
                                 updatedAt: new Date().toISOString()
                             };
@@ -3043,6 +3066,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             (updated as any).name = finalName;
                             (updated as any).course_id = impCourseId || (existingEnrollment as any).course_id || undefined;
                             (updated as any).class_id = impClassId || (existingEnrollment as any).class_id || undefined;
+                            if (matchedYear) (updated as any).enrollment_date = resolvedEnrollmentDate;
                             await apiService.updateModuleRecord('student_enrollments', existingEnrollment.id, updated);
                         } else {
                             const enrollmentId = `enr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
@@ -3058,7 +3082,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 dateOfBirth: resolvedEnrollmentDob,
                                 dob: resolvedEnrollmentDob,
                                 leadershipPosition: leadershipImportVal,
-                                status: (importDefaultStatus || (requireStudentApproval ? 'Enrolled' : 'Active')) as any,
+                                status: (selectedDefaultStatus || (requireStudentApproval ? 'Enrolled' : 'Active')) as any,
                                 enrollmentDate: resolvedEnrollmentDate,
                                 metadata: metadataObj,
                                 createdAt: new Date().toISOString()
@@ -3067,6 +3091,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             (newEnrollment as any).name = finalName;
                             (newEnrollment as any).course_id = impCourseId || undefined;
                             (newEnrollment as any).class_id = impClassId || undefined;
+                            (newEnrollment as any).enrollment_date = resolvedEnrollmentDate;
                             await apiService.saveModuleRecord('student_enrollments', newEnrollment);
                             currentEnrollmentsList.push(newEnrollment);
                         }
@@ -3087,6 +3112,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setIsLoading(false);
             setImportGradeLevel('');
             setImportStream('');
+            setImportAcademicYear('');
+            setImportDefaultStatus('');
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 5000);
         }
     };
