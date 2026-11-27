@@ -2402,10 +2402,30 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [editingDsFee, setEditingDsFee] = useState<any>(null);
     const [openingBalanceSearchInput, setOpeningBalanceSearchInput] = useState('');
     const [openingBalanceSearch, setOpeningBalanceSearch] = useState('');
+    const [openingBalanceYear, setOpeningBalanceYear] = useState<string>(() => String(new Date().getFullYear()));
     const [openingBalanceClassFilter, setOpeningBalanceClassFilter] = useState('All');
     const [openingBalanceStatusFilter, setOpeningBalanceStatusFilter] = useState<'all' | 'has_balance' | 'zero_balance' | 'prepayment'>('all');
     const [openingBalancePage, setOpeningBalancePage] = useState(1);
     const [openingBalancePerPage, setOpeningBalancePerPage] = useState<number | 'All'>(25);
+
+    const availableOpeningBalanceYears = useMemo(() => {
+        const curYr = new Date().getFullYear();
+        const yearSet = new Set<string>();
+        for (let y = curYr + 1; y >= curYr - 6; y--) {
+            yearSet.add(String(y));
+        }
+        (props.students || []).forEach((s: any) => {
+            const byYear = s.metadata?.openingBalancesByYear || s.metadata?.opening_balances_by_year;
+            if (byYear && typeof byYear === 'object') {
+                Object.keys(byYear).forEach(k => {
+                    if (/^\d{4}$/.test(k)) yearSet.add(k);
+                });
+            }
+            const legYr = s.metadata?.openingBalanceYear || s.metadata?.opening_balance_year;
+            if (legYr && /^\d{4}$/.test(String(legYr))) yearSet.add(String(legYr));
+        });
+        return Array.from(yearSet).sort((a, b) => Number(b) - Number(a));
+    }, [props.students]);
 
     useEffect(() => {
         setOpeningBalanceSearch(openingBalanceSearchInput);
@@ -2414,11 +2434,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     useEffect(() => {
         setOpeningBalancePage(1);
-    }, [openingBalanceClassFilter, openingBalanceStatusFilter]);
+    }, [openingBalanceClassFilter, openingBalanceStatusFilter, openingBalanceYear]);
 
     const modifiedOpeningBalancesRef = useRef<Set<string>>(new Set());
+    const pendingMultiYearBalancesRef = useRef<Record<string, Record<string, number>>>({});
     const [unsavedOpeningBalancesCount, setUnsavedOpeningBalancesCount] = useState<number>(0);
     const currentInstitutionIdRef = useRef<string>(props.institution?.id || '');
+    const currentOpeningBalanceYearRef = useRef<string>(openingBalanceYear);
 
     const handleOpeningBalanceChange = useCallback((studentId: string, amount: number) => {
         modifiedOpeningBalancesRef.current.add(studentId);
@@ -2432,20 +2454,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
     }, []);
 
-    const extractStudentOpeningBalance = useCallback((s: any): number => {
+    const extractStudentOpeningBalance = useCallback((s: any, yearOverride?: string): number => {
         if (!s) return 0;
-        const val = s.metadata?.openingBalance ??
-                    s.metadata?.opening_balance ??
-                    s.openingBalance ??
-                    s.opening_balance ??
-                    s.metadata?.balanceBf ??
-                    s.metadata?.balance_bf ??
-                    s.balanceBf ??
-                    s.balance_bf ??
-                    s.metadata?.balance ??
-                    0;
-        return parseMoneyAmount(val);
-    }, []);
+        const targetYear = String(yearOverride || openingBalanceYear || new Date().getFullYear());
+        const byYear = s.metadata?.openingBalancesByYear || s.metadata?.opening_balances_by_year;
+        if (byYear && typeof byYear === 'object' && byYear[targetYear] !== undefined && byYear[targetYear] !== null) {
+            return parseMoneyAmount(byYear[targetYear]);
+        }
+        const legacyYear = String(s.metadata?.openingBalanceYear || s.metadata?.opening_balance_year || '');
+        const hasAnyYearEntries = byYear && typeof byYear === 'object' && Object.keys(byYear).length > 0;
+        // Fall back to legacy flat openingBalance only if it belongs to this year or no year-specific map exists for current year
+        if ((legacyYear && legacyYear === targetYear) || (!legacyYear && !hasAnyYearEntries && targetYear === String(new Date().getFullYear()))) {
+            const val = s.metadata?.openingBalance ??
+                        s.metadata?.opening_balance ??
+                        s.openingBalance ??
+                        s.opening_balance ??
+                        s.metadata?.balanceBf ??
+                        s.metadata?.balance_bf ??
+                        s.balanceBf ??
+                        s.balance_bf ??
+                        s.metadata?.balance ??
+                        0;
+            return parseMoneyAmount(val);
+        }
+        return 0;
+    }, [openingBalanceYear]);
 
     const [openingBalancesMap, setOpeningBalancesMap] = useState<Record<string, number>>(() => {
         const initialMap: Record<string, number> = {};
@@ -2458,15 +2491,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     useEffect(() => {
         if (!mergedStudents || mergedStudents.length === 0) return;
 
-        // If active institution changed, re-initialize from scratch
+        // If active institution or selected opening balance year changed, re-initialize from scratch
         const activeInstId = props.institution?.id || '';
-        if (activeInstId !== currentInstitutionIdRef.current) {
+        const yearChanged = openingBalanceYear !== currentOpeningBalanceYearRef.current;
+        if (activeInstId !== currentInstitutionIdRef.current || yearChanged) {
             currentInstitutionIdRef.current = activeInstId;
-            modifiedOpeningBalancesRef.current.clear();
-            setUnsavedOpeningBalancesCount(0);
+            currentOpeningBalanceYearRef.current = openingBalanceYear;
+            if (!yearChanged || modifiedOpeningBalancesRef.current.size === 0) {
+                modifiedOpeningBalancesRef.current.clear();
+                pendingMultiYearBalancesRef.current = {};
+                setUnsavedOpeningBalancesCount(0);
+            }
             const resetMap: Record<string, number> = {};
             mergedStudents.forEach((s: any) => {
-                resetMap[s.id] = extractStudentOpeningBalance(s);
+                const pendingForYear = pendingMultiYearBalancesRef.current[s.id]?.[openingBalanceYear];
+                resetMap[s.id] = pendingForYear !== undefined ? pendingForYear : extractStudentOpeningBalance(s, openingBalanceYear);
             });
             setOpeningBalancesMap(resetMap);
             return;
@@ -2484,13 +2523,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
                 // If student is not yet tracked in map, initialize them
                 if (newMap[s.id] === undefined) {
-                    newMap[s.id] = extractStudentOpeningBalance(s);
+                    newMap[s.id] = extractStudentOpeningBalance(s, openingBalanceYear);
                     hasNewStudents = true;
                 }
             });
             return hasNewStudents ? newMap : prev;
         });
-    }, [mergedStudents, extractStudentOpeningBalance, props.institution?.id]);
+    }, [mergedStudents, extractStudentOpeningBalance, props.institution?.id, openingBalanceYear]);
 
     // Importer State
     const [showImporter, setShowImporter] = useState(false);
@@ -2498,9 +2537,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [importerStep, setImporterStep] = useState<'upload' | 'map'>('upload');
     const [importerRawData, setImporterRawData] = useState<any[]>([]);
     const [importerHeaders, setImporterHeaders] = useState<string[]>([]);
+    const [importerYear, setImporterYear] = useState<string>(() => String(new Date().getFullYear()));
     const [importerMappings, setImporterMappings] = useState({
         identifier: '',
-        balance: ''
+        balance: '',
+        year: ''
     });
     const [importerMatchField, setImporterMatchField] = useState<'admissionNumber' | 'name'>('admissionNumber');
     const [isSavingBalances, setIsSavingBalances] = useState(false);
@@ -3094,18 +3135,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     };
 
-    const handleSaveOpeningBalances = async (balancesToPersist?: Record<string, number>) => {
+    const handleSaveOpeningBalances = async (
+        balancesToPersist?: Record<string, number>,
+        yearOverride?: string,
+        multiYearOverrides?: Record<string, Record<string, number>>
+    ) => {
         if (!canEditOpeningBalances) {
             alert("Permission Denied: Only Reseller, Director, and Group Admin are authorized to edit opening balances.");
             return;
         }
         setIsSavingBalances(true);
         try {
+            const targetYear = String(yearOverride || openingBalanceYear || new Date().getFullYear());
+            const currentYearStr = String(new Date().getFullYear());
             const activeBalances = balancesToPersist || openingBalancesMap;
+            const multiYearMap = multiYearOverrides || pendingMultiYearBalancesRef.current;
             const allStudentsPool = studentListForOpeningBalances;
             // Find all students whose opening balance was modified
             const studentsToUpdate = allStudentsPool.filter(s => {
-                const originalBalance = extractStudentOpeningBalance(s);
+                if (multiYearMap[s.id] && Object.keys(multiYearMap[s.id]).length > 0) return true;
+                const originalBalance = extractStudentOpeningBalance(s, targetYear);
                 const newBalance = activeBalances[s.id] !== undefined ? activeBalances[s.id] : originalBalance;
                 return Math.abs(originalBalance - newBalance) > 0.001 || modifiedOpeningBalancesRef.current.has(s.id);
             });
@@ -3116,16 +3165,44 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 for (let i = 0; i < studentsToUpdate.length; i += chunkSize) {
                     const chunk = studentsToUpdate.slice(i, i + chunkSize);
                     await Promise.all(chunk.map(student => {
-                        const newBal = activeBalances[student.id] !== undefined ? activeBalances[student.id] : (extractStudentOpeningBalance(student) || 0);
+                        const existingByYear: Record<string, number> = {
+                            ...(student.metadata?.openingBalancesByYear || student.metadata?.opening_balances_by_year || {})
+                        };
+                        const studentMulti = multiYearMap[student.id];
+                        if (studentMulti && Object.keys(studentMulti).length > 0) {
+                            Object.entries(studentMulti).forEach(([yr, amt]) => {
+                                existingByYear[yr] = amt;
+                            });
+                        } else {
+                            const newBal = activeBalances[student.id] !== undefined
+                                ? activeBalances[student.id]
+                                : (extractStudentOpeningBalance(student, targetYear) || 0);
+                            existingByYear[targetYear] = newBal;
+                        }
+
+                        // Keep legacy openingBalance synced to the current calendar year if present, else the targetYear being saved
+                        const syncedLegacyBal = existingByYear[currentYearStr] !== undefined
+                            ? existingByYear[currentYearStr]
+                            : (existingByYear[targetYear] ?? Number(student.metadata?.openingBalance || 0));
+                        const syncedLegacyYear = existingByYear[currentYearStr] !== undefined ? currentYearStr : targetYear;
+
                         const updatedMetadata = {
                             ...(student.metadata || {}),
-                            openingBalance: newBal,
-                            opening_balance: newBal
+                            openingBalancesByYear: existingByYear,
+                            opening_balances_by_year: existingByYear,
+                            openingBalanceYear: syncedLegacyYear,
+                            opening_balance_year: syncedLegacyYear,
+                            openingBalance: syncedLegacyBal,
+                            opening_balance: syncedLegacyBal
                         };
                         // Synchronously update local in-memory student object so subsequent renders see the saved balance immediately
                         if (student.metadata) {
-                            student.metadata.openingBalance = newBal;
-                            student.metadata.opening_balance = newBal;
+                            student.metadata.openingBalancesByYear = existingByYear;
+                            student.metadata.opening_balances_by_year = existingByYear;
+                            student.metadata.openingBalanceYear = syncedLegacyYear;
+                            student.metadata.opening_balance_year = syncedLegacyYear;
+                            student.metadata.openingBalance = syncedLegacyBal;
+                            student.metadata.opening_balance = syncedLegacyBal;
                         }
                         return apiService.updateModuleRecord('users', student.id, {
                             metadata: updatedMetadata
@@ -3134,6 +3211,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
                 
                 modifiedOpeningBalancesRef.current.clear();
+                pendingMultiYearBalancesRef.current = {};
                 setUnsavedOpeningBalancesCount(0);
 
                 if (props.onRefreshData) {
@@ -3141,9 +3219,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
             }
 
-            alert(`Opening balances saved successfully! Updated ${studentsToUpdate.length} student ledger profile(s).`);
+            alert(`Opening balances for ${targetYear} saved successfully! Updated ${studentsToUpdate.length} student ledger profile(s).`);
             if (props.onLogAction) {
-                await props.onLogAction(`Updated ${studentsToUpdate.length} student opening balances in ledger settings`);
+                await props.onLogAction(`Updated ${studentsToUpdate.length} student opening balances for year ${targetYear} in ledger settings`);
             }
         } catch (e: any) {
             alert("Failed to save opening balances: " + (e.message || e));
@@ -4288,9 +4366,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                    headers.find((h: string) => /adm|number|reg|identifier/i.test(h) && !/name|payer/i.test(h)) ||
                                    headers.find((h: string) => /name|student/i.test(h)) || '';
                 const detectedBal = headers.find((h: string) => /bal|amount|open/i.test(h)) || '';
+                const detectedYear = headers.find((h: string) => /^(academic[\s_]*)?year$|^fy$|^financial[\s_]*year$|^balance[\s_]*year$/i.test(h.trim())) || '';
                 setImporterMappings({
                     identifier: detectedId,
-                    balance: detectedBal
+                    balance: detectedBal,
+                    year: detectedYear
                 });
 
                 if (/name/i.test(detectedId) && !/adm|reg|no|number|id/i.test(detectedId)) {
@@ -4317,7 +4397,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         let matchCount = 0;
         let skipCount = 0;
+        const targetImportYear = String(importerYear || openingBalanceYear || new Date().getFullYear());
         const newBalancesMap = { ...openingBalancesMap };
+        const multiYearUpdates: Record<string, Record<string, number>> = { ...pendingMultiYearBalancesRef.current };
+        const importedYearsSet = new Set<string>();
 
         // Helper to parse balance numbers with currency symbols, commas, or parentheses e.g. "(500)" or "Ksh 1,500.00"
         const parseImportBalance = (val: any): number => {
@@ -4409,7 +4492,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
 
             if (matchedStudent) {
-                newBalancesMap[matchedStudent.id] = rawBal;
+                let rowYear = targetImportYear;
+                if (importerMappings.year) {
+                    const rawYrStr = String(row[importerMappings.year] ?? '').trim();
+                    const yrMatch = rawYrStr.match(/\b(20\d{2}|19\d{2})\b/);
+                    if (yrMatch) rowYear = yrMatch[1];
+                }
+                importedYearsSet.add(rowYear);
+                if (!multiYearUpdates[matchedStudent.id]) {
+                    multiYearUpdates[matchedStudent.id] = {};
+                }
+                multiYearUpdates[matchedStudent.id][rowYear] = rawBal;
+                if (rowYear === targetImportYear) {
+                    newBalancesMap[matchedStudent.id] = rawBal;
+                }
                 modifiedOpeningBalancesRef.current.add(matchedStudent.id);
                 matchCount++;
             } else {
@@ -4417,6 +4513,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
         });
 
+        pendingMultiYearBalancesRef.current = multiYearUpdates;
+        if (targetImportYear !== openingBalanceYear) {
+            setOpeningBalanceYear(targetImportYear);
+        }
         setOpeningBalancesMap(newBalancesMap);
         setUnsavedOpeningBalancesCount(modifiedOpeningBalancesRef.current.size);
         
@@ -4424,10 +4524,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         setImporterStep('upload');
         setShowImporter(false);
 
+        const importedYearsLabel = importedYearsSet.size > 0
+            ? Array.from(importedYearsSet).sort().join(', ')
+            : targetImportYear;
+
         if (autoSaveNow) {
-            await handleSaveOpeningBalances(newBalancesMap);
+            await handleSaveOpeningBalances(newBalancesMap, targetImportYear, multiYearUpdates);
         } else {
-            alert(`Import complete! Matched and loaded ${matchCount} student opening balance(s). Skipped ${skipCount} unmatched rows. Your imported balances are now reflected on the dashboard and in the table. Click 'Save Changes' to permanently persist them to the database.`);
+            alert(`Import complete for Year ${importedYearsLabel}! Matched and loaded ${matchCount} student opening balance(s). Skipped ${skipCount} unmatched rows. Click 'Save Changes' to permanently persist them to the database.`);
         }
     };
 
@@ -17897,11 +18001,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     Fix Misallocated
                                                 </button>
                                                 <button 
-                                                    onClick={() => setShowImporter(true)}
+                                                    onClick={() => {
+                                                        setImporterYear(openingBalanceYear);
+                                                        setShowImporter(true);
+                                                    }}
                                                     className="px-4 py-2.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-450 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-650 hover:text-white transition-all flex items-center gap-2 border border-emerald-100 dark:border-emerald-900/50 cursor-pointer"
                                                 >
                                                     <ArrowUpTrayIcon className="w-4 h-4" />
-                                                    Import Excel
+                                                    Import Excel ({openingBalanceYear})
                                                 </button>
                                             </>
                                         )}
@@ -17911,7 +18018,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             className="px-6 py-2.5 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
                                         >
                                             <CheckIcon className="w-4 h-4" />
-                                            {isSavingBalances ? 'Saving...' : 'Save Changes'}
+                                            {isSavingBalances ? 'Saving...' : `Save ${openingBalanceYear}`}
                                         </button>
                                     </div>
                                 </div>
@@ -17937,6 +18044,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 </button>
                                             )}
                                         </div>
+                                        <select
+                                            value={openingBalanceYear}
+                                            onChange={(e) => setOpeningBalanceYear(e.target.value)}
+                                            className="px-5 py-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl outline-none font-black text-indigo-700 dark:text-indigo-300 text-sm shadow-xs cursor-pointer"
+                                            title="Select the academic/financial year for these opening balances"
+                                        >
+                                            {availableOpeningBalanceYears.map((yr) => (
+                                                <option key={yr} value={yr}>Year: {yr}</option>
+                                            ))}
+                                        </select>
                                         <select
                                             value={openingBalanceClassFilter}
                                             onChange={(e) => setOpeningBalanceClassFilter(e.target.value)}
@@ -20795,6 +20912,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </div>
 
                             <div className="p-8 space-y-6">
+                                {/* Target Opening Balance Year Selector */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-indigo-50/70 dark:bg-indigo-950/30 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/50">
+                                    <div>
+                                        <label className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wider block">
+                                            Opening Balance Year *
+                                        </label>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                            Default year assigned to uploaded balances (stored separately per year)
+                                        </p>
+                                    </div>
+                                    <select
+                                        value={importerYear}
+                                        onChange={(e) => setImporterYear(e.target.value)}
+                                        className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl font-black text-xs text-indigo-700 dark:text-indigo-300 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                    >
+                                        {availableOpeningBalanceYears.map((yr) => (
+                                            <option key={yr} value={yr}>{yr}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 {importerStep === 'upload' ? (
                                     <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] p-12 hover:border-indigo-500 transition-colors group cursor-pointer text-center relative">
                                         <input 
@@ -20886,6 +21024,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-indigo-500 font-bold text-xs text-slate-700 dark:text-slate-200"
                                                     >
                                                         <option value="">-- Select Column --</option>
+                                                        {importerHeaders.map(h => (
+                                                            <option key={h} value={h}>{h}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <div className="md:col-span-2 bg-slate-50 dark:bg-slate-800/30 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/40 flex flex-col gap-2">
+                                                    <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                                        Year Column (Optional — overrides {importerYear} per row)
+                                                    </label>
+                                                    <select
+                                                        value={importerMappings.year}
+                                                        onChange={(e) => setImporterMappings(prev => ({ ...prev, year: e.target.value }))}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-indigo-500 font-bold text-xs text-slate-700 dark:text-slate-200"
+                                                    >
+                                                        <option value="">-- Use Selected Year ({importerYear}) for all rows --</option>
                                                         {importerHeaders.map(h => (
                                                             <option key={h} value={h}>{h}</option>
                                                         ))}
