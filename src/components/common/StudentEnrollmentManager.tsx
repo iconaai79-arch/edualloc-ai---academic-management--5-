@@ -811,6 +811,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const importDefaultStatusRef = useRef<'' | 'Active' | 'Graduated' | 'Enrolled'>('');
     importAcademicYearRef.current = importAcademicYear;
     importDefaultStatusRef.current = importDefaultStatus;
+    const [importDuplicateMode, setImportDuplicateMode] = useState<'new_only' | 'upsert'>('new_only');
+    const importDuplicateModeRef = useRef<'new_only' | 'upsert'>('new_only');
+    importDuplicateModeRef.current = importDuplicateMode;
     const [pinExecutionReport, setPinExecutionReport] = useState<{
         title: string;
         items: {
@@ -2837,12 +2840,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setIsLoading(true);
         const selectedDefaultYear = (importAcademicYearRef.current || importAcademicYear || '').trim();
         const selectedDefaultStatus = importDefaultStatusRef.current || importDefaultStatus || '';
+        const selectedDuplicateMode = importDuplicateModeRef.current || importDuplicateMode || 'new_only';
 
         try {
             // Keep a local copy of users and enrollments to match against for duplicates / batch upserts
             let currentUsersList = [...users];
             let currentEnrollmentsList = [...enrollments];
             let successCount = 0;
+            let newImportedCount = 0;
+            let updatedCount = 0;
+            let skippedExistingCount = 0;
+            const claimedAdmInUpload = new Set<string>();
+            const claimedAssessInUpload = new Set<string>();
 
             const batchSize = 10;
             for (let i = 0; i < data.length; i += batchSize) {
@@ -2887,12 +2896,33 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             }
                         }
 
+                        // Also check existing student users by admission number even if enrollment was not linked yet
+                        const cleanInputAdm = inputAdmNo ? cleanAdm(inputAdmNo) : '';
+                        const cleanInputAssess = inputAssessNo ? cleanAdm(inputAssessNo) : '';
+                        if (!existingUser && cleanInputAdm) {
+                            existingUser = currentUsersList.find(u => {
+                                const uAdm = u.admissionNumber || (u as any).admission_number || (u as any).admNo || u.metadata?.admissionNumber || u.metadata?.admNo;
+                                return uAdm && cleanAdm(uAdm) === cleanInputAdm && u.metadata?.enrollmentDeleted !== true;
+                            });
+                        }
+
                         // 2. Only match by unique student email if explicit and not a dummy/fallback domain
                         if (!existingUser && inputEmail && !inputEmail.includes('@eduai.local') && !inputEmail.includes('student_')) {
                             existingUser = currentUsersList.find(u => 
                                 u.email && u.email.toLowerCase() === inputEmail && u.role === 'student'
                             );
                         }
+
+                        // 3. Skip Existing mode: detect existing students (or duplicate rows in same Excel) and import ONLY new students
+                        const isDuplicateInSameUpload =
+                            (cleanInputAdm && claimedAdmInUpload.has(cleanInputAdm)) ||
+                            (cleanInputAssess && claimedAssessInUpload.has(cleanInputAssess));
+                        if (selectedDuplicateMode === 'new_only' && (existingEnrollment || existingUser || isDuplicateInSameUpload)) {
+                            skippedExistingCount++;
+                            return;
+                        }
+                        if (cleanInputAdm) claimedAdmInUpload.add(cleanInputAdm);
+                        if (cleanInputAssess) claimedAssessInUpload.add(cleanInputAssess);
 
                         const dobImportVal = item.dateOfBirth ? String(item.dateOfBirth).trim() : (item.dob ? String(item.dob).trim() : (item.birthDate ? String(item.birthDate).trim() : ''));
 
@@ -3073,6 +3103,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             (updated as any).class_id = impClassId || (existingEnrollment as any).class_id || undefined;
                             if (matchedYear) (updated as any).enrollment_date = resolvedEnrollmentDate;
                             await apiService.updateModuleRecord('student_enrollments', existingEnrollment.id, updated);
+                            updatedCount++;
                         } else {
                             const enrollmentId = `enr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
                             const newEnrollment: StudentEnrollment = {
@@ -3099,6 +3130,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             (newEnrollment as any).enrollment_date = resolvedEnrollmentDate;
                             await apiService.saveModuleRecord('student_enrollments', newEnrollment);
                             currentEnrollmentsList.push(newEnrollment);
+                            newImportedCount++;
                         }
 
                         successCount++;
@@ -3108,7 +3140,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 }));
             }
 
-            setStatusMsg({ type: 'success', message: `Successfully imported ${successCount} student enrollment(s).` });
+            const summaryParts: string[] = [];
+            if (newImportedCount > 0) summaryParts.push(`Added ${newImportedCount} new student(s)`);
+            if (updatedCount > 0) summaryParts.push(`Updated ${updatedCount} existing student(s)`);
+            if (skippedExistingCount > 0) summaryParts.push(`Skipped ${skippedExistingCount} already existing student(s)`);
+            setStatusMsg({ type: 'success', message: summaryParts.length > 0 ? `Import complete: ${summaryParts.join(' • ')}.` : `Successfully processed ${successCount} student enrollment(s).` });
             loadAllData();
         } catch (err: any) {
             console.error("Bulk ingestion failed:", err);
@@ -7134,6 +7170,17 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         <option value="Active">Active</option>
                                         <option value="Graduated">Graduated (Previous Cohort)</option>
                                         <option value="Enrolled">Enrolled (Pending Approval)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest ml-1">Existing Students Handling</label>
+                                    <select
+                                        value={importDuplicateMode}
+                                        onChange={e => setImportDuplicateMode(e.target.value as 'new_only' | 'upsert')}
+                                        className="form-select mt-1 w-full bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl px-4 py-2.5 font-bold text-xs text-emerald-900 dark:text-emerald-200 focus:outline-none focus:border-emerald-500"
+                                    >
+                                        <option value="new_only">Skip Existing (Import New Students Only)</option>
+                                        <option value="upsert">Update Existing &amp; Import New</option>
                                     </select>
                                 </div>
                             </div>
