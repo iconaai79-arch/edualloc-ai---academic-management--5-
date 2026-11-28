@@ -1041,7 +1041,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
     const [isLoading, setIsLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'All' | 'Enrolled' | 'Active' | 'Graduated' | 'Suspended' | 'Dropped'>('All');
+    const [statusFilter, setStatusFilter] = useState<'All' | 'Enrolled' | 'Active' | 'Graduated' | 'Suspended' | 'Dropped' | 'Inactive'>('All');
     const [gradeFilter, setGradeFilter] = useState<string>(() => defaultGradeFilter || '');
     const [streamFilter, setStreamFilter] = useState('');
     const [yearFilter, setYearFilter] = useState('');
@@ -5982,7 +5982,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
         const matched: Array<{ enr: StudentEnrollment; rank: number }> = [];
         for (const enr of enrollments) {
-            if (statusFilter !== 'All' && enr.status !== statusFilter) {
+            if (statusFilter === 'Inactive') {
+                const st = String(enr.status || 'Active').toLowerCase().trim();
+                if (st === 'active' || st === 'enrolled' || st === 'graduated' || st === '') {
+                    continue;
+                }
+            } else if (statusFilter !== 'All' && enr.status !== statusFilter) {
                 continue;
             }
 
@@ -7405,8 +7410,19 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     <div>
                                         <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Registry (All Years)</p>
                                         <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">{enrollments.length}</h3>
-                                        <p className="text-[10px] font-bold text-slate-400 mt-1">
-                                            {activeEnrolledList.length} Enrolled{graduatedCount > 0 ? ` • ${graduatedCount} Graduated` : ''}{inactiveCount > 0 ? ` • ${inactiveCount} Inactive` : ''}
+                                        <p className="text-[10px] font-bold text-slate-400 mt-1 flex flex-wrap items-center gap-1">
+                                            <span>{activeEnrolledList.length} Enrolled</span>
+                                            {graduatedCount > 0 && <span>• {graduatedCount} Graduated</span>}
+                                            {inactiveCount > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setStatusFilter(statusFilter === 'Inactive' ? 'All' : 'Inactive')}
+                                                    className="px-1.5 py-0.5 rounded-md bg-rose-500/15 text-rose-500 hover:bg-rose-500 hover:text-white font-black cursor-pointer transition-colors"
+                                                    title="Click to view all inactive / suspended / dropped students"
+                                                >
+                                                    • {inactiveCount} Inactive (View)
+                                                </button>
+                                            )}
                                         </p>
                                     </div>
                                     <button
@@ -7474,6 +7490,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 {requireStudentApproval && <option value="Enrolled">⏳ Approval Stage (Enrolled)</option>}
                                 <option value="Active">{requireStudentApproval ? '🟢 Active (Approved)' : '🟢 Active'}</option>
                                 <option value="Graduated">Graduated</option>
+                                <option value="Inactive">⚠️ Inactive / Suspended / Dropped (All Non-Active)</option>
                                 <option value="Suspended">Suspended</option>
                                 <option value="Dropped">Dropped</option>
                             </select>
