@@ -376,7 +376,32 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         return (students || []).filter(u => u.role === 'student' || !u.role);
     }, [students]);
 
-    // Helper: Safely and reliably resolve student admission number across direct properties, enrollments, and Excel fallback
+    // Pre-index enrollments by userId / studentId / id once (O(N)) to avoid O(N^2) scans when opening modal or reconciling rows
+    const enrollmentsByStudentId = useMemo(() => {
+        const map = new Map<string, any[]>();
+        const add = (key: any, enr: any) => {
+            if (!key) return;
+            const k = String(key).trim();
+            if (!k) return;
+            let arr = map.get(k);
+            if (!arr) {
+                arr = [];
+                map.set(k, arr);
+            }
+            arr.push(enr);
+        };
+        (enrollments || []).forEach((e: any) => {
+            if (!e) return;
+            add(e.userId, e);
+            add(e.user_id, e);
+            add(e.studentId, e);
+            add(e.student_id, e);
+            add(e.id, e);
+        });
+        return map;
+    }, [enrollments]);
+
+    // Helper: Safely and reliably resolve student admission number across direct properties, enrollments, and Excel fallback (O(1))
     const getResolvedAdm = (student: User | null, fallbackRawAdm?: string): string => {
         if (!student) return (fallbackRawAdm && fallbackRawAdm !== 'N/A') ? String(fallbackRawAdm).trim() : 'N/A';
 
@@ -408,8 +433,9 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             }
         }
 
-        // 2. Check enrollments linked to student
-        const enr = enrollments.find(e => e.userId === student.id || (e as any).studentId === student.id || e.id === student.id);
+        // 2. O(1) lookup of enrollments linked to student
+        const matchedEnrs = enrollmentsByStudentId.get(String(student.id || '').trim()) || [];
+        const enr = matchedEnrs[0];
         if (enr) {
             const enrAdm = enr.admissionNumber || enr.admission_number || enr.admissionNo || enr.admNo || enr.registrationNo || enr.metadata?.admissionNumber || enr.metadata?.admNo;
             if (enrAdm) {
@@ -420,8 +446,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             }
         }
 
-        // 3. Check utility resolution
-        const utilAdm = resolveRealStudentAdmNo(student, undefined, enrollments);
+        // 3. Check utility resolution (passing only this student's matched enrollments, NOT the full array)
+        const utilAdm = resolveRealStudentAdmNo(student, undefined, matchedEnrs);
         if (utilAdm && utilAdm !== 'N/A' && !utilAdm.startsWith('usr_') && !utilAdm.startsWith('user_')) {
             return utilAdm;
         }
@@ -522,7 +548,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 student.metadata?.admNo
             ];
 
-            const studentEnrs = enrollments.filter(e => e.userId === student.id || (e as any).studentId === student.id || e.id === student.id);
+            const studentEnrs = enrollmentsByStudentId.get(String(student.id || '').trim()) || [];
             studentEnrs.forEach(enr => {
                 admCandidates.push(
                     enr.admissionNumber,
