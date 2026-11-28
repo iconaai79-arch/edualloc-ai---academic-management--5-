@@ -1629,7 +1629,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | 'info' | 'idle', message: string }>({ type: 'idle', message: '' });
 
     // Load Data
-    const loadAllData = async (silent: boolean = false) => {
+    const loadAllData = async (silent: boolean = false, forceFresh: boolean = false) => {
         if (!silent) {
             setIsLoading(true);
         }
@@ -1656,8 +1656,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 visitorsData,
                 invoicesData
             ] = await Promise.all([
-                apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', effectiveTargetInstId, undefined, { limit: 10000 }),
-                apiService.fetchModuleRecords<User>('users', effectiveTargetInstId, undefined, { limit: 10000 }),
+                apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', effectiveTargetInstId, undefined, { limit: 10000, ...(forceFresh ? { bypassCache: true, forceRefresh: true } : {}) }),
+                apiService.fetchModuleRecords<User>('users', effectiveTargetInstId, undefined, { limit: 10000, ...(forceFresh ? { bypassCache: true, forceRefresh: true } : {}) }),
                 (initialCourses && initialCourses.length > 0 && initialCourses.some(c => String(c.institutionId || (c as any).institution_id).toLowerCase() === String(effectiveTargetInstId).toLowerCase())) 
                     ? Promise.resolve(initialCourses.filter(c => String(c.institutionId || (c as any).institution_id).toLowerCase() === String(effectiveTargetInstId).toLowerCase())) 
                     : apiService.fetchModuleRecords<Course>('courses', effectiveTargetInstId).catch(() => []),
@@ -2386,11 +2386,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     metadata: metadataToSave,
                     createdAt: new Date().toISOString()
                 };
+                (newEnrollment as any).institution_id = currentInstitution.id;
+                (newEnrollment as any).user_id = userId;
+                (newEnrollment as any).studentName = formData.fullName;
+                (newEnrollment as any).name = formData.fullName;
                 (newEnrollment as any).admission_number = finalAdmNo;
+                (newEnrollment as any).enrollment_type = context;
+                (newEnrollment as any).enrollment_date = formData.enrollmentDate;
                 (newEnrollment as any).course_id = resolvedCourseId || undefined;
                 (newEnrollment as any).class_id = resolvedClassId || undefined;
                 (newEnrollment as any).date_of_birth = resolvedDob || null;
                 await apiService.saveModuleRecord('student_enrollments', newEnrollment);
+                // Immediately reflect newly enrolled student in UI state before server refresh completes
+                setEnrollments(prev => [newEnrollment, ...prev.filter(e => e.id !== newEnrollment.id)]);
+                if (statusFilter !== 'All' && statusFilter !== effectiveStatus) {
+                    setStatusFilter('All');
+                }
                 
                 // Dispatch notification to DOS (to finalize academic onboarding & update assessment number) and Headteacher/HOI (to approve enrollment)
                 apiService.notifyStudentAdmission(currentInstitution.id, {
@@ -2411,7 +2422,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             
             setIsFormOpen(false);
             setEditingEnrollment(null);
-            loadAllData();
+            await loadAllData(true, true);
             
             // Clear form
             setFormData({
@@ -3145,7 +3156,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             if (updatedCount > 0) summaryParts.push(`Updated ${updatedCount} existing student(s)`);
             if (skippedExistingCount > 0) summaryParts.push(`Skipped ${skippedExistingCount} already existing student(s)`);
             setStatusMsg({ type: 'success', message: summaryParts.length > 0 ? `Import complete: ${summaryParts.join(' • ')}.` : `Successfully processed ${successCount} student enrollment(s).` });
-            loadAllData();
+            await loadAllData(true, true);
         } catch (err: any) {
             console.error("Bulk ingestion failed:", err);
             setStatusMsg({ type: 'error', message: `Import failed: ${err.message}` });
@@ -7402,7 +7413,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         type="button"
                                         onClick={async () => {
                                             setStatusMsg({ type: 'info', message: 'Syncing & reconciling Student Registry with enrolled records...' });
-                                            await fetchAllData(true);
+                                            await loadAllData(false, true);
                                             setStatusMsg({ type: 'success', message: `Registry synced! ${activeEnrolledList.length} Active Enrolled (${enrollments.length} total records across all statuses).` });
                                         }}
                                         className="w-12 h-12 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500/20 flex items-center justify-center text-indigo-500 dark:text-indigo-400 shrink-0 cursor-pointer transition-colors"
