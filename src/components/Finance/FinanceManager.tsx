@@ -29201,24 +29201,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     })()}
 
             {/* Receive Fees Money (Interactive Excel Mapping & Manual Key-in) Modal */}
-            <ReceiveFeesModal
-                isOpen={isExcelImportModalOpen}
-                onClose={() => setIsExcelImportModalOpen(false)}
-                institution={props.institution}
-                bankAccounts={bankAccounts}
-                students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
-                invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
-                receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
-                enrollments={mergedEnrollments.length > 0 ? mergedEnrollments : enrollments}
-                studentFinanceData={studentFinanceData}
-                userName={props.currentUser?.name || props.currentUser?.email || 'Finance Officer'}
-                currentUser={props.currentUser}
-                onReceiptCreated={(r: any) => {
-                    if ((props as any).onReceiptCreated) (props as any).onReceiptCreated(r);
-                }}
-                onRefreshData={props.onRefreshData}
-                onLogAction={props.onLogAction}
-            />
+            {isExcelImportModalOpen && (
+                <ReceiveFeesModal
+                    isOpen={isExcelImportModalOpen}
+                    onClose={() => setIsExcelImportModalOpen(false)}
+                    institution={props.institution}
+                    bankAccounts={bankAccounts}
+                    students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
+                    invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
+                    receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
+                    enrollments={mergedEnrollments.length > 0 ? mergedEnrollments : enrollments}
+                    studentFinanceData={studentFinanceData}
+                    userName={props.currentUser?.name || props.currentUser?.email || 'Finance Officer'}
+                    currentUser={props.currentUser}
+                    onReceiptCreated={(r: any) => {
+                        if ((props as any).onReceiptCreated) (props as any).onReceiptCreated(r);
+                    }}
+                    onRefreshData={props.onRefreshData}
+                    onLogAction={props.onLogAction}
+                />
+            )}
 
             {/* Class Receipts Batch Reprint Modal */}
             {isClassReceiptReprintModalOpen && (

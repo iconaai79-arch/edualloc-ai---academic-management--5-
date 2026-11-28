@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import type { User, Institution, Invoice, Receipt } from '../../types';
 import {
@@ -207,6 +207,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     const [manualSendWhatsApp, setManualSendWhatsApp] = useState(true);
     const [isPostingManual, setIsPostingManual] = useState(false);
     const [manualSuccessMsg, setManualSuccessMsg] = useState<string | null>(null);
+    const statementFileInputRef = useRef<HTMLInputElement | null>(null);
 
     // Load institution Bank Accounts dynamically (from props, school_bank_accounts, bank_accounts, integration configs)
     useEffect(() => {
@@ -331,7 +332,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             }
         };
         loadAccounts();
-    }, [isOpen, institution, propsBankAccounts]);
+    }, [isOpen, institution?.id]);
 
     // Save priorities to localStorage
     const handleSavePriorities = (newPriorities: string[]) => {
@@ -1733,7 +1734,24 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                             </div>
                         )}
                         {!excelFile ? (
-                            <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-3xl p-10 text-center hover:border-emerald-500 transition-colors bg-slate-50/50 dark:bg-slate-950/30 space-y-4">
+                            <div
+                                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const droppedFile = e.dataTransfer?.files?.[0];
+                                    if (droppedFile) {
+                                        handleFileChange({ target: { files: [droppedFile] } } as any);
+                                    }
+                                }}
+                                onClick={() => {
+                                    if (statementFileInputRef.current) {
+                                        statementFileInputRef.current.value = '';
+                                        statementFileInputRef.current.click();
+                                    }
+                                }}
+                                className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-3xl p-10 text-center hover:border-emerald-500 transition-colors bg-slate-50/50 dark:bg-slate-950/30 space-y-4 cursor-pointer"
+                            >
                                 <div className="w-16 h-16 mx-auto rounded-3xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center shadow-inner">
                                     <ArrowUpTrayIcon className="w-8 h-8" />
                                 </div>
@@ -1742,20 +1760,31 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                         Upload Excel or CSV Bank / M-Pesa Statement
                                     </h4>
                                     <p className="text-xs text-slate-500 font-medium max-w-md mx-auto">
-                                        Select your statement (.xlsx, .xls, .csv). Column headers are automatically detected, matched to students, split across fee voteheads, and posted at turbo speed.
+                                        Click anywhere here or drag &amp; drop your statement (.xlsx, .xls, .csv). Column headers are automatically detected, matched to students, split across fee voteheads, and posted at turbo speed.
                                     </p>
                                 </div>
                                 <div className="pt-2">
-                                    <label className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-600/20 cursor-pointer active:scale-95 transition-all">
+                                    <input
+                                        ref={statementFileInputRef}
+                                        type="file"
+                                        accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+                                        onChange={handleFileChange}
+                                        className="sr-only"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (statementFileInputRef.current) {
+                                                statementFileInputRef.current.value = '';
+                                                statementFileInputRef.current.click();
+                                            }
+                                        }}
+                                        className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-600/20 cursor-pointer active:scale-95 transition-all"
+                                    >
                                         <ArrowUpTrayIcon className="w-4 h-4" />
                                         <span>Choose Statement File</span>
-                                        <input
-                                            type="file"
-                                            accept=".xlsx, .xls, .csv"
-                                            onChange={handleFileChange}
-                                            className="hidden"
-                                        />
-                                    </label>
+                                    </button>
                                 </div>
                             </div>
                         ) : isParsingExcel ? (
