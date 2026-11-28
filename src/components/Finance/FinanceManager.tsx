@@ -42,6 +42,7 @@ import { apiService, safeLocalStorage } from '../../services/apiService';
 import { localDb } from '../../services/localDb';
 import { FinancialAuditDashboard } from './FinancialAuditDashboard';
 import { AnnualReportWizard } from './AnnualReportWizard';
+import { FinancialYearReportsView, ReportFinancialYearOption } from './FinancialYearReportsView';
 import { CpaReportingDashboard } from './CpaReportingDashboard';
 import { BankFeedsManager } from './BankFeedsManager';
 import { ParentLedgerPortal } from './ParentLedgerPortal';
@@ -315,7 +316,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'uninvoiced' | 'history' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'dashboard' | 'communication' | 'reports'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories'>('roster');
-    const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'invoices' | 'activity_logs' | 'household_balances' | 'promissory_commitments' | 'revenue_warroom' | 'exam_permits' | 'annual_wizard'>('collection');
+    const [reportsSubTab, setReportsSubTab] = useState<'fy_reports' | 'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'invoices' | 'activity_logs' | 'household_balances' | 'promissory_commitments' | 'revenue_warroom' | 'exam_permits' | 'annual_wizard'>('collection');
     const [invoicesReportSubTab, setInvoicesReportSubTab] = useState<'all_invoices' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'voteheads_distribution'>('all_invoices');
     const [invRepYear, setInvRepYear] = useState<string>('All');
     const [invRepSearch, setInvRepSearch] = useState<string>('');
@@ -3075,6 +3076,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [editingTermEndDate, setEditingTermEndDate] = useState('');
 
     // Financial Year states
+    const [hasCustomFinancialYears, setHasCustomFinancialYears] = useState<boolean>(() => {
+        try {
+            const stored = localStorage.getItem(`eduai_financial_periods_${props.institution.id}`);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed) && parsed.length > 0) return true;
+            }
+        } catch (e) {}
+        return false;
+    });
     const [financialYears, setFinancialYears] = useState<Array<{ id: string; name: string; startDate: string; endDate: string; status: 'Active' | 'Closed' | 'Draft' | 'Archived' }>>(() => {
         try {
             const stored = localStorage.getItem(`eduai_financial_periods_${props.institution.id}`);
@@ -3083,11 +3094,70 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (Array.isArray(parsed) && parsed.length > 0) return parsed;
             }
         } catch (e) {}
+        const now = new Date();
+        const yr = now.getFullYear();
+        const isPub = resolveSchoolOwnership(props.institution) !== 'Private';
+        if (isPub) {
+            const activeStartYr = now.getMonth() >= 6 ? yr : yr - 1;
+            return [
+                { id: `fy_${activeStartYr}_${activeStartYr + 1}`, name: `FY ${activeStartYr}/${activeStartYr + 1}`, startDate: `${activeStartYr}-07-01`, endDate: `${activeStartYr + 1}-06-30`, status: 'Active' },
+                { id: `fy_${activeStartYr - 1}_${activeStartYr}`, name: `FY ${activeStartYr - 1}/${activeStartYr}`, startDate: `${activeStartYr - 1}-07-01`, endDate: `${activeStartYr}-06-30`, status: 'Closed' },
+                { id: `fy_${activeStartYr - 2}_${activeStartYr - 1}`, name: `FY ${activeStartYr - 2}/${activeStartYr - 1}`, startDate: `${activeStartYr - 2}-07-01`, endDate: `${activeStartYr - 1}-06-30`, status: 'Closed' },
+            ];
+        }
         return [
-            { id: 'fy25', name: 'FY 2025', startDate: '2025-01-01', endDate: '2025-12-31', status: 'Closed' },
-            { id: 'fy26', name: 'FY 2026', startDate: '2026-01-01', endDate: '2026-12-31', status: 'Active' },
+            { id: `fy_${yr}`, name: `FY ${yr}`, startDate: `${yr}-01-01`, endDate: `${yr}-12-31`, status: 'Active' },
+            { id: `fy_${yr - 1}`, name: `FY ${yr - 1}`, startDate: `${yr - 1}-01-01`, endDate: `${yr - 1}-12-31`, status: 'Closed' },
+            { id: `fy_${yr - 2}`, name: `FY ${yr - 2}`, startDate: `${yr - 2}-01-01`, endDate: `${yr - 2}-12-31`, status: 'Closed' },
         ];
     });
+
+    const availableReportFinancialYears = useMemo<ReportFinancialYearOption[]>(() => {
+        if (hasCustomFinancialYears && financialYears.length > 0) {
+            return [...financialYears]
+                .sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))
+                .map(fy => ({
+                    id: fy.id,
+                    name: fy.name,
+                    startDate: fy.startDate,
+                    endDate: fy.endDate,
+                    status: fy.status,
+                    isConfigured: true,
+                }));
+        }
+        const now = new Date();
+        const yr = now.getFullYear();
+        if (!isPrivateSchool) {
+            // Default Public School Kenya FY cycle: July 1 – June 30
+            const activeStartYr = now.getMonth() >= 6 ? yr : yr - 1;
+            return [0, 1, 2, 3].map(offset => {
+                const sy = activeStartYr - offset;
+                return {
+                    id: `default_pub_${sy}_${sy + 1}`,
+                    name: `FY ${sy}/${sy + 1}`,
+                    startDate: `${sy}-07-01`,
+                    endDate: `${sy + 1}-06-30`,
+                    status: offset === 0 ? 'Active' : 'Closed',
+                    isConfigured: false,
+                };
+            });
+        }
+        // Default Private School cycle: Jan 1 – Dec 31
+        return [0, 1, 2, 3].map(offset => {
+            const sy = yr - offset;
+            return {
+                id: `default_priv_${sy}`,
+                name: `FY ${sy}`,
+                startDate: `${sy}-01-01`,
+                endDate: `${sy}-12-31`,
+                status: offset === 0 ? 'Active' : 'Closed',
+                isConfigured: false,
+            };
+        });
+    }, [financialYears, hasCustomFinancialYears, isPrivateSchool]);
+
+    const [selectedReportFyId, setSelectedReportFyId] = useState<string>('all');
+
     const [newFyName, setNewFyName] = useState('');
     const [newFyStartDate, setNewFyStartDate] = useState('');
     const [newFyEndDate, setNewFyEndDate] = useState('');
@@ -3101,6 +3171,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const updateAndPersistFinancialYears = (updated: Array<{ id: string; name: string; startDate: string; endDate: string; status: 'Active' | 'Closed' | 'Draft' | 'Archived' }>) => {
         setFinancialYears(updated);
+        setHasCustomFinancialYears(updated.length > 0);
         try {
             localStorage.setItem(`eduai_financial_periods_${props.institution.id}`, JSON.stringify(updated));
             apiService.saveModuleRecord('institution_module_states', {
@@ -22276,13 +22347,50 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 )}
 
                 {activeTab === 'reports' && (() => {
-                    const totalBilled = mappedInvoices.reduce((s: number, i: any) => s + parseMoneyAmount(i.totalAmount || (i as any).total_amount || (i as any).amount || 0), 0);
-                    const totalCollected = mappedReceipts.reduce((s: number, r: any) => s + parseMoneyAmount(r.amountPaid || (r as any).amount_paid || (r as any).amount || 0), 0);
-                    const totalExpenses = (props.expenses || []).reduce((s, e) => s + parseMoneyAmount(e.amount || (e as any).total_amount || 0), 0);
+                    const selectedReportFyIdx = availableReportFinancialYears.findIndex(fy => fy.id === selectedReportFyId);
+                    const selectedReportFy: ReportFinancialYearOption | null =
+                        selectedReportFyId === 'all'
+                            ? null
+                            : (selectedReportFyIdx >= 0 ? availableReportFinancialYears[selectedReportFyIdx] : (availableReportFinancialYears.find(f => f.status === 'Active') || availableReportFinancialYears[0] || null));
+                    const previousReportFy: ReportFinancialYearOption | null = (() => {
+                        if (!selectedReportFy) return null;
+                        const idx = availableReportFinancialYears.findIndex(f => f.id === selectedReportFy.id);
+                        return idx >= 0 && idx + 1 < availableReportFinancialYears.length ? availableReportFinancialYears[idx + 1] : null;
+                    })();
+
+                    const isWithinReportFy = (rawDate: any): boolean => {
+                        if (!selectedReportFy) return true;
+                        if (!rawDate) return false;
+                        const s = String(rawDate).trim();
+                        const iso = /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : (() => {
+                            const d = new Date(s);
+                            return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+                        })();
+                        if (!iso) return false;
+                        return iso >= selectedReportFy.startDate && iso <= selectedReportFy.endDate;
+                    };
+
+                    const fyInvoices = selectedReportFy
+                        ? mappedInvoices.filter((i: any) => isWithinReportFy(i.issueDate || i.date || i.createdAt || i.created_at))
+                        : mappedInvoices;
+                    const fyReceipts = selectedReportFy
+                        ? mappedReceipts.filter((r: any) => isWithinReportFy(r.paymentDate || r.date || r.createdAt || r.created_at))
+                        : mappedReceipts;
+                    const fyExpenses = selectedReportFy
+                        ? (props.expenses || []).filter((e: any) => isWithinReportFy(e.date || e.expenseDate || e.createdAt || e.created_at))
+                        : (props.expenses || []);
+                    const fyPayroll = selectedReportFy
+                        ? (props.payrollRecords || []).filter((p: any) => isWithinReportFy(p.paymentDate || p.date || p.createdAt || p.created_at))
+                        : (props.payrollRecords || []);
+
+                    const totalBilled = fyInvoices.reduce((s: number, i: any) => s + parseMoneyAmount(i.totalAmount || (i as any).total_amount || (i as any).amount || 0), 0);
+                    const totalCollected = fyReceipts.reduce((s: number, r: any) => s + parseMoneyAmount(r.amountPaid || (r as any).amount_paid || (r as any).amount || 0), 0);
+                    const totalExpenses = fyExpenses.reduce((s: number, e: any) => s + parseMoneyAmount(e.amount || (e as any).total_amount || 0), 0);
                     const outstanding = Math.max(0, totalBilled - totalCollected);
                     const collectionRate = totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0;
 
                     const reportSubTabs = [
+                        { id: 'fy_reports', label: 'Financial Year Reports', icon: '📅' },
                         { id: 'collection', label: 'Fee Collection', icon: '📥' },
                         { id: 'outstanding', label: 'Outstanding Balances', icon: '⚠️' },
                         { id: 'ledger', label: 'Receipts Ledger', icon: '🧾' },
@@ -22326,11 +22434,57 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <div className="flex justify-between items-center text-[10px] font-bold text-slate-600">
                                         <span className="uppercase tracking-wider font-black text-slate-800">
                                             {reportSubTabs.find(t => t.id === reportsSubTab)?.label || 'Financial Report'}
+                                            {selectedReportFy ? ` — ${selectedReportFy.name} (${selectedReportFy.startDate} to ${selectedReportFy.endDate})` : ' — All Financial Years'}
                                         </span>
                                         <span>Generated: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                                     </div>
                                 </div>
                             )}
+
+                            {/* Global Financial Year Filter Bar */}
+                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 print:hidden">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                                        📅 Financial Year Filter
+                                    </span>
+                                    <select
+                                        value={selectedReportFyId}
+                                        onChange={(e) => setSelectedReportFyId(e.target.value)}
+                                        className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-black text-indigo-800 dark:text-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                    >
+                                        <option value="all">All Financial Years (Cumulative)</option>
+                                        {availableReportFinancialYears.map(fy => (
+                                            <option key={fy.id} value={fy.id}>
+                                                {fy.name} ({fy.startDate} → {fy.endDate}){fy.status === 'Active' ? ' • Active' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {selectedReportFy ? (
+                                        <span className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 font-mono">
+                                            {selectedReportFy.startDate} → {selectedReportFy.endDate}
+                                        </span>
+                                    ) : (
+                                        <span className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                            Showing all recorded dates
+                                        </span>
+                                    )}
+                                    <span className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 text-[9px] font-black uppercase tracking-wider">
+                                        {hasCustomFinancialYears
+                                            ? 'Configured FY'
+                                            : (isPrivateSchool ? 'Private Default (Jan–Dec)' : 'Public Default (Jul–Jun)')}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setActiveTab('settings');
+                                        setSettingsSubTab('financial_year');
+                                    }}
+                                    className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-600 hover:text-white text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                                >
+                                    ⚙️ Configure FY
+                                </button>
+                            </div>
 
                             {/* Main Reports horizontal nav */}
                             <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2 print:hidden">
@@ -22349,6 +22503,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </button>
                                 ))}
                             </div>
+
+                            {/* Financial Year Reports Pack */}
+                            {reportsSubTab === 'fy_reports' && (
+                                <FinancialYearReportsView
+                                    institution={props.institution}
+                                    isPrivateSchool={isPrivateSchool}
+                                    selectedFy={selectedReportFy}
+                                    previousFy={previousReportFy}
+                                    allInvoices={mappedInvoices}
+                                    allReceipts={mappedReceipts}
+                                    allExpenses={props.expenses || []}
+                                    allPayroll={props.payrollRecords || []}
+                                    allGokLogs={gokCapLogs || []}
+                                    allBursaries={bursaryRecords || []}
+                                    students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
+                                    letterheadUrl={resolvedFinanceLetterheadUrl}
+                                    logoUrl={resolvedFinanceLogoUrl}
+                                    loadLetterheadImageForPdf={loadLetterheadImageForPdf}
+                                    onExportCsv={exportCSV}
+                                />
+                            )}
 
                             {/* Fee Collection Report — with 3D Per-Class Graphical Analytics, Class Filtering & Pagination */}
                             {reportsSubTab === 'collection' && (() => {
@@ -24713,9 +24888,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             {reportsSubTab === 'revenue_warroom' && (
                                 <div className="animate-in fade-in duration-300">
                                     <RevenueWarRoom
-                                        invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
-                                        receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
-                                        expenses={props.expenses || []}
+                                        invoices={fyInvoices}
+                                        receipts={fyReceipts}
+                                        expenses={fyExpenses}
                                         goals={props.goals || []}
                                         students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
                                         institution={props.institution}
@@ -24734,8 +24909,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <DigitalExamPermitManager
                                         institution={props.institution}
                                         students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
-                                        invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
-                                        receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
+                                        invoices={fyInvoices}
+                                        receipts={fyReceipts}
                                         courses={props.courses || []}
                                         userName={props.currentUser?.name}
                                     />
@@ -24746,9 +24921,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             {reportsSubTab === 'annual_wizard' && (
                                 <div className="animate-in fade-in duration-300">
                                     <AnnualReportWizard
-                                        invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
-                                        receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
-                                        expenses={props.expenses || []}
+                                        invoices={fyInvoices}
+                                        receipts={fyReceipts}
+                                        expenses={fyExpenses}
                                         institution={props.institution}
                                         companyDetails={props.companyDetails}
                                     />
@@ -27523,7 +27698,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 {['Description','Category','Date','Amount','Recorded By'].map(h=>(<th key={h} className="py-3 px-4 font-black text-slate-400 uppercase tracking-widest text-[10px]">{h}</th>))}
                                             </tr></thead>
                                             <tbody>
-                                                {[...(props.expenses||[])].sort((a,b)=>new Date(b.date||0).getTime()-new Date(a.date||0).getTime()).map((e,i)=>(
+                                                {[...fyExpenses].sort((a,b)=>new Date(b.date||0).getTime()-new Date(a.date||0).getTime()).map((e,i)=>(
                                                     <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                                         <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{e.description||'—'}</td>
                                                         <td className="py-3 px-4"><span className="text-[10px] font-black px-2 py-1 bg-amber-50 text-amber-700 rounded-full">{e.category||'General'}</span></td>
@@ -27532,7 +27707,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <td className="py-3 px-4 text-slate-500">{(e as any).recordedBy||(e as any).createdBy||'—'}</td>
                                                     </tr>
                                                 ))}
-                                                {(props.expenses||[]).length===0&&(<tr><td colSpan={5} className="py-8 text-center text-slate-400 font-medium">No expenses recorded</td></tr>)}
+                                                {fyExpenses.length===0&&(<tr><td colSpan={5} className="py-8 text-center text-slate-400 font-medium">No expenses recorded for this period</td></tr>)}
                                             </tbody>
                                         </table>
                                     </div>
@@ -27545,12 +27720,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <div className="flex justify-between items-center mb-6">
                                         <div>
                                             <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Payroll Summary</h3>
-                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">{(props.payrollRecords||[]).length} payroll records</p>
+                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">{fyPayroll.length} payroll records</p>
                                         </div>
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                const firstRec = (props.payrollRecords || [])[0];
+                                                const firstRec = fyPayroll[0];
                                                 const currentMonthYear = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
                                                 setSchedulePeriod(firstRec?.period || firstRec?.payPeriod || currentMonthYear);
                                                 setShowBankScheduleModal(true);
@@ -27566,7 +27741,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 {['Employee','Period','Gross Pay','PAYE','NSSF','NHIF/SHIF','Net Pay'].map(h=>(<th key={h} className="py-3 px-4 font-black text-slate-400 uppercase tracking-widest text-[10px]">{h}</th>))}
                                             </tr></thead>
                                             <tbody>
-                                                {(props.payrollRecords||[]).map((p:any,i:number)=>(
+                                                {fyPayroll.map((p:any,i:number)=>(
                                                     <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                                         <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{p.employeeName||p.staffName||'—'}</td>
                                                         <td className="py-3 px-4 text-slate-500">{p.period||p.payPeriod||'—'}</td>
@@ -27577,7 +27752,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <td className="py-3 px-4 font-black text-emerald-600">KSh {(p.netPay||p.net||0).toLocaleString()}</td>
                                                     </tr>
                                                 ))}
-                                                {(props.payrollRecords||[]).length===0&&(<tr><td colSpan={7} className="py-8 text-center text-slate-400 font-medium">No payroll records found</td></tr>)}
+                                                {fyPayroll.length===0&&(<tr><td colSpan={7} className="py-8 text-center text-slate-400 font-medium">No payroll records found for this period</td></tr>)}
                                             </tbody>
                                         </table>
                                     </div>
@@ -27590,7 +27765,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <div className="bg-gradient-to-br from-slate-900 to-indigo-950 rounded-[2.5rem] p-8 text-white">
                                         <p className="text-indigo-300 text-[10px] font-black uppercase tracking-[0.4em] mb-2">Annual Financial Report</p>
                                         <h3 className="text-2xl font-black tracking-tight mb-1">{props.institution.name}</h3>
-                                        <p className="text-slate-400 text-sm">Financial Year {new Date().getFullYear()}</p>
+                                        <p className="text-slate-400 text-sm">
+                                            {selectedReportFy ? `${selectedReportFy.name} (${selectedReportFy.startDate} → ${selectedReportFy.endDate})` : `All Financial Years (Cumulative)`}
+                                        </p>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
                                             {[
                                                 {label:'Total Revenue', val: totalCollected, cls:'text-emerald-400'},
