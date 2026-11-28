@@ -1090,16 +1090,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         const registerStudent = (s: any, isEnrollment = false) => {
             if (!s) return;
+            // Exclude soft-deleted students/enrollments so Finance count matches Student Registry 1-to-1
+            if (s.metadata?.enrollmentDeleted === true || String(s.status || '').toLowerCase() === 'deleted') return;
             const sId = String(s.id || '').trim();
             const sUserId = String(s.userId || s.user_id || '').trim();
             const rawAdm = String(s.admissionNumber || s.admission_number || s.admNo || s.adm_no || s.metadata?.admissionNumber || s.metadata?.admNo || '').trim();
             const cleanAdm = rawAdm && rawAdm !== '—' && !isSyntheticAdm(rawAdm) ? rawAdm.toLowerCase() : '';
+            const alphaAdm = cleanAdm ? cleanAdm.replace(/[^a-z0-9]/g, '') : '';
 
             // Find existing canonical key if already registered
             let existingKey: string | undefined = undefined;
             if (sUserId) existingKey = idIndex.get(sUserId.toLowerCase()) || idIndex.get(cleanId(sUserId).toLowerCase());
             if (!existingKey && sId) existingKey = idIndex.get(sId.toLowerCase()) || idIndex.get(cleanId(sId).toLowerCase());
-            if (!existingKey && cleanAdm) existingKey = admIndex.get(cleanAdm) || admIndex.get(cleanAdm.replace(/^0+/, ''));
+            if (!existingKey && cleanAdm) existingKey = admIndex.get(cleanAdm) || admIndex.get(cleanAdm.replace(/^0+/, '')) || (alphaAdm ? admIndex.get(alphaAdm) : undefined);
 
             const canonicalKey = existingKey || sUserId || sId || (cleanAdm ? `adm_${cleanAdm}` : `stu_${Math.random()}`);
             const existing = studentMap.get(canonicalKey);
@@ -1155,19 +1158,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             if (cleanAdm) {
                 admIndex.set(cleanAdm, canonicalKey);
                 admIndex.set(cleanAdm.replace(/^0+/, ''), canonicalKey);
+                if (alphaAdm) admIndex.set(alphaAdm, canonicalKey);
             }
         };
 
         scopedPropsStudents.forEach((s: any) => registerStudent(s));
         allBranchStudents.forEach((s: any) => registerStudent(s));
 
-        // Also register students from props.users who are students or match institution
+        // Also register students from props.users who are strictly student accounts (never teachers/admins/parents)
+        const nonStudentRoles = new Set(['super_admin', 'admin', 'administrator', 'school_admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'bursar', 'finance_officer', 'principal', 'headteacher', 'head_teacher', 'director', 'managing_director', 'reseller', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator']);
         (props.users || []).forEach((u: any) => {
             if (!u) return;
-            const uRole = String(u.role || '').toLowerCase();
+            if (u.metadata?.enrollmentDeleted === true || String(u.status || '').toLowerCase() === 'deleted') return;
+            const uRole = String(u.role || '').toLowerCase().trim();
+            if (nonStudentRoles.has(uRole)) return;
             const isStudentLike = ['student', 'learner', 'pupil', 'cadet', 'scholar'].includes(uRole) ||
-                (u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).adm_no || (u as any).studentClass || (u as any).classLevel || (u as any).gradeLevel);
-            if (isStudentLike || String(u.id || '').startsWith('usr_') || String(u.id || '').startsWith('u_')) {
+                (!uRole && Boolean(u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).adm_no || (u as any).studentClass || (u as any).classLevel || (u as any).gradeLevel));
+            if (isStudentLike) {
                 const uInstId = u.institutionId || (u as any).institution_id || '';
                 if (!uInstId || relevantInstIds.has(uInstId) || relevantInstIds.has(cleanId(uInstId))) {
                     registerStudent(u);

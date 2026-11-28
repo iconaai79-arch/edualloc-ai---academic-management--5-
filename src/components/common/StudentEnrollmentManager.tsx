@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 
 import { 
     Users, 
+    RefreshCw,
     UserPlus, 
     Search, 
     Filter, 
@@ -7307,42 +7308,81 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             {/* Tab: Students */}
             {activeTab === 'students' && (
                 <>
-                    {/* Stats Summary Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 animate-in fade-in slide-in-from-top-4 duration-300">
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
-                            <div>
-                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Registered Students</p>
-                                <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">{enrollments.length}</h3>
-                            </div>
-                            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 dark:text-indigo-400 shrink-0">
-                                <Users className="w-6 h-6" />
-                            </div>
-                        </div>
+                    {/* Stats Summary Cards — Unified Exact Enrolled Count */}
+                    {(() => {
+                        const activeEnrolledList = enrollments.filter(e => {
+                            const st = String(e.status || 'Active').toLowerCase().trim();
+                            return st === 'active' || st === 'enrolled' || st === '';
+                        });
+                        const graduatedCount = enrollments.filter(e => String(e.status || '').toLowerCase() === 'graduated').length;
+                        const inactiveCount = Math.max(0, enrollments.length - activeEnrolledList.length - graduatedCount);
+                        const isSynced = activeEnrolledList.length === enrollments.length;
+                        return (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 animate-in fade-in slide-in-from-top-4 duration-300">
+                                <div className="bg-white dark:bg-slate-900 border-2 border-emerald-500/30 dark:border-emerald-800/60 rounded-3xl p-6 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
+                                    <div>
+                                        <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Active Enrolled Students</p>
+                                        <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
+                                            {activeEnrolledList.length}
+                                        </h3>
+                                        <p className="text-[10px] font-bold text-slate-400 mt-1">
+                                            {isSynced ? 'Exact 1-to-1 match with Registry' : 'Click icon to filter active enrolled only'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setStatusFilter(statusFilter === 'Active' ? 'All' : 'Active')}
+                                        className="w-12 h-12 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 flex items-center justify-center text-emerald-500 dark:text-emerald-400 shrink-0 cursor-pointer transition-colors"
+                                        title="Filter to Active Enrolled students"
+                                    >
+                                        <UserCheck className="w-6 h-6" />
+                                    </button>
+                                </div>
 
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
-                            <div>
-                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Active & Enrolled</p>
-                                <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
-                                    {enrollments.filter(e => e.status?.toLowerCase() === 'active' || e.status?.toLowerCase() === 'enrolled').length}
-                                </h3>
-                            </div>
-                            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 dark:text-emerald-400 shrink-0">
-                                <UserCheck className="w-6 h-6" />
-                            </div>
-                        </div>
+                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Registry (All Years)</p>
+                                        <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">{enrollments.length}</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 mt-1">
+                                            {activeEnrolledList.length} Enrolled{graduatedCount > 0 ? ` • ${graduatedCount} Graduated` : ''}{inactiveCount > 0 ? ` • ${inactiveCount} Inactive` : ''}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            setStatusMsg({ type: 'info', message: 'Syncing & reconciling Student Registry with enrolled records...' });
+                                            await fetchAllData(true);
+                                            setStatusMsg({ type: 'success', message: `Registry synced! ${activeEnrolledList.length} Active Enrolled (${enrollments.length} total records across all statuses).` });
+                                        }}
+                                        className="w-12 h-12 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500/20 flex items-center justify-center text-indigo-500 dark:text-indigo-400 shrink-0 cursor-pointer transition-colors"
+                                        title="Sync & Reconcile Student Registry with database"
+                                    >
+                                        <RefreshCw className="w-5 h-5" />
+                                    </button>
+                                </div>
 
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
-                            <div>
-                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Graduated</p>
-                                <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
-                                    {enrollments.filter(e => e.status === 'Graduated').length}
-                                </h3>
+                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Graduated / Historical</p>
+                                        <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
+                                            {graduatedCount}
+                                        </h3>
+                                        <p className="text-[10px] font-bold text-slate-400 mt-1">
+                                            {inactiveCount > 0 ? `${inactiveCount} Suspended / Dropped` : 'Alumni & previous cohorts'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setStatusFilter(statusFilter === 'Graduated' ? 'All' : 'Graduated')}
+                                        className="w-12 h-12 rounded-2xl bg-purple-500/10 hover:bg-purple-500/20 flex items-center justify-center text-purple-500 dark:text-purple-400 shrink-0 cursor-pointer transition-colors"
+                                        title="Filter to Graduated students"
+                                    >
+                                        <CheckCircle2 className="w-6 h-6" />
+                                    </button>
+                                </div>
                             </div>
-                            <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-500 dark:text-purple-400 shrink-0">
-                                <CheckCircle2 className="w-6 h-6" />
-                            </div>
-                        </div>
-                    </div>
+                        );
+                    })()}
 
                     {/* Filters Bar */}
                     <div className="flex flex-col gap-3 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
