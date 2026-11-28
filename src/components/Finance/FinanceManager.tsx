@@ -2372,6 +2372,57 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // State for audit sub-tabs
     const [auditSubTab, setAuditSubTab] = useState<'cpa_general_ledger' | 'ai_sentinel' | 'audit_dashboard' | 'annual_report'>('cpa_general_ledger');
 
+    const resolvedFinanceLetterheadUrl = useMemo(() => {
+        return (
+            props.institution?.letterheadConfig?.headerImageUrl ||
+            (props.institution as any)?.letterheadUrl ||
+            (props.institution as any)?.letterhead_url ||
+            (props.institution as any)?.headerImageUrl ||
+            (props.institution as any)?.header_image_url ||
+            props.companyDetails?.letterheadConfig?.headerImageUrl ||
+            (props as any).letterheadUrl ||
+            ''
+        );
+    }, [props.institution, props.companyDetails, (props as any).letterheadUrl]);
+
+    const resolvedFinanceLogoUrl = useMemo(() => {
+        return (
+            props.institution?.logoUrl ||
+            (props.institution as any)?.logo_url ||
+            (props as any).logoUrl ||
+            ''
+        );
+    }, [props.institution, (props as any).logoUrl]);
+
+    const loadLetterheadImageForPdf = useCallback(async (imgUrl: string): Promise<{ dataUrl: string; width: number; height: number; format: 'PNG' | 'JPEG' } | null> => {
+        if (!imgUrl) return null;
+        try {
+            let dataUrl = imgUrl;
+            if (!imgUrl.startsWith('data:')) {
+                const resp = await fetch(imgUrl, { mode: 'cors' });
+                if (!resp.ok) return null;
+                const blob = await resp.blob();
+                dataUrl = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(String(reader.result || ''));
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+            }
+            if (!dataUrl.startsWith('data:image/')) return null;
+            const dims = await new Promise<{ width: number; height: number }>((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve({ width: img.naturalWidth || 800, height: img.naturalHeight || 160 });
+                img.onerror = () => resolve({ width: 800, height: 160 });
+                img.src = dataUrl;
+            });
+            const format: 'PNG' | 'JPEG' = dataUrl.includes('image/jpeg') || dataUrl.includes('image/jpg') ? 'JPEG' : 'PNG';
+            return { dataUrl, width: dims.width, height: dims.height, format };
+        } catch {
+            return null;
+        }
+    }, []);
+
     // School Ownership (Public vs Private): Public schools have GoK Capitation & NG-CDF Bursaries; Private schools do not.
     const resolveSchoolOwnership = useCallback((inst: any): 'Public' | 'Private' => {
         const raw = inst?.schoolOwnership || inst?.school_ownership || inst?.data?.schoolOwnership || inst?.data?.school_ownership || inst?.metadata?.schoolOwnership || inst?.metadata?.school_ownership;
@@ -22013,8 +22064,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             staffDetails: scheduleStaffAccounts,
                                             institution: props.institution,
                                             companyDetails: props.companyDetails,
-                                            logoUrl: (props as any).logoUrl,
-                                            letterheadUrl: (props as any).letterheadUrl
+                                            logoUrl: (props as any).logoUrl || props.institution?.logoUrl || (props.institution as any)?.logo_url,
+                                            letterheadUrl: resolvedFinanceLetterheadUrl || (props as any).letterheadUrl
                                         });
                                         setShowBankScheduleModal(false);
                                     }}
@@ -22250,8 +22301,39 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                     return (
                         <div className="space-y-6 animate-in fade-in duration-300">
+                            {/* Print-Only School Letterhead Banner for all direct-print Financial Reports */}
+                            {reportsSubTab !== 'student_statement' && !pdfPreviewModal && (
+                                <div className="hidden print:block border-b-2 border-slate-900 pb-3 mb-4 text-slate-900">
+                                    {resolvedFinanceLetterheadUrl ? (
+                                        <div className="w-full flex justify-center mb-2">
+                                            <img
+                                                src={resolvedFinanceLetterheadUrl}
+                                                alt="School Letterhead"
+                                                className="max-h-24 w-auto max-w-full object-contain"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-3 mb-2">
+                                            {resolvedFinanceLogoUrl && (
+                                                <img src={resolvedFinanceLogoUrl} alt="School Logo" className="w-12 h-12 object-contain" />
+                                            )}
+                                            <div>
+                                                <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">{props.institution.name}</h2>
+                                                <p className="text-xs font-bold text-slate-600">{props.institution.address || props.institution.email || 'Finance & Accounting Division'}</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-600">
+                                        <span className="uppercase tracking-wider font-black text-slate-800">
+                                            {reportSubTabs.find(t => t.id === reportsSubTab)?.label || 'Financial Report'}
+                                        </span>
+                                        <span>Generated: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Main Reports horizontal nav */}
-                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2">
+                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2 print:hidden">
                                 {reportSubTabs.map(tab => (
                                     <button
                                         key={tab.id}
@@ -26996,14 +27078,36 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     format: 'a4'
                                                 });
 
+                                                const instPageWidth = doc.internal.pageSize.getWidth();
+                                                let instHeaderY = 15;
+                                                const instLhImg = await loadLetterheadImageForPdf(resolvedFinanceLetterheadUrl);
+                                                if (instLhImg) {
+                                                    const maxW = instPageWidth - 28;
+                                                    const maxH = 22;
+                                                    const ratio = Math.min(maxW / instLhImg.width, maxH / instLhImg.height);
+                                                    const drawW = instLhImg.width * ratio;
+                                                    const drawH = instLhImg.height * ratio;
+                                                    const drawX = (instPageWidth - drawW) / 2;
+                                                    doc.addImage(instLhImg.dataUrl, instLhImg.format, drawX, 8, drawW, drawH);
+                                                    instHeaderY = 8 + drawH + 5;
+                                                } else {
+                                                    doc.setFontSize(13);
+                                                    doc.setFont('helvetica', 'bold');
+                                                    doc.setTextColor(15, 23, 42);
+                                                    doc.text(props.institution.name || 'ACADEMIC INSTITUTION', 14, 13);
+                                                    instHeaderY = 20;
+                                                }
+
                                                 // Title Headers
-                                                doc.setFontSize(14);
+                                                doc.setFontSize(13);
+                                                doc.setFont('helvetica', 'bold');
                                                 doc.setTextColor(37, 99, 235);
-                                                doc.text('Fees Installments Summary', 14, 15);
+                                                doc.text('Fees Installments Summary', 14, instHeaderY);
 
                                                 doc.setFontSize(9);
+                                                doc.setFont('helvetica', 'normal');
                                                 doc.setTextColor(100, 116, 139);
-                                                doc.text(`Class: ${installmentClass}  |  Class Enrollment: ${filteredStudents.length}  |  Filtered: ${totalInstallmentRecords}`, 14, 21);
+                                                doc.text(`Class: ${installmentClass}  |  Class Enrollment: ${filteredStudents.length}  |  Filtered: ${totalInstallmentRecords}`, 14, instHeaderY + 6);
 
                                                 const headers = [
                                                     ['Adm. No', 'Names', 'Expected Fees', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 'Totals', 'Balance', '% Paid']
@@ -27033,7 +27137,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 autoTable(doc, {
                                                     head: headers,
                                                     body: rows,
-                                                    startY: 26,
+                                                    startY: instHeaderY + 10,
                                                     theme: 'grid',
                                                     styles: { fontSize: 7, cellPadding: 1.2 },
                                                     headStyles: { fillColor: [37, 99, 235], textColor: 255, halign: 'center' },
@@ -29281,28 +29385,58 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             {/* Header: Full letterhead on Page 1; Compact running header on Subsequent Pages */}
                                             {page.isFirst ? (
                                                 <>
-                                                    <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-4">
-                                                        <div>
-                                                            <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">
-                                                                {props.institution.name}
-                                                            </h2>
-                                                            <p className="text-xs font-bold text-slate-600">
-                                                                {typeof props.institution.location === 'string'
-                                                                    ? props.institution.location
-                                                                    : props.institution.location && typeof props.institution.location === 'object'
-                                                                    ? `${props.institution.location.latitude}, ${props.institution.location.longitude}`
-                                                                    : 'Finance & Accounting Division'}
-                                                            </p>
-                                                            <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                                                                Generated: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}
-                                                            </p>
+                                                    {resolvedFinanceLetterheadUrl ? (
+                                                        <div className="border-b-2 border-slate-900 pb-3 mb-4 space-y-2">
+                                                            <div className="w-full flex justify-center">
+                                                                <img
+                                                                    src={resolvedFinanceLetterheadUrl}
+                                                                    alt="School Letterhead"
+                                                                    className="max-h-24 w-auto max-w-full object-contain"
+                                                                />
+                                                            </div>
+                                                            <div className="flex justify-between items-center pt-1">
+                                                                <div>
+                                                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">
+                                                                        {pdfPreviewModal.title || props.institution.name}
+                                                                    </h3>
+                                                                    <p className="text-[10px] text-slate-500 font-mono">
+                                                                        Generated: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                                                    </p>
+                                                                </div>
+                                                                <span className="px-3 py-1 bg-slate-900 text-white font-mono text-[9px] font-black uppercase tracking-widest rounded-md inline-block">
+                                                                    OFFICIAL AUDIT DOC
+                                                                </span>
+                                                            </div>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <span className="px-3 py-1 bg-slate-900 text-white font-mono text-[9px] font-black uppercase tracking-widest rounded-md inline-block">
-                                                                OFFICIAL AUDIT DOC
-                                                            </span>
+                                                    ) : (
+                                                        <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-4">
+                                                            <div className="flex items-center gap-3">
+                                                                {resolvedFinanceLogoUrl && (
+                                                                    <img src={resolvedFinanceLogoUrl} alt="School Logo" className="w-12 h-12 object-contain rounded-lg" />
+                                                                )}
+                                                                <div>
+                                                                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                                                                        {props.institution.name}
+                                                                    </h2>
+                                                                    <p className="text-xs font-bold text-slate-600">
+                                                                        {typeof props.institution.location === 'string'
+                                                                            ? props.institution.location
+                                                                            : props.institution.location && typeof props.institution.location === 'object'
+                                                                            ? `${props.institution.location.latitude}, ${props.institution.location.longitude}`
+                                                                            : 'Finance & Accounting Division'}
+                                                                    </p>
+                                                                    <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                                                        Generated: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <span className="px-3 py-1 bg-slate-900 text-white font-mono text-[9px] font-black uppercase tracking-widest rounded-md inline-block">
+                                                                    OFFICIAL AUDIT DOC
+                                                                </span>
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                    )}
 
                                                     {/* Metadata Header Card */}
                                                     <div className="grid grid-cols-2 gap-3 mb-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
@@ -29771,60 +29905,83 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     format: 'a4'
                                                 });
 
-                                                doc.setFontSize(15);
-                                                doc.setFont('helvetica', 'bold');
-                                                doc.setTextColor(15, 23, 42);
-                                                doc.text(props.institution.name || 'ACADEMIC INSTITUTION', 14, 16);
+                                                const pageWidth = doc.internal.pageSize.getWidth();
+                                                const rightColX = isLandscapeReport ? 150 : 110;
+                                                let headerBaseY = 16;
+
+                                                const lhImg = await loadLetterheadImageForPdf(resolvedFinanceLetterheadUrl);
+                                                if (lhImg) {
+                                                    const maxW = pageWidth - 28;
+                                                    const maxH = 24;
+                                                    const ratio = Math.min(maxW / lhImg.width, maxH / lhImg.height);
+                                                    const drawW = lhImg.width * ratio;
+                                                    const drawH = lhImg.height * ratio;
+                                                    const drawX = (pageWidth - drawW) / 2;
+                                                    doc.addImage(lhImg.dataUrl, lhImg.format, drawX, 8, drawW, drawH);
+                                                    headerBaseY = 8 + drawH + 6;
+                                                } else {
+                                                    const logoImg = await loadLetterheadImageForPdf(resolvedFinanceLogoUrl);
+                                                    let nameX = 14;
+                                                    if (logoImg) {
+                                                        doc.addImage(logoImg.dataUrl, logoImg.format, 14, 9, 12, 12);
+                                                        nameX = 29;
+                                                    }
+                                                    doc.setFontSize(15);
+                                                    doc.setFont('helvetica', 'bold');
+                                                    doc.setTextColor(15, 23, 42);
+                                                    doc.text(props.institution.name || 'ACADEMIC INSTITUTION', nameX, 16);
+                                                    headerBaseY = 23;
+                                                }
 
                                                 doc.setFontSize(10);
                                                 doc.setFont('helvetica', 'bold');
                                                 doc.setTextColor(79, 70, 229);
-                                                doc.text(pdfPreviewModal.title || 'OFFICIAL REPORT', 14, 23);
+                                                doc.text(pdfPreviewModal.title || 'OFFICIAL REPORT', 14, headerBaseY);
 
                                                 doc.setFontSize(8);
                                                 doc.setFont('helvetica', 'normal');
                                                 doc.setTextColor(100, 116, 139);
-                                                doc.text(`${pdfPreviewModal.subtitle || ''} | Generated: ${new Date().toLocaleDateString('en-KE')}`, 14, 28);
+                                                doc.text(`${pdfPreviewModal.subtitle || ''} | Generated: ${new Date().toLocaleDateString('en-KE')}`, 14, headerBaseY + 5);
 
-                                                const pageWidth = doc.internal.pageSize.getWidth();
-                                                const rightColX = isLandscapeReport ? 150 : 110;
+                                                const infoBoxY = headerBaseY + 8;
+                                                const tableStartY = infoBoxY + 19;
                                                 doc.setDrawColor(226, 232, 240);
                                                 doc.setFillColor(248, 250, 252);
-                                                doc.roundedRect(14, 31, pageWidth - 28, 16, 2, 2, 'FD');
+                                                doc.roundedRect(14, infoBoxY, pageWidth - 28, 16, 2, 2, 'FD');
 
                                                 doc.setFontSize(8);
                                                 doc.setFont('helvetica', 'bold');
                                                 doc.setTextColor(71, 85, 105);
                                                 if (pdfPreviewModal.isCashBook) {
-                                                    doc.text(`Account / Journal: Cash Book General Ledger`, 18, 37);
-                                                    doc.text(`Period: ${pdfPreviewModal.admNo}`, 18, 43);
-                                                    doc.text(`Ledger View: ${pdfPreviewModal.className}`, rightColX, 37);
-                                                    doc.text(`Status: Verified Financial Journal`, rightColX, 43);
+                                                    doc.text(`Account / Journal: Cash Book General Ledger`, 18, infoBoxY + 6);
+                                                    doc.text(`Period: ${pdfPreviewModal.admNo}`, 18, infoBoxY + 12);
+                                                    doc.text(`Ledger View: ${pdfPreviewModal.className}`, rightColX, infoBoxY + 6);
+                                                    doc.text(`Status: Verified Financial Journal`, rightColX, infoBoxY + 12);
                                                 } else if (isCollectionSummary) {
-                                                    doc.text(`Report: ${pdfPreviewModal.studentName || 'Collection Summary Ledger'}`, 18, 37);
-                                                    doc.text(`Period / Ref: ${pdfPreviewModal.admNo}`, 18, 43);
-                                                    doc.text(`Ledger View: ${pdfPreviewModal.className}`, rightColX, 37);
-                                                    doc.text(`Status: Verified Collection Summary`, rightColX, 43);
+                                                    doc.text(`Report: ${pdfPreviewModal.studentName || 'Collection Summary Ledger'}`, 18, infoBoxY + 6);
+                                                    doc.text(`Period / Ref: ${pdfPreviewModal.admNo}`, 18, infoBoxY + 12);
+                                                    doc.text(`Ledger View: ${pdfPreviewModal.className}`, rightColX, infoBoxY + 6);
+                                                    doc.text(`Status: Verified Collection Summary`, rightColX, infoBoxY + 12);
                                                 } else if (isFeeRegister) {
-                                                    doc.text(`Report: ${pdfPreviewModal.studentName || 'Fee Payment Register'}`, 18, 37);
-                                                    doc.text(`Scope: ${pdfPreviewModal.admNo}`, 18, 43);
-                                                    doc.text(`View: ${pdfPreviewModal.className}`, rightColX, 37);
-                                                    doc.text(`Status: Verified Fee Register`, rightColX, 43);
+                                                    doc.text(`Report: ${pdfPreviewModal.studentName || 'Fee Payment Register'}`, 18, infoBoxY + 6);
+                                                    doc.text(`Scope: ${pdfPreviewModal.admNo}`, 18, infoBoxY + 12);
+                                                    doc.text(`View: ${pdfPreviewModal.className}`, rightColX, infoBoxY + 6);
+                                                    doc.text(`Status: Verified Fee Register`, rightColX, infoBoxY + 12);
                                                 } else if (isFeeInstallment) {
-                                                    doc.text(`Report: ${pdfPreviewModal.studentName || 'Fees Installments Summary'}`, 18, 37);
-                                                    doc.text(`Scope: ${pdfPreviewModal.admNo}`, 18, 43);
-                                                    doc.text(`View: ${pdfPreviewModal.className}`, rightColX, 37);
-                                                    doc.text(`Status: Verified Installment Schedule`, rightColX, 43);
+                                                    doc.text(`Report: ${pdfPreviewModal.studentName || 'Fees Installments Summary'}`, 18, infoBoxY + 6);
+                                                    doc.text(`Scope: ${pdfPreviewModal.admNo}`, 18, infoBoxY + 12);
+                                                    doc.text(`View: ${pdfPreviewModal.className}`, rightColX, infoBoxY + 6);
+                                                    doc.text(`Status: Verified Installment Schedule`, rightColX, infoBoxY + 12);
                                                 } else if (isCashFlow) {
-                                                    doc.text(`Report: ${pdfPreviewModal.studentName || 'Statement of Cash Flows'}`, 18, 37);
-                                                    doc.text(`Period: ${pdfPreviewModal.admNo}`, 18, 43);
-                                                    doc.text(`View: ${pdfPreviewModal.className}`, rightColX, 37);
-                                                    doc.text(`Status: Verified Cash Flow Statement`, rightColX, 43);
+                                                    doc.text(`Report: ${pdfPreviewModal.studentName || 'Statement of Cash Flows'}`, 18, infoBoxY + 6);
+                                                    doc.text(`Period: ${pdfPreviewModal.admNo}`, 18, infoBoxY + 12);
+                                                    doc.text(`View: ${pdfPreviewModal.className}`, rightColX, infoBoxY + 6);
+                                                    doc.text(`Status: Verified Cash Flow Statement`, rightColX, infoBoxY + 12);
                                                 } else {
-                                                    doc.text(`Account / Student: ${pdfPreviewModal.studentName}`, 18, 37);
-                                                    doc.text(`Adm / Ref: ${pdfPreviewModal.admNo}`, 18, 43);
-                                                    doc.text(`Class: ${pdfPreviewModal.className}`, rightColX, 37);
-                                                    doc.text(`Status: Verified Ledger Record`, rightColX, 43);
+                                                    doc.text(`Account / Student: ${pdfPreviewModal.studentName}`, 18, infoBoxY + 6);
+                                                    doc.text(`Adm / Ref: ${pdfPreviewModal.admNo}`, 18, infoBoxY + 12);
+                                                    doc.text(`Class: ${pdfPreviewModal.className}`, rightColX, infoBoxY + 6);
+                                                    doc.text(`Status: Verified Ledger Record`, rightColX, infoBoxY + 12);
                                                 }
 
                                                 const footerTitle = pdfPreviewModal.title || 'Official Financial Report';
@@ -29841,7 +29998,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     doc.text(`Page ${data.pageNumber}`, pWidth - 14, pHeight - 5, { align: 'right' });
                                                 };
 
-                                                let currentY = 52;
+                                                let currentY = tableStartY + 2;
 
                                                 if (isCashFlow) {
                                                     const cf = (pdfPreviewModal as any).cashFlowData || {};
@@ -29865,7 +30022,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     autoTable(doc, {
                                                         head: [['Cash Flow Statement Component', 'Amount (KSh)']],
                                                         body,
-                                                        startY: 50,
+                                                        startY: tableStartY,
                                                         theme: 'grid',
                                                         styles: { fontSize: 8.5, cellPadding: 3 },
                                                         headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
@@ -29900,7 +30057,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         autoTable(doc, {
                                                             head,
                                                             body,
-                                                            startY: 50,
+                                                            startY: tableStartY,
                                                             theme: 'grid',
                                                             styles: { fontSize: 7, cellPadding: 2 },
                                                             headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
@@ -29957,7 +30114,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         autoTable(doc, {
                                                             head,
                                                             body,
-                                                            startY: 50,
+                                                            startY: tableStartY,
                                                             theme: 'grid',
                                                             styles: { fontSize: vhCols.length > 6 ? 6.5 : 7.5, cellPadding: 1.8 },
                                                             headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
@@ -30034,7 +30191,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         autoTable(doc, {
                                                             head,
                                                             body,
-                                                            startY: 50,
+                                                            startY: tableStartY,
                                                             theme: 'grid',
                                                             styles: { fontSize: 7.2, cellPadding: 1.8 },
                                                             headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
@@ -30117,7 +30274,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         autoTable(doc, {
                                                             head,
                                                             body,
-                                                            startY: 50,
+                                                            startY: tableStartY,
                                                             theme: 'grid',
                                                             styles: { fontSize: 6.5, cellPadding: 1.3 },
                                                             headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
@@ -30165,7 +30322,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         autoTable(doc, {
                                                             head,
                                                             body,
-                                                            startY: 50,
+                                                            startY: tableStartY,
                                                             theme: 'grid',
                                                             styles: { fontSize: 7.5, cellPadding: 2 },
                                                             headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },

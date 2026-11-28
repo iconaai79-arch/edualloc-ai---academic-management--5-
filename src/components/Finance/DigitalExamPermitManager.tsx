@@ -114,6 +114,23 @@ export function DigitalExamPermitManager({
             <body>
                 <div class="card">
                     <div class="header">
+                        ${(() => {
+                            const lh =
+                                institution?.letterheadConfig?.headerImageUrl ||
+                                (institution as any)?.letterheadUrl ||
+                                (institution as any)?.letterhead_url ||
+                                (institution as any)?.headerImageUrl ||
+                                (institution as any)?.header_image_url ||
+                                '';
+                            const lg = institution?.logoUrl || (institution as any)?.logo_url || '';
+                            if (lh) {
+                                return `<div style="margin-bottom: 8px;"><img src="${lh}" alt="School Letterhead" style="max-height: 80px; max-width: 100%; object-fit: contain;" /></div>`;
+                            }
+                            if (lg) {
+                                return `<div style="margin-bottom: 6px;"><img src="${lg}" alt="Logo" style="height: 44px; width: 44px; object-fit: contain;" /></div>`;
+                            }
+                            return '';
+                        })()}
                         <div class="inst-name">${institution?.name || 'Tertiary Institute / Polytechnic'}</div>
                         <div class="subtitle">Official Examination Permit &amp; Digital Gate Pass</div>
                         <div class="title-badge">${selectedExamSeries}</div>

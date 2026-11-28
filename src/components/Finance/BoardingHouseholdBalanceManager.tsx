@@ -302,6 +302,15 @@ export const BoardingHouseholdBalanceManager: React.FC<BoardingHouseholdBalanceM
             </tr>
         `).join('');
 
+        const letterheadUrl =
+            currentInstitution?.letterheadConfig?.headerImageUrl ||
+            (currentInstitution as any)?.letterheadUrl ||
+            (currentInstitution as any)?.letterhead_url ||
+            (currentInstitution as any)?.headerImageUrl ||
+            (currentInstitution as any)?.header_image_url ||
+            '';
+        const logoUrl = currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || '';
+
         printWindow.document.write(`
             <!DOCTYPE html>
             <html>
@@ -309,7 +318,9 @@ export const BoardingHouseholdBalanceManager: React.FC<BoardingHouseholdBalanceM
                 <title>Boarding Household Financial Statement - ${escapeHtml(targetHouseName)}</title>
                 <style>
                     body { font-family: 'Inter', system-ui, sans-serif; margin: 20px; color: #0f172a; }
-                    .header { display: flex; justify-content: space-between; border-bottom: 3px solid #4f46e5; padding-bottom: 12px; }
+                    .letterhead-banner { text-align: center; margin-bottom: 12px; }
+                    .letterhead-banner img { max-height: 92px; max-width: 100%; object-fit: contain; }
+                    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #4f46e5; padding-bottom: 12px; }
                     .title { font-size: 20px; font-weight: 900; text-transform: uppercase; margin: 0; }
                     .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0; background: #f8fafc; padding: 12px; border-radius: 8px; }
                     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -319,10 +330,14 @@ export const BoardingHouseholdBalanceManager: React.FC<BoardingHouseholdBalanceM
                 </style>
             </head>
             <body>
+                ${letterheadUrl ? `<div class="letterhead-banner"><img src="${escapeHtml(letterheadUrl)}" alt="School Letterhead" /></div>` : ''}
                 <div class="header">
-                    <div>
-                        <h1 class="title">${escapeHtml(currentInstitution.name)}</h1>
-                        <p style="margin: 2px 0; font-size: 12px; color: #475569;">Boarding Household Financial & Fee Clearance Statement</p>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        ${!letterheadUrl && logoUrl ? `<img src="${escapeHtml(logoUrl)}" alt="Logo" style="height: 48px; width: 48px; object-fit: contain;" />` : ''}
+                        <div>
+                            <h1 class="title">${escapeHtml(currentInstitution.name)}</h1>
+                            <p style="margin: 2px 0; font-size: 12px; color: #475569;">Boarding Household Financial & Fee Clearance Statement</p>
+                        </div>
                     </div>
                     <div style="text-align: right;">
                         <span style="font-size: 12px; font-weight: bold; background: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 6px;">HOUSE: ${escapeHtml(targetHouseName)}</span>
