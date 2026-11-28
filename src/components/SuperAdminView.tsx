@@ -843,6 +843,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         phoneNumber: '',
         institutionType: 'Education' as Institution['institutionType'],
         category: 'University',
+        schoolOwnership: 'Public' as 'Public' | 'Private',
         businessSubType: 'University',
         countyId: '',
         resellerId: ''
@@ -2139,6 +2140,10 @@ Please change it after login.`;
                         phoneNumber: newInstData.phoneNumber,
                         institutionType: newInstData.institutionType,
                         category: newInstData.category,
+                        ...(newInstData.institutionType === 'Education' ? {
+                            schoolOwnership: newInstData.schoolOwnership,
+                            school_ownership: newInstData.schoolOwnership
+                        } : {}),
                         businessSubType: newInstData.category, // Mirror for legacy support
                         countyId: newInstData.countyId || undefined,
                         resellerId: isReseller ? undefined : (newInstData.resellerId || undefined),
@@ -2154,7 +2159,7 @@ Please change it after login.`;
                     });
                 }
                 setIsAddingInstitution(false);
-                setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'Education', category: 'University', businessSubType: 'University', countyId: '', resellerId: '' });
+                setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'Education', category: 'University', schoolOwnership: 'Public', businessSubType: 'University', countyId: '', resellerId: '' });
                 alert("New institution tenant created successfully.");
             } catch (err: any) {
                 console.error("Failed to add institution:", err);
@@ -3318,6 +3323,17 @@ Please change it after login.`;
                                                         <option value="Driving School">Driving School</option>
                                                         <option value="University">University</option>
                                                     </select>
+                                                    <div className="mt-3">
+                                                        <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">School Ownership (Finance Modules)</label>
+                                                        <select
+                                                            value={newInstData.schoolOwnership}
+                                                            onChange={e => setNewInstData({ ...newInstData, schoolOwnership: e.target.value as 'Public' | 'Private' })}
+                                                            className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
+                                                        >
+                                                            <option value="Public">Public School (GoK Capitation &amp; Bursaries Enabled)</option>
+                                                            <option value="Private">Private School (No GoK Capitation / Bursaries)</option>
+                                                        </select>
+                                                    </div>
                                                 </div>
                                             )}
                                             {newInstData.institutionType === 'Logistics' && (
@@ -3484,9 +3500,44 @@ Please change it after login.`;
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="flex flex-col">
+                                                        <div className="flex flex-col gap-1">
                                                             <div className="text-[10px] font-black uppercase text-indigo-500 tracking-tight">{inst.institutionType}</div>
                                                             <div className="text-sm font-bold text-slate-600 dark:text-slate-400 capitalize">{inst.category || inst.institutionType}</div>
+                                                            {(inst.institutionType === 'Education' || inst.institutionType === 'Primary' || inst.institutionType === 'Secondary') && (() => {
+                                                                const currentOwnership: 'Public' | 'Private' =
+                                                                    (inst.schoolOwnership === 'Private' || (inst as any).school_ownership === 'Private' || (inst as any).data?.schoolOwnership === 'Private' || (inst as any).metadata?.schoolOwnership === 'Private')
+                                                                        ? 'Private'
+                                                                        : 'Public';
+                                                                const nextOwnership: 'Public' | 'Private' = currentOwnership === 'Public' ? 'Private' : 'Public';
+                                                                return (
+                                                                    <button
+                                                                        type="button"
+                                                                        title={`Click to switch to ${nextOwnership} School`}
+                                                                        onClick={async () => {
+                                                                            if (!window.confirm(`Switch "${inst.name}" from ${currentOwnership} School to ${nextOwnership} School?${nextOwnership === 'Private' ? '\n\nGoK Capitation and NG-CDF Bursaries will be hidden in Finance.' : '\n\nGoK Capitation and NG-CDF Bursaries will be enabled in Finance.'}`)) return;
+                                                                            try {
+                                                                                await apiService.updateInstitution(inst.id, {
+                                                                                    schoolOwnership: nextOwnership,
+                                                                                    school_ownership: nextOwnership,
+                                                                                    metadata: { ...((inst as any).metadata || {}), schoolOwnership: nextOwnership }
+                                                                                } as any);
+                                                                                (inst as any).schoolOwnership = nextOwnership;
+                                                                                (inst as any).school_ownership = nextOwnership;
+                                                                                props.onRefreshData?.();
+                                                                            } catch (err: any) {
+                                                                                alert('Failed to update school ownership: ' + (err?.message || err));
+                                                                            }
+                                                                        }}
+                                                                        className={`w-fit px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider cursor-pointer transition-all ${
+                                                                            currentOwnership === 'Private'
+                                                                                ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-200'
+                                                                                : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-200'
+                                                                        }`}
+                                                                    >
+                                                                        {currentOwnership} School
+                                                                    </button>
+                                                                );
+                                                            })()}
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">

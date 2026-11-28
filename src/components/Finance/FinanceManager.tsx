@@ -2372,6 +2372,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // State for audit sub-tabs
     const [auditSubTab, setAuditSubTab] = useState<'cpa_general_ledger' | 'ai_sentinel' | 'audit_dashboard' | 'annual_report'>('cpa_general_ledger');
 
+    // School Ownership (Public vs Private): Public schools have GoK Capitation & NG-CDF Bursaries; Private schools do not.
+    const resolveSchoolOwnership = useCallback((inst: any): 'Public' | 'Private' => {
+        const raw = inst?.schoolOwnership || inst?.school_ownership || inst?.data?.schoolOwnership || inst?.data?.school_ownership || inst?.metadata?.schoolOwnership || inst?.metadata?.school_ownership;
+        return raw === 'Private' ? 'Private' : 'Public';
+    }, []);
+    const [schoolOwnership, setSchoolOwnership] = useState<'Public' | 'Private'>(() => resolveSchoolOwnership(props.institution));
+    const [isSavingOwnership, setIsSavingOwnership] = useState(false);
+
+    useEffect(() => {
+        setSchoolOwnership(resolveSchoolOwnership(props.institution));
+    }, [props.institution?.id, props.institution?.schoolOwnership, (props.institution as any)?.school_ownership, resolveSchoolOwnership]);
+
+    const isPrivateSchool = schoolOwnership === 'Private';
+
+    useEffect(() => {
+        if (isPrivateSchool && (activeTab === 'gok_capitation' || activeTab === 'bursaries')) {
+            setActiveTab('home');
+        }
+    }, [isPrivateSchool, activeTab]);
+
     // Dynamic settings sub-tabs based on school type
     const settingsSubTabs = useMemo(() => {
         if (isDrivingSchool) {
@@ -2389,13 +2409,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             { id: 'grades_streams', label: 'Grades & Streams', icon: AcademicCapIcon },
             { id: 'academic_calendar', label: 'Academic Year & Calendar', icon: CalendarDaysIcon },
             { id: 'financial_year', label: 'Financial Year', icon: ClockIcon },
-            { id: 'accounts_grants', label: 'Voteheads, Banks & Grants', icon: ScaleIcon },
+            { id: 'accounts_grants', label: isPrivateSchool ? 'Voteheads & Bank Accounts' : 'Voteheads, Banks & Grants', icon: ScaleIcon },
             { id: 'fee_structure_builder', label: 'Fee Structure Builder', icon: CreditCardIcon },
             { id: 'user_permissions', label: 'User Permissions', icon: ShieldCheckIcon },
             { id: 'branding', label: 'Branding', icon: PhotoIcon },
             { id: 'numbering', label: 'Document Numbering', icon: DocumentTextIcon }
         ] as const;
-    }, [isDrivingSchool]);
+    }, [isDrivingSchool, isPrivateSchool]);
 
     // Driving School Settings Fee Structure States
     const [showDsFeeForm, setShowDsFeeForm] = useState(false);
@@ -7010,8 +7030,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'student_invoices', label: 'Invoices', icon: ClipboardListIcon },
         { id: 'wizard', label: 'Billing Wizard', icon: SparklesIcon },
         { id: 'receipts', label: 'Receipts', icon: DocumentTextIcon },
-        { id: 'gok_capitation', label: 'GoK Capitation', icon: BuildingLibraryIcon },
-        { id: 'bursaries', label: 'NG-CDF Bursaries', icon: ScaleIcon },
+        ...(!isPrivateSchool ? [
+            { id: 'gok_capitation', label: 'GoK Capitation', icon: BuildingLibraryIcon },
+            { id: 'bursaries', label: 'NG-CDF Bursaries', icon: ScaleIcon },
+        ] : []),
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
         { id: 'transfers', label: 'Inter-Account Transfers', icon: ArrowsRightLeftIcon },
         { id: 'requisitions', label: 'Procurement', icon: ClipboardListIcon },
@@ -12230,8 +12252,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         { id: 'settings', label: 'Fiscal Settings', icon: Cog8ToothIcon },
                     ].filter(item => {
                         const isEdu = isEduInstitution(props.institution);
-                        if (item.id === 'gok_capitation') return isEdu;
-                        if (item.id === 'bursaries') return isEdu;
+                        if (item.id === 'gok_capitation') return isEdu && !isPrivateSchool;
+                        if (item.id === 'bursaries') return isEdu && !isPrivateSchool;
                         if (item.id === 'pocket_money') return isEdu;
                         if (item.id === 'wizard') return false;
                         if (item.id === 'billing') return isDrivingSchool;
@@ -19260,7 +19282,72 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                         {/* Subtab content: Financial Year */}
                         {settingsSubTab === 'financial_year' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-left animate-in fade-in duration-300">
+                            <div className="space-y-6 text-left animate-in fade-in duration-300">
+                                {/* School Ownership Classification Card (Public vs Private) */}
+                                {isEduInstitution(props.institution) && (
+                                    <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">School Ownership &amp; Funding Model</h3>
+                                                <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                                                    isPrivateSchool
+                                                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                                        : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                                }`}>
+                                                    {schoolOwnership} School
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                                {isPrivateSchool
+                                                    ? 'Private School mode: GoK Capitation and NG-CDF Bursaries modules are hidden in Finance.'
+                                                    : 'Public School mode: GoK Capitation and NG-CDF Bursaries modules are enabled in Finance.'}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            {(['Public', 'Private'] as const).map(opt => (
+                                                <button
+                                                    key={opt}
+                                                    type="button"
+                                                    disabled={isSavingOwnership || schoolOwnership === opt}
+                                                    onClick={async () => {
+                                                        if (!props.institution?.id) return;
+                                                        setIsSavingOwnership(true);
+                                                        try {
+                                                            await apiService.updateInstitution(props.institution.id, {
+                                                                schoolOwnership: opt,
+                                                                school_ownership: opt,
+                                                                metadata: { ...((props.institution as any).metadata || {}), schoolOwnership: opt }
+                                                            } as any);
+                                                            (props.institution as any).schoolOwnership = opt;
+                                                            (props.institution as any).school_ownership = opt;
+                                                            setSchoolOwnership(opt);
+                                                            if (props.onLogAction) {
+                                                                await props.onLogAction(`Updated school ownership classification to ${opt} School`);
+                                                            }
+                                                            if (props.onRefreshData) {
+                                                                await props.onRefreshData();
+                                                            }
+                                                        } catch (err: any) {
+                                                            alert('Failed to update school ownership: ' + (err?.message || err));
+                                                        } finally {
+                                                            setIsSavingOwnership(false);
+                                                        }
+                                                    }}
+                                                    className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer disabled:cursor-default ${
+                                                        schoolOwnership === opt
+                                                            ? (opt === 'Private'
+                                                                ? 'bg-amber-600 text-white shadow-md'
+                                                                : 'bg-emerald-600 text-white shadow-md')
+                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                    }`}
+                                                >
+                                                    {opt} School
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-left">
                                 {/* Configuration Form */}
                                 <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
                                     <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Create Financial Year</h3>
@@ -19482,6 +19569,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             })}
                                         </div>
                                     )}
+                                </div>
                                 </div>
                             </div>
                         )}

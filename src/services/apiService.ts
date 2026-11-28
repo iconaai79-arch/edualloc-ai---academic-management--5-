@@ -7135,6 +7135,12 @@ export const apiService = {
                 }
             }
 
+            const rawOwnership = inst.schoolOwnership || inst.school_ownership || inst.data?.schoolOwnership || inst.data?.school_ownership || inst.metadata?.schoolOwnership || inst.metadata?.school_ownership;
+            if (rawOwnership === 'Public' || rawOwnership === 'Private') {
+                inst.schoolOwnership = rawOwnership;
+                inst.school_ownership = rawOwnership;
+            }
+
             return inst as Institution;
         });
         try {
@@ -7389,6 +7395,9 @@ export const apiService = {
         const resolvedLogoUrl = inst.logoUrl ?? (inst as any).logo_url ?? undefined;
         const resolvedStampUrl = lhConfig?.stampImageUrl ?? (inst as any).stampUrl ?? (inst as any).stamp_url ?? undefined;
 
+        const rawOwnership = inst.schoolOwnership || (inst as any).school_ownership || (inst as any).data?.schoolOwnership || (inst as any).metadata?.schoolOwnership;
+        const cleanOwnership = (rawOwnership === 'Public' || rawOwnership === 'Private') ? rawOwnership : undefined;
+
         await apiService.saveModuleRecord('institutions', { 
             ...rest, 
             email: cleanEmail, 
@@ -7396,6 +7405,7 @@ export const apiService = {
             is_otp_enabled: isOtpOn,
             reseller_id: resId,
             resellerId: resId,
+            ...(cleanOwnership ? { schoolOwnership: cleanOwnership, school_ownership: cleanOwnership } : {}),
             ...(lhConfig !== undefined ? { letterhead_config: lhConfig, letterheadConfig: lhConfig } : {}),
             ...(resolvedHeaderUrl !== undefined ? { header_image_url: resolvedHeaderUrl, headerImageUrl: resolvedHeaderUrl } : {}),
             ...(resolvedFooterUrl !== undefined ? { footer_image_url: resolvedFooterUrl, footerImageUrl: resolvedFooterUrl } : {}),
