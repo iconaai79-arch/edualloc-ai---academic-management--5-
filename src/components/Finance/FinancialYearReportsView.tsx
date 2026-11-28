@@ -69,9 +69,12 @@ export const FinancialYearReportsView: React.FC<FinancialYearReportsViewProps> =
     loadLetterheadImageForPdf,
     onExportCsv,
 }) => {
-    const [fySubTab, setFySubTab] = useState<'income_exp' | 'billing' | 'cashflow' | 'exp_payroll' | 'channels'>('income_exp');
+    const [fySubTab, setFySubTab] = useState<'income_exp' | 'student_ledger' | 'billing' | 'cashflow' | 'exp_payroll' | 'channels'>('income_exp');
     const [showComparative, setShowComparative] = useState<boolean>(true);
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    const [studentLedgerSearch, setStudentLedgerSearch] = useState('');
+    const [studentLedgerClass, setStudentLedgerClass] = useState('All');
+    const [studentLedgerStatus, setStudentLedgerStatus] = useState<'all' | 'arrears' | 'prepayment' | 'cleared'>('all');
 
     const fyLabel = selectedFy ? selectedFy.name : 'All Financial Years (Cumulative)';
     const fyRangeLabel = selectedFy ? `${selectedFy.startDate} to ${selectedFy.endDate}` : 'All Recorded Dates';
@@ -251,6 +254,318 @@ export const FinancialYearReportsView: React.FC<FinancialYearReportsViewProps> =
         () => (previousFy ? computePeriodSnapshot(previousFy) : null),
         [previousFy, allInvoices, allReceipts, allExpenses, allPayroll, allGokLogs, allBursaries, students, isPrivateSchool]
     );
+
+    // Per-student Financial Year Ledger: Opening B/F, FY Invoiced, Chronological Installments (1..6 + More), End-of-Year Arrears / Prepayment
+    const studentFyLedgerRows = useMemo(() => {
+        const fyInvoices = allInvoices.filter(i => inDateRange(i.issueDate || i.date || i.createdAt || i.created_at, selectedFy));
+        const fyReceipts = allReceipts.filter(r => inDateRange(r.paymentDate || r.date || r.createdAt || r.created_at, selectedFy));
+        const fyStartYear = selectedFy?.startDate ? selectedFy.startDate.slice(0, 4) : String(new Date().getFullYear());
+
+        const getAdm = (s: any) => String(s?.admissionNumber || s?.admission_number || s?.metadata?.admissionNumber || s?.metadata?.admission_number || s?.admNo || s?.registrationNumber || '').trim();
+        const getCls = (s: any) => String(s?.className || s?.grade || s?.class || s?.course || s?.metadata?.className || 'Unassigned').trim() || 'Unassigned';
+
+        const invByStudentId = new Map<string, number>();
+        const invByAdm = new Map<string, number>();
+        fyInvoices.forEach(inv => {
+            const amt = parseAmt(inv.totalAmount ?? inv.total_amount ?? inv.amount);
+            const sid = String(inv.studentId || inv.student_id || inv.userId || '').trim();
+            const adm = String(inv.admissionNumber || inv.admission_number || inv.admNo || '').trim().toLowerCase();
+            if (sid) invByStudentId.set(sid, (invByStudentId.get(sid) || 0) + amt);
+            else if (adm) invByAdm.set(adm, (invByAdm.get(adm) || 0) + amt);
+        });
+
+        const rcptByStudentId = new Map<string, Array<{ date: string; amount: number }>>();
+        const rcptByAdm = new Map<string, Array<{ date: string; amount: number }>>();
+        fyReceipts.forEach(r => {
+            const amt = parseAmt(r.amountPaid ?? r.amount_paid ?? r.amount);
+            if (amt <= 0) return;
+            const dt = toIsoDate(r.paymentDate || r.date || r.createdAt || r.created_at) || '9999-12-31';
+            const sid = String(r.studentId || r.student_id || r.userId || '').trim();
+            const adm = String(r.admissionNumber || r.admission_number || r.admNo || '').trim().toLowerCase();
+            if (sid) {
+                if (!rcptByStudentId.has(sid)) rcptByStudentId.set(sid, []);
+                rcptByStudentId.get(sid)!.push({ date: dt, amount: amt });
+            } else if (adm) {
+                if (!rcptByAdm.has(adm)) rcptByAdm.set(adm, []);
+                rcptByAdm.get(adm)!.push({ date: dt, amount: amt });
+            }
+        });
+
+        return students.map(s => {
+            const sid = String(s.id || '').trim();
+            const adm = getAdm(s);
+            const admKey = adm.toLowerCase();
+            const cls = getCls(s);
+
+            const byYr = s.metadata?.openingBalancesByYear || s.metadata?.opening_balances_by_year;
+            const openingBf = (byYr && byYr[fyStartYear] !== undefined)
+                ? parseAmt(byYr[fyStartYear])
+                : (fyStartYear === String(new Date().getFullYear()) ? parseAmt(s.metadata?.openingBalance ?? s.metadata?.opening_balance ?? 0) : 0);
+
+            const invoiced = (invByStudentId.get(sid) || 0) + (admKey && !invByStudentId.has(sid) ? (invByAdm.get(admKey) || 0) : 0);
+            const totalExpected = openingBf + invoiced;
+
+            const studentRcpts = [
+                ...(rcptByStudentId.get(sid) || []),
+                ...((admKey && !rcptByStudentId.has(sid)) ? (rcptByAdm.get(admKey) || []) : [])
+            ].sort((a, b) => a.date.localeCompare(b.date));
+
+            const installments: number[] = [0, 0, 0, 0, 0, 0];
+            let extraInstallments = 0;
+            studentRcpts.forEach((p, idx) => {
+                if (idx < 6) installments[idx] = p.amount;
+                else extraInstallments += p.amount;
+            });
+
+            const totalPaid = studentRcpts.reduce((sum, p) => sum + p.amount, 0);
+            const netBalance = totalExpected - totalPaid;
+            const arrears = netBalance > 0 ? netBalance : 0;
+            const prepayment = netBalance < 0 ? Math.abs(netBalance) : 0;
+
+            return {
+                id: sid,
+                adm: adm || '—',
+                name: s.name || s.fullName || 'Unnamed Student',
+                className: cls,
+                openingBf,
+                invoiced,
+                totalExpected,
+                installments,
+                extraInstallments,
+                installmentCount: studentRcpts.length,
+                totalPaid,
+                arrears,
+                prepayment,
+                netBalance,
+            };
+        }).sort((a, b) => a.className.localeCompare(b.className) || a.name.localeCompare(b.name));
+    }, [students, allInvoices, allReceipts, selectedFy]);
+
+    const studentLedgerClasses = useMemo(() => {
+        const set = new Set<string>();
+        studentFyLedgerRows.forEach(r => set.add(r.className));
+        return Array.from(set).sort();
+    }, [studentFyLedgerRows]);
+
+    const filteredStudentLedger = useMemo(() => {
+        const q = studentLedgerSearch.trim().toLowerCase();
+        return studentFyLedgerRows.filter(r => {
+            if (studentLedgerClass !== 'All' && r.className !== studentLedgerClass) return false;
+            if (studentLedgerStatus === 'arrears' && r.arrears <= 0) return false;
+            if (studentLedgerStatus === 'prepayment' && r.prepayment <= 0) return false;
+            if (studentLedgerStatus === 'cleared' && (r.arrears > 0 || r.prepayment > 0)) return false;
+            if (q && !r.name.toLowerCase().includes(q) && !r.adm.toLowerCase().includes(q) && !r.className.toLowerCase().includes(q)) return false;
+            return true;
+        });
+    }, [studentFyLedgerRows, studentLedgerSearch, studentLedgerClass, studentLedgerStatus]);
+
+    const studentLedgerTotals = useMemo(() => {
+        const instSums = [0, 0, 0, 0, 0, 0];
+        let extraSum = 0;
+        let openingBf = 0;
+        let invoiced = 0;
+        let totalExpected = 0;
+        let totalPaid = 0;
+        let arrears = 0;
+        let prepayment = 0;
+        filteredStudentLedger.forEach(r => {
+            openingBf += r.openingBf;
+            invoiced += r.invoiced;
+            totalExpected += r.totalExpected;
+            r.installments.forEach((v, idx) => { instSums[idx] += v; });
+            extraSum += r.extraInstallments;
+            totalPaid += r.totalPaid;
+            arrears += r.arrears;
+            prepayment += r.prepayment;
+        });
+        const hasExtra = extraSum > 0;
+        const netClosing = arrears - prepayment;
+        const pctCollected = totalExpected > 0 ? Math.round((totalPaid / totalExpected) * 100) : 0;
+        return { openingBf, invoiced, totalExpected, instSums, extraSum, hasExtra, totalPaid, arrears, prepayment, netClosing, pctCollected };
+    }, [filteredStudentLedger]);
+
+    const handleDownloadStudentLedgerPdf = async () => {
+        setIsDownloadingPdf(true);
+        try {
+            const { jsPDF } = await import('jspdf');
+            const autoTableModule = await import('jspdf-autotable');
+            const autoTable = (autoTableModule as any).default || autoTableModule;
+
+            const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            const pageWidth = doc.internal.pageSize.getWidth();
+            let headerY = 14;
+
+            const lhImg = await loadLetterheadImageForPdf(letterheadUrl);
+            if (lhImg) {
+                const maxW = pageWidth - 28;
+                const maxH = 22;
+                const ratio = Math.min(maxW / lhImg.width, maxH / lhImg.height);
+                const drawW = lhImg.width * ratio;
+                const drawH = lhImg.height * ratio;
+                doc.addImage(lhImg.dataUrl, lhImg.format, (pageWidth - drawW) / 2, 7, drawW, drawH);
+                headerY = 7 + drawH + 5;
+            } else {
+                const lgImg = await loadLetterheadImageForPdf(logoUrl);
+                let nameX = 14;
+                if (lgImg) {
+                    doc.addImage(lgImg.dataUrl, lgImg.format, 14, 8, 11, 11);
+                    nameX = 28;
+                }
+                doc.setFontSize(14);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(15, 23, 42);
+                doc.text(institution?.name || 'ACADEMIC INSTITUTION', nameX, 14);
+                headerY = 20;
+            }
+
+            doc.setFontSize(10.5);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(79, 70, 229);
+            doc.text(`STUDENT FINANCIAL YEAR LEDGER — ${fyLabel.toUpperCase()}`, 14, headerY);
+
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Period: ${fyRangeLabel}  |  Class: ${studentLedgerClass}  |  Students: ${filteredStudentLedger.length}  |  Generated: ${new Date().toLocaleDateString('en-KE')}`, 14, headerY + 5);
+
+            const hasExtra = studentLedgerTotals.hasExtra;
+            const instColCount = hasExtra ? 7 : 6;
+            const head: any[] = [
+                [
+                    { content: '#', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+                    { content: 'Adm.No', rowSpan: 2, styles: { valign: 'middle' } },
+                    { content: 'Student Name', rowSpan: 2, styles: { valign: 'middle' } },
+                    { content: 'Class', rowSpan: 2, styles: { valign: 'middle' } },
+                    { content: 'Opening B/F', rowSpan: 2, styles: { valign: 'middle', halign: 'right' } },
+                    { content: 'FY Invoiced', rowSpan: 2, styles: { valign: 'middle', halign: 'right' } },
+                    { content: 'Total Expected', rowSpan: 2, styles: { valign: 'middle', halign: 'right' } },
+                    { content: 'Installments Paid During Financial Year', colSpan: instColCount, styles: { halign: 'center' } },
+                    { content: 'Total Paid', rowSpan: 2, styles: { valign: 'middle', halign: 'right' } },
+                    { content: 'End-of-Year Balance', colSpan: 2, styles: { halign: 'center' } },
+                ],
+                [
+                    { content: '1st', styles: { halign: 'right' } },
+                    { content: '2nd', styles: { halign: 'right' } },
+                    { content: '3rd', styles: { halign: 'right' } },
+                    { content: '4th', styles: { halign: 'right' } },
+                    { content: '5th', styles: { halign: 'right' } },
+                    { content: '6th', styles: { halign: 'right' } },
+                    ...(hasExtra ? [{ content: '6th+', styles: { halign: 'right' } }] : []),
+                    { content: 'Arrears (Dr)', styles: { halign: 'right' } },
+                    { content: 'Prepay (Cr)', styles: { halign: 'right' } },
+                ],
+            ];
+
+            const body: any[] = filteredStudentLedger.map((r, idx) => [
+                idx + 1,
+                r.adm,
+                r.name,
+                r.className,
+                r.openingBf !== 0 ? Math.round(r.openingBf).toLocaleString() : '0',
+                Math.round(r.invoiced).toLocaleString(),
+                Math.round(r.totalExpected).toLocaleString(),
+                ...r.installments.map(v => (v > 0 ? Math.round(v).toLocaleString() : '—')),
+                ...(hasExtra ? [r.extraInstallments > 0 ? Math.round(r.extraInstallments).toLocaleString() : '—'] : []),
+                Math.round(r.totalPaid).toLocaleString(),
+                r.arrears > 0 ? Math.round(r.arrears).toLocaleString() : '—',
+                r.prepayment > 0 ? Math.round(r.prepayment).toLocaleString() : '—',
+            ]);
+
+            body.push([
+                '',
+                'TOTALS',
+                `${filteredStudentLedger.length} Students`,
+                '',
+                Math.round(studentLedgerTotals.openingBf).toLocaleString(),
+                Math.round(studentLedgerTotals.invoiced).toLocaleString(),
+                Math.round(studentLedgerTotals.totalExpected).toLocaleString(),
+                ...studentLedgerTotals.instSums.map(v => (v > 0 ? Math.round(v).toLocaleString() : '—')),
+                ...(hasExtra ? [Math.round(studentLedgerTotals.extraSum).toLocaleString()] : []),
+                Math.round(studentLedgerTotals.totalPaid).toLocaleString(),
+                Math.round(studentLedgerTotals.arrears).toLocaleString(),
+                Math.round(studentLedgerTotals.prepayment).toLocaleString(),
+            ]);
+
+            const totalPaidIdx = 7 + instColCount;
+            const colStyles: Record<number, any> = {
+                0: { halign: 'center', cellWidth: 7 },
+                1: { halign: 'left' },
+                2: { halign: 'left', fontStyle: 'bold' },
+                3: { halign: 'left' },
+                4: { halign: 'right' },
+                5: { halign: 'right' },
+                6: { halign: 'right', fontStyle: 'bold' },
+                [totalPaidIdx]: { halign: 'right', fontStyle: 'bold', textColor: [4, 120, 87] },
+                [totalPaidIdx + 1]: { halign: 'right', fontStyle: 'bold', textColor: [190, 18, 60] },
+                [totalPaidIdx + 2]: { halign: 'right', fontStyle: 'bold', textColor: [67, 56, 202] },
+            };
+            for (let c = 7; c < totalPaidIdx; c++) colStyles[c] = { halign: 'right' };
+
+            autoTable(doc, {
+                head,
+                body,
+                startY: headerY + 9,
+                theme: 'grid',
+                styles: { fontSize: 6.5, cellPadding: 1.4 },
+                headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+                columnStyles: colStyles,
+                didParseCell: (data: any) => {
+                    if (data.section === 'body' && data.row.index === body.length - 1) {
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.fillColor = [241, 245, 249];
+                    }
+                },
+                didDrawPage: (data: any) => {
+                    const pH = doc.internal.pageSize.getHeight();
+                    const pW = doc.internal.pageSize.getWidth();
+                    doc.setFontSize(8);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(148, 163, 184);
+                    doc.setDrawColor(226, 232, 240);
+                    doc.line(14, pH - 10, pW - 14, pH - 10);
+                    doc.text(`${institution?.name || 'EduAI'} • Student Financial Year Ledger (${fyLabel})`, 14, pH - 5);
+                    doc.text(`Page ${data.pageNumber}`, pW - 14, pH - 5, { align: 'right' });
+                },
+            });
+
+            // Summary Totals Box below table
+            let curY = ((doc as any).lastAutoTable?.finalY || 140) + 6;
+            const pH = doc.internal.pageSize.getHeight();
+            if (curY > pH - 36) {
+                doc.addPage();
+                curY = 18;
+            }
+            doc.setFillColor(15, 23, 42);
+            doc.roundedRect(14, curY, pageWidth - 28, 22, 2, 2, 'F');
+            doc.setFontSize(7.5);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(148, 163, 184);
+            doc.text('OPENING B/F', 20, curY + 7);
+            doc.text('FY INVOICED', 68, curY + 7);
+            doc.text('TOTAL PAID', 118, curY + 7);
+            doc.text('END-OF-YEAR ARREARS', 170, curY + 7);
+            doc.text('END-OF-YEAR PREPAYMENTS', 225, curY + 7);
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(255, 255, 255);
+            doc.text(fmtMoney(studentLedgerTotals.openingBf), 20, curY + 15);
+            doc.text(fmtMoney(studentLedgerTotals.invoiced), 68, curY + 15);
+            doc.setTextColor(52, 211, 153);
+            doc.text(`${fmtMoney(studentLedgerTotals.totalPaid)} (${studentLedgerTotals.pctCollected}%)`, 118, curY + 15);
+            doc.setTextColor(251, 113, 133);
+            doc.text(fmtMoney(studentLedgerTotals.arrears), 170, curY + 15);
+            doc.setTextColor(165, 180, 252);
+            doc.text(fmtMoney(studentLedgerTotals.prepayment), 225, curY + 15);
+
+            doc.save(`Student_FY_Ledger_${fyLabel.replace(/[^a-z0-9]+/gi, '_')}_${studentLedgerClass.replace(/\s+/g, '_')}.pdf`);
+        } catch (err: any) {
+            console.error('Student FY Ledger PDF error:', err);
+            alert('Failed to generate Student FY Ledger PDF: ' + (err?.message || err));
+        } finally {
+            setIsDownloadingPdf(false);
+        }
+    };
 
     const calcVarPct = (curr: number, prev: number) => {
         if (!prev) return curr === 0 ? '0%' : '—';
@@ -464,7 +779,29 @@ export const FinancialYearReportsView: React.FC<FinancialYearReportsViewProps> =
     };
 
     const handleExportActiveCsv = () => {
-        if (fySubTab === 'billing') {
+        if (fySubTab === 'student_ledger') {
+            const hasExtra = studentLedgerTotals.hasExtra;
+            const headers = [
+                '#', 'Adm.No', 'Student Name', 'Class', 'Opening B/F', 'FY Invoiced', 'Total Expected',
+                '1st Inst.', '2nd Inst.', '3rd Inst.', '4th Inst.', '5th Inst.', '6th Inst.',
+                ...(hasExtra ? ['6th+ Inst.'] : []),
+                'Total Paid', 'Arrears (End of FY)', 'Prepayment (End of FY)'
+            ];
+            const rows: any[][] = filteredStudentLedger.map((r, i) => [
+                i + 1, r.adm, r.name, r.className, Math.round(r.openingBf), Math.round(r.invoiced), Math.round(r.totalExpected),
+                ...r.installments.map(v => Math.round(v)),
+                ...(hasExtra ? [Math.round(r.extraInstallments)] : []),
+                Math.round(r.totalPaid), Math.round(r.arrears), Math.round(r.prepayment)
+            ]);
+            rows.push([
+                '', 'TOTALS', `${filteredStudentLedger.length} Students`, '',
+                Math.round(studentLedgerTotals.openingBf), Math.round(studentLedgerTotals.invoiced), Math.round(studentLedgerTotals.totalExpected),
+                ...studentLedgerTotals.instSums.map(v => Math.round(v)),
+                ...(hasExtra ? [Math.round(studentLedgerTotals.extraSum)] : []),
+                Math.round(studentLedgerTotals.totalPaid), Math.round(studentLedgerTotals.arrears), Math.round(studentLedgerTotals.prepayment)
+            ]);
+            onExportCsv(`student_fy_ledger_${fyLabel.replace(/[^a-z0-9]+/gi, '_')}`, headers, rows);
+        } else if (fySubTab === 'billing') {
             onExportCsv(
                 `fy_billing_${fyLabel.replace(/[^a-z0-9]+/gi, '_')}`,
                 ['Class / Grade', 'Students', 'Opening B/F', 'FY Invoiced', 'FY Collected', 'Closing Balance', 'Collection %'],
@@ -504,6 +841,7 @@ export const FinancialYearReportsView: React.FC<FinancialYearReportsViewProps> =
 
     const subTabs = [
         { id: 'income_exp', label: 'Income & Expenditure' },
+        { id: 'student_ledger', label: 'Student FY Ledger (Invoiced, Installments & Balances)' },
         { id: 'billing', label: 'Billing & Collection' },
         { id: 'cashflow', label: 'Cash Flow Statement' },
         { id: 'exp_payroll', label: 'Expenses & Payroll' },
@@ -554,10 +892,10 @@ export const FinancialYearReportsView: React.FC<FinancialYearReportsViewProps> =
                         <button
                             type="button"
                             disabled={isDownloadingPdf}
-                            onClick={handleDownloadFyPackPdf}
+                            onClick={fySubTab === 'student_ledger' ? handleDownloadStudentLedgerPdf : handleDownloadFyPackPdf}
                             className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest cursor-pointer transition-all disabled:opacity-50"
                         >
-                            {isDownloadingPdf ? 'Generating...' : '📥 Download FY PDF'}
+                            {isDownloadingPdf ? 'Generating...' : (fySubTab === 'student_ledger' ? '📥 Download Student Ledger PDF' : '📥 Download FY PDF')}
                         </button>
                     </div>
                 </div>
@@ -707,6 +1045,186 @@ export const FinancialYearReportsView: React.FC<FinancialYearReportsViewProps> =
                             </div>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* 2. Student FY Ledger (Invoiced at Start of FY, Installments, End-of-Year Arrears / Prepayment & Summary Totals) */}
+            {fySubTab === 'student_ledger' && (
+                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm p-6 sm:p-8 space-y-5">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div>
+                            <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                Student Financial Year Ledger — {fyLabel}
+                            </h4>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                Opening B/F, FY Invoiced Amount, Chronological Installments Paid &amp; End-of-Year Arrears / Prepayment ({filteredStudentLedger.length} students)
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 print:hidden">
+                            <input
+                                type="text"
+                                value={studentLedgerSearch}
+                                onChange={(e) => setStudentLedgerSearch(e.target.value)}
+                                placeholder="Search student or Adm.No..."
+                                className="px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                            <select
+                                value={studentLedgerClass}
+                                onChange={(e) => setStudentLedgerClass(e.target.value)}
+                                className="px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none cursor-pointer"
+                            >
+                                <option value="All">All Classes</option>
+                                {studentLedgerClasses.map(cls => (
+                                    <option key={cls} value={cls}>{cls}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={studentLedgerStatus}
+                                onChange={(e) => setStudentLedgerStatus(e.target.value as any)}
+                                className="px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none cursor-pointer"
+                            >
+                                <option value="all">All Balances</option>
+                                <option value="arrears">Arrears Only</option>
+                                <option value="prepayment">Prepayments Only</option>
+                                <option value="cleared">Cleared (Zero Bal)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                        <table className="w-full text-left text-[11px] border-collapse">
+                            <thead>
+                                <tr className="bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider">
+                                    <th rowSpan={2} className="py-2 px-2 border border-slate-700 text-center">#</th>
+                                    <th rowSpan={2} className="py-2 px-2 border border-slate-700">Adm.No</th>
+                                    <th rowSpan={2} className="py-2 px-2.5 border border-slate-700">Student Name</th>
+                                    <th rowSpan={2} className="py-2 px-2 border border-slate-700">Class</th>
+                                    <th rowSpan={2} className="py-2 px-2 border border-slate-700 text-right">Opening B/F</th>
+                                    <th rowSpan={2} className="py-2 px-2 border border-slate-700 text-right">FY Invoiced</th>
+                                    <th rowSpan={2} className="py-2 px-2 border border-slate-700 text-right">Total Expected</th>
+                                    <th colSpan={studentLedgerTotals.hasExtra ? 7 : 6} className="py-1.5 px-2 border border-slate-700 text-center bg-indigo-950">
+                                        Installments Paid During Financial Year
+                                    </th>
+                                    <th rowSpan={2} className="py-2 px-2 border border-slate-700 text-right bg-emerald-950">Total Paid</th>
+                                    <th colSpan={2} className="py-1.5 px-2 border border-slate-700 text-center bg-slate-800">
+                                        End-of-Year Balance
+                                    </th>
+                                </tr>
+                                <tr className="bg-slate-800 text-slate-200 text-[8.5px] font-bold uppercase">
+                                    <th className="py-1.5 px-2 border border-slate-700 text-right">1st</th>
+                                    <th className="py-1.5 px-2 border border-slate-700 text-right">2nd</th>
+                                    <th className="py-1.5 px-2 border border-slate-700 text-right">3rd</th>
+                                    <th className="py-1.5 px-2 border border-slate-700 text-right">4th</th>
+                                    <th className="py-1.5 px-2 border border-slate-700 text-right">5th</th>
+                                    <th className="py-1.5 px-2 border border-slate-700 text-right">6th</th>
+                                    {studentLedgerTotals.hasExtra && (
+                                        <th className="py-1.5 px-2 border border-slate-700 text-right">6th+</th>
+                                    )}
+                                    <th className="py-1.5 px-2 border border-slate-700 text-right text-rose-300">Arrears (Dr)</th>
+                                    <th className="py-1.5 px-2 border border-slate-700 text-right text-indigo-300">Prepayment (Cr)</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {filteredStudentLedger.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={studentLedgerTotals.hasExtra ? 17 : 16} className="py-10 text-center text-slate-400 font-semibold">
+                                            No students match the selected Financial Year / filters.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredStudentLedger.map((r, idx) => (
+                                        <tr key={r.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                            <td className="py-2 px-2 border-r border-slate-100 dark:border-slate-800 text-center text-slate-400 font-bold">{idx + 1}</td>
+                                            <td className="py-2 px-2 border-r border-slate-100 dark:border-slate-800 font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">{r.adm}</td>
+                                            <td className="py-2 px-2.5 border-r border-slate-100 dark:border-slate-800 font-bold text-slate-900 dark:text-white whitespace-nowrap">{r.name}</td>
+                                            <td className="py-2 px-2 border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 whitespace-nowrap">{r.className}</td>
+                                            <td className="py-2 px-2 border-r border-slate-100 dark:border-slate-800 text-right whitespace-nowrap">
+                                                {r.openingBf !== 0 ? Math.round(r.openingBf).toLocaleString() : '0'}
+                                            </td>
+                                            <td className="py-2 px-2 border-r border-slate-100 dark:border-slate-800 text-right font-semibold whitespace-nowrap">
+                                                {Math.round(r.invoiced).toLocaleString()}
+                                            </td>
+                                            <td className="py-2 px-2 border-r border-slate-100 dark:border-slate-800 text-right font-black text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                                {Math.round(r.totalExpected).toLocaleString()}
+                                            </td>
+                                            {r.installments.map((val, cIdx) => (
+                                                <td key={cIdx} className="py-2 px-2 border-r border-slate-100 dark:border-slate-800 text-right whitespace-nowrap text-slate-700 dark:text-slate-300">
+                                                    {val > 0 ? Math.round(val).toLocaleString() : '—'}
+                                                </td>
+                                            ))}
+                                            {studentLedgerTotals.hasExtra && (
+                                                <td className="py-2 px-2 border-r border-slate-100 dark:border-slate-800 text-right whitespace-nowrap text-slate-700 dark:text-slate-300">
+                                                    {r.extraInstallments > 0 ? Math.round(r.extraInstallments).toLocaleString() : '—'}
+                                                </td>
+                                            )}
+                                            <td className="py-2 px-2 border-r border-slate-100 dark:border-slate-800 text-right font-black text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                                                {Math.round(r.totalPaid).toLocaleString()}
+                                            </td>
+                                            <td className="py-2 px-2 border-r border-slate-100 dark:border-slate-800 text-right font-black text-rose-700 dark:text-rose-400 whitespace-nowrap">
+                                                {r.arrears > 0 ? Math.round(r.arrears).toLocaleString() : '—'}
+                                            </td>
+                                            <td className="py-2 px-2 text-right font-black text-indigo-700 dark:text-indigo-400 whitespace-nowrap">
+                                                {r.prepayment > 0 ? Math.round(r.prepayment).toLocaleString() : '—'}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                                {/* Table Summary Totals Row */}
+                                {filteredStudentLedger.length > 0 && (
+                                    <tr className="bg-slate-100 dark:bg-slate-800 font-black border-t-2 border-slate-900 dark:border-slate-600 text-xs">
+                                        <td colSpan={4} className="py-3 px-2.5 uppercase text-slate-900 dark:text-white">
+                                            SUMMARY TOTALS ({filteredStudentLedger.length} Students)
+                                        </td>
+                                        <td className="py-3 px-2 text-right whitespace-nowrap">{Math.round(studentLedgerTotals.openingBf).toLocaleString()}</td>
+                                        <td className="py-3 px-2 text-right whitespace-nowrap">{Math.round(studentLedgerTotals.invoiced).toLocaleString()}</td>
+                                        <td className="py-3 px-2 text-right whitespace-nowrap">{Math.round(studentLedgerTotals.totalExpected).toLocaleString()}</td>
+                                        {studentLedgerTotals.instSums.map((sum, i) => (
+                                            <td key={i} className="py-3 px-2 text-right whitespace-nowrap">
+                                                {sum > 0 ? Math.round(sum).toLocaleString() : '—'}
+                                            </td>
+                                        ))}
+                                        {studentLedgerTotals.hasExtra && (
+                                            <td className="py-3 px-2 text-right whitespace-nowrap">{Math.round(studentLedgerTotals.extraSum).toLocaleString()}</td>
+                                        )}
+                                        <td className="py-3 px-2 text-right text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                                            {Math.round(studentLedgerTotals.totalPaid).toLocaleString()}
+                                        </td>
+                                        <td className="py-3 px-2 text-right text-rose-700 dark:text-rose-400 whitespace-nowrap">
+                                            {Math.round(studentLedgerTotals.arrears).toLocaleString()}
+                                        </td>
+                                        <td className="py-3 px-2 text-right text-indigo-700 dark:text-indigo-400 whitespace-nowrap">
+                                            {Math.round(studentLedgerTotals.prepayment).toLocaleString()}
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Well-Formatted Summary Totals Cards Below Table */}
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 p-4 rounded-2xl bg-slate-900 text-white">
+                        <div className="p-3 rounded-xl bg-white/5">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Opening Balance B/F</p>
+                            <p className="text-base font-black font-mono mt-1">{fmtMoney(studentLedgerTotals.openingBf)}</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-white/5">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">FY Invoiced Amount</p>
+                            <p className="text-base font-black font-mono text-sky-300 mt-1">{fmtMoney(studentLedgerTotals.invoiced)}</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-white/5">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Installments Paid</p>
+                            <p className="text-base font-black font-mono text-emerald-400 mt-1">{fmtMoney(studentLedgerTotals.totalPaid)}</p>
+                            <p className="text-[9px] text-emerald-300 font-bold">{studentLedgerTotals.pctCollected}% of Expected</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-rose-300">End-of-Year Arrears</p>
+                            <p className="text-base font-black font-mono text-rose-400 mt-1">{fmtMoney(studentLedgerTotals.arrears)}</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-indigo-500/15 border border-indigo-500/30">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">End-of-Year Prepayments</p>
+                            <p className="text-base font-black font-mono text-indigo-300 mt-1">{fmtMoney(studentLedgerTotals.prepayment)}</p>
+                        </div>
+                    </div>
                 </div>
             )}
 
