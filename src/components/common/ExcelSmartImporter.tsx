@@ -49,6 +49,7 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({
     const [previewFilter, setPreviewFilter] = useState<'all' | 'new' | 'existing' | 'missing'>('all');
     const [previewLimit, setPreviewLimit] = useState(50);
     const [isLoading, setIsLoading] = useState(false);
+    const [processingLabel, setProcessingLabel] = useState('');
     const [fileName, setFileName] = useState('');
     const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
     const [availableSheets, setAvailableSheets] = useState<string[]>([]);
@@ -263,33 +264,49 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({
 
         setFileName(file.name);
         setIsLoading(true);
+        setProcessingLabel('Reading workbook...');
 
         const reader = new FileReader();
         reader.onload = (evt) => {
-            const bstr = evt.target?.result;
-            const wb = XLSX.read(bstr, { type: 'binary' });
-            setWorkbook(wb);
-            
-            const sheets = wb.SheetNames || [];
-            setAvailableSheets(sheets);
-            const defaultSheet = sheets.length > 1 ? 'ALL_SHEETS' : (sheets[0] || '');
-            setSelectedSheet(defaultSheet);
+            // Yield one frame so the loading spinner renders before XLSX parses
+            setTimeout(() => {
+                try {
+                    const buf = evt.target?.result as ArrayBuffer;
+                    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+                    setWorkbook(wb);
 
-            const activeWsName = sheets[0];
-            const ws = wb.Sheets[activeWsName];
-            const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+                    const sheets = wb.SheetNames || [];
+                    setAvailableSheets(sheets);
+                    const defaultSheet = sheets.length > 1 ? 'ALL_SHEETS' : (sheets[0] || '');
+                    setSelectedSheet(defaultSheet);
 
-            if (data && data.length > 0) {
-                const headerRowIdx = detectHeaderRowIndex(data);
-                const headers = (data[headerRowIdx] || []).filter(h => !!h).map(h => String(h).trim());
-                setRawHeaders(headers);
-                const mapping = autoMapHeaders(headers);
-                setHeaderMapping(mapping);
-                setStep(2);
-            }
-            setIsLoading(false);
+                    const activeWsName = sheets[0];
+                    const ws = wb.Sheets[activeWsName];
+                    // Only inspect the first 25 rows to detect headers instantaneously
+                    const wsRange = ws?.['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : null;
+                    const headerScanRange = wsRange
+                        ? { s: { r: wsRange.s.r, c: wsRange.s.c }, e: { r: Math.min(wsRange.e.r, wsRange.s.r + 25), c: wsRange.e.c } }
+                        : undefined;
+                    const data = XLSX.utils.sheet_to_json(ws, { header: 1, range: headerScanRange, defval: '' }) as any[][];
+
+                    if (data && data.length > 0) {
+                        const headerRowIdx = detectHeaderRowIndex(data);
+                        const headers = (data[headerRowIdx] || []).filter(h => !!h).map(h => String(h).trim());
+                        setRawHeaders(headers);
+                        const mapping = autoMapHeaders(headers);
+                        setHeaderMapping(mapping);
+                        setStep(2);
+                    }
+                } catch (err) {
+                    console.error('Failed to read Excel file:', err);
+                    alert('Failed to read Excel file. Please ensure it is a valid .xlsx, .xls, or .csv file.');
+                } finally {
+                    setIsLoading(false);
+                    setProcessingLabel('');
+                }
+            }, 20);
         };
-        reader.readAsBinaryString(file);
+        reader.readAsArrayBuffer(file);
     };
 
     const handleSheetChange = (sheetName: string) => {
@@ -299,7 +316,11 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({
         const targetWsName = sheetName === 'ALL_SHEETS' ? workbook.SheetNames[0] : sheetName;
         const ws = workbook.Sheets[targetWsName];
         if (ws) {
-            const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+            const wsRange = ws?.['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : null;
+            const headerScanRange = wsRange
+                ? { s: { r: wsRange.s.r, c: wsRange.s.c }, e: { r: Math.min(wsRange.e.r, wsRange.s.r + 25), c: wsRange.e.c } }
+                : undefined;
+            const data = XLSX.utils.sheet_to_json(ws, { header: 1, range: headerScanRange, defval: '' }) as any[][];
             if (data && data.length > 0) {
                 const headerRowIdx = detectHeaderRowIndex(data);
                 const headers = (data[headerRowIdx] || []).filter(h => !!h).map(h => String(h).trim());
@@ -310,122 +331,139 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({
         }
     };
 
-    const getRowVal = (row: any, headerKey: string) => {
-        if (!row || !headerKey) return undefined;
-        if (row[headerKey] !== undefined && row[headerKey] !== null) return row[headerKey];
-        const cleanTarget = cleanStr(headerKey);
-        for (const k of Object.keys(row)) {
-            if (k.trim() === headerKey.trim()) return row[k];
-            if (cleanStr(k) === cleanTarget) return row[k];
-        }
-        return undefined;
-    };
-
-    const processData = () => {
-        if (!workbook) return;
+    const processData = async () => {
+        if (!workbook || isLoading) return;
         setIsLoading(true);
+        setProcessingLabel('Preparing rows...');
+        // Yield so spinner/status paints before heavy work
+        await new Promise(resolve => setTimeout(resolve, 16));
 
-        // Determine sheets to read
-        const sheetsToRead = selectedSheet === 'ALL_SHEETS' || !selectedSheet
-            ? workbook.SheetNames
-            : [selectedSheet];
+        try {
+            const sheetsToRead = selectedSheet === 'ALL_SHEETS' || !selectedSheet
+                ? workbook.SheetNames
+                : [selectedSheet];
 
-        const allRows: any[] = [];
+            const allRows: any[] = [];
+            const nowIso = new Date().toISOString();
+            const nowTs = Date.now();
+            const CHUNK_SIZE = 300;
 
-        sheetsToRead.forEach(wsname => {
-            const ws = workbook.Sheets[wsname];
-            if (!ws) return;
-            const dataGrid = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-            const headerRowIdx = detectHeaderRowIndex(dataGrid);
-            const sheetRows = XLSX.utils.sheet_to_json(ws, { range: headerRowIdx }) as any[];
+            for (const wsname of sheetsToRead) {
+                const ws = workbook.Sheets[wsname];
+                if (!ws) continue;
 
-            sheetRows.forEach(row => {
-                const obj: any = {};
+                // Single fast 2D array parse per sheet (10x faster than object conversion)
+                const dataGrid = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as any[][];
+                if (!dataGrid || dataGrid.length === 0) continue;
+
+                const headerRowIdx = detectHeaderRowIndex(dataGrid);
+                const headerRow = (dataGrid[headerRowIdx] || []).map(h => String(h ?? '').trim());
+                const cleanHeaderRow = headerRow.map(h => cleanStr(h));
+
+                // Pre-resolve column indices ONCE per sheet (O(1) lookup per cell!)
+                const fieldColIdx: Record<string, number> = {};
                 fields.forEach(f => {
                     const mappedHeader = headerMapping[f.key];
-                    if (mappedHeader) {
-                        const val = getRowVal(row, mappedHeader);
-                        obj[f.key] = val !== undefined && val !== null ? String(val).trim() : '';
-                    } else {
-                        obj[f.key] = '';
+                    if (!mappedHeader) {
+                        fieldColIdx[f.key] = -1;
+                        return;
                     }
+                    let col = headerRow.indexOf(mappedHeader.trim());
+                    if (col === -1) {
+                        const cleanTarget = cleanStr(mappedHeader);
+                        col = cleanHeaderRow.indexOf(cleanTarget);
+                    }
+                    fieldColIdx[f.key] = col;
                 });
 
-                // Check for split name columns (e.g. SURNAME + OTHER NAMES or First Name + Middle Name + Last Name) if name is empty
-                if (!obj.name) {
-                    const rowKeys = Object.keys(row);
-                    const surnameKey = rowKeys.find(k => /^(surname|last[\s_.-]*name|lname)$/i.test(k.trim()));
-                    const otherNamesKey = rowKeys.find(k => /^(other[\s_.-]*names?)$/i.test(k.trim()));
-                    const firstKey = rowKeys.find(k => /^(first[\s_.-]*name|fname)$/i.test(k.trim()));
-                    const middleKey = rowKeys.find(k => !otherNamesKey && /^(middle[\s_.-]*name|mname)$/i.test(k.trim()));
+                // Pre-resolve split name columns ONCE per sheet
+                const surnameCol = headerRow.findIndex(k => /^(surname|last[\s_.-]*name|lname)$/i.test(k));
+                const otherNamesCol = headerRow.findIndex(k => /^(other[\s_.-]*names?)$/i.test(k));
+                const firstCol = headerRow.findIndex(k => /^(first[\s_.-]*name|fname)$/i.test(k));
+                const middleCol = otherNamesCol === -1 ? headerRow.findIndex(k => /^(middle[\s_.-]*name|mname)$/i.test(k)) : -1;
 
-                    if (surnameKey && otherNamesKey) {
-                        const sVal = String(row[surnameKey] || '').trim();
-                        const oVal = String(row[otherNamesKey] || '').trim();
-                        if (sVal || oVal) {
-                            obj.name = `${sVal} ${oVal}`.trim();
-                        }
-                    } else if (firstKey || surnameKey) {
-                        const parts = [
-                            firstKey ? String(row[firstKey] || '').trim() : '',
-                            middleKey ? String(row[middleKey] || '').trim() : '',
-                            surnameKey ? String(row[surnameKey] || '').trim() : ''
-                        ].filter(Boolean);
-                        if (parts.length > 0) {
-                            obj.name = parts.join(' ');
+                const inferredSheetGrade =
+                    sheetsToRead.length > 1 && wsname && /^(grade|class|form|standard|pp|playgroup)/i.test(wsname.trim())
+                        ? wsname.trim()
+                        : '';
+
+                const totalDataRows = Math.max(0, dataGrid.length - (headerRowIdx + 1));
+
+                for (let rIdx = headerRowIdx + 1; rIdx < dataGrid.length; rIdx++) {
+                    const rowArr = dataGrid[rIdx];
+                    if (!Array.isArray(rowArr) || rowArr.length === 0) continue;
+
+                    const obj: any = {};
+                    for (let fIdx = 0; fIdx < fields.length; fIdx++) {
+                        const f = fields[fIdx];
+                        const cIdx = fieldColIdx[f.key];
+                        const val = cIdx >= 0 ? rowArr[cIdx] : '';
+                        obj[f.key] = val !== undefined && val !== null ? String(val).trim() : '';
+                    }
+
+                    // Split name fallback
+                    if (!obj.name) {
+                        if (surnameCol >= 0 && otherNamesCol >= 0) {
+                            const sVal = String(rowArr[surnameCol] || '').trim();
+                            const oVal = String(rowArr[otherNamesCol] || '').trim();
+                            if (sVal || oVal) obj.name = `${sVal} ${oVal}`.trim();
+                        } else if (firstCol >= 0 || surnameCol >= 0) {
+                            const parts = [
+                                firstCol >= 0 ? String(rowArr[firstCol] || '').trim() : '',
+                                middleCol >= 0 ? String(rowArr[middleCol] || '').trim() : '',
+                                surnameCol >= 0 ? String(rowArr[surnameCol] || '').trim() : ''
+                            ].filter(Boolean);
+                            if (parts.length > 0) obj.name = parts.join(' ');
                         }
                     }
-                }
 
-                // Guarantee studentName and fullName aliases are present
-                if (obj.name) {
-                    obj.studentName = obj.name;
-                    obj.fullName = obj.name;
-                    obj.learnerName = obj.name;
-                }
+                    if (obj.name) {
+                        obj.studentName = obj.name;
+                        obj.fullName = obj.name;
+                        obj.learnerName = obj.name;
+                    }
 
-                // If gradeLevel is empty and sheet name looks like a grade (e.g. "Grade 4", "Form 2", "PP1"), infer it
-                if (!obj.gradeLevel && sheetsToRead.length > 1 && wsname) {
-                    const cleanSheetName = wsname.trim();
-                    if (/^(grade|class|form|standard|pp|playgroup)/i.test(cleanSheetName)) {
-                        obj.gradeLevel = cleanSheetName;
+                    if (!obj.gradeLevel && inferredSheetGrade) {
+                        obj.gradeLevel = inferredSheetGrade;
+                    }
+
+                    const hasName = Boolean(obj.name);
+                    const hasAdmNo = Boolean(obj.admissionNumber);
+                    const hasAssessNo = Boolean(obj.assessmentNo);
+                    const hasContact = Boolean(obj.phoneNumber || obj.parentPhone || obj.email);
+                    if (!hasName && !hasAdmNo && !hasAssessNo && !hasContact) continue;
+
+                    let baseId = `sch_${rIdx}_${nowTs.toString(36)}`;
+                    if (obj.knecCode) baseId = `sch_knec_${slugify(obj.knecCode)}`;
+                    else if (obj.uic) baseId = `sch_uic_${slugify(obj.uic)}`;
+
+                    obj.id = baseId;
+                    obj.slug = `${slugify(obj.name || obj.admissionNumber || obj.assessmentNo || 'record')}-${rIdx}`;
+                    obj.createdAt = nowIso;
+                    obj.updatedAt = nowIso;
+
+                    allRows.push(obj);
+
+                    // Yield to browser UI thread every 300 rows so the page NEVER freezes
+                    if ((rIdx - headerRowIdx) % CHUNK_SIZE === 0) {
+                        setProcessingLabel(`Processing ${Math.min(rIdx - headerRowIdx, totalDataRows).toLocaleString()} / ${totalDataRows.toLocaleString()} rows...`);
+                        await new Promise(resolve => setTimeout(resolve, 0));
                     }
                 }
+            }
 
-                // Validation: Skip row only if completely blank (no name, no admission number, no assessment number, no phone)
-                const hasName = Boolean(obj.name && obj.name.trim() !== '');
-                const hasAdmNo = Boolean(obj.admissionNumber && obj.admissionNumber.trim() !== '');
-                const hasAssessNo = Boolean(obj.assessmentNo && obj.assessmentNo.trim() !== '');
-                const hasContact = Boolean(obj.phoneNumber || obj.parentPhone || obj.email);
-
-                if (!hasName && !hasAdmNo && !hasAssessNo && !hasContact) {
-                    return; // Skip genuinely empty rows
-                }
-
-                // Stable ID: If KNEC or UIC exists, use it to allow UPSERT (update existing)
-                let baseId = `sch_${Math.random().toString(36).substr(2, 5)}_${Date.now()}`;
-                if (obj.knecCode && obj.knecCode.trim()) baseId = `sch_knec_${slugify(obj.knecCode)}`;
-                else if (obj.uic && obj.uic.trim()) baseId = `sch_uic_${slugify(obj.uic)}`;
-                
-                obj.id = baseId;
-                
-                // Ensure slug uniqueness by appending the short ID
-                const hash = baseId.split('_').pop() || '000';
-                obj.slug = `${slugify(obj.name || obj.admissionNumber || obj.assessmentNo || 'record')}-${hash.substring(0, 5)}`;
-                
-                obj.createdAt = new Date().toISOString();
-                obj.updatedAt = new Date().toISOString();
-
-                allRows.push(obj);
-            });
-        });
-
-        setPreviewData(allRows);
-        setPreviewSearch('');
-        setPreviewFilter('all');
-        setPreviewLimit(50);
-        setStep(3);
-        setIsLoading(false);
+            setPreviewData(allRows);
+            setPreviewSearch('');
+            setPreviewFilter('all');
+            setPreviewLimit(50);
+            setStep(3);
+        } catch (err) {
+            console.error('Error processing Excel rows:', err);
+            alert('Failed to process spreadsheet rows.');
+        } finally {
+            setIsLoading(false);
+            setProcessingLabel('');
+        }
     };
 
     const normalizeAdmKey = (v: any) => String(v || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -606,11 +644,20 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({
                             <div className="pt-8 flex justify-between items-center border-t border-slate-100 dark:border-slate-800">
                                 <button onClick={() => setStep(1)} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-rose-600 transition-colors cursor-pointer">Start Over</button>
                                 <button 
-                                    disabled={!fields.filter(f => f.required).every(f => !!headerMapping[f.key])}
+                                    disabled={isLoading || !fields.filter(f => f.required).every(f => !!headerMapping[f.key])}
                                     onClick={processData}
-                                    className="h-14 px-10 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl shadow-emerald-500/20 hover:bg-slate-900 transition-all flex items-center gap-3 active:scale-95 disabled:opacity-30 cursor-pointer"
+                                    className="h-14 px-10 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl shadow-emerald-500/20 hover:bg-slate-900 transition-all flex items-center gap-3 active:scale-95 disabled:opacity-40 cursor-pointer"
                                 >
-                                    Preview Data <ArrowRight className="w-5 h-5" />
+                                    {isLoading ? (
+                                        <>
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                            {processingLabel || 'Processing...'}
+                                        </>
+                                    ) : (
+                                        <>
+                                            Preview Data <ArrowRight className="w-5 h-5" />
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>
