@@ -3462,7 +3462,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 : (targetInstParam && !isSystemOrAll(targetInstParam) ? targetInstParam : undefined);
 
             const shouldSkipTenancy = (isGroupOrSuperAdmin || (moduleName === 'institutions' && !getStrParam(id))) && (!targetInstParam || isSystemOrAll(targetInstParam));
-            const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'institution_id', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback', 'reseller_id', 'resellerId'];
+            const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'institution_id', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback', 'reseller_id', 'resellerId', 'bypassCache', 'forceRefresh', 'noCache', 'nocache', 'refresh'];
 
             // Reseller detection & normalization (handles role, header, query, and institution type)
             const isResellerRequest = user?.role === 'reseller' || 

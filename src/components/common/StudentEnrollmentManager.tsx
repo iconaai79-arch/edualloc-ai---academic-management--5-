@@ -1878,10 +1878,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const admLower = adm.toLowerCase();
                 const uName = String(u.name || '').trim().toLowerCase();
 
+                const hasRealAdm = Boolean(admLower && !isSyntheticAdmNo(admLower));
                 const alreadyEnrolled = 
                     (uId && (enrolledUserIds.has(uId.toLowerCase()) || enrolledUserIds.has(rawUid))) ||
-                    (admLower && !isSyntheticAdmNo(admLower) && enrolledAdmNos.has(admLower)) ||
-                    (uName && !isNameUnknown(uName) && enrolledNames.has(uName)) ||
+                    (hasRealAdm && enrolledAdmNos.has(admLower)) ||
+                    (!hasRealAdm && uName && !isNameUnknown(uName) && enrolledNames.has(uName)) ||
                     (uId && enrolledIds.has(uId.toLowerCase())) ||
                     (uId && enrolledIds.has(`enr_${rawUid}`)) ||
                     (uId && enrolledIds.has(`enr_${uId.toLowerCase()}`));
@@ -1982,9 +1983,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const uid = String(enr.userId || (enr as any).user_id || '').trim().toLowerCase().replace(/^u_/, '');
                 const adm = String(enr.admissionNumber || (enr as any).admission_number || '').trim().toLowerCase();
                 const sName = String((enr as any).name || (enr as any).studentName || enr.metadata?.studentName || '').trim().toLowerCase();
+                const hasRealAdm = Boolean(adm && !isSyntheticAdmNo(adm));
                 if (uid) keys.push(`uid:${uid}`);
-                if (adm && !isSyntheticAdmNo(adm)) keys.push(`adm:${adm}`);
-                if (sName && !isNameUnknown(sName)) keys.push(`name:${sName}`);
+                if (hasRealAdm) keys.push(`adm:${adm}`);
+                // Only fall back to name deduplication when the record has NO real admission number and NO userId;
+                // never collapse two distinct students with different admission numbers just because they share a name.
+                if (!hasRealAdm && !uid && sName && !isNameUnknown(sName)) keys.push(`name:${sName}`);
                 if (keys.length === 0) keys.push(`id:${enr.id}`);
                 return keys;
             };
