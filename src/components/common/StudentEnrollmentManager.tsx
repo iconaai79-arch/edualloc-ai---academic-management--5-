@@ -2864,80 +2864,73 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const claimedAdmInUpload = new Set<string>();
             const claimedAssessInUpload = new Set<string>();
 
-            const batchSize = 10;
+            // O(1) lookup maps for instant duplicate detection across thousands of students
+            const cleanAdm = (s: any) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            const enrByAdm = new Map<string, StudentEnrollment>();
+            const enrByAssess = new Map<string, StudentEnrollment>();
+            currentEnrollmentsList.forEach(e => {
+                if (e.admissionNumber) enrByAdm.set(cleanAdm(e.admissionNumber), e);
+                const ea = e.assessmentNo || e.metadata?.assessmentNo;
+                if (ea) enrByAssess.set(cleanAdm(ea), e);
+            });
+            const userById = new Map<string, User>();
+            const userByAdm = new Map<string, User>();
+            const userByEmail = new Map<string, User>();
+            currentUsersList.forEach(u => {
+                if (u.id) userById.set(u.id, u);
+                if (u.metadata?.enrollmentDeleted !== true) {
+                    const uAdm = u.admissionNumber || (u as any).admission_number || (u as any).admNo || u.metadata?.admissionNumber || u.metadata?.admNo;
+                    if (uAdm) userByAdm.set(cleanAdm(uAdm), u);
+                    if (u.email && u.role === 'student') userByEmail.set(u.email.toLowerCase(), u);
+                }
+            });
+
+            const batchSize = 75;
+            const nowIso = new Date().toISOString();
+            const currentYrStr = String(new Date().getFullYear());
+
             for (let i = 0; i < data.length; i += batchSize) {
                 const batch = data.slice(i, i + batchSize);
-                await Promise.all(batch.map(async (item) => {
+                const usersToUpsert: User[] = [];
+                const enrollmentsToUpsert: StudentEnrollment[] = [];
+                const newlyAddedEnrollmentsInBatch: StudentEnrollment[] = [];
+
+                for (let bIdx = 0; bIdx < batch.length; bIdx++) {
+                    const item = batch[bIdx];
                     try {
                         let userId = '';
-                        const cleanAdm = (s: any) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
                         const inputName = (item.name || item.studentName || item.fullName || item.learnerName || item.student_name || item.names || '').toString().trim();
                         const inputAdmNo = item.admissionNumber ? String(item.admissionNumber).trim() : '';
                         const inputAssessNo = (item.assessmentNo || item.assessmentNumber || item.assessment_no || item.knecAssessmentNo || item.upi || item.nemba || '').toString().trim();
                         const inputEmail = item.email ? String(item.email).trim().toLowerCase() : '';
-                        
-                        // 1. Check if an enrollment already exists strictly by Admission Number or Assessment Number within this institution
-                        let existingEnrollment: StudentEnrollment | undefined = undefined;
-                        if (inputAdmNo) {
-                            existingEnrollment = currentEnrollmentsList.find(e => 
-                                e.admissionNumber && cleanAdm(e.admissionNumber) === cleanAdm(inputAdmNo)
-                            );
-                        }
-                        if (!existingEnrollment && inputAssessNo) {
-                            existingEnrollment = currentEnrollmentsList.find(e => {
-                                const enrAssess = e.assessmentNo || e.metadata?.assessmentNo;
-                                return enrAssess && cleanAdm(enrAssess) === cleanAdm(inputAssessNo);
-                            });
-                        }
-
-                        let existingUser: User | undefined = undefined;
-
-                        if (existingEnrollment) {
-                            userId = existingEnrollment.userId;
-                            existingUser = currentUsersList.find(u => u.id === userId);
-                            if (!existingUser && userId) {
-                                try {
-                                    const dbUsers = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
-                                        filter: { id: userId }
-                                    });
-                                    if (dbUsers && dbUsers.length > 0) {
-                                        existingUser = dbUsers[0];
-                                    }
-                                } catch (_) {}
-                            }
-                        }
-
-                        // Also check existing student users by admission number even if enrollment was not linked yet
                         const cleanInputAdm = inputAdmNo ? cleanAdm(inputAdmNo) : '';
                         const cleanInputAssess = inputAssessNo ? cleanAdm(inputAssessNo) : '';
-                        if (!existingUser && cleanInputAdm) {
-                            existingUser = currentUsersList.find(u => {
-                                const uAdm = u.admissionNumber || (u as any).admission_number || (u as any).admNo || u.metadata?.admissionNumber || u.metadata?.admNo;
-                                return uAdm && cleanAdm(uAdm) === cleanInputAdm && u.metadata?.enrollmentDeleted !== true;
-                            });
-                        }
 
-                        // 2. Only match by unique student email if explicit and not a dummy/fallback domain
+                        let existingEnrollment: StudentEnrollment | undefined = undefined;
+                        if (cleanInputAdm) existingEnrollment = enrByAdm.get(cleanInputAdm);
+                        if (!existingEnrollment && cleanInputAssess) existingEnrollment = enrByAssess.get(cleanInputAssess);
+
+                        let existingUser: User | undefined = undefined;
+                        if (existingEnrollment?.userId) {
+                            existingUser = userById.get(existingEnrollment.userId);
+                        } else if (cleanInputAdm) {
+                            existingUser = userByAdm.get(cleanInputAdm);
+                        }
                         if (!existingUser && inputEmail && !inputEmail.includes('@eduai.local') && !inputEmail.includes('student_')) {
-                            existingUser = currentUsersList.find(u => 
-                                u.email && u.email.toLowerCase() === inputEmail && u.role === 'student'
-                            );
+                            existingUser = userByEmail.get(inputEmail);
                         }
 
-                        // 3. Skip Existing mode: detect existing students (or duplicate rows in same Excel) and import ONLY new students
                         const isDuplicateInSameUpload =
                             (cleanInputAdm && claimedAdmInUpload.has(cleanInputAdm)) ||
                             (cleanInputAssess && claimedAssessInUpload.has(cleanInputAssess));
                         if (selectedDuplicateMode === 'new_only' && (existingEnrollment || existingUser || isDuplicateInSameUpload)) {
                             skippedExistingCount++;
-                            return;
+                            continue;
                         }
                         if (cleanInputAdm) claimedAdmInUpload.add(cleanInputAdm);
                         if (cleanInputAssess) claimedAssessInUpload.add(cleanInputAssess);
 
                         const dobImportVal = item.dateOfBirth ? String(item.dateOfBirth).trim() : (item.dob ? String(item.dob).trim() : (item.birthDate ? String(item.birthDate).trim() : ''));
-
-                        // Determine the definitive student name
                         const hasValidInputName = inputName && !isNameUnknown(inputName);
                         let finalName = '';
                         if (hasValidInputName) {
@@ -2955,78 +2948,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         const rowImportYearRaw = String(item.academicYear || item.year || item.admissionYear || item.enrollmentYear || selectedDefaultYear || existingEnrollment?.metadata?.academicYear || '').trim();
                         const rowMatchedYear = rowImportYearRaw.match(/\b(19\d{2}|20\d{2})\b/)?.[1] || '';
 
-                        if (existingUser) {
-                            userId = existingUser.id;
-                            const finalDob = dobImportVal || existingUser.dateOfBirth || existingUser.metadata?.dateOfBirth || '';
-                            const updatedUser: User = {
-                                ...existingUser,
-                                name: (hasValidInputName || isNameUnknown(existingUser.name)) ? finalName : existingUser.name,
-                                gender: (item.gender || existingUser.gender) as any,
-                                dateOfBirth: finalDob,
-                                dob: finalDob,
-                                metadata: {
-                                    ...(existingUser.metadata || {}),
-                                    studentName: (hasValidInputName || isNameUnknown(existingUser.name)) ? finalName : (existingUser.metadata?.studentName || existingUser.name),
-                                    dateOfBirth: finalDob,
-                                    dob: finalDob,
-                                    ...(rowMatchedYear ? { academicYear: rowMatchedYear, admissionYear: rowMatchedYear } : {})
-                                }
-                            };
-                            if (updatedUser.institutionId !== currentInstitution.id) {
-                                updatedUser.institutionId = currentInstitution.id;
-                            }
-                            await apiService.updateModuleRecord('users', existingUser.id, updatedUser);
-                            const userIdx = currentUsersList.findIndex(u => u.id === existingUser!.id);
-                            if (userIdx !== -1) currentUsersList[userIdx] = updatedUser;
-                        } else {
-                            // Create a distinct, new student user profile
-                            const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-                            const generatedEmail = inputEmail || `student_${newUserId}@eduai.local`;
-                            
-                            const newUser: User = {
-                                id: newUserId,
-                                name: finalName,
-                                email: generatedEmail,
-                                phoneNumber: item.phoneNumber ? String(item.phoneNumber).trim() : '',
-                                dateOfBirth: dobImportVal,
-                                dob: dobImportVal,
-                                role: 'student',
-                                institutionId: currentInstitution.id,
-                                createdAt: new Date().toISOString(),
-                                metadata: {
-                                    studentName: finalName,
-                                    dateOfBirth: dobImportVal,
-                                    dob: dobImportVal,
-                                    ...(rowMatchedYear ? { academicYear: rowMatchedYear, admissionYear: rowMatchedYear } : {})
-                                }
-                            };
-                            if (item.gender) {
-                                newUser.gender = String(item.gender).trim() as any;
-                            }
-                            await apiService.registerUser(newUser, currentInstitution.name);
-                            userId = newUserId;
-                            currentUsersList.push(newUser);
-                        }
-
-                        if (!existingEnrollment && inputAdmNo) {
-                            existingEnrollment = currentEnrollmentsList.find(e => 
-                                e.admissionNumber && cleanAdm(e.admissionNumber) === cleanAdm(inputAdmNo)
-                            );
-                        }
-                        if (!existingEnrollment && inputAssessNo) {
-                            existingEnrollment = currentEnrollmentsList.find(e => {
-                                const enrAssess = e.assessmentNo || e.metadata?.assessmentNo;
-                                return enrAssess && cleanAdm(enrAssess) === cleanAdm(inputAssessNo);
-                            });
-                        }
-
                         const admissionNumberValue = inputAdmNo || (existingEnrollment?.admissionNumber || `ADM-${Math.floor(1000 + Math.random() * 9000)}`);
- 
+                        const finalGrade = item.gradeLevel || importGradeLevel || existingEnrollment?.metadata?.gradeLevel || '';
+                        const finalStream = item.stream || importStream || existingEnrollment?.metadata?.stream || '';
+
                         const parentNameVal = item.parentName || existingEnrollment?.metadata?.parentName || '';
                         const parentPhoneVal = item.parentPhone || existingEnrollment?.metadata?.parentPhone || '';
                         const parentEmailVal = item.parentEmail || existingEnrollment?.metadata?.parentEmail || '';
                         const parentRelationVal = item.parentRelation || existingEnrollment?.metadata?.parentRelation || 'Parent';
-                        
+
                         let importedParents = existingEnrollment?.metadata?.parents || [];
                         if (!Array.isArray(importedParents) || importedParents.length === 0) {
                             if (parentNameVal || parentPhoneVal) {
@@ -3045,22 +2975,21 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         const assessmentNoVal = inputAssessNo || existingEnrollment?.assessmentNo || existingEnrollment?.metadata?.assessmentNo || (existingEnrollment as any)?.assessmentNo || '';
                         const resolvedEnrollmentDob = dobImportVal || existingEnrollment?.dateOfBirth || existingEnrollment?.metadata?.dateOfBirth || '';
                         const leadershipImportVal = item.leadershipPosition || item.leadership_position || item.leadershipRole || item.leadership_role || item.position || item.prefectRole || item.leadership || existingEnrollment?.leadershipPosition || existingEnrollment?.metadata?.leadershipPosition || '';
-                        const rawImportYear = String(item.academicYear || item.year || item.admissionYear || item.enrollmentYear || selectedDefaultYear || existingEnrollment?.metadata?.academicYear || '').trim();
-                        const matchedYear = rawImportYear.match(/\b(19\d{2}|20\d{2})\b/)?.[1] || '';
-                        const currentYrStr = String(new Date().getFullYear());
+                        const matchedYear = rowMatchedYear;
                         const resolvedEnrollmentDate = matchedYear
-                            ? (matchedYear !== currentYrStr ? `${matchedYear}-01-10` : (existingEnrollment?.enrollmentDate || new Date().toISOString().split('T')[0]))
-                            : (existingEnrollment?.enrollmentDate || new Date().toISOString().split('T')[0]);
+                            ? (matchedYear !== currentYrStr ? `${matchedYear}-01-10` : (existingEnrollment?.enrollmentDate || nowIso.split('T')[0]))
+                            : (existingEnrollment?.enrollmentDate || nowIso.split('T')[0]);
 
-                        const metadataObj = {
+                        const metadataObj: any = {
                             ...(existingEnrollment?.metadata || {}),
                             studentName: finalName,
                             name: finalName,
                             fullName: finalName,
+                            admissionNumber: admissionNumberValue,
                             gender: item.gender || existingEnrollment?.metadata?.gender || '',
                             licenseCategory: item.licenseCategory || existingEnrollment?.metadata?.licenseCategory || '',
-                            gradeLevel: item.gradeLevel || importGradeLevel || existingEnrollment?.metadata?.gradeLevel || '',
-                            stream: item.stream || importStream || existingEnrollment?.metadata?.stream || '',
+                            gradeLevel: finalGrade,
+                            stream: finalStream,
                             ...(matchedYear ? { academicYear: matchedYear, enrollmentYear: matchedYear, admissionYear: matchedYear } : {}),
                             leadershipPosition: leadershipImportVal,
                             assessmentNo: assessmentNoVal,
@@ -3074,23 +3003,74 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             parents: importedParents
                         };
 
-                        const finalGrade = item.gradeLevel || importGradeLevel || existingEnrollment?.metadata?.gradeLevel || '';
-                        const finalStream = item.stream || importStream || existingEnrollment?.metadata?.stream || '';
-
                         const { courseId: impCourseId, classId: impClassId } = resolveStudentCourseAndClassId(
-                            {
-                                gradeLevel: finalGrade,
-                                stream: finalStream,
-                                metadata: metadataObj
-                            },
+                            { gradeLevel: finalGrade, stream: finalStream, metadata: metadataObj },
                             courses
                         );
                         if (impCourseId) metadataObj.courseId = impCourseId;
                         if (impClassId) metadataObj.classId = impClassId;
-                        const userRecordToUpdate = currentUsersList.find(u => u.id === userId);
-                        if (userRecordToUpdate) {
-                            if (impCourseId && !(userRecordToUpdate as any).courseId) (userRecordToUpdate as any).courseId = impCourseId;
-                            if (impClassId && !(userRecordToUpdate as any).courseLevelId) (userRecordToUpdate as any).courseLevelId = impClassId;
+
+                        if (existingUser) {
+                            userId = existingUser.id;
+                            const finalDob = dobImportVal || existingUser.dateOfBirth || existingUser.metadata?.dateOfBirth || '';
+                            const updatedUser: User = {
+                                ...existingUser,
+                                name: (hasValidInputName || isNameUnknown(existingUser.name)) ? finalName : existingUser.name,
+                                gender: (item.gender || existingUser.gender) as any,
+                                dateOfBirth: finalDob,
+                                dob: finalDob,
+                                institutionId: currentInstitution.id,
+                                metadata: {
+                                    ...(existingUser.metadata || {}),
+                                    studentName: (hasValidInputName || isNameUnknown(existingUser.name)) ? finalName : (existingUser.metadata?.studentName || existingUser.name),
+                                    admissionNumber: admissionNumberValue,
+                                    gradeLevel: finalGrade || existingUser.metadata?.gradeLevel || '',
+                                    stream: finalStream || existingUser.metadata?.stream || '',
+                                    dateOfBirth: finalDob,
+                                    dob: finalDob,
+                                    ...(rowMatchedYear ? { academicYear: rowMatchedYear, admissionYear: rowMatchedYear } : {})
+                                }
+                            };
+                            (updatedUser as any).institution_id = currentInstitution.id;
+                            (updatedUser as any).admissionNumber = admissionNumberValue;
+                            (updatedUser as any).admission_number = admissionNumberValue;
+                            if (impCourseId && !(updatedUser as any).courseId) (updatedUser as any).courseId = impCourseId;
+                            if (impClassId && !(updatedUser as any).courseLevelId) (updatedUser as any).courseLevelId = impClassId;
+                            usersToUpsert.push(updatedUser);
+                            userById.set(updatedUser.id, updatedUser);
+                        } else {
+                            const newUserId = `usr_${Date.now()}_${i + bIdx}_${Math.random().toString(36).substr(2, 5)}`;
+                            const generatedEmail = inputEmail || `student_${newUserId}@eduai.local`;
+                            const newUser: User = {
+                                id: newUserId,
+                                name: finalName,
+                                email: generatedEmail,
+                                phoneNumber: item.phoneNumber ? String(item.phoneNumber).trim() : '',
+                                dateOfBirth: dobImportVal,
+                                dob: dobImportVal,
+                                role: 'student',
+                                institutionId: currentInstitution.id,
+                                createdAt: nowIso,
+                                metadata: {
+                                    studentName: finalName,
+                                    admissionNumber: admissionNumberValue,
+                                    gradeLevel: finalGrade,
+                                    stream: finalStream,
+                                    dateOfBirth: dobImportVal,
+                                    dob: dobImportVal,
+                                    ...(rowMatchedYear ? { academicYear: rowMatchedYear, admissionYear: rowMatchedYear } : {})
+                                }
+                            };
+                            if (item.gender) newUser.gender = String(item.gender).trim() as any;
+                            (newUser as any).institution_id = currentInstitution.id;
+                            (newUser as any).admissionNumber = admissionNumberValue;
+                            (newUser as any).admission_number = admissionNumberValue;
+                            if (impCourseId) (newUser as any).courseId = impCourseId;
+                            if (impClassId) (newUser as any).courseLevelId = impClassId;
+                            userId = newUserId;
+                            usersToUpsert.push(newUser);
+                            userById.set(newUserId, newUser);
+                            if (cleanInputAdm) userByAdm.set(cleanInputAdm, newUser);
                         }
 
                         if (existingEnrollment) {
@@ -3106,17 +3086,20 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 ...(matchedYear ? { enrollmentDate: resolvedEnrollmentDate } : {}),
                                 ...(selectedDefaultStatus ? { status: selectedDefaultStatus } : {}),
                                 metadata: metadataObj,
-                                updatedAt: new Date().toISOString()
+                                updatedAt: nowIso
                             };
+                            (updated as any).institution_id = currentInstitution.id;
+                            (updated as any).user_id = userId;
                             (updated as any).studentName = finalName;
                             (updated as any).name = finalName;
+                            (updated as any).admission_number = admissionNumberValue;
                             (updated as any).course_id = impCourseId || (existingEnrollment as any).course_id || undefined;
                             (updated as any).class_id = impClassId || (existingEnrollment as any).class_id || undefined;
                             if (matchedYear) (updated as any).enrollment_date = resolvedEnrollmentDate;
-                            await apiService.updateModuleRecord('student_enrollments', existingEnrollment.id, updated);
+                            enrollmentsToUpsert.push(updated);
                             updatedCount++;
                         } else {
-                            const enrollmentId = `enr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+                            const enrollmentId = `enr_${Date.now()}_${i + bIdx}_${Math.random().toString(36).substr(2, 5)}`;
                             const newEnrollment: StudentEnrollment = {
                                 id: enrollmentId,
                                 institutionId: currentInstitution.id,
@@ -3132,23 +3115,45 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 status: (selectedDefaultStatus || (requireStudentApproval ? 'Enrolled' : 'Active')) as any,
                                 enrollmentDate: resolvedEnrollmentDate,
                                 metadata: metadataObj,
-                                createdAt: new Date().toISOString()
+                                createdAt: nowIso
                             };
+                            (newEnrollment as any).institution_id = currentInstitution.id;
+                            (newEnrollment as any).user_id = userId;
                             (newEnrollment as any).studentName = finalName;
                             (newEnrollment as any).name = finalName;
+                            (newEnrollment as any).admission_number = admissionNumberValue;
+                            (newEnrollment as any).enrollment_type = context;
                             (newEnrollment as any).course_id = impCourseId || undefined;
                             (newEnrollment as any).class_id = impClassId || undefined;
                             (newEnrollment as any).enrollment_date = resolvedEnrollmentDate;
-                            await apiService.saveModuleRecord('student_enrollments', newEnrollment);
-                            currentEnrollmentsList.push(newEnrollment);
+                            enrollmentsToUpsert.push(newEnrollment);
+                            newlyAddedEnrollmentsInBatch.push(newEnrollment);
+                            if (cleanInputAdm) enrByAdm.set(cleanInputAdm, newEnrollment);
+                            if (cleanInputAssess) enrByAssess.set(cleanInputAssess, newEnrollment);
                             newImportedCount++;
                         }
-
                         successCount++;
-                    } catch (err: any) {
-                        console.error(`Failed to ingest student row ${item.name}:`, err);
+                    } catch (rowErr: any) {
+                        console.error(`Failed preparing student row ${item?.name}:`, rowErr);
                     }
-                }));
+                }
+
+                // Bulk save this chunk in 2 fast HTTP requests instead of 150 individual calls
+                if (usersToUpsert.length > 0) {
+                    await apiService.saveModuleRecord('users', usersToUpsert);
+                }
+                if (enrollmentsToUpsert.length > 0) {
+                    await apiService.saveModuleRecord('student_enrollments', enrollmentsToUpsert);
+                }
+                if (newlyAddedEnrollmentsInBatch.length > 0) {
+                    setEnrollments(prev => [...newlyAddedEnrollmentsInBatch, ...prev]);
+                }
+
+                const processedSoFar = Math.min(i + batchSize, data.length);
+                setStatusMsg({
+                    type: 'info',
+                    message: `Importing students: ${processedSoFar.toLocaleString()} / ${data.length.toLocaleString()} (Added ${newImportedCount.toLocaleString()}, Skipped ${skippedExistingCount.toLocaleString()})...`
+                });
             }
 
             const summaryParts: string[] = [];
