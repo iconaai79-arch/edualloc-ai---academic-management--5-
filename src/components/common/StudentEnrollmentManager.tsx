@@ -7133,6 +7133,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     }}
                     title={importMode === 'update_secondary_phone' ? 'Update Contacts, Grade Level & Class Stream from Excel' : undefined}
                     description={importMode === 'update_secondary_phone' ? 'Map Admission Number (or Student Full Name) plus Primary Phone, Secondary Phone, Parent Name, Grade Level, and/or Class Stream. Matched student records will be updated.' : undefined}
+                    existingAdmissionNumbers={activeTab === 'students' && importMode !== 'update_secondary_phone' ? enrollments.map(e => String(e.admissionNumber || '')).filter(Boolean) : undefined}
+                    skipExistingMode={importDuplicateMode === 'new_only'}
                 >
                     {activeTab === 'students' && context === 'academic' && (
                         <div className="bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 mt-6 space-y-4">
