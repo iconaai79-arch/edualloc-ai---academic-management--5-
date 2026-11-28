@@ -53,6 +53,8 @@ export interface ReconciledFeeItem {
     paymentMethod: 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque' | 'Bursary' | 'Direct Deposit';
     voteHeadAllocations: VoteHeadAllocationItem[];
     voteHeadSummary: string;
+    isExistingPayment?: boolean;
+    existingMatchReason?: string;
     rawRowData: Record<string, any>;
 }
 
@@ -156,7 +158,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     // Reconciled rows
     const [reconciledItems, setReconciledItems] = useState<ReconciledFeeItem[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterStatus, setFilterStatus] = useState<'all' | 'matched' | 'unmatched'>('all');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'new' | 'existing' | 'matched' | 'unmatched'>('all');
     const [excelPage, setExcelPage] = useState(1);
     const PAGE_SIZE = 25;
     
@@ -167,6 +169,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     // Processing state
     const [isProcessingBulk, setIsProcessingBulk] = useState(false);
     const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+    const [skipExisting, setSkipExisting] = useState(true);
     const [overrideExisting, setOverrideExisting] = useState(false);
     const [successSummary, setSuccessSummary] = useState<string | null>(null);
 
@@ -826,6 +829,32 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         const todayIso = new Date().toISOString().split('T')[0];
         const CHUNK_SIZE = 300;
 
+        // Build mutable O(1) multiset counts of existing receipts scoped by studentId
+        // so shared bursary refs across different students are never flagged and double payments on the same day match 1-to-1
+        const rcptNoCounts = new Map<string, number>();
+        const refAmtCounts = new Map<string, number>();
+        const dateAmtCounts = new Map<string, number>();
+        const incCount = (map: Map<string, number>, key: string) => map.set(key, (map.get(key) || 0) + 1);
+        const consumeCount = (map: Map<string, number>, key: string): boolean => {
+            const cur = map.get(key) || 0;
+            if (cur <= 0) return false;
+            map.set(key, cur - 1);
+            return true;
+        };
+
+        (receipts || []).forEach((r: any) => {
+            if (!r) return;
+            const sId = String(r.studentId || r.student_id || '').trim();
+            if (!sId) return;
+            const amt = Math.round(Number(r.amountPaid ?? r.amount_paid ?? r.amount ?? 0));
+            const rNo = String(r.receiptNumber || r.receipt_number || '').trim().toLowerCase();
+            const rRef = String(r.relatedTransactionId || r.related_transaction_id || r.reference || '').trim().toLowerCase();
+            const rDate = String(r.paymentDate || r.payment_date || '').trim().slice(0, 10);
+            if (rNo) incCount(rcptNoCounts, `${sId}::${rNo}`);
+            if (rRef && !/^ref-/i.test(rRef) && amt > 0) incCount(refAmtCounts, `${sId}::${rRef}::${amt}`);
+            if (rDate && amt > 0) incCount(dateAmtCounts, `${sId}::${rDate}::${amt}`);
+        });
+
         for (let idx = 0; idx < rows.length; idx++) {
             const row = rows[idx];
             const rawAdm = mappings.admCol ? String(row[mappings.admCol] ?? '').trim() : '';
@@ -864,6 +893,34 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 } else if (noZeros && admMap.has(noZeros)) {
                     matchedStudent = admMap.get(noZeros)!;
                     matchConfidence = 'exact_adm';
+                }
+            }
+
+            // Detect whether this payment already exists in database (scoped strictly by matched studentId)
+            let isExistingPayment = false;
+            let existingMatchReason = '';
+            if (matchedStudent && rawAmount > 0) {
+                const sId = String(matchedStudent.id).trim();
+                const roundedAmt = Math.round(Number(rawAmount));
+                const rNoKey = (receiptSource === 'excel' && rawReceiptNo) ? `${sId}::${rawReceiptNo.toLowerCase()}` : '';
+                const refKey = (mappings.refCol && rawRef && !/^ref-/i.test(rawRef)) ? `${sId}::${rawRef.toLowerCase()}::${roundedAmt}` : '';
+                const dateKey = rawDate ? `${sId}::${String(rawDate).slice(0, 10)}::${roundedAmt}` : '';
+
+                if (rNoKey && consumeCount(rcptNoCounts, rNoKey)) {
+                    isExistingPayment = true;
+                    existingMatchReason = 'Same Receipt No';
+                    if (refKey) consumeCount(refAmtCounts, refKey);
+                    if (dateKey) consumeCount(dateAmtCounts, dateKey);
+                } else if (refKey && consumeCount(refAmtCounts, refKey)) {
+                    isExistingPayment = true;
+                    existingMatchReason = 'Same Ref & Amount';
+                    if (rNoKey) consumeCount(rcptNoCounts, rNoKey);
+                    if (dateKey) consumeCount(dateAmtCounts, dateKey);
+                } else if (dateKey && consumeCount(dateAmtCounts, dateKey)) {
+                    isExistingPayment = true;
+                    existingMatchReason = 'Same Date & Amount';
+                    if (rNoKey) consumeCount(rcptNoCounts, rNoKey);
+                    if (refKey) consumeCount(refAmtCounts, refKey);
                 }
             }
 
@@ -915,6 +972,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 paymentMethod,
                 voteHeadAllocations: allocations,
                 voteHeadSummary: summary,
+                isExistingPayment,
+                existingMatchReason,
                 rawRowData: row
             };
 
@@ -1084,6 +1143,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     // Filter & search reconciled items
     const filteredItems = useMemo(() => {
         return reconciledItems.filter(item => {
+            if (filterStatus === 'new' && (item.matchStatus !== 'matched' || item.isExistingPayment)) return false;
+            if (filterStatus === 'existing' && (!item.isExistingPayment || item.matchStatus !== 'matched')) return false;
             if (filterStatus === 'matched' && item.matchStatus !== 'matched') return false;
             if (filterStatus === 'unmatched' && item.matchStatus !== 'unmatched') return false;
             if (searchQuery.trim()) {
@@ -1099,22 +1160,56 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         });
     }, [reconciledItems, filterStatus, searchQuery]);
 
-    // Statistics overview
+    // Statistics overview (single O(N) pass)
     const stats = useMemo(() => {
+        let matchedCount = 0;
+        let existingCount = 0;
+        let newMatchedCount = 0;
+        let totalAmount = 0;
+        let toPostAmount = 0;
+        const matchedStudentCounts = new Map<string, number>();
+        const toPostStudents = new Set<string>();
+
+        for (let i = 0; i < reconciledItems.length; i++) {
+            const item = reconciledItems[i];
+            if (item.matchStatus === 'matched') {
+                matchedCount++;
+                totalAmount += item.rawAmount;
+                if (item.isExistingPayment) {
+                    existingCount++;
+                } else {
+                    newMatchedCount++;
+                }
+                if (item.matchedStudentId) {
+                    matchedStudentCounts.set(item.matchedStudentId, (matchedStudentCounts.get(item.matchedStudentId) || 0) + 1);
+                }
+                if (!skipExisting || !item.isExistingPayment) {
+                    toPostAmount += item.rawAmount;
+                    if (item.matchedStudentId) toPostStudents.add(item.matchedStudentId);
+                }
+            }
+        }
+
         const totalRows = reconciledItems.length;
-        const matchedCount = reconciledItems.filter(i => i.matchStatus === 'matched').length;
         const unmatchedCount = totalRows - matchedCount;
-        const totalAmount = reconciledItems
-            .filter(i => i.matchStatus === 'matched')
-            .reduce((sum, i) => sum + i.rawAmount, 0);
+        const toPostCount = skipExisting ? newMatchedCount : matchedCount;
+        let multipleTxCount = 0;
+        matchedStudentCounts.forEach(c => { if (c > 1) multipleTxCount++; });
 
-        const uniqueMatchedStudents = new Set(reconciledItems.filter(i => i.matchStatus === 'matched' && i.matchedStudentId).map(i => i.matchedStudentId));
-        const multipleTxCount = Array.from(uniqueMatchedStudents).filter(sId => {
-            return reconciledItems.filter(i => i.matchStatus === 'matched' && i.matchedStudentId === sId).length > 1;
-        }).length;
-
-        return { totalRows, matchedCount, unmatchedCount, totalAmount, uniqueMatchedStudentsCount: uniqueMatchedStudents.size, multipleTxCount };
-    }, [reconciledItems]);
+        return {
+            totalRows,
+            matchedCount,
+            unmatchedCount,
+            existingCount,
+            newMatchedCount,
+            toPostCount,
+            totalAmount,
+            toPostAmount,
+            uniqueMatchedStudentsCount: matchedStudentCounts.size,
+            uniqueToPostStudentsCount: toPostStudents.size,
+            multipleTxCount
+        };
+    }, [reconciledItems, skipExisting]);
 
     // Group reconciled items per student (shows exact count of raw Excel transactions per student)
     const groupedStudents = useMemo(() => {
@@ -1267,9 +1362,20 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
     // Ultra-Fast Bulk Array Posting (100 receipts/POST, O(1) lookups, zero per-row parent re-renders)
     const handleConfirmPostBulk = async () => {
-        const readyItems = reconciledItems.filter(i => i.matchStatus === 'matched' && i.rawAmount > 0);
+        const skippedExistingCount = skipExisting
+            ? reconciledItems.filter(i => i.matchStatus === 'matched' && i.rawAmount > 0 && i.isExistingPayment).length
+            : 0;
+        const readyItems = reconciledItems.filter(i =>
+            i.matchStatus === 'matched' &&
+            i.rawAmount > 0 &&
+            (!skipExisting || !i.isExistingPayment)
+        );
         if (readyItems.length === 0) {
-            alert("No matched payment rows with positive amounts to post.");
+            alert(
+                skippedExistingCount > 0
+                    ? `All ${skippedExistingCount} matched payments in this file already exist in the system (skipped). Zero new payments to post.`
+                    : "No matched payment rows with positive amounts to post."
+            );
             return;
         }
 
@@ -1540,7 +1646,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 groups: auditGroups
             });
 
-            setSuccessSummary(`Successfully posted ${postedCount} receipts totaling KES ${totalVal.toLocaleString()} into ${selectedAccount?.accountName || 'Bank'}!${sendSmsNotification ? ' Notifications are dispatching in the background.' : ''}`);
+            setSuccessSummary(`Successfully posted ${postedCount} new receipt(s) totaling KES ${totalVal.toLocaleString()} into ${selectedAccount?.accountName || 'Bank'}!${skippedExistingCount > 0 ? ` Skipped ${skippedExistingCount} already existing payment(s).` : ''}${sendSmsNotification ? ' Notifications are dispatching in the background.' : ''}`);
         } catch (err: any) {
             console.error("Bulk post error:", err);
             alert("Error during bulk posting: " + err.message);
@@ -2129,19 +2235,27 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                         </div>
 
                                         {/* Status Filter */}
-                                        <div className="flex items-center gap-1">
-                                            {(['all', 'matched', 'unmatched'] as const).map(st => (
+                                        <div className="flex items-center gap-1 flex-wrap">
+                                            {(['all', 'new', 'existing', 'unmatched'] as const).map(st => (
                                                 <button
                                                     key={st}
                                                     type="button"
                                                     onClick={() => setFilterStatus(st)}
                                                     className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                                                         filterStatus === st
-                                                            ? 'bg-indigo-600 text-white shadow-xs'
-                                                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                                                            ? (st === 'existing' ? 'bg-amber-600 text-white shadow-xs' : st === 'new' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-indigo-600 text-white shadow-xs')
+                                                            : (st === 'existing' && stats.existingCount > 0
+                                                                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                                                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700')
                                                     }`}
                                                 >
-                                                    {st} {st === 'unmatched' && stats.unmatchedCount > 0 ? `(${stats.unmatchedCount})` : ''}
+                                                    {st === 'new'
+                                                        ? `New (${stats.newMatchedCount})`
+                                                        : st === 'existing'
+                                                        ? `Existing (${stats.existingCount})`
+                                                        : st === 'unmatched'
+                                                        ? `Unmatched${stats.unmatchedCount > 0 ? ` (${stats.unmatchedCount})` : ''}`
+                                                        : `All (${stats.totalRows})`}
                                                 </button>
                                             ))}
                                         </div>
@@ -2269,7 +2383,9 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                                 <tr 
                                                                     key={item.id}
                                                                     className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors ${
-                                                                        item.matchStatus === 'unmatched' ? 'bg-amber-50/20 dark:bg-amber-950/10' : ''
+                                                                        item.matchStatus === 'unmatched'
+                                                                            ? 'bg-amber-50/20 dark:bg-amber-950/10'
+                                                                            : (skipExisting && item.isExistingPayment ? 'bg-slate-50/80 dark:bg-slate-800/40 opacity-65' : '')
                                                                     }`}
                                                                 >
                                                                     <td className="px-3 py-2.5 text-center text-slate-400 font-mono text-[11px]">
@@ -2279,7 +2395,12 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                                         {item.rawAdm || <span className="text-slate-400 italic">—</span>}
                                                                     </td>
                                                                     <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300 font-medium">
-                                                                        {item.rawName || <span className="text-slate-400 italic">—</span>}
+                                                                        <span>{item.rawName || <span className="text-slate-400 italic">—</span>}</span>
+                                                                        {item.isExistingPayment && (
+                                                                            <span className="ml-1.5 inline-block px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-[9px] font-black uppercase tracking-wider">
+                                                                                {skipExisting ? 'Skip (Exists)' : 'Exists'} • {item.existingMatchReason}
+                                                                            </span>
+                                                                        )}
                                                                     </td>
                                                                     <td className="px-4 py-2.5 text-right font-mono font-black text-slate-900 dark:text-white">
                                                                         KES {item.rawAmount.toLocaleString()}
@@ -2615,12 +2736,36 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
                                 {/* Bottom Options & Confirmation Action Bar */}
                                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                                    <div className="flex items-center gap-4 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                    <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                        <label className="flex items-center gap-2 cursor-pointer select-none px-3 py-1.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-200 font-bold">
+                                            <input
+                                                type="checkbox"
+                                                checked={skipExisting}
+                                                onChange={(e) => {
+                                                    const checked = e.target.checked;
+                                                    setSkipExisting(checked);
+                                                    if (checked) setOverrideExisting(false);
+                                                }}
+                                                className="w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer"
+                                            />
+                                            <span>
+                                                Skip Existing Payments (Import New Only)
+                                                {stats.existingCount > 0 && (
+                                                    <span className="ml-1.5 text-amber-700 dark:text-amber-300 font-black">
+                                                        ({stats.existingCount} existing)
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </label>
                                         <label className="flex items-center gap-2 cursor-pointer select-none">
                                             <input
                                                 type="checkbox"
                                                 checked={overrideExisting}
-                                                onChange={(e) => setOverrideExisting(e.target.checked)}
+                                                onChange={(e) => {
+                                                    const checked = e.target.checked;
+                                                    setOverrideExisting(checked);
+                                                    if (checked) setSkipExisting(false);
+                                                }}
                                                 className="w-4 h-4 rounded text-indigo-600 accent-indigo-600 cursor-pointer"
                                             />
                                             <span>Update if Ref/Receipt exists</span>
@@ -2639,7 +2784,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                         <button
                                             type="button"
                                             onClick={handleConfirmPostBulk}
-                                            disabled={isProcessingBulk || stats.matchedCount === 0}
+                                            disabled={isProcessingBulk || stats.toPostCount === 0}
                                             className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
                                         >
                                             {isProcessingBulk ? (
@@ -2650,7 +2795,9 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                             ) : (
                                                 <>
                                                     <CheckBadgeIcon className="w-4 h-4" />
-                                                    <span>Confirm &amp; Post {stats.matchedCount} Payments ({stats.uniqueMatchedStudentsCount} Students)</span>
+                                                    <span>
+                                                        Confirm &amp; Post {stats.toPostCount} {skipExisting ? 'New ' : ''}Payments ({stats.uniqueToPostStudentsCount} Students)
+                                                    </span>
                                                 </>
                                             )}
                                         </button>
